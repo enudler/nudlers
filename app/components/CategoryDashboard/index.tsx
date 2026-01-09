@@ -8,13 +8,23 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import TuneIcon from '@mui/icons-material/Tune';
+import SavingsIcon from '@mui/icons-material/Savings';
+import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
 import TextField from '@mui/material/TextField';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import { ResponseData, Expense, ModalData } from './types';
 import { useCategoryIcons, useCategoryColors } from './utils/categoryUtils';
 import Card from './components/Card';
 import ExpensesModal from './components/ExpensesModal';
 import TransactionsTable from './components/TransactionsTable';
 import { useScreenContext } from '../Layout';
+import { useNotification } from '../NotificationContext';
 
 // Budget info type
 interface BudgetInfo {
@@ -157,6 +167,15 @@ const CategoryDashboard: React.FC = () => {
   const [customStartDate, setCustomStartDate] = React.useState<string>('');
   const [customEndDate, setCustomEndDate] = React.useState<string>('');
   const [dateRangeError, setDateRangeError] = React.useState<string>('');
+  
+  // Budget modal state
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = React.useState(false);
+  const [budgetModalCategory, setBudgetModalCategory] = React.useState<string>('');
+  const [budgetModalLimit, setBudgetModalLimit] = React.useState<string>('');
+  const [isEditingBudget, setIsEditingBudget] = React.useState(false);
+  const [savingBudget, setSavingBudget] = React.useState(false);
+  
+  const { showNotification } = useNotification();
 
   // Use refs to store current values for the event listener
   const currentYearRef = React.useRef(selectedYear);
@@ -781,6 +800,71 @@ const CategoryDashboard: React.FC = () => {
     }
   };
 
+  // Budget modal handlers
+  const handleSetBudget = (category: string) => {
+    setBudgetModalCategory(category);
+    setBudgetModalLimit('');
+    setIsEditingBudget(false);
+    setIsBudgetModalOpen(true);
+  };
+
+  const handleEditBudget = (category: string, currentLimit: number) => {
+    setBudgetModalCategory(category);
+    setBudgetModalLimit(currentLimit.toString());
+    setIsEditingBudget(true);
+    setIsBudgetModalOpen(true);
+  };
+
+  const handleCloseBudgetModal = () => {
+    setIsBudgetModalOpen(false);
+    setBudgetModalCategory('');
+    setBudgetModalLimit('');
+    setIsEditingBudget(false);
+  };
+
+  const handleSaveBudget = async () => {
+    if (!budgetModalLimit || parseFloat(budgetModalLimit) <= 0) {
+      showNotification('Please enter a valid budget limit', 'error');
+      return;
+    }
+
+    setSavingBudget(true);
+    try {
+      const response = await fetch('/api/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: budgetModalCategory,
+          budget_limit: parseFloat(budgetModalLimit)
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to save budget');
+
+      showNotification(
+        isEditingBudget ? 'Budget updated successfully' : 'Budget created successfully', 
+        'success'
+      );
+      handleCloseBudgetModal();
+
+      // Refresh budget data
+      if (dateRangeMode === 'custom') {
+        if (customStartDate && customEndDate) {
+          fetchBudgetData(customStartDate, customEndDate, undefined);
+        }
+      } else if (selectedYear && selectedMonth) {
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
+        fetchBudgetData(startDate, endDate, billingCycle);
+      }
+    } catch (error) {
+      console.error('Error saving budget:', error);
+      showNotification('Failed to save budget', 'error');
+    } finally {
+      setSavingBudget(false);
+    }
+  };
+
   return (
     <Box sx={{ 
       minHeight: '100vh',
@@ -1285,6 +1369,8 @@ const CategoryDashboard: React.FC = () => {
                 isLoading={loadingCategory === category.name}
                 size="medium"
                 budget={category.budget}
+                onSetBudget={handleSetBudget}
+                onEditBudget={handleEditBudget}
               />
             ))
           ) : (
@@ -1331,6 +1417,118 @@ const CategoryDashboard: React.FC = () => {
           currentMonth={`${selectedYear}-${selectedMonth}`}
         />
       )}
+
+      {/* Budget Modal */}
+      <Dialog 
+        open={isBudgetModalOpen} 
+        onClose={handleCloseBudgetModal}
+        PaperProps={{
+          style: {
+            borderRadius: '24px',
+            padding: '8px',
+            minWidth: '400px',
+            maxWidth: '90vw'
+          }
+        }}
+      >
+        <DialogTitle style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          fontWeight: 700
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <SavingsIcon style={{ color: '#fff', fontSize: '24px' }} />
+          </div>
+          {isEditingBudget ? 'Edit Budget' : 'Set Budget'}
+        </DialogTitle>
+        <DialogContent>
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <TextField
+              label="Category"
+              value={budgetModalCategory}
+              disabled
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px'
+                }
+              }}
+            />
+            <TextField
+              label="Monthly Budget Limit"
+              type="number"
+              value={budgetModalLimit}
+              onChange={(e) => setBudgetModalLimit(e.target.value)}
+              fullWidth
+              autoFocus
+              InputProps={{
+                startAdornment: <span style={{ color: '#64748b', marginRight: '8px' }}>₪</span>
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px'
+                }
+              }}
+            />
+            <div style={{ 
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)', 
+              padding: '16px', 
+              borderRadius: '12px',
+              border: '1px solid rgba(139, 92, 246, 0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <SavingsIcon style={{ color: '#8b5cf6', fontSize: '20px' }} />
+                <span style={{ fontWeight: 600, color: '#7c3aed' }}>Budget Info</span>
+              </div>
+              <ul style={{ 
+                margin: 0, 
+                paddingLeft: '20px', 
+                color: '#64748b', 
+                fontSize: '13px',
+                lineHeight: '1.6'
+              }}>
+                <li>This budget applies to <strong>every month</strong></li>
+                <li>Track your spending progress on the category card</li>
+                <li>View all budgets in the Budget screen</li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogActions style={{ padding: '16px 24px' }}>
+          <Button 
+            onClick={handleCloseBudgetModal}
+            startIcon={<CloseIcon />}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveBudget}
+            variant="contained"
+            disabled={savingBudget}
+            startIcon={savingBudget ? <CircularProgress size={16} /> : <SaveIcon />}
+            sx={{
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+              borderRadius: '12px',
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)'
+              }
+            }}
+          >
+            {savingBudget ? 'Saving...' : 'Save Budget'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -27,6 +27,8 @@ interface CardProps {
   secondaryColor?: string;
   secondaryLabel?: string;
   budget?: BudgetInfo;
+  onSetBudget?: (category: string) => void;
+  onEditBudget?: (category: string, currentLimit: number) => void;
 }
 
 // Mini burndown chart component
@@ -77,7 +79,9 @@ const Card: React.FC<CardProps> = ({
   secondaryValue,
   secondaryColor,
   secondaryLabel,
-  budget
+  budget,
+  onSetBudget,
+  onEditBudget
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -314,15 +318,87 @@ const Card: React.FC<CardProps> = ({
               </span>
             </div>
             
-            {/* Budget limit */}
-            <span style={{ 
-              color: '#94a3b8', 
-              fontSize: '11px',
-              fontWeight: 500
-            }}>
-              Budget: {formatCurrency(budget.budget_limit)}
-            </span>
+            {/* Budget limit with edit button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ 
+                color: '#94a3b8', 
+                fontSize: '11px',
+                fontWeight: 500
+              }}>
+                Budget: {formatCurrency(budget.budget_limit)}
+              </span>
+              {onEditBudget && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditBudget(title, budget.budget_limit);
+                  }}
+                  style={{
+                    background: 'rgba(139, 92, 246, 0.1)',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: '#8b5cf6',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.3)';
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Set Budget Button - show when no budget is set */}
+      {!budget && onSetBudget && (
+        <div style={{ marginTop: '12px', position: 'relative', zIndex: 1 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSetBudget(title);
+            }}
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)',
+              border: '1px dashed rgba(139, 92, 246, 0.4)',
+              borderRadius: '12px',
+              padding: '10px 16px',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#8b5cf6',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%)';
+              e.currentTarget.style.borderStyle = 'solid';
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)';
+              e.currentTarget.style.borderStyle = 'dashed';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <span>💰</span>
+            <span>Set Budget</span>
+          </button>
         </div>
       )}
     </div>
