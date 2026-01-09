@@ -38,7 +38,7 @@ Personal finance management application for tracking credit card expenses and ba
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - PostgreSQL 16+
 - Google Chrome (for scraping)
 
