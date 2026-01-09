@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
+import Fab from '@mui/material/Fab';
+import Drawer from '@mui/material/Drawer';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -10,6 +15,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StorageIcon from '@mui/icons-material/Storage';
+import CloseIcon from '@mui/icons-material/Close';
 
 interface Message {
   id: string;
@@ -52,6 +58,8 @@ const QUICK_PROMPTS = [
 ];
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -227,86 +235,30 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
     return <SmartToyIcon sx={{ fontSize: 16, color: 'white' }} />;
   };
 
-  return (
+  // Shared panel content
+  const renderPanelContent = () => (
     <>
-      {/* Collapsed Toggle Button */}
-      {!isOpen && (
-        <div
-          onClick={() => setIsOpen(true)}
-          style={{
-            position: 'fixed',
-            right: 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-            color: 'white',
-            padding: '16px 8px',
-            borderRadius: '12px 0 0 12px',
-            cursor: 'pointer',
-            boxShadow: '-4px 0 20px rgba(99, 102, 241, 0.3)',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 8,
-            transition: 'all 0.3s ease',
-            writingMode: 'vertical-rl',
-            textOrientation: 'mixed',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.paddingRight = '12px';
-            e.currentTarget.style.boxShadow = '-6px 0 30px rgba(99, 102, 241, 0.4)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.paddingRight = '8px';
-            e.currentTarget.style.boxShadow = '-4px 0 20px rgba(99, 102, 241, 0.3)';
-          }}
-        >
-          <AutoAwesomeIcon sx={{ fontSize: 20, transform: 'rotate(90deg)' }} />
-          <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: 1 }}>AI Assistant</span>
-          <ChevronLeftIcon sx={{ fontSize: 18, transform: 'rotate(0deg)' }} />
-        </div>
-      )}
-
-      {/* Side Panel */}
-      <div
-        style={{
-          position: 'fixed',
-          right: isOpen ? 0 : -360,
-          top: 48,
-          bottom: 0,
-          width: 360,
-          background: 'rgba(255, 255, 255, 0.98)',
-          backdropFilter: 'blur(20px)',
-          borderLeft: '1px solid rgba(148, 163, 184, 0.15)',
-          boxShadow: isOpen ? '-8px 0 40px rgba(0, 0, 0, 0.1)' : 'none',
-          zIndex: 999,
+      {/* Header */}
+      <Box
+        sx={{
+          padding: { xs: '12px 16px', md: '14px 16px' },
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
           display: 'flex',
-          flexDirection: 'column',
-          transition: 'right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          alignItems: 'center',
+          gap: { xs: 1, md: 1.25 },
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: '14px 16px',
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
-            borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
+        <IconButton
+          size="small"
+          onClick={() => setIsOpen(false)}
+          sx={{
+            color: '#64748b',
+            '&:hover': { background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' },
           }}
         >
-          <IconButton
-            size="small"
-            onClick={() => setIsOpen(false)}
-            sx={{
-              color: '#64748b',
-              '&:hover': { background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' },
-            }}
-          >
-            <ChevronRightIcon />
-          </IconButton>
+          {isMobile ? <CloseIcon /> : <ChevronRightIcon />}
+        </IconButton>
           
           <div
             style={{
@@ -360,7 +312,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
               <DeleteOutlineIcon sx={{ fontSize: 18 }} />
             </IconButton>
           )}
-        </div>
+        </Box>
 
         {/* Messages Area */}
         <div
@@ -585,7 +537,109 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
             </IconButton>
           </form>
         </div>
-      </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile FAB Button */}
+      {!isOpen && isMobile && (
+        <Fab
+          onClick={() => setIsOpen(true)}
+          sx={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            color: 'white',
+            boxShadow: '0 4px 20px rgba(99, 102, 241, 0.4)',
+            zIndex: 1000,
+            '&:hover': {
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+            },
+          }}
+        >
+          <AutoAwesomeIcon />
+        </Fab>
+      )}
+
+      {/* Desktop Collapsed Toggle Button */}
+      {!isOpen && !isMobile && (
+        <Box
+          onClick={() => setIsOpen(true)}
+          sx={{
+            position: 'fixed',
+            right: 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            color: 'white',
+            padding: '16px 8px',
+            borderRadius: '12px 0 0 12px',
+            cursor: 'pointer',
+            boxShadow: '-4px 0 20px rgba(99, 102, 241, 0.3)',
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 1,
+            transition: 'all 0.3s ease',
+            writingMode: 'vertical-rl',
+            textOrientation: 'mixed',
+            '&:hover': {
+              paddingRight: '12px',
+              boxShadow: '-6px 0 30px rgba(99, 102, 241, 0.4)',
+            },
+          }}
+        >
+          <AutoAwesomeIcon sx={{ fontSize: 20, transform: 'rotate(90deg)' }} />
+          <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: 1 }}>AI Assistant</span>
+          <ChevronLeftIcon sx={{ fontSize: 18, transform: 'rotate(0deg)' }} />
+        </Box>
+      )}
+
+      {/* Mobile Full-Screen Drawer */}
+      {isMobile ? (
+        <Drawer
+          anchor="bottom"
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          sx={{
+            '& .MuiDrawer-paper': {
+              height: '85vh',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              background: 'rgba(255, 255, 255, 0.98)',
+              backdropFilter: 'blur(20px)',
+            },
+          }}
+        >
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {renderPanelContent()}
+          </Box>
+        </Drawer>
+      ) : (
+        /* Desktop Side Panel */
+        <Box
+          sx={{
+            position: 'fixed',
+            right: isOpen ? 0 : -360,
+            top: 48,
+            bottom: 0,
+            width: 360,
+            background: 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(148, 163, 184, 0.15)',
+            boxShadow: isOpen ? '-8px 0 40px rgba(0, 0, 0, 0.1)' : 'none',
+            zIndex: 999,
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          {renderPanelContent()}
+        </Box>
+      )}
     </>
   );
 };

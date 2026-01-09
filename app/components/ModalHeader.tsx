@@ -13,40 +13,47 @@ interface ModalHeaderProps {
 
 export default function ModalHeader({ title, onClose, actions }: ModalHeaderProps) {
   return (
-    <DialogTitle style={{ 
-      color: '#1e293b',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '32px 32px 24px',
-      background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%)',
-      borderBottom: '1px solid rgba(148, 163, 184, 0.15)'
-    }}>
-      <Typography variant="h6" style={{ 
-        fontWeight: 700, 
-        fontSize: '24px',
-        letterSpacing: '-0.01em'
-      }}>
+    <DialogTitle 
+      sx={{ 
+        color: '#1e293b',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: { xs: '16px', sm: '24px 24px 16px', md: '32px 32px 24px' },
+        background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%)',
+        borderBottom: '1px solid rgba(148, 163, 184, 0.15)'
+      }}
+    >
+      <Typography 
+        variant="h6" 
+        sx={{ 
+          fontWeight: 700, 
+          fontSize: { xs: '18px', sm: '20px', md: '24px' },
+          letterSpacing: '-0.01em',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1,
+          mr: 1
+        }}
+      >
         {title}
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {actions}
         <IconButton 
           onClick={onClose} 
-          style={{ 
+          sx={{ 
             color: '#64748b',
             background: 'rgba(148, 163, 184, 0.1)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
-            e.currentTarget.style.color = '#ef4444';
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(148, 163, 184, 0.1)';
-            e.currentTarget.style.color = '#64748b';
-            e.currentTarget.style.transform = 'scale(1)';
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            minWidth: { xs: 40, md: 'auto' },
+            minHeight: { xs: 40, md: 'auto' },
+            '&:hover': {
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#ef4444',
+              transform: 'scale(1.1)',
+            }
           }}
         >
           <CloseIcon />

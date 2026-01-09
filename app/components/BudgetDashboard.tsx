@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import IconButton from '@mui/material/IconButton';
+import Box from '@mui/material/Box';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -23,6 +24,8 @@ import TextField from '@mui/material/TextField';
 import Autocomplete, { createFilterOptions } from '@mui/material/Autocomplete';
 import LinearProgress from '@mui/material/LinearProgress';
 import CircularProgress from '@mui/material/CircularProgress';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { useNotification } from './NotificationContext';
 
@@ -521,60 +524,65 @@ const BudgetDashboard: React.FC = () => {
   const totalRemaining = totalBudget - totalSpent;
   const totalPercentUsed = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
-    <div style={{ 
+    <Box sx={{ 
       minHeight: '100vh',
       position: 'relative',
       background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
       overflow: 'hidden'
     }}>
-      {/* Animated background elements */}
-      <div style={{
-        position: 'absolute',
-        top: '-10%',
-        right: '-5%',
-        width: '600px',
-        height: '600px',
-        background: 'radial-gradient(circle, rgba(34, 197, 94, 0.08) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        zIndex: 0
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-10%',
-        left: '-5%',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        zIndex: 0
-      }} />
+      {/* Animated background elements - hidden on mobile */}
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <div style={{
+          position: 'absolute',
+          top: '-10%',
+          right: '-5%',
+          width: '600px',
+          height: '600px',
+          background: 'radial-gradient(circle, rgba(34, 197, 94, 0.08) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: '-10%',
+          left: '-5%',
+          width: '500px',
+          height: '500px',
+          background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          zIndex: 0
+        }} />
+      </Box>
       
-      <div style={{ 
-        padding: '24px 16px',
+      <Box sx={{ 
+        padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
         maxWidth: '1440px',
         margin: '0 auto',
         position: 'relative',
         zIndex: 1
       }}>
         {/* Hero Section */}
-        <div style={{
+        <Box sx={{
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
-          borderRadius: '32px',
-          padding: '36px',
-          marginBottom: '32px',
-          marginTop: '40px',
-          marginLeft: '24px',
-          marginRight: '24px',
+          borderRadius: { xs: '20px', md: '32px' },
+          padding: { xs: '16px', sm: '24px', md: '36px' },
+          marginBottom: { xs: '16px', md: '32px' },
+          marginTop: { xs: '56px', md: '40px' },
+          marginLeft: { xs: '8px', md: '24px' },
+          marginRight: { xs: '8px', md: '24px' },
           border: '1px solid rgba(148, 163, 184, 0.15)',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
           position: 'relative',
           overflow: 'hidden'
         }}>
-          <div style={{
+          <Box sx={{
             position: 'absolute',
             top: 0,
             right: 0,
@@ -582,38 +590,41 @@ const BudgetDashboard: React.FC = () => {
             height: '300px',
             background: 'radial-gradient(circle, rgba(34, 197, 94, 0.1) 0%, transparent 70%)',
             filter: 'blur(40px)',
-            zIndex: 0
+            zIndex: 0,
+            display: { xs: 'none', md: 'block' }
           }} />
-          <div style={{
+          <Box sx={{
             position: 'relative',
             zIndex: 1,
             display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
             justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '24px'
+            alignItems: { xs: 'stretch', md: 'center' },
+            gap: { xs: '16px', md: '24px' }
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <SavingsIcon style={{ fontSize: '36px', color: '#22c55e' }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: '12px', md: '16px' } }}>
+              <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: '#22c55e' }} />
               <div>
-                <h1 style={{
-                  fontSize: '28px',
+                <Box component="h1" sx={{
+                  fontSize: { xs: '22px', md: '28px' },
                   fontWeight: 700,
                   margin: 0,
                   background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
-                }}>Monthly Budgets</h1>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>
+                }}>Monthly Budgets</Box>
+                <Box component="p" sx={{ margin: '4px 0 0', color: '#64748b', fontSize: { xs: '12px', md: '14px' } }}>
                   Set general budget limits for each category
-                </p>
+                </Box>
               </div>
-            </div>
-            <div style={{
+            </Box>
+            <Box sx={{
               display: 'flex',
-              gap: '16px',
-              alignItems: 'center'
+              gap: { xs: '8px', md: '16px' },
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: { xs: 'center', md: 'flex-end' }
             }}>
               <IconButton
                 onClick={handleRefresh}
@@ -726,8 +737,8 @@ const BudgetDashboard: React.FC = () => {
                   <span>Cycle</span>
                 </button>
               </div>
-            </div>
-          </div>
+            </Box>
+          </Box>
           {/* Date range indicator */}
           {selectedYear && selectedMonth && (
             <div style={{
@@ -765,7 +776,7 @@ const BudgetDashboard: React.FC = () => {
               )}
             </div>
           )}
-        </div>
+        </Box>
 
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
@@ -965,12 +976,12 @@ const BudgetDashboard: React.FC = () => {
             </div>
 
             {/* Summary Cards */}
-            <div style={{
+            <Box sx={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: '24px',
-              marginBottom: '32px',
-              padding: '0 24px'
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(auto-fit, minmax(280px, 1fr))' },
+              gap: { xs: '12px', md: '24px' },
+              marginBottom: { xs: '16px', md: '32px' },
+              padding: { xs: '0 8px', md: '0 24px' }
             }}>
               {/* Category Budget Total Card */}
               <div style={{
@@ -1078,7 +1089,7 @@ const BudgetDashboard: React.FC = () => {
                   {budgets.length} budget{budgets.length !== 1 ? 's' : ''} configured
                 </div>
               </div>
-            </div>
+            </Box>
 
             {/* Burndown Chart */}
             {burndownData && burndownData.total_budget > 0 && burndownData.daily_data.length > 0 && (
@@ -1214,23 +1225,23 @@ const BudgetDashboard: React.FC = () => {
 
             {/* Budget List */}
             {budgets.length > 0 ? (
-              <div style={{ padding: '0 24px', marginBottom: '32px' }}>
-                <h2 style={{
-                  fontSize: '18px',
+              <Box sx={{ padding: { xs: '0 8px', md: '0 24px' }, marginBottom: { xs: '16px', md: '32px' } }}>
+                <Box component="h2" sx={{
+                  fontSize: { xs: '16px', md: '18px' },
                   fontWeight: 700,
                   color: '#475569',
-                  marginBottom: '20px',
+                  marginBottom: { xs: '12px', md: '20px' },
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px'
                 }}>
                   <SavingsIcon style={{ fontSize: '20px' }} />
                   Budget Limits
-                </h2>
-                <div style={{
+                </Box>
+                <Box sx={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
-                  gap: '20px'
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(auto-fill, minmax(360px, 1fr))' },
+                  gap: { xs: '12px', md: '20px' }
                 }}>
                   {budgetsWithSpending.map((budget) => (
                     <div
@@ -1323,8 +1334,8 @@ const BudgetDashboard: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
+                </Box>
+              </Box>
             ) : (
               <div style={{ 
                 padding: '60px 24px', 
@@ -1343,7 +1354,7 @@ const BudgetDashboard: React.FC = () => {
             )}
           </>
         )}
-      </div>
+      </Box>
 
       {/* Add/Edit Budget Modal */}
       <Dialog 
@@ -1574,7 +1585,7 @@ const BudgetDashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </div>
+    </Box>
   );
 };
 

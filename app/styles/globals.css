@@ -184,10 +184,191 @@ a:hover {
   box-shadow: 0 16px 48px rgba(96, 165, 250, 0.25);
 }
 
-/* Responsive utilities */
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+
+/* CSS Variables for responsive breakpoints */
+:root {
+  --mobile-padding: 12px;
+  --tablet-padding: 16px;
+  --desktop-padding: 24px;
+  --header-height-mobile: 56px;
+  --header-height-desktop: 48px;
+}
+
+/* Base responsive utilities */
 @media (max-width: 768px) {
   body {
     font-size: 14px;
+  }
+  
+  /* Reduce scrollbar width on mobile */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+}
+
+/* Mobile-first responsive containers */
+.responsive-container {
+  padding: var(--mobile-padding);
+}
+
+@media (min-width: 768px) {
+  .responsive-container {
+    padding: var(--tablet-padding);
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-container {
+    padding: var(--desktop-padding);
+  }
+}
+
+/* Mobile card grid */
+@media (max-width: 640px) {
+  .card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
+  }
+}
+
+/* Hide on mobile */
+.hide-mobile {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Show only on mobile */
+.show-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .show-mobile {
+    display: block !important;
+  }
+  
+  .show-mobile-flex {
+    display: flex !important;
+  }
+}
+
+/* Mobile-friendly touch targets */
+@media (max-width: 768px) {
+  button, 
+  .touchable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Responsive hero section */
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 16px !important;
+    margin: 8px !important;
+    border-radius: 20px !important;
+  }
+  
+  .hero-section h1 {
+    font-size: 22px !important;
+  }
+}
+
+/* Responsive controls row */
+@media (max-width: 768px) {
+  .controls-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  
+  .controls-row select,
+  .controls-row button {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+  .responsive-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .responsive-table {
+    min-width: 600px;
+  }
+}
+
+/* Mobile modal styles */
+@media (max-width: 768px) {
+  .MuiDialog-paper {
+    margin: 0 !important;
+    max-height: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Date range toggle mobile styles */
+@media (max-width: 480px) {
+  .date-toggle-group {
+    flex-wrap: wrap !important;
+  }
+  
+  .date-toggle-group button {
+    flex: 1 1 auto !important;
+    min-width: 80px !important;
+  }
+}
+
+/* Mobile summary cards */
+@media (max-width: 640px) {
+  .summary-cards {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  
+  .summary-card {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+}
+
+/* Mobile-friendly spacing */
+@media (max-width: 768px) {
+  .mobile-spacing {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  
+  .mobile-margin {
+    margin-left: 8px !important;
+    margin-right: 8px !important;
+  }
+}
+
+/* Disable hover effects on touch devices */
+@media (hover: none) {
+  .card-hover:hover {
+    transform: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   }
 }
 

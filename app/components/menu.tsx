@@ -6,7 +6,16 @@ import Typography from "@mui/material/Typography";
 import Menu from "@mui/material/Menu";
 import Container from "@mui/material/Container";
 import Button from "@mui/material/Button";
-import { styled } from "@mui/material/styles";
+import IconButton from "@mui/material/IconButton";
+import Drawer from "@mui/material/Drawer";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Divider from "@mui/material/Divider";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme, styled } from "@mui/material/styles";
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -20,6 +29,8 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
 import BackupIcon from '@mui/icons-material/Backup';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
 import ScrapeModal from './ScrapeModal';
 import ManualModal from './ManualModal';
 import DatabaseIndicator from './DatabaseIndicator';
@@ -141,6 +152,9 @@ const redirectTo = (page: string) => {
 };
 
 function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: ResponsiveAppBarProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
   const [isScrapeModalOpen, setIsScrapeModalOpen] = React.useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
@@ -155,6 +169,33 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   const [isBackupOpen, setIsBackupOpen] = React.useState(false);
   const { showNotification } = useNotification();
   const { logout } = useAuth();
+
+  const handleDrawerToggle = () => {
+    setMobileDrawerOpen(!mobileDrawerOpen);
+  };
+
+  // Menu items for mobile drawer
+  const viewMenuItems = [
+    { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: '#3b82f6' },
+    { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: '#3b82f6' },
+    { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: '#22c55e' },
+  ];
+
+  const actionMenuItems = [
+    { label: 'Full Sync', icon: <CloudSyncIcon />, action: () => setIsBackgroundSyncOpen(true) },
+    { label: 'Audit', icon: <HistoryIcon />, action: () => setIsAuditOpen(true) },
+    { label: 'Duplicates', icon: <ContentCopyIcon />, action: () => setIsDuplicatesOpen(true) },
+    { label: 'Recurring', icon: <RepeatIcon />, action: () => setIsRecurringOpen(true) },
+    { label: 'Manual', icon: <EditIcon />, action: () => setIsManualModalOpen(true) },
+    { label: 'Quick Category', icon: <FlashOnIcon />, action: () => setIsQuickCategoryOpen(true) },
+  ];
+
+  const settingsMenuItems = [
+    { label: 'Categories', icon: <SettingsIcon />, action: () => setIsCategoryManagementOpen(true) },
+    { label: 'Accounts', icon: <PersonIcon />, action: () => setIsAccountsModalOpen(true) },
+    { label: 'Cards', icon: <CreditCardIcon />, action: () => setIsCardVendorsOpen(true) },
+    { label: 'Backup', icon: <BackupIcon />, action: () => setIsBackupOpen(true) },
+  ];
 
   const handleLogout = async () => {
     try {
@@ -211,24 +252,211 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
     window.dispatchEvent(new CustomEvent('dataRefresh'));
   };
 
+  // Mobile drawer content
+  const mobileDrawer = (
+    <Box
+      sx={{ width: 280 }}
+      role="presentation"
+    >
+      {/* Drawer Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 2,
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AccountBalanceWalletIcon sx={{ fontSize: '24px', color: '#60a5fa' }} />
+          <Typography
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: '1.2rem',
+            }}
+          >
+            Clarify
+          </Typography>
+        </Box>
+        <IconButton onClick={handleDrawerToggle} sx={{ color: '#fff' }}>
+          <CloseIcon />
+        </IconButton>
+      </Box>
+
+      {/* Views Section */}
+      <Box sx={{ p: 1 }}>
+        <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+          Views
+        </Typography>
+        <List disablePadding>
+          {viewMenuItems.map((item) => (
+            <ListItem key={item.label} disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  onViewChange?.(item.view);
+                  handleDrawerToggle();
+                }}
+                sx={{
+                  borderRadius: '12px',
+                  mx: 1,
+                  mb: 0.5,
+                  backgroundColor: currentView === item.view ? `${item.color}15` : 'transparent',
+                  '&:hover': {
+                    backgroundColor: `${item.color}20`,
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ color: currentView === item.view ? item.color : '#64748b', minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  sx={{
+                    '& .MuiTypography-root': {
+                      fontWeight: currentView === item.view ? 600 : 500,
+                      color: currentView === item.view ? item.color : '#1e293b',
+                    },
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+
+      <Divider sx={{ my: 1 }} />
+
+      {/* Actions Section */}
+      <Box sx={{ p: 1 }}>
+        <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+          Actions
+        </Typography>
+        <List disablePadding>
+          {actionMenuItems.map((item) => (
+            <ListItem key={item.label} disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  item.action();
+                  handleDrawerToggle();
+                }}
+                sx={{
+                  borderRadius: '12px',
+                  mx: 1,
+                  mb: 0.5,
+                  '&:hover': {
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ color: '#64748b', minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.label} sx={{ '& .MuiTypography-root': { fontWeight: 500, color: '#1e293b' } }} />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+
+      <Divider sx={{ my: 1 }} />
+
+      {/* Settings Section */}
+      <Box sx={{ p: 1 }}>
+        <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+          Settings
+        </Typography>
+        <List disablePadding>
+          {settingsMenuItems.map((item) => (
+            <ListItem key={item.label} disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  item.action();
+                  handleDrawerToggle();
+                }}
+                sx={{
+                  borderRadius: '12px',
+                  mx: 1,
+                  mb: 0.5,
+                  '&:hover': {
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ color: '#64748b', minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.label} sx={{ '& .MuiTypography-root': { fontWeight: 500, color: '#1e293b' } }} />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+
+      <Divider sx={{ my: 1 }} />
+
+      {/* Logout */}
+      <Box sx={{ p: 1, pb: 2 }}>
+        <ListItem disablePadding>
+          <ListItemButton
+            onClick={() => {
+              handleLogout();
+              handleDrawerToggle();
+            }}
+            sx={{
+              borderRadius: '12px',
+              mx: 1,
+              '&:hover': {
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              },
+            }}
+          >
+            <ListItemIcon sx={{ color: '#ef4444', minWidth: 40 }}>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText primary="Logout" sx={{ '& .MuiTypography-root': { fontWeight: 500, color: '#ef4444' } }} />
+          </ListItemButton>
+        </ListItem>
+      </Box>
+    </Box>
+  );
+
   return (
     <>
       <StyledAppBar position="fixed">
         <Container maxWidth={false}>
-          <Toolbar disableGutters variant="dense" sx={{ minHeight: '48px' }}>
+          <Toolbar disableGutters variant="dense" sx={{ minHeight: { xs: '56px', md: '48px' } }}>
+            {/* Mobile Menu Button */}
+            <IconButton
+              onClick={handleDrawerToggle}
+              sx={{
+                display: { xs: 'flex', md: 'none' },
+                color: '#fff',
+                mr: 1,
+              }}
+            >
+              <MenuIcon />
+            </IconButton>
+
+            {/* Logo - always visible */}
             <Logo
               variant="h4"
               noWrap
               onClick={redirectTo("/")}
               sx={{
                 mr: 2,
-                display: { xs: "none", md: "flex" },
+                display: 'flex',
+                fontSize: { xs: '1.2rem', md: '1.5rem' },
               }}
             >
-              <AccountBalanceWalletIcon sx={{ fontSize: '24px', color: '#60a5fa' }} />
+              <AccountBalanceWalletIcon sx={{ fontSize: { xs: '20px', md: '24px' }, color: '#60a5fa' }} />
               Clarify
             </Logo>
 
+            {/* Desktop Navigation */}
             <Box sx={{ 
               flexGrow: 1, 
               display: { xs: "none", md: "flex" },
@@ -244,7 +472,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
                 </NavButton>
               ))}
             </Box>
-            <Box sx={{ flexGrow: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+            {/* Desktop Actions */}
+            <Box sx={{ flexGrow: 0, display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: '8px' }}>
               <NavButton
                 onClick={() => onViewChange?.('summary')}
                 startIcon={<SummarizeIcon />}
@@ -374,9 +604,32 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               />
               <DatabaseIndicator />
             </Box>
+
+            {/* Mobile Status Indicators */}
+            <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' }, justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
+              <SyncStatusIndicator />
+              <DatabaseIndicator />
+            </Box>
           </Toolbar>
         </Container>
       </StyledAppBar>
+
+      {/* Mobile Drawer */}
+      <Drawer
+        anchor="left"
+        open={mobileDrawerOpen}
+        onClose={handleDrawerToggle}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: 280,
+            background: '#fff',
+          },
+        }}
+      >
+        {mobileDrawer}
+      </Drawer>
       <ScrapeModal
         isOpen={isScrapeModalOpen}
         onClose={() => setIsScrapeModalOpen(false)}

@@ -19,6 +19,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import { ExpensesModalProps, Expense } from '../types';
 import { formatNumber } from '../utils/format';
 import { dateUtils } from '../utils/dateUtils';
@@ -45,6 +47,8 @@ interface CategoryOverTimeData {
 }
 
 const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, color, setModalData, currentMonth }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [timeSeriesData, setTimeSeriesData] = React.useState<CategoryOverTimeData[]>([]);
   const [editingExpense, setEditingExpense] = React.useState<Expense | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
@@ -382,13 +386,15 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       onClose={onClose}
       maxWidth="lg"
       fullWidth
+      fullScreen={isMobile}
       PaperProps={{
-        style: {
+        sx: {
           background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
           backdropFilter: 'blur(20px)',
-          borderRadius: '28px',
+          borderRadius: isMobile ? 0 : '28px',
           boxShadow: '0 24px 64px rgba(0, 0, 0, 0.15)',
-          border: '1px solid rgba(148, 163, 184, 0.2)'
+          border: isMobile ? 'none' : '1px solid rgba(148, 163, 184, 0.2)',
+          margin: isMobile ? 0 : undefined,
         }
       }}
       BackdropProps={{
@@ -399,7 +405,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       }}
     >
       <ModalHeader title={data.type} onClose={onClose} />
-      <DialogContent style={{ padding: '32px' }}>
+      <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
         {data.type !== "Bank Transactions" && (
           <Box sx={{ 
             mb: 4, 

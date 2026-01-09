@@ -809,73 +809,75 @@ const MonthlySummary: React.FC = () => {
       background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
       overflow: 'hidden'
     }}>
-      {/* Animated background elements */}
-      <div style={{
-        position: 'absolute',
-        top: '-10%',
-        right: '-5%',
-        width: '600px',
-        height: '600px',
-        background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        zIndex: 0
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-10%',
-        left: '-5%',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        zIndex: 0
-      }} />
+      {/* Animated background elements - hidden on mobile for performance */}
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <div style={{
+          position: 'absolute',
+          top: '-10%',
+          right: '-5%',
+          width: '600px',
+          height: '600px',
+          background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: '-10%',
+          left: '-5%',
+          width: '500px',
+          height: '500px',
+          background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          zIndex: 0
+        }} />
+      </Box>
 
       {/* Main content container */}
-      <div style={{
-        padding: '24px 16px',
+      <Box sx={{
+        padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
         maxWidth: '1440px',
         margin: '0 auto',
         position: 'relative',
         zIndex: 1
       }}>
         {/* Hero Section with Filters */}
-        <div style={{
+        <Box sx={{
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
-          borderRadius: '32px',
-          padding: '36px',
-          marginBottom: '32px',
-          marginTop: '40px',
-          marginLeft: '24px',
-          marginRight: '24px',
+          borderRadius: { xs: '20px', md: '32px' },
+          padding: { xs: '16px', sm: '24px', md: '36px' },
+          marginBottom: { xs: '16px', md: '32px' },
+          marginTop: { xs: '56px', md: '40px' },
+          marginLeft: { xs: '8px', md: '24px' },
+          marginRight: { xs: '8px', md: '24px' },
           border: '1px solid rgba(148, 163, 184, 0.15)',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
         }}>
-          <div style={{
+          <Box sx={{
             display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: '24px'
+            alignItems: { xs: 'stretch', md: 'flex-start' },
+            gap: { xs: '16px', md: '24px' }
           }}>
             <div>
-              <h1 style={{
-                fontSize: '28px',
+              <Box component="h1" sx={{
+                fontSize: { xs: '22px', md: '28px' },
                 fontWeight: 700,
                 margin: 0,
                 background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
-              }}>Monthly Summary</h1>
-              <p style={{
+              }}>Monthly Summary</Box>
+              <Box component="p" sx={{
                 color: '#64748b',
                 marginTop: '8px',
                 marginBottom: 0,
-                fontSize: '16px'
+                fontSize: { xs: '14px', md: '16px' }
               }}>
                 Overview of credit card expenses for{' '}
                 {dateRangeMode === 'custom' 
@@ -886,15 +888,16 @@ const MonthlySummary: React.FC = () => {
                       new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)
                         .toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))
                 }
-              </p>
+              </Box>
             </div>
             
             {/* Controls */}
-            <div style={{
+            <Box sx={{
               display: 'flex',
-              gap: '16px',
+              gap: { xs: '8px', md: '16px' },
               alignItems: 'center',
-              flexWrap: 'wrap'
+              flexWrap: 'wrap',
+              justifyContent: { xs: 'center', md: 'flex-end' }
             }}>
               <IconButton
                 onClick={handleRefresh}
@@ -1020,8 +1023,8 @@ const MonthlySummary: React.FC = () => {
                   <span>Custom</span>
                 </button>
               </div>
-            </div>
-          </div>
+            </Box>
+          </Box>
           
           {/* Date range indicator */}
           {dateRangeMode === 'custom' ? (
@@ -1141,7 +1144,7 @@ const MonthlySummary: React.FC = () => {
               </span>
             </div>
           ) : null}
-        </div>
+        </Box>
 
         {loading ? (
           <div style={{
@@ -1155,36 +1158,41 @@ const MonthlySummary: React.FC = () => {
         ) : (
           <>
             {/* Summary Cards Section */}
-            <div style={{
+            <Box sx={{
               background: 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(20px)',
-              borderRadius: '32px',
-              padding: '24px 32px',
-              marginLeft: '24px',
-              marginRight: '24px',
-              marginBottom: '32px',
+              borderRadius: { xs: '20px', md: '32px' },
+              padding: { xs: '16px', sm: '20px', md: '24px 32px' },
+              marginLeft: { xs: '8px', md: '24px' },
+              marginRight: { xs: '8px', md: '24px' },
+              marginBottom: { xs: '16px', md: '32px' },
               border: '1px solid rgba(148, 163, 184, 0.15)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
             }}>
-              <div style={{
+              <Box sx={{
                 display: 'flex',
-                gap: '16px',
+                gap: { xs: '12px', md: '16px' },
                 flexWrap: 'wrap',
                 justifyContent: 'flex-start',
                 alignItems: 'stretch'
               }}>
                 {/* Total Card Expenses - Main Card */}
-                <div 
+                <Box 
                   onClick={handleAllTransactionsClick}
-                  style={{
+                  sx={{
                     background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                     borderRadius: '20px',
-                    padding: '20px 24px',
-                    minWidth: '200px',
+                    padding: { xs: '16px', md: '20px 24px' },
+                    minWidth: { xs: '100%', sm: '200px' },
+                    flex: { xs: '1 1 100%', sm: '0 0 auto' },
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
-                    opacity: loadingAll ? 0.7 : 1
+                    opacity: loadingAll ? 0.7 : 1,
+                    '&:hover': {
+                      transform: { xs: 'none', md: 'translateY(-2px)' },
+                      boxShadow: { xs: '0 4px 16px rgba(59, 130, 246, 0.3)', md: '0 8px 24px rgba(59, 130, 246, 0.4)' },
+                    }
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
@@ -1211,7 +1219,7 @@ const MonthlySummary: React.FC = () => {
                   <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
                     Click to view all
                   </div>
-                </div>
+                </Box>
 
                 {/* Individual Cards by Last 4 Digits */}
                 {cardSummary.map((card) => {
@@ -1429,23 +1437,30 @@ const MonthlySummary: React.FC = () => {
                     </MenuItem>
                   ))}
                 </Menu>
-              </div>
-            </div>
+              </Box>
+            </Box>
 
             {/* Breakdown Table */}
-            <div style={{
+            <Box sx={{
               background: 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(20px)',
-              borderRadius: '32px',
-              padding: '32px',
-              marginLeft: '24px',
-              marginRight: '24px',
+              borderRadius: { xs: '20px', md: '32px' },
+              padding: { xs: '16px', md: '32px' },
+              marginLeft: { xs: '8px', md: '24px' },
+              marginRight: { xs: '8px', md: '24px' },
               border: '1px solid rgba(148, 163, 184, 0.15)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                <h2 style={{
-                  fontSize: '20px',
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', md: 'row' },
+                justifyContent: 'space-between', 
+                alignItems: { xs: 'flex-start', md: 'center' }, 
+                marginBottom: { xs: '16px', md: '24px' }, 
+                gap: { xs: '12px', md: '16px' } 
+              }}>
+                <Box component="h2" sx={{
+                  fontSize: { xs: '16px', md: '20px' },
                   fontWeight: 700,
                   margin: 0,
                   color: '#1e293b'
@@ -1455,7 +1470,7 @@ const MonthlySummary: React.FC = () => {
                     : groupBy === 'last4digits' 
                       ? 'Breakdown by Last 4 Digits'
                       : 'Breakdown by Card / Account'}
-                </h2>
+                </Box>
                 
                 {/* Sorting Controls */}
                 <div style={{
@@ -1502,22 +1517,28 @@ const MonthlySummary: React.FC = () => {
                     </button>
                   ))}
                 </div>
-              </div>
+              </Box>
 
               {sortedData.length === 0 ? (
-                <div style={{
+                <Box sx={{
                   textAlign: 'center',
-                  padding: '48px',
+                  padding: { xs: '24px', md: '48px' },
                   color: '#64748b'
                 }}>
                   No transactions found for this period.
-                </div>
+                </Box>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{
+                <Box sx={{ 
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  mx: { xs: -2, md: 0 },
+                  px: { xs: 2, md: 0 }
+                }}>
+                  <Box component="table" sx={{
                     width: '100%',
                     borderCollapse: 'collapse',
-                    fontSize: '14px'
+                    fontSize: { xs: '12px', md: '14px' },
+                    minWidth: { xs: '500px', md: 'auto' }
                   }}>
                     <thead>
                       <tr style={{
@@ -1804,13 +1825,13 @@ const MonthlySummary: React.FC = () => {
                         }}>₪{formatNumber(totals.card_expenses)}</td>
                       </tr>
                     </tfoot>
-                  </table>
-                </div>
+                  </Box>
+                </Box>
               )}
-            </div>
+            </Box>
           </>
         )}
-      </div>
+      </Box>
 
       {/* Transaction Details Modal */}
       {modalData && (

@@ -1,6 +1,9 @@
 import React from 'react';
 import { SvgIconComponent } from '@mui/icons-material';
 import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import { formatNumber } from '../utils/format';
 
 interface BudgetInfo {
@@ -76,13 +79,17 @@ const Card: React.FC<CardProps> = ({
   secondaryLabel,
   budget
 }) => {
-  const padding = size === 'large' ? '32px' : '20px';
-  const titleSize = size === 'large' ? '16px' : '20px';
-  const valueSize = size === 'large' ? '36px' : '24px';
-  const secondaryValueSize = size === 'large' ? '20px' : '16px';
-  const iconSize = size === 'large' ? '24px' : '24px';
-  const iconPadding = size === 'large' ? '10px' : '12px';
-  const iconBorderRadius = size === 'large' ? '12px' : '16px';
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  // Responsive sizing
+  const padding = isMobile ? '16px' : (size === 'large' ? '32px' : '20px');
+  const titleSize = isMobile ? '14px' : (size === 'large' ? '16px' : '20px');
+  const valueSize = isMobile ? '20px' : (size === 'large' ? '36px' : '24px');
+  const secondaryValueSize = isMobile ? '14px' : (size === 'large' ? '20px' : '16px');
+  const iconSize = isMobile ? '20px' : '24px';
+  const iconPadding = isMobile ? '8px' : (size === 'large' ? '10px' : '12px');
+  const iconBorderRadius = isMobile ? '12px' : (size === 'large' ? '12px' : '16px');
 
   // Determine border color based on budget status
   const getBorderColor = () => {

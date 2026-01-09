@@ -1,5 +1,6 @@
 import React from 'react';
 import IconButton from '@mui/material/IconButton';
+import Box from '@mui/material/Box';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import TableChartIcon from '@mui/icons-material/TableChart';
@@ -781,53 +782,55 @@ const CategoryDashboard: React.FC = () => {
   };
 
   return (
-    <div style={{ 
+    <Box sx={{ 
       minHeight: '100vh',
       position: 'relative',
       background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
       overflow: 'hidden'
     }}>
-      {/* Animated background elements */}
-      <div style={{
-        position: 'absolute',
-        top: '-10%',
-        right: '-5%',
-        width: '600px',
-        height: '600px',
-        background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        animation: 'float 20s ease-in-out infinite',
-        zIndex: 0
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-10%',
-        left: '-5%',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        animation: 'float 25s ease-in-out infinite reverse',
-        zIndex: 0
-      }} />
-      <div style={{
-        position: 'absolute',
-        top: '40%',
-        right: '20%',
-        width: '400px',
-        height: '400px',
-        background: 'radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-        animation: 'float 30s ease-in-out infinite',
-        zIndex: 0
-      }} />
+      {/* Animated background elements - hidden on mobile */}
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <div style={{
+          position: 'absolute',
+          top: '-10%',
+          right: '-5%',
+          width: '600px',
+          height: '600px',
+          background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          animation: 'float 20s ease-in-out infinite',
+          zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: '-10%',
+          left: '-5%',
+          width: '500px',
+          height: '500px',
+          background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          animation: 'float 25s ease-in-out infinite reverse',
+          zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute',
+          top: '40%',
+          right: '20%',
+          width: '400px',
+          height: '400px',
+          background: 'radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 70%)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          animation: 'float 30s ease-in-out infinite',
+          zIndex: 0
+        }} />
+      </Box>
       
       {/* Main content container */}
-      <div style={{ 
-        padding: '24px 16px',
+      <Box sx={{ 
+        padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
         maxWidth: '1440px',
         margin: '0 auto',
         position: 'relative',
@@ -835,21 +838,21 @@ const CategoryDashboard: React.FC = () => {
       }}>
 
       {/* Hero Section */}
-      <div style={{
+      <Box sx={{
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(20px)',
-        borderRadius: '32px',
-        padding: '36px',
-        marginBottom: '90px',
-        marginTop: '40px',
-        marginLeft: '24px',
-        marginRight: '24px',
+        borderRadius: { xs: '20px', md: '32px' },
+        padding: { xs: '16px', sm: '24px', md: '36px' },
+        marginBottom: { xs: '24px', md: '90px' },
+        marginTop: { xs: '56px', md: '40px' },
+        marginLeft: { xs: '8px', md: '24px' },
+        marginRight: { xs: '8px', md: '24px' },
         border: '1px solid rgba(148, 163, 184, 0.15)',
         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
         position: 'relative',
         overflow: 'hidden'
       }}>
-        <div style={{
+        <Box sx={{
           position: 'absolute',
           top: 0,
           right: 0,
@@ -857,32 +860,35 @@ const CategoryDashboard: React.FC = () => {
           height: '300px',  
           background: 'radial-gradient(circle, rgba(96, 165, 250, 0.1) 0%, transparent 70%)',
           filter: 'blur(40px)',
-          zIndex: 0
+          zIndex: 0,
+          display: { xs: 'none', md: 'block' }
         }} />
-        <div style={{
+        <Box sx={{
           position: 'relative',
           zIndex: 1,
           display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
           justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '24px'
+          alignItems: { xs: 'stretch', md: 'center' },
+          gap: { xs: '16px', md: '24px' }
         }}>
           <div>
-            <h1 style={{
-              fontSize: '28px',
+            <Box component="h1" sx={{
+              fontSize: { xs: '22px', md: '28px' },
               fontWeight: 700,
               margin: 0,
               background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
-            }}>Financial Overview</h1>
+            }}>Financial Overview</Box>
           </div>
-          <div style={{
+          <Box sx={{
             display: 'flex',
-            gap: '16px',
-            alignItems: 'center'
+            gap: { xs: '8px', md: '16px' },
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            justifyContent: { xs: 'center', md: 'flex-end' }
           }}>
             <IconButton
               onClick={handleRefreshClick}
@@ -1053,8 +1059,8 @@ const CategoryDashboard: React.FC = () => {
                 <span>Custom</span>
               </button>
             </div>
-          </div>
-        </div>
+          </Box>
+        </Box>
         {/* Date range indicator */}
         {dateRangeMode === 'custom' ? (
           <div style={{
@@ -1176,11 +1182,12 @@ const CategoryDashboard: React.FC = () => {
 
 
       {/* Summary Cards Section */}
-      <div style={{ 
+      <Box sx={{ 
         display: 'flex',
-        gap: '32px',
-        marginTop: '48px',
-        marginBottom: '40px'
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: { xs: '16px', md: '32px' },
+        marginTop: { xs: '24px', md: '48px' },
+        marginBottom: { xs: '24px', md: '40px' }
       }}>
         <Card
           title="Bank Transactions" 
@@ -1202,16 +1209,17 @@ const CategoryDashboard: React.FC = () => {
           isLoading={loadingBankTransactions}
           size="medium"
         />
-      </div>
+      </Box>
 
       {showTransactionsTable ? (
-        <div style={{
+        <Box sx={{
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
-          borderRadius: '32px',
-          padding: '32px',
+          borderRadius: { xs: '20px', md: '32px' },
+          padding: { xs: '12px', md: '32px' },
           border: '1px solid rgba(148, 163, 184, 0.15)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+          overflowX: 'auto'
         }}>
           <TransactionsTable 
             transactions={transactions} 
@@ -1219,41 +1227,49 @@ const CategoryDashboard: React.FC = () => {
             onDelete={handleDeleteTransaction}
             onUpdate={handleUpdateTransaction}
           />
-        </div>
+        </Box>
       ) : (
         <>
           {/* Categories Section Header */}
-          <div style={{
-            marginBottom: '32px',
+          <Box sx={{
+            marginBottom: { xs: '16px', md: '32px' },
             display: 'flex',
             alignItems: 'center',
-            gap: '16px'
+            gap: { xs: '8px', md: '16px' }
           }}>
-            <div style={{
+            <Box sx={{
               height: '2px',
               flex: 1,
               background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
-              borderRadius: '2px'
+              borderRadius: '2px',
+              display: { xs: 'none', sm: 'block' }
             }} />
-            <h2 style={{
-              fontSize: '14px',
+            <Box component="h2" sx={{
+              fontSize: { xs: '12px', md: '14px' },
               fontWeight: 700,
               margin: 0,
               color: '#475569',
-              letterSpacing: '2px',
-              textTransform: 'uppercase'
-            }}>Expense Categories</h2>
-            <div style={{
+              letterSpacing: { xs: '1px', md: '2px' },
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              flex: { xs: 1, sm: 'none' }
+            }}>Expense Categories</Box>
+            <Box sx={{
               height: '2px',
               flex: 1,
               background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
-              borderRadius: '2px'
+              borderRadius: '2px',
+              display: { xs: 'none', sm: 'block' }
             }} />
-          </div>
-          <div style={{ 
+          </Box>
+          <Box sx={{ 
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '32px',
+            gridTemplateColumns: { 
+              xs: '1fr', 
+              sm: 'repeat(2, 1fr)', 
+              md: 'repeat(auto-fill, minmax(280px, 1fr))' 
+            },
+            gap: { xs: '12px', sm: '16px', md: '32px' },
             width: '100%',
             boxSizing: 'border-box'
           }}>
@@ -1299,11 +1315,11 @@ const CategoryDashboard: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
+        </Box>
         </>
       )}
-      </div>
-    </div>
+      </Box>
+    </Box>
 
       {modalData && (
         <ExpensesModal
@@ -1315,7 +1331,7 @@ const CategoryDashboard: React.FC = () => {
           currentMonth={`${selectedYear}-${selectedMonth}`}
         />
       )}
-    </div>
+    </Box>
   );
 };
 
