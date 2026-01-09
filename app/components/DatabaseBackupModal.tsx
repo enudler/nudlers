@@ -81,7 +81,9 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
     setResult(null);
 
     try {
-      const response = await fetch('/api/database/export');
+      const response = await fetch('/api/database/export', {
+        credentials: 'include'
+      });
       
       if (!response.ok) {
         throw new Error('Export failed');
@@ -151,6 +153,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ data, mode: importMode })
       });
 
