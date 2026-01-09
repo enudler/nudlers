@@ -67,10 +67,9 @@ For NAS or server deployment, use the pre-built Docker image from GitHub Contain
 # Create a directory for the deployment
 mkdir nudlers && cd nudlers
 
-# Download the production docker-compose and db-init files
+# Download the production docker-compose and env template
 curl -O https://raw.githubusercontent.com/enudler/credit-card-usage/main/docker-compose.prod.yaml
 curl -O https://raw.githubusercontent.com/enudler/credit-card-usage/main/.env_example
-mkdir db-init && curl -o db-init/init.sql https://raw.githubusercontent.com/enudler/credit-card-usage/main/db-init/init.sql
 
 # Configure environment variables
 cp .env_example .env
@@ -85,6 +84,8 @@ docker-compose -f docker-compose.prod.yaml up -d
 docker-compose -f docker-compose.prod.yaml pull
 docker-compose -f docker-compose.prod.yaml up -d
 ```
+
+The database schema is automatically created and migrated on app startup - no manual initialization required!
 
 The image supports both `linux/amd64` and `linux/arm64` architectures.
 

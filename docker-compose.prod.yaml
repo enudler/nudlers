@@ -7,6 +7,9 @@
 # To update to latest version:
 #   docker-compose -f docker-compose.prod.yaml pull
 #   docker-compose -f docker-compose.prod.yaml up -d
+#
+# Note: Database schema is automatically created/migrated by the app on startup.
+#       No manual database initialization required!
 
 services:
   nudlers-db:
@@ -20,7 +23,6 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
     command: postgres -c ssl=off
     networks:
       - nudlers-network
