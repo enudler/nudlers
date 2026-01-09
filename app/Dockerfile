@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package.json package-lock.json* yarn.lock* ./
 
 # Install dependencies (use npm ci for reproducible builds)
-RUN npm ci --only=production=false
+RUN npm ci
 
 # =============================================================================
 # Stage 2: Builder
