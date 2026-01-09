@@ -23,6 +23,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import SyncIcon from '@mui/icons-material/Sync';
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
@@ -133,10 +134,12 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [isScrapeModalOpen, setIsScrapeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<AccountWithPassword | null>(null);
   const { showNotification } = useNotification();
-  const [newAccount, setNewAccount] = useState({
+  const [formAccount, setFormAccount] = useState({
     vendor: 'isracard',
     username: '',
     id_number: '',
@@ -195,52 +198,71 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     return cardOwnership.filter(co => co.credential_id === credentialId);
   };
 
-  const handleAdd = async () => {
+  const resetFormAccount = () => {
+    setFormAccount({
+      vendor: 'isracard',
+      username: '',
+      id_number: '',
+      card6_digits: '',
+      bank_account_number: '',
+      password: '',
+      nickname: '',
+      id: 0,
+      created_at: new Date().toISOString(),
+    });
+  };
+
+  const validateForm = (requirePassword: boolean = true): boolean => {
     // Validate based on vendor type
-    if (newAccount.vendor === 'visaCal' || newAccount.vendor === 'max') {
-      if (!newAccount.username) {
+    if (formAccount.vendor === 'visaCal' || formAccount.vendor === 'max') {
+      if (!formAccount.username) {
         setError('Username is required for Visa Cal and Max');
-        return;
+        return false;
       }
-      if (newAccount.id_number) {
+      if (formAccount.id_number) {
         setError('ID number is not used for Visa Cal and Max');
-        return;
+        return false;
       }
-    } else if (newAccount.vendor === 'isracard' || newAccount.vendor === 'amex') {
-      if (!newAccount.id_number) {
+    } else if (formAccount.vendor === 'isracard' || formAccount.vendor === 'amex') {
+      if (!formAccount.id_number) {
         setError('ID number is required for Isracard and American Express');
-        return;
+        return false;
       }
-      if (newAccount.username) {
+      if (formAccount.username) {
         setError('Username is not used for Isracard and American Express');
-        return;
+        return false;
       }
-    } else if (BEINLEUMI_GROUP_VENDORS.includes(newAccount.vendor)) {
+    } else if (BEINLEUMI_GROUP_VENDORS.includes(formAccount.vendor)) {
       // Beinleumi Group banks only need username/ID, no account number
-      if (!newAccount.username) {
+      if (!formAccount.username) {
         setError('Username/ID is required for Beinleumi Group banks');
-        return;
+        return false;
       }
-    } else if (STANDARD_BANK_VENDORS.includes(newAccount.vendor)) {
+    } else if (STANDARD_BANK_VENDORS.includes(formAccount.vendor)) {
       // Standard banks need both username and account number
-      if (!newAccount.username) {
+      if (!formAccount.username) {
         setError('Username is required for bank accounts');
-        return;
+        return false;
       }
-      if (!newAccount.bank_account_number) {
+      if (!formAccount.bank_account_number) {
         setError('Bank account number is required for bank accounts');
-        return;
+        return false;
       }
     }
 
-    if (!newAccount.password) {
+    if (requirePassword && !formAccount.password) {
       setError('Password is required');
-      return;
+      return false;
     }
-    if (!newAccount.nickname) {
+    if (!formAccount.nickname) {
       setError('Account nickname is required');
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const handleAdd = async () => {
+    if (!validateForm(true)) return;
 
     try {
       const response = await fetch('/api/credentials', {
@@ -248,29 +270,72 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newAccount),
+        body: JSON.stringify(formAccount),
       });
 
       if (response.ok) {
         await fetchAccounts();
-        setNewAccount({
-          vendor: 'isracard',
-          username: '',
-          id_number: '',
-          card6_digits: '',
-          bank_account_number: '',
-          password: '',
-          nickname: '',
-          id: 0,
-          created_at: new Date().toISOString(),
-        });
+        resetFormAccount();
         setIsAdding(false);
+        showNotification('Account added successfully', 'success');
       } else {
         throw new Error('Failed to add account');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
+  };
+
+  const handleEdit = (account: Account) => {
+    setFormAccount({
+      vendor: account.vendor,
+      username: account.username || '',
+      id_number: account.id_number || '',
+      card6_digits: account.card6_digits || '',
+      bank_account_number: account.bank_account_number || '',
+      password: '', // Don't pre-fill password for security
+      nickname: account.nickname || '',
+      id: account.id,
+      created_at: account.created_at,
+    });
+    setEditingAccountId(account.id);
+    setIsEditing(true);
+    setError(null);
+  };
+
+  const handleUpdate = async () => {
+    // Password is optional when editing (empty means keep existing)
+    if (!validateForm(false)) return;
+
+    try {
+      const response = await fetch(`/api/credentials/${editingAccountId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formAccount),
+      });
+
+      if (response.ok) {
+        await fetchAccounts();
+        resetFormAccount();
+        setIsEditing(false);
+        setEditingAccountId(null);
+        showNotification('Account updated successfully', 'success');
+      } else {
+        throw new Error('Failed to update account');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleCancelForm = () => {
+    resetFormAccount();
+    setIsAdding(false);
+    setIsEditing(false);
+    setEditingAccountId(null);
+    setError(null);
   };
 
   const handleDelete = async (accountID: number) => {
@@ -572,6 +637,19 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 </Tooltip>
               </TableCell>
               <TableCell align="right">
+                <Tooltip title="Edit account">
+                  <IconButton 
+                    onClick={() => handleEdit(account)}
+                    sx={{ 
+                      color: '#8b5cf6',
+                      '&:hover': {
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                      },
+                    }}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                </Tooltip>
                 <Tooltip title={account.is_active ? "Sync transactions" : "Activate account to sync"}>
                   <span>
                     <IconButton
@@ -628,8 +706,8 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
       <Dialog 
         open={isOpen} 
         onClose={() => {
-          if (isAdding) {
-            setIsAdding(false);
+          if (isAdding || isEditing) {
+            handleCancelForm();
           } else {
             onClose();
           }
@@ -653,28 +731,30 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         }}
       >
         <ModalHeader 
-          title="Accounts Management" 
+          title={isEditing ? "Edit Account" : "Accounts Management"} 
           onClose={() => {
-            if (isAdding) {
-              setIsAdding(false);
+            if (isAdding || isEditing) {
+              handleCancelForm();
             } else {
               onClose();
             }
           }}
           actions={
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => setIsAdding(true)}
-              sx={{
-                backgroundColor: '#3b82f6',
-                '&:hover': {
-                  backgroundColor: '#2563eb',
-                },
-              }}
-            >
-              Add Account
-            </Button>
+            !isAdding && !isEditing && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setIsAdding(true)}
+                sx={{
+                  backgroundColor: '#3b82f6',
+                  '&:hover': {
+                    backgroundColor: '#2563eb',
+                  },
+                }}
+              >
+                Add Account
+              </Button>
+            )
           }
         />
         <DialogContent style={{ padding: '0 32px 32px', color: '#1e293b' }}>
@@ -696,17 +776,20 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
             <Box sx={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
               Loading accounts...
             </Box>
-          ) : accounts.length === 0 && !isAdding ? (
+          ) : accounts.length === 0 && !isAdding && !isEditing ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
               No saved accounts found
             </Box>
-          ) : isAdding ? (
+          ) : isAdding || isEditing ? (
             <Box sx={{ p: 2 }}>
+              <Typography variant="h6" sx={{ mb: 2, color: isEditing ? '#8b5cf6' : '#3b82f6' }}>
+                {isEditing ? 'Edit Account' : 'Add New Account'}
+              </Typography>
               <TextField
                 fullWidth
                 label="Account Nickname"
-                value={newAccount.nickname}
-                onChange={(e) => setNewAccount({ ...newAccount, nickname: e.target.value })}
+                value={formAccount.nickname}
+                onChange={(e) => setFormAccount({ ...formAccount, nickname: e.target.value })}
                 margin="normal"
                 required
               />
@@ -714,19 +797,20 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 fullWidth
                 select
                 label="Vendor"
-                value={newAccount.vendor}
+                value={formAccount.vendor}
                 onChange={(e) => {
                   const vendor = e.target.value;
-                  setNewAccount({
-                    ...newAccount,
+                  setFormAccount({
+                    ...formAccount,
                     vendor,
                     // Clear fields that are not used for the selected vendor
-                    username: vendor === 'visaCal' || vendor === 'max' || BANK_VENDORS.includes(vendor) ? newAccount.username : '',
-                    id_number: vendor === 'isracard' || vendor === 'amex' ? newAccount.id_number : '',
-                    bank_account_number: BANK_VENDORS.includes(vendor) ? newAccount.bank_account_number : '',
+                    username: vendor === 'visaCal' || vendor === 'max' || BANK_VENDORS.includes(vendor) ? formAccount.username : '',
+                    id_number: vendor === 'isracard' || vendor === 'amex' ? formAccount.id_number : '',
+                    bank_account_number: BANK_VENDORS.includes(vendor) ? formAccount.bank_account_number : '',
                   });
                 }}
                 margin="normal"
+                disabled={isEditing} // Don't allow changing vendor when editing
               >
                 <MenuItem value="isracard">Isracard</MenuItem>
                 <MenuItem value="amex">American Express</MenuItem>
@@ -743,12 +827,12 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 <MenuItem value="yahav">Yahav</MenuItem>
                 <MenuItem value="union">Union Bank</MenuItem>
               </TextField>
-              {(newAccount.vendor === 'visaCal' || newAccount.vendor === 'max' || BANK_VENDORS.includes(newAccount.vendor)) ? (
+              {(formAccount.vendor === 'visaCal' || formAccount.vendor === 'max' || BANK_VENDORS.includes(formAccount.vendor)) ? (
                 <TextField
                   fullWidth
                   label="Username"
-                  value={newAccount.username}
-                  onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
+                  value={formAccount.username}
+                  onChange={(e) => setFormAccount({ ...formAccount, username: e.target.value })}
                   margin="normal"
                   required
                 />
@@ -756,58 +840,68 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 <TextField
                   fullWidth
                   label="ID Number"
-                  value={newAccount.id_number}
-                  onChange={(e) => setNewAccount({ ...newAccount, id_number: e.target.value })}
+                  value={formAccount.id_number}
+                  onChange={(e) => setFormAccount({ ...formAccount, id_number: e.target.value })}
                   margin="normal"
                   required
                 />
               )}
-              {STANDARD_BANK_VENDORS.includes(newAccount.vendor) && (
+              {STANDARD_BANK_VENDORS.includes(formAccount.vendor) && (
                 <TextField
                   fullWidth
                   label="Bank Account Number"
-                  value={newAccount.bank_account_number}
-                  onChange={(e) => setNewAccount({ ...newAccount, bank_account_number: e.target.value })}
+                  value={formAccount.bank_account_number}
+                  onChange={(e) => setFormAccount({ ...formAccount, bank_account_number: e.target.value })}
                   margin="normal"
                   required
                   helperText="Required for standard banks"
                 />
               )}
-              {BEINLEUMI_GROUP_VENDORS.includes(newAccount.vendor) && (
+              {BEINLEUMI_GROUP_VENDORS.includes(formAccount.vendor) && (
                 <TextField
                   fullWidth
                   label="Username / ID"
-                  value={newAccount.username}
-                  onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
+                  value={formAccount.username}
+                  onChange={(e) => setFormAccount({ ...formAccount, username: e.target.value })}
                   margin="normal"
                   required
                   helperText="Your ID number (no account number needed for this bank)"
                 />
               )}
-              {(newAccount.vendor === 'isracard' || newAccount.vendor === 'amex') && (
+              {(formAccount.vendor === 'isracard' || formAccount.vendor === 'amex') && (
                 <TextField
                   fullWidth
                   label="Card Last 6 Digits"
-                  value={newAccount.card6_digits}
-                  onChange={(e) => setNewAccount({ ...newAccount, card6_digits: e.target.value })}
+                  value={formAccount.card6_digits}
+                  onChange={(e) => setFormAccount({ ...formAccount, card6_digits: e.target.value })}
                   margin="normal"
                 />
               )}
               <TextField
                 fullWidth
-                label="Password"
+                label={isEditing ? "Password (leave blank to keep current)" : "Password"}
                 type="password"
-                value={newAccount.password}
-                onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
+                value={formAccount.password}
+                onChange={(e) => setFormAccount({ ...formAccount, password: e.target.value })}
                 margin="normal"
-                required
+                required={!isEditing}
+                helperText={isEditing ? "Leave blank to keep the existing password" : undefined}
               />
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                <Button onClick={() => setIsAdding(false)} sx={{ mr: 1 }}>
+                <Button onClick={handleCancelForm} sx={{ mr: 1 }}>
                   Cancel
                 </Button>
-                <Button variant="contained" onClick={handleAdd}>
-                  Add
+                <Button 
+                  variant="contained" 
+                  onClick={isEditing ? handleUpdate : handleAdd}
+                  sx={{
+                    backgroundColor: isEditing ? '#8b5cf6' : '#3b82f6',
+                    '&:hover': {
+                      backgroundColor: isEditing ? '#7c3aed' : '#2563eb',
+                    },
+                  }}
+                >
+                  {isEditing ? 'Save Changes' : 'Add'}
                 </Button>
               </Box>
             </Box>

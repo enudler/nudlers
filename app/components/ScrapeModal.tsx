@@ -5,14 +5,18 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
 import LinearProgress from '@mui/material/LinearProgress';
 import Typography from '@mui/material/Typography';
+import Tooltip from '@mui/material/Tooltip';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
 import { BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
@@ -378,6 +382,24 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
         }}
         inputProps={{ max: todayStr }}
       />
+
+      <Tooltip title="Shows the browser window for debugging or entering 2FA codes. Only works when running locally (not in Docker).">
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.options.showBrowser}
+              onChange={(e) => handleConfigChange('options.showBrowser', e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <BugReportIcon sx={{ fontSize: 18, color: config.options.showBrowser ? '#3b82f6' : '#9ca3af' }} />
+              <span>Debug Mode (Show Browser)</span>
+            </Box>
+          }
+        />
+      </Tooltip>
     </>
   );
 
@@ -435,6 +457,24 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
         }}
         inputProps={{ max: todayStr }}
       />
+
+      <Tooltip title="Shows the browser window for debugging or entering 2FA codes. Only works when running locally (not in Docker).">
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.options.showBrowser}
+              onChange={(e) => handleConfigChange('options.showBrowser', e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <BugReportIcon sx={{ fontSize: 18, color: config.options.showBrowser ? '#3b82f6' : '#9ca3af' }} />
+              <span>Debug Mode (Show Browser)</span>
+            </Box>
+          }
+        />
+      </Tooltip>
     </>
   );
 
@@ -600,6 +640,46 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
               Scraping <strong>{config.options.companyId}</strong>
               {config.credentials.nickname && ` (${config.credentials.nickname})`}
             </Typography>
+            
+            {config.options.showBrowser && isLoading && (
+              <Box sx={{ 
+                p: 2, 
+                backgroundColor: '#dbeafe', 
+                borderRadius: 2,
+                border: '1px solid #93c5fd',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1.5
+              }}>
+                <BugReportIcon sx={{ color: '#2563eb', mt: 0.3 }} />
+                <Box>
+                  <Typography variant="subtitle2" sx={{ color: '#1e40af', fontWeight: 600 }}>
+                    Debug Mode Active
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#1d4ed8', mt: 0.5 }}>
+                    A browser window should have opened. You can interact with it to complete 2FA or debug issues.
+                  </Typography>
+                  <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: '#3b82f6' }}>
+                      <strong>🖥️ Local:</strong> Look for a Chrome window on your desktop
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#3b82f6' }}>
+                      <strong>🐳 Docker:</strong>{' '}
+                      <a 
+                        href="/vnc" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ color: '#2563eb', textDecoration: 'underline' }}
+                      >
+                        Open Browser Viewer
+                      </a>
+                      {' '}(requires ENABLE_VNC=true)
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+            
             {renderProgress()}
           </Box>
         ) : (

@@ -298,30 +298,47 @@ export function validateCredentials(scraperCredentials) {
 
 /**
  * Get base scraper options with anti-detection measures
+ * @param {string} companyId - The company/vendor ID
+ * @param {Date} startDate - Start date for scraping
+ * @param {boolean} isIsracardAmex - Whether this is a rate-limited vendor
+ * @param {Object} options - Additional options
+ * @param {boolean} options.showBrowser - Show browser window for debugging/2FA (default: false)
+ * @param {boolean} options.verbose - Enable verbose logging (default: true)
  */
 export function getScraperOptions(companyId, startDate, isIsracardAmex, options = {}) {
+  const showBrowser = options.showBrowser ?? false;
+  
+  // Base Chrome args for headless/anti-detection
+  const baseArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-features=IsolateOrigins,site-per-process',
+    '--window-size=1920,1080',
+    '--disable-web-security',
+    '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    '--disable-infobars',
+    '--disable-extensions',
+    '--lang=he-IL,he,en-US,en'
+  ];
+  
+  // Add remote debugging port when showing browser (useful for debugging)
+  if (showBrowser) {
+    baseArgs.push('--remote-debugging-port=9222');
+    baseArgs.push('--remote-debugging-address=0.0.0.0');
+  }
+  
   return {
     companyId,
     startDate,
     combineInstallments: false,
     additionalTransactionInformation: true,
-    showBrowser: false,
+    showBrowser,
     verbose: options.verbose ?? true,
     timeout: isIsracardAmex ? 180000 : 120000,
     executablePath: getChromePath(),
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--window-size=1920,1080',
-      '--disable-web-security',
-      '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      '--disable-infobars',
-      '--disable-extensions',
-      '--lang=he-IL,he,en-US,en'
-    ],
+    args: baseArgs,
     viewportSize: { width: 1920, height: 1080 },
     defaultTimeout: isIsracardAmex ? 180000 : 120000,
     ...options

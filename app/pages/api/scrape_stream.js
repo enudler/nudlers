@@ -88,10 +88,12 @@ async function handler(req, res) {
     });
 
     // Build scraper options with progress callback
+    // Pass showBrowser option from client (for debugging/2FA)
     const scraperOptions = {
       ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex, {
         timeout: isIsracardAmex ? 240000 : 120000,
         defaultTimeout: isIsracardAmex ? 240000 : 120000,
+        showBrowser: options.showBrowser ?? false,
       }),
       onProgress: (companyId, payload) => {
         const stepMessages = {

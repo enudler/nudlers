@@ -39,7 +39,7 @@ RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads \
     && chown -R pptruser:pptruser /home/pptruser
 
-# Install dependencies required by Chromium in a single layer
+# Install dependencies required by Chromium and noVNC in a single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
@@ -78,6 +78,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     chromium \
     xvfb \
+    x11vnc \
+    novnc \
+    websockify \
+    openbox \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/cache/apt/archives/*
@@ -96,12 +100,28 @@ COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
 COPY --from=builder --chown=pptruser:pptruser /app/.next/static ./.next/static
 COPY --from=builder --chown=pptruser:pptruser /app/public ./public
 
-# Create startup script
+# Create startup script with optional noVNC support
+# Set ENABLE_VNC=true to enable browser debugging via web interface on port 6080
 RUN echo '#!/bin/sh\n\
 export DISPLAY=:99\n\
-Xvfb :99 -screen 0 1024x768x16 &\n\
+\n\
+# Start Xvfb with larger resolution for browser debugging\n\
+Xvfb :99 -screen 0 1920x1080x24 &\n\
 sleep 1\n\
-export PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --headless --disable-software-rasterizer --disable-extensions --single-process"\n\
+\n\
+# If VNC is enabled, start openbox window manager, x11vnc, and noVNC\n\
+if [ "$ENABLE_VNC" = "true" ]; then\n\
+    echo "Starting VNC server for browser debugging..."\n\
+    # Start a simple window manager\n\
+    openbox &\n\
+    # Start VNC server (no password for simplicity, use with caution)\n\
+    x11vnc -display :99 -forever -shared -nopw -rfbport 5900 &\n\
+    # Start noVNC web server (access at http://localhost:6080/vnc.html)\n\
+    /usr/share/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &\n\
+    echo "noVNC available at http://localhost:6080/vnc.html"\n\
+fi\n\
+\n\
+export PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer --disable-extensions"\n\
 exec node server.js' > /app/start.sh && \
     chmod +x /app/start.sh && \
     chown pptruser:pptruser /app/start.sh
@@ -109,7 +129,9 @@ exec node server.js' > /app/start.sh && \
 # Switch to non-root user
 USER pptruser
 
+# Expose app port and optional noVNC port
 EXPOSE 3000
+EXPOSE 6080
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"

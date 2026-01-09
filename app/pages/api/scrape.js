@@ -50,7 +50,9 @@ async function handler(req, res) {
 
     // Build scraper options with anti-detection measures
     const scraperOptions = {
-      ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex),
+      ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex, {
+        showBrowser: options.showBrowser ?? false,
+      }),
       preparePage: getPreparePage(isIsracardAmex),
     };
 

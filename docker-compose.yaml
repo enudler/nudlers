@@ -34,8 +34,12 @@ services:
       - NUDLERS_DB_PASSWORD=${NUDLERS_DB_PASSWORD}
       - NUDLERS_DB_PORT=${NUDLERS_DB_PORT}
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY}
+      # Set to "true" to enable browser debugging via noVNC on port 6080
+      - ENABLE_VNC=${ENABLE_VNC:-false}
     ports:
       - "3000:3000"
+      # noVNC port for browser debugging (access at http://localhost:6080/vnc.html)
+      - "6080:6080"
     depends_on:
       nudlers-db:
         condition: service_healthy
