@@ -1,5 +1,4 @@
 app/node_modules/*
-app/package-lock.json
 app/.next
 .env
 .env.local
