@@ -563,7 +563,7 @@ export default function SyncStatusIndicator() {
               )}
 
               {/* Expandable Account Details */}
-              {latestRun.details && (latestRun.details.results?.length > 0 || latestRun.details.errors?.length > 0) && (
+              {latestRun.details && ((latestRun.details.results?.length ?? 0) > 0 || (latestRun.details.errors?.length ?? 0) > 0) && (
                 <>
                   <Button
                     size="small"

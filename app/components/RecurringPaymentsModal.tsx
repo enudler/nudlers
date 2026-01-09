@@ -132,7 +132,6 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     >
       <ModalHeader 
         title="Recurring Payments"
-        color="#8b5cf6"
         onClose={onClose}
       />
       

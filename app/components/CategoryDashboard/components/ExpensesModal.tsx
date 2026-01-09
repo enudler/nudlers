@@ -594,7 +594,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                           />
                         )}
                       />
-                      {editCategory !== editingExpense.category && editCategory !== data.type && (
+                      {editingExpense && editCategory !== editingExpense.category && editCategory !== data.type && (
                         <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
                           <FormControlLabel
                             control={
