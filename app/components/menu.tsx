@@ -17,6 +17,7 @@ import Divider from "@mui/material/Divider";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme, styled } from "@mui/material/styles";
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import EditIcon from '@mui/icons-material/Edit';
@@ -269,7 +270,7 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccountBalanceWalletIcon sx={{ fontSize: '24px', color: '#60a5fa' }} />
+          <AutoAwesomeIcon sx={{ fontSize: '24px', color: '#60a5fa' }} />
           <Typography
             sx={{
               fontWeight: 700,
@@ -279,7 +280,7 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               fontSize: '1.2rem',
             }}
           >
-            Clarify
+            Nudlers
           </Typography>
         </Box>
         <IconButton onClick={handleDrawerToggle} sx={{ color: '#fff' }}>
@@ -452,8 +453,8 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
                 fontSize: { xs: '1.2rem', md: '1.5rem' },
               }}
             >
-              <AccountBalanceWalletIcon sx={{ fontSize: { xs: '20px', md: '24px' }, color: '#60a5fa' }} />
-              Clarify
+              <AutoAwesomeIcon sx={{ fontSize: { xs: '20px', md: '24px' }, color: '#60a5fa' }} />
+              Nudlers
             </Logo>
 
             {/* Desktop Navigation */}

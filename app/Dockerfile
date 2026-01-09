@@ -1,9 +1,40 @@
-FROM node:22-slim
+# =============================================================================
+# Stage 1: Dependencies
+# =============================================================================
+FROM node:22-slim AS deps
 
 WORKDIR /app
 
-# Install dependencies required by Chromium
-RUN apt-get update && apt-get install -y \
+# Copy only package files first for better layer caching
+COPY package.json package-lock.json* yarn.lock* ./
+
+# Install dependencies (use npm ci for reproducible builds)
+RUN npm ci --only=production=false
+
+# =============================================================================
+# Stage 2: Builder
+# =============================================================================
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Build the application
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# =============================================================================
+# Stage 3: Production
+# =============================================================================
+FROM node:22-slim AS runner
+
+WORKDIR /app
+
+# Install dependencies required by Chromium in a single layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
     libasound2 \
@@ -42,29 +73,39 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     chromium \
     xvfb \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Add user so we don't need --no-sandbox in Puppeteer
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads \
     && chown -R pptruser:pptruser /home/pptruser
 
-COPY . .
+# Set production environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROME_PATH=/usr/lib/chromium/
 
-# Install dependencies and build as root
-RUN npm install && \
-    npm run build && \
-    chown -R pptruser:pptruser /app
+# Copy only production dependencies
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy built application
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.js ./next.config.js
+
+# Set ownership
+RUN chown -R pptruser:pptruser /app
 
 # Create startup script
 RUN echo '#!/bin/sh\n\
 export DISPLAY=:99\n\
 Xvfb :99 -screen 0 1024x768x16 &\n\
 sleep 1\n\
-export CHROME_BIN=/usr/bin/chromium\n\
-export CHROME_PATH=/usr/lib/chromium/\n\
-export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true\n\
-export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium\n\
 export PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --headless --disable-software-rasterizer --disable-extensions --single-process"\n\
 exec npm start' > /app/start.sh && \
     chmod +x /app/start.sh && \

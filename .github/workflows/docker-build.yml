@@ -52,9 +52,16 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./app
-          platforms: linux/amd64,linux/arm64
+          # Build only for amd64 to significantly reduce build time
+          # ARM64 builds via QEMU emulation are extremely slow (30+ minutes)
+          # If you need ARM64, consider using native ARM runners or separate workflow
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Use GitHub Actions cache for Docker layers
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Build arguments to optimize caching
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
