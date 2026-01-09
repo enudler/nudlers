@@ -1,0 +1,63 @@
+# Production docker-compose for NAS deployment
+# 
+# Usage:
+#   1. Copy .env_example to .env and fill in your values
+#   2. Run: docker-compose -f docker-compose.prod.yaml up -d
+#
+# To update to latest version:
+#   docker-compose -f docker-compose.prod.yaml pull
+#   docker-compose -f docker-compose.prod.yaml up -d
+
+services:
+  nudlers-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${NUDLERS_DB_NAME:-nudlers}
+      POSTGRES_USER: ${NUDLERS_DB_USER:-myuser}
+      POSTGRES_PASSWORD: ${NUDLERS_DB_PASSWORD:?NUDLERS_DB_PASSWORD is required}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+    command: postgres -c ssl=off
+    networks:
+      - nudlers-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NUDLERS_DB_USER:-myuser} -d ${NUDLERS_DB_NAME:-nudlers}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nudlers-app:
+    image: ghcr.io/enudler/credit-card-usage:latest
+    restart: unless-stopped
+    environment:
+      - NUDLERS_DB_USER=${NUDLERS_DB_USER:-myuser}
+      - NUDLERS_DB_HOST=nudlers-db
+      - NUDLERS_DB_NAME=${NUDLERS_DB_NAME:-nudlers}
+      - NUDLERS_DB_PASSWORD=${NUDLERS_DB_PASSWORD:?NUDLERS_DB_PASSWORD is required}
+      - NUDLERS_DB_PORT=5432
+      - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY:?NUDLERS_ENCRYPTION_KEY is required}
+      - NUDLERS_AUTH_PASSWORD=${NUDLERS_AUTH_PASSWORD:-password}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      nudlers-db:
+        condition: service_healthy
+    networks:
+      - nudlers-network
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp=unconfined
+    shm_size: '2gb'
+    
+volumes:
+  db-data:
+
+networks:
+  nudlers-network:
+    driver: bridge

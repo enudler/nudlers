@@ -59,7 +59,36 @@ docker-compose up -d
 
 Open http://localhost:3000
 
-### Option 2: Manual Setup
+### Option 2: NAS / Server Deployment (Pre-built Image)
+
+For NAS or server deployment, use the pre-built Docker image from GitHub Container Registry:
+
+```bash
+# Create a directory for the deployment
+mkdir nudlers && cd nudlers
+
+# Download the production docker-compose and db-init files
+curl -O https://raw.githubusercontent.com/enudler/credit-card-usage/main/docker-compose.prod.yaml
+curl -O https://raw.githubusercontent.com/enudler/credit-card-usage/main/.env_example
+mkdir db-init && curl -o db-init/init.sql https://raw.githubusercontent.com/enudler/credit-card-usage/main/db-init/init.sql
+
+# Configure environment variables
+cp .env_example .env
+# Edit .env with your values (REQUIRED: NUDLERS_DB_PASSWORD, NUDLERS_ENCRYPTION_KEY)
+
+# Start the application
+docker-compose -f docker-compose.prod.yaml up -d
+```
+
+**To update to the latest version:**
+```bash
+docker-compose -f docker-compose.prod.yaml pull
+docker-compose -f docker-compose.prod.yaml up -d
+```
+
+The image supports both `linux/amd64` and `linux/arm64` architectures.
+
+### Option 3: Manual Setup
 
 1. **Clone and install dependencies**
    ```bash
@@ -140,6 +169,8 @@ Open http://localhost:3000
 
 ```
 nudlers/
+├── .github/workflows/      # CI/CD pipelines
+│   └── docker-build.yml    # Build & push Docker image
 ├── app/                    # Next.js application
 │   ├── components/         # React components
 │   ├── pages/
@@ -149,7 +180,8 @@ nudlers/
 │   │   └── index.tsx      # Main page
 │   └── public/            # Static assets
 ├── db-init/               # Database initialization scripts
-├── docker-compose.yaml    # Docker configuration
+├── docker-compose.yaml    # Docker config (local development)
+├── docker-compose.prod.yaml # Docker config (production/NAS)
 └── .env_example           # Environment template
 ```
 
