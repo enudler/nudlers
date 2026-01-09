@@ -11,6 +11,14 @@ export interface Expense {
   category?: string;
   identifier?: string;
   vendor?: string;
+  installments_number?: number;
+  installments_total?: number;
+  vendor_nickname?: string;
+  original_amount?: number;
+  original_currency?: string;
+  charged_currency?: string;
+  card6_digits?: string;
+  account_number?: string;
 }
 
 export interface ExpensesModalProps {

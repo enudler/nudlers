@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	status VARCHAR(20) NOT NULL,
 	installments_number INTEGER,
 	installments_total INTEGER,
+	account_number VARCHAR(50),
 	PRIMARY KEY (identifier, vendor)
 );
 
@@ -27,10 +28,30 @@ CREATE TABLE IF NOT EXISTS vendor_credentials (
     card6_digits VARCHAR(100),
     nickname VARCHAR(100),
 	bank_account_number VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_synced_at TIMESTAMP,
 	UNIQUE (id_number, username, vendor)
 );
+
+-- Migration: Add is_active column to vendor_credentials if it doesn't exist
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'vendor_credentials' AND column_name = 'is_active') THEN
+    ALTER TABLE vendor_credentials ADD COLUMN is_active BOOLEAN DEFAULT true;
+  END IF;
+END $$;
+
+-- Migration: Add last_synced_at column to vendor_credentials if it doesn't exist
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'vendor_credentials' AND column_name = 'last_synced_at') THEN
+    ALTER TABLE vendor_credentials ADD COLUMN last_synced_at TIMESTAMP;
+  END IF;
+END $$;
 
 -- Add categorization rules table
 CREATE TABLE IF NOT EXISTS categorization_rules (
@@ -59,3 +80,156 @@ CREATE TABLE IF NOT EXISTS scrape_events (
 );
 CREATE INDEX IF NOT EXISTS idx_scrape_events_created_at ON scrape_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_scrape_events_vendor ON scrape_events(vendor);
+
+-- Migration: Add account_number column to transactions table if it doesn't exist
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'transactions' AND column_name = 'account_number') THEN
+    ALTER TABLE transactions ADD COLUMN account_number VARCHAR(50);
+  END IF;
+END $$;
+
+-- Card ownership table: tracks which credential "owns" each card for a given vendor
+-- First credential to scrape a card claims ownership; other credentials skip that card
+CREATE TABLE IF NOT EXISTS card_ownership (
+    id SERIAL PRIMARY KEY,
+    vendor VARCHAR(50) NOT NULL,
+    account_number VARCHAR(50) NOT NULL,
+    credential_id INTEGER NOT NULL REFERENCES vendor_credentials(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(vendor, account_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_card_ownership_vendor ON card_ownership(vendor);
+CREATE INDEX IF NOT EXISTS idx_card_ownership_credential ON card_ownership(credential_id);
+
+-- Budget table to store general category spending limits (applies to any month)
+CREATE TABLE IF NOT EXISTS budgets (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(50) NOT NULL UNIQUE, -- One budget per category (general, not month-specific)
+    budget_limit FLOAT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for better performance when querying budgets by category
+CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category);
+
+-- Migration: Convert from month-specific to general budgets
+-- Keep the highest budget_limit per category if there are multiple months
+DO $$ 
+BEGIN 
+  -- Check if cycle column exists (old schema)
+  IF EXISTS (SELECT 1 FROM information_schema.columns 
+             WHERE table_name = 'budgets' AND column_name = 'cycle') THEN
+    -- Create temp table with max budget per category
+    CREATE TEMP TABLE temp_budgets AS
+    SELECT category, MAX(budget_limit) as budget_limit
+    FROM budgets
+    GROUP BY category;
+    
+    -- Drop old table and recreate
+    DROP TABLE budgets;
+    
+    CREATE TABLE budgets (
+        id SERIAL PRIMARY KEY,
+        category VARCHAR(50) NOT NULL UNIQUE,
+        budget_limit FLOAT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Restore data
+    INSERT INTO budgets (category, budget_limit)
+    SELECT category, budget_limit FROM temp_budgets;
+    
+    DROP TABLE temp_budgets;
+  END IF;
+END $$;
+
+-- Card vendors table to store card issuer/brand for each card (by last 4 digits)
+CREATE TABLE IF NOT EXISTS card_vendors (
+    id SERIAL PRIMARY KEY,
+    last4_digits VARCHAR(4) NOT NULL UNIQUE,
+    card_vendor VARCHAR(50) NOT NULL,
+    card_nickname VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for quick lookup by last 4 digits
+CREATE INDEX IF NOT EXISTS idx_card_vendors_last4 ON card_vendors(last4_digits);
+
+-- Duplicate prevention: Create a unique index on business fields as a secondary defense
+-- This catches duplicates that might slip through due to identifier changes
+-- Using a partial index to exclude manual transactions (which have unique timestamps in identifiers)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_business_key 
+ON transactions (vendor, date, LOWER(TRIM(name)), ABS(price), COALESCE(account_number, ''))
+WHERE vendor NOT LIKE 'manual_%';
+
+-- Index for efficient duplicate detection queries
+CREATE INDEX IF NOT EXISTS idx_transactions_duplicate_check 
+ON transactions (vendor, date, ABS(price));
+
+-- Table to track detected duplicates for user review
+CREATE TABLE IF NOT EXISTS potential_duplicates (
+    id SERIAL PRIMARY KEY,
+    transaction1_id VARCHAR(50) NOT NULL,
+    transaction1_vendor VARCHAR(50) NOT NULL,
+    transaction2_id VARCHAR(50) NOT NULL,
+    transaction2_vendor VARCHAR(50) NOT NULL,
+    similarity_score FLOAT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- pending, confirmed_duplicate, not_duplicate
+    resolved_at TIMESTAMP,
+    resolved_action VARCHAR(20), -- kept_first, kept_second, kept_both, deleted_both
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(transaction1_id, transaction1_vendor, transaction2_id, transaction2_vendor)
+);
+
+CREATE INDEX IF NOT EXISTS idx_potential_duplicates_status ON potential_duplicates(status);
+CREATE INDEX IF NOT EXISTS idx_potential_duplicates_created ON potential_duplicates(created_at DESC);
+
+-- Scheduled sync runs - tracks automatic background sync runs (2x daily)
+CREATE TABLE IF NOT EXISTS scheduled_sync_runs (
+    id SERIAL PRIMARY KEY,
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'running', -- running, success, partial, failed
+    total_accounts INTEGER DEFAULT 0,
+    successful_accounts INTEGER DEFAULT 0,
+    failed_accounts INTEGER DEFAULT 0,
+    total_transactions INTEGER DEFAULT 0,
+    error_message TEXT,
+    details JSONB, -- Detailed results per account
+    triggered_by VARCHAR(50) DEFAULT 'scheduler' -- scheduler, manual
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_sync_runs_started ON scheduled_sync_runs(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scheduled_sync_runs_status ON scheduled_sync_runs(status);
+
+-- Scheduled sync configuration
+CREATE TABLE IF NOT EXISTS scheduled_sync_config (
+    id SERIAL PRIMARY KEY,
+    is_enabled BOOLEAN DEFAULT true,
+    schedule_hours INTEGER[] DEFAULT ARRAY[6, 18], -- Hours of day to run (default: 6 AM and 6 PM)
+    days_to_sync INTEGER DEFAULT 7, -- How many days back to sync
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default config if not exists
+INSERT INTO scheduled_sync_config (is_enabled, schedule_hours, days_to_sync)
+SELECT true, ARRAY[6, 18], 7
+WHERE NOT EXISTS (SELECT 1 FROM scheduled_sync_config);
+
+-- Total spend budget table - stores a single overall spending limit across all credit cards
+CREATE TABLE IF NOT EXISTS total_budget (
+    id SERIAL PRIMARY KEY,
+    budget_limit FLOAT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ensure only one row exists in total_budget
+CREATE UNIQUE INDEX IF NOT EXISTS idx_total_budget_single_row ON total_budget ((true));

@@ -1,0 +1,1850 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import DescriptionIcon from '@mui/icons-material/Description';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import DateRangeIcon from '@mui/icons-material/DateRange';
+import TuneIcon from '@mui/icons-material/Tune';
+import SortIcon from '@mui/icons-material/Sort';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import SettingsIcon from '@mui/icons-material/Settings';
+import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import TextField from '@mui/material/TextField';
+import Autocomplete from '@mui/material/Autocomplete';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Box from '@mui/material/Box';
+import ExpensesModal from './CategoryDashboard/components/ExpensesModal';
+import { ModalData } from './CategoryDashboard/types';
+import { useCategories } from './CategoryDashboard/utils/useCategories';
+import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
+import { useScreenContext } from './Layout';
+
+// Maximum date range in years
+const MAX_YEARS_RANGE = 5;
+
+interface MonthlySummaryData {
+  month: string;
+  vendor?: string;
+  vendor_nickname?: string | null;
+  description?: string;
+  category?: string;
+  last4digits?: string;
+  transaction_count?: number;
+  card_expenses: number;
+}
+
+interface CardSummary {
+  last4digits: string;
+  card_expenses: number;
+  card_vendor?: string | null;
+}
+
+type GroupByType = 'vendor' | 'description' | 'last4digits';
+type DateRangeMode = 'calendar' | 'billing' | 'custom';
+type SortField = 'name' | 'count' | 'card_expenses';
+type SortDirection = 'asc' | 'desc';
+
+// Helper function to calculate date range based on mode
+const getDateRange = (year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
+  const y = parseInt(year);
+  const m = parseInt(month);
+  
+  if (mode === 'calendar') {
+    // Full calendar month: 1st to last day of month
+    const startDate = `${year}-${month}-01`;
+    const lastDay = new Date(y, m, 0).getDate(); // Get last day of month
+    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
+    return { startDate, endDate };
+  } else {
+    // Billing cycle: 11th of previous month to 10th of selected month
+    let prevMonth = m - 1;
+    let prevYear = y;
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear = y - 1;
+    }
+    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-11`;
+    const endDate = `${year}-${month}-10`;
+    return { startDate, endDate };
+  }
+};
+
+// Helper to format date range for display
+const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode): string => {
+  const { startDate, endDate } = getDateRange(year, month, mode);
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${startStr} - ${endStr}`;
+};
+
+const formatNumber = (num: number): string => {
+  return new Intl.NumberFormat('he-IL').format(Math.round(num));
+};
+
+const formatMonth = (monthStr: string): string => {
+  const [year, month] = monthStr.split('-');
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+};
+
+const BUTTON_STYLE = {
+  background: 'rgba(255, 255, 255, 0.8)',
+  backdropFilter: 'blur(10px)',
+  padding: '14px',
+  borderRadius: '16px',
+  border: '1px solid rgba(148, 163, 184, 0.2)',
+  color: '#475569',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+};
+
+const SELECT_STYLE = {
+  padding: '14px 28px',
+  borderRadius: '16px',
+  border: '1px solid rgba(148, 163, 184, 0.2)',
+  background: 'rgba(255, 255, 255, 0.8)',
+  backdropFilter: 'blur(10px)',
+  color: '#1e293b',
+  fontSize: '15px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  outline: 'none',
+  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+};
+
+const MonthlySummary: React.FC = () => {
+  const [data, setData] = useState<MonthlySummaryData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Month/Year selection
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [uniqueYears, setUniqueYears] = useState<string[]>([]);
+  const [uniqueMonths, setUniqueMonths] = useState<string[]>([]);
+  const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
+  
+  
+  // Grouping
+  const [groupBy, setGroupBy] = useState<GroupByType>('description');
+  
+  // Date range mode
+  const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
+  
+  // Modal for transaction details
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<ModalData | undefined>();
+  const [loadingDescription, setLoadingDescription] = useState<string | null>(null);
+  const [loadingLast4, setLoadingLast4] = useState<string | null>(null);
+  
+  // Card summary for cards display (grouped by last 4 digits)
+  const [cardSummary, setCardSummary] = useState<CardSummary[]>([]);
+  
+  // Sorting
+  const [sortField, setSortField] = useState<SortField>('card_expenses');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  // Category editing
+  const [editingDescription, setEditingDescription] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState<string>('');
+  const { categories: availableCategories } = useCategories();
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+  
+  // Card vendor selection
+  const [vendorMenuAnchor, setVendorMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedCardForVendor, setSelectedCardForVendor] = useState<string | null>(null);
+  const [cardVendorMap, setCardVendorMap] = useState<Record<string, string>>({});
+  const [cardNicknameMap, setCardNicknameMap] = useState<Record<string, string>>({});
+  const [editingNickname, setEditingNickname] = useState<string>('');
+  
+  // Custom date range state
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [dateRangeError, setDateRangeError] = useState<string>('');
+  
+  // AI context
+  const { setScreenContext } = useScreenContext();
+  
+  // Validate date range (max 5 years)
+  const validateDateRange = (start: string, end: string): boolean => {
+    if (!start || !end) return false;
+    
+    const startDateObj = new Date(start);
+    const endDateObj = new Date(end);
+    
+    if (startDateObj > endDateObj) {
+      setDateRangeError('Start date must be before end date');
+      return false;
+    }
+    
+    const diffTime = Math.abs(endDateObj.getTime() - startDateObj.getTime());
+    const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365);
+    
+    if (diffYears > MAX_YEARS_RANGE) {
+      setDateRangeError(`Date range cannot exceed ${MAX_YEARS_RANGE} years`);
+      return false;
+    }
+    
+    setDateRangeError('');
+    return true;
+  };
+
+  useEffect(() => {
+    fetchAvailableMonths();
+    fetchCardVendors();
+  }, []);
+
+  const fetchCardVendors = async () => {
+    try {
+      const response = await fetch('/api/card_vendors');
+      if (response.ok) {
+        const data = await response.json();
+        const vendorMap: Record<string, string> = {};
+        const nicknameMap: Record<string, string> = {};
+        for (const card of data) {
+          if (card.card_vendor) {
+            vendorMap[card.last4_digits] = card.card_vendor;
+          }
+          if (card.card_nickname) {
+            nicknameMap[card.last4_digits] = card.card_nickname;
+          }
+        }
+        setCardVendorMap(vendorMap);
+        setCardNicknameMap(nicknameMap);
+      }
+    } catch (error) {
+      console.error('Error fetching card vendors:', error);
+    }
+  };
+
+  const handleVendorMenuOpen = (event: React.MouseEvent<HTMLElement>, last4digits: string) => {
+    event.stopPropagation();
+    setVendorMenuAnchor(event.currentTarget);
+    setSelectedCardForVendor(last4digits);
+    setEditingNickname(cardNicknameMap[last4digits] || '');
+  };
+
+  const handleVendorMenuClose = () => {
+    setVendorMenuAnchor(null);
+    setSelectedCardForVendor(null);
+  };
+
+  const handleVendorSelect = async (vendorKey: string) => {
+    if (!selectedCardForVendor) return;
+    
+    // Keep existing nickname if any
+    const existingNickname = cardNicknameMap[selectedCardForVendor] || null;
+    
+    try {
+      const response = await fetch('/api/card_vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          last4_digits: selectedCardForVendor,
+          card_vendor: vendorKey,
+          card_nickname: existingNickname,
+        }),
+      });
+
+      if (response.ok) {
+        setCardVendorMap(prev => ({
+          ...prev,
+          [selectedCardForVendor]: vendorKey
+        }));
+        setSnackbar({
+          open: true,
+          message: `Card •••• ${selectedCardForVendor} set to ${CARD_VENDORS[vendorKey as keyof typeof CARD_VENDORS]?.name || vendorKey}`,
+          severity: 'success'
+        });
+        // Trigger refresh for other components
+        window.dispatchEvent(new CustomEvent('cardVendorsUpdated'));
+      }
+    } catch (error) {
+      console.error('Error saving card vendor:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save card vendor',
+        severity: 'error'
+      });
+    }
+    
+    handleVendorMenuClose();
+  };
+
+  const handleNicknameSave = async (last4digits: string, nickname: string) => {
+    const existingVendor = cardVendorMap[last4digits] || null;
+    
+    try {
+      const response = await fetch('/api/card_vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          last4_digits: last4digits,
+          card_vendor: existingVendor || 'visa', // Default to visa if no vendor set
+          card_nickname: nickname || null,
+        }),
+      });
+
+      if (response.ok) {
+        setCardNicknameMap(prev => ({
+          ...prev,
+          [last4digits]: nickname
+        }));
+        setSnackbar({
+          open: true,
+          message: nickname ? `Card nickname set to "${nickname}"` : 'Card nickname removed',
+          severity: 'success'
+        });
+        window.dispatchEvent(new CustomEvent('cardVendorsUpdated'));
+      }
+    } catch (error) {
+      console.error('Error saving card nickname:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save card nickname',
+        severity: 'error'
+      });
+    }
+  };
+
+  const fetchAvailableMonths = async () => {
+    try {
+      const response = await fetch('/api/available_months');
+      const datesData = await response.json();
+      setAllAvailableDates(datesData);
+      
+      // Sort dates in descending order to get the most recent first
+      const sortedDates = datesData.sort((a: string, b: string) => b.localeCompare(a));
+      
+      // Default to current month/year (the current billing cycle)
+      const now = new Date();
+      const currentYear = now.getFullYear().toString();
+      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const currentYearMonth = `${currentYear}-${currentMonth}`;
+      
+      // Use current month if available, otherwise fall back to most recent
+      const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
+      const defaultYear = defaultDate.substring(0, 4);
+      const defaultMonth = defaultDate.substring(5, 7);
+      
+      const years = Array.from(new Set(datesData.map((date: string) => date.substring(0, 4)))) as string[];
+      
+      setUniqueYears(years);
+      setSelectedYear(defaultYear);
+
+      // Get months for the default year
+      const monthsForYear = datesData
+        .filter((date: string) => date.startsWith(defaultYear))
+        .map((date: string) => date.substring(5, 7));
+      
+      const months = Array.from(new Set(monthsForYear)) as string[];
+      
+      setUniqueMonths(months);
+      setSelectedMonth(defaultMonth);
+    } catch (error) {
+      console.error("Error fetching available months:", error);
+    }
+  };
+
+  const fetchMonthlySummary = useCallback(async () => {
+    // For custom mode, we need custom dates; for other modes, we need year/month
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      let url: string;
+      let cardUrl: string;
+      
+      if (dateRangeMode === 'custom') {
+        // In custom mode, use custom date range
+        url = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=${groupBy}`;
+        cardUrl = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=last4digits`;
+      } else if (dateRangeMode === 'billing') {
+        // In billing mode, filter by processed_date month (actual billing cycle from credit card)
+        const billingCycle = `${selectedYear}-${selectedMonth}`;
+        url = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
+        cardUrl = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=last4digits`;
+      } else {
+        // In calendar mode, use date range
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        url = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
+        cardUrl = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
+      }
+      
+      // Fetch both main data and card summary in parallel
+      const [mainResponse, cardResponse] = await Promise.all([
+        fetch(url),
+        fetch(cardUrl)
+      ]);
+      
+      if (!mainResponse.ok) {
+        throw new Error('Failed to fetch monthly summary');
+      }
+      
+      const result = await mainResponse.json();
+      setData(result);
+      
+      if (cardResponse.ok) {
+        const cardResult = await cardResponse.json();
+        // Filter to only include cards with expenses (exclude 0 card_expenses)
+        const cards = cardResult
+          .filter((c: any) => Number(c.card_expenses) > 0)
+          .map((c: any) => ({
+            last4digits: c.last4digits,
+            card_expenses: Number(c.card_expenses)
+          }));
+        setCardSummary(cards);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedYear, selectedMonth, groupBy, dateRangeMode, customStartDate, customEndDate]);
+
+  useEffect(() => {
+    if (dateRangeMode === 'custom') {
+      if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
+        fetchMonthlySummary();
+      }
+    } else if (selectedYear && selectedMonth) {
+      fetchMonthlySummary();
+    }
+  }, [selectedYear, selectedMonth, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
+
+  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newYear = event.target.value;
+    setSelectedYear(newYear);
+
+    // Update available months for the selected year
+    const monthsForYear = allAvailableDates
+      .filter((date: string) => date.startsWith(newYear))
+      .map((date: string) => date.substring(5, 7));
+    
+    const uniqueMonthsForYear = Array.from(new Set(monthsForYear)) as string[];
+    setUniqueMonths(uniqueMonthsForYear);
+    
+    // If current month is not available in new year, select the first available month
+    if (!uniqueMonthsForYear.includes(selectedMonth)) {
+      setSelectedMonth(uniqueMonthsForYear[0]);
+    }
+  };
+
+  const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedMonth(event.target.value);
+  };
+
+  const handleDateRangeModeChange = (mode: DateRangeMode) => {
+    setDateRangeMode(mode);
+    setDateRangeError('');
+    
+    if (mode === 'custom') {
+      // Initialize custom dates if not set
+      if (!customStartDate || !customEndDate) {
+        // Default to last 3 months from today
+        const today = new Date();
+        const threeMonthsAgo = new Date(today);
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        
+        const formatDate = (d: Date) => d.toISOString().split('T')[0];
+        setCustomStartDate(formatDate(threeMonthsAgo));
+        setCustomEndDate(formatDate(today));
+      }
+    }
+  };
+  
+  const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
+    if (type === 'start') {
+      setCustomStartDate(value);
+      if (customEndDate) {
+        validateDateRange(value, customEndDate);
+      }
+    } else {
+      setCustomEndDate(value);
+      if (customStartDate) {
+        validateDateRange(customStartDate, value);
+      }
+    }
+  };
+
+  const handleRefresh = () => {
+    if (dateRangeMode === 'custom') {
+      if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
+        fetchMonthlySummary();
+      }
+    } else {
+      fetchMonthlySummary();
+    }
+  };
+
+  const [loadingAll, setLoadingAll] = useState(false);
+
+  const handleAllTransactionsClick = async () => {
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+    
+    try {
+      setLoadingAll(true);
+      
+      let url: string;
+      if (dateRangeMode === 'custom') {
+        url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
+      } else if (dateRangeMode === 'billing') {
+        const billingCycle = `${selectedYear}-${selectedMonth}`;
+        url = `/api/category_expenses?billingCycle=${billingCycle}&all=true`;
+      } else {
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      
+      const transactions = await response.json();
+      // Filter to only credit card transactions (exclude Bank and Income)
+      const cardTransactions = transactions.filter((t: any) => 
+        t.category !== 'Bank' && t.category !== 'Income'
+      );
+      
+      setModalData({
+        type: 'All Card Expenses',
+        data: cardTransactions
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Error fetching all transactions:', err);
+    } finally {
+      setLoadingAll(false);
+    }
+  };
+
+  // Category editing handlers
+  const handleCategoryEditClick = (description: string, currentCategory: string) => {
+    setEditingDescription(description);
+    setEditCategory(currentCategory || '');
+  };
+
+  const handleCategorySave = async (description: string) => {
+    if (!editCategory.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Category cannot be empty',
+        severity: 'error'
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/update_category_by_description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description: description,
+          newCategory: editCategory.trim(),
+          createRule: true
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Update local data
+        setData(prevData => 
+          prevData.map(row => 
+            row.description === description 
+              ? { ...row, category: editCategory.trim() }
+              : row
+          )
+        );
+        
+        const message = result.transactionsUpdated > 1
+          ? `Updated ${result.transactionsUpdated} transactions with "${description}" to "${editCategory}". Rule saved for future transactions.`
+          : `Category updated to "${editCategory}". Rule saved for future transactions.`;
+        
+        setSnackbar({
+          open: true,
+          message,
+          severity: 'success'
+        });
+        
+        // Trigger a refresh of any other open components
+        window.dispatchEvent(new CustomEvent('dataRefresh'));
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Failed to update category',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating category:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error updating category',
+        severity: 'error'
+      });
+    }
+    
+    setEditingDescription(null);
+  };
+
+  const handleCategoryCancel = () => {
+    setEditingDescription(null);
+    setEditCategory('');
+  };
+
+  const handleDescriptionClick = async (description: string) => {
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+    
+    try {
+      setLoadingDescription(description);
+      
+      let url: string;
+      if (dateRangeMode === 'custom') {
+        url = `/api/transactions_by_description?startDate=${customStartDate}&endDate=${customEndDate}&description=${encodeURIComponent(description)}`;
+      } else if (dateRangeMode === 'billing') {
+        const billingCycle = `${selectedYear}-${selectedMonth}`;
+        url = `/api/transactions_by_description?billingCycle=${billingCycle}&description=${encodeURIComponent(description)}`;
+      } else {
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        url = `/api/transactions_by_description?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      
+      const transactions = await response.json();
+      
+      setModalData({
+        type: description,
+        data: transactions
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+    } finally {
+      setLoadingDescription(null);
+    }
+  };
+
+  const handleLast4DigitsClick = async (last4digits: string) => {
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+    
+    try {
+      setLoadingLast4(last4digits);
+      
+      let url: string;
+      if (dateRangeMode === 'custom') {
+        url = `/api/transactions_by_last4?startDate=${customStartDate}&endDate=${customEndDate}&last4digits=${encodeURIComponent(last4digits)}`;
+      } else if (dateRangeMode === 'billing') {
+        const billingCycle = `${selectedYear}-${selectedMonth}`;
+        url = `/api/transactions_by_last4?billingCycle=${billingCycle}&last4digits=${encodeURIComponent(last4digits)}`;
+      } else {
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        url = `/api/transactions_by_last4?startDate=${startDate}&endDate=${endDate}&last4digits=${encodeURIComponent(last4digits)}`;
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      
+      const transactions = await response.json();
+      
+      setModalData({
+        type: `Card ending in ${last4digits}`,
+        data: transactions
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+    } finally {
+      setLoadingLast4(null);
+    }
+  };
+
+  // Calculate totals from filtered data
+  const totals = data.reduce(
+    (acc, row) => ({
+      card_expenses: acc.card_expenses + Number(row.card_expenses),
+    }),
+    { card_expenses: 0 }
+  );
+
+  // Update AI Assistant screen context when data changes
+  useEffect(() => {
+    const getDateRangeForContext = () => {
+      if (dateRangeMode === 'custom') {
+        return {
+          startDate: customStartDate,
+          endDate: customEndDate,
+          mode: 'custom'
+        };
+      } else if (selectedYear && selectedMonth) {
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        return {
+          startDate,
+          endDate,
+          mode: dateRangeMode
+        };
+      }
+      return undefined;
+    };
+
+    // Group expenses by category equivalent for summary
+    const categoryTotals: { [key: string]: number } = {};
+    data.forEach(item => {
+      const categoryKey = item.category || 'Uncategorized';
+      categoryTotals[categoryKey] = (categoryTotals[categoryKey] || 0) + Number(item.card_expenses);
+    });
+    const categorySummary = Object.entries(categoryTotals).map(([name, value]) => ({ name, value }));
+
+    setScreenContext({
+      view: 'summary',
+      dateRange: getDateRangeForContext(),
+      summary: {
+        totalIncome: 0,
+        totalExpenses: totals.card_expenses,
+        creditCardExpenses: totals.card_expenses,
+        categories: categorySummary
+      }
+    });
+  }, [data, totals.card_expenses, dateRangeMode, selectedYear, selectedMonth, customStartDate, customEndDate, setScreenContext]);
+
+  // Sorting handler
+  const handleSortChange = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // Sort the data
+  const sortedData = useMemo(() => {
+    if (!data.length) return data;
+    
+    return [...data].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'name':
+          const nameA = groupBy === 'description' 
+            ? (a.description || '') 
+            : groupBy === 'last4digits' 
+              ? (a.last4digits || '') 
+              : (a.vendor_nickname || a.vendor || '');
+          const nameB = groupBy === 'description' 
+            ? (b.description || '') 
+            : groupBy === 'last4digits' 
+              ? (b.last4digits || '') 
+              : (b.vendor_nickname || b.vendor || '');
+          comparison = nameA.localeCompare(nameB);
+          break;
+        case 'count':
+          comparison = (a.transaction_count || 0) - (b.transaction_count || 0);
+          break;
+        case 'card_expenses':
+          comparison = Number(a.card_expenses) - Number(b.card_expenses);
+          break;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [data, sortField, sortDirection, groupBy]);
+
+  if (error) {
+    return (
+      <div style={{
+        textAlign: 'center',
+        padding: '64px',
+        color: '#ef4444'
+      }}>
+        Error: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      position: 'relative',
+      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
+      overflow: 'hidden'
+    }}>
+      {/* Animated background elements */}
+      <div style={{
+        position: 'absolute',
+        top: '-10%',
+        right: '-5%',
+        width: '600px',
+        height: '600px',
+        background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(60px)',
+        zIndex: 0
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-10%',
+        left: '-5%',
+        width: '500px',
+        height: '500px',
+        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(60px)',
+        zIndex: 0
+      }} />
+
+      {/* Main content container */}
+      <div style={{
+        padding: '24px 16px',
+        maxWidth: '1440px',
+        margin: '0 auto',
+        position: 'relative',
+        zIndex: 1
+      }}>
+        {/* Hero Section with Filters */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '32px',
+          padding: '36px',
+          marginBottom: '32px',
+          marginTop: '40px',
+          marginLeft: '24px',
+          marginRight: '24px',
+          border: '1px solid rgba(148, 163, 184, 0.15)',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            flexWrap: 'wrap',
+            gap: '24px'
+          }}>
+            <div>
+              <h1 style={{
+                fontSize: '28px',
+                fontWeight: 700,
+                margin: 0,
+                background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>Monthly Summary</h1>
+              <p style={{
+                color: '#64748b',
+                marginTop: '8px',
+                marginBottom: 0,
+                fontSize: '16px'
+              }}>
+                Overview of credit card expenses for{' '}
+                {dateRangeMode === 'custom' 
+                  ? (customStartDate && customEndDate 
+                      ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                      : 'custom date range')
+                  : (selectedMonth && selectedYear && 
+                      new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)
+                        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))
+                }
+              </p>
+            </div>
+            
+            {/* Controls */}
+            <div style={{
+              display: 'flex',
+              gap: '16px',
+              alignItems: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <IconButton
+                onClick={handleRefresh}
+                style={BUTTON_STYLE}
+              >
+                <RefreshIcon />
+              </IconButton>
+              
+              {dateRangeMode !== 'custom' && (
+                <>
+                  <select 
+                    value={selectedYear}
+                    onChange={handleYearChange}
+                    style={{ ...SELECT_STYLE, minWidth: '120px' }}
+                  >
+                    {uniqueYears.map((year) => (
+                      <option key={year} value={year} style={{ background: '#ffffff', color: '#1e293b' }}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  <select 
+                    value={selectedMonth}
+                    onChange={handleMonthChange}
+                    style={{ ...SELECT_STYLE, minWidth: '160px' }}
+                  >
+                    {uniqueMonths.map((month) => (
+                      <option key={month} value={month} style={{ background: '#ffffff', color: '#1e293b' }}>
+                        {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              
+              {/* Date Range Mode Toggle */}
+              <div style={{
+                display: 'flex',
+                background: 'rgba(255, 255, 255, 0.8)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '16px',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                padding: '4px',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+              }}>
+                <button
+                  onClick={() => handleDateRangeModeChange('calendar')}
+                  title="Full month (1st - end of month)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: dateRangeMode === 'calendar' 
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' 
+                      : 'transparent',
+                    color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: dateRangeMode === 'calendar' 
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)' 
+                      : 'none'
+                  }}
+                >
+                  <CalendarMonthIcon style={{ fontSize: '18px' }} />
+                  <span>1-31</span>
+                </button>
+                <button
+                  onClick={() => handleDateRangeModeChange('billing')}
+                  title="Billing cycle (uses actual billing date from credit card)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: dateRangeMode === 'billing' 
+                      ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)' 
+                      : 'transparent',
+                    color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: dateRangeMode === 'billing' 
+                      ? '0 4px 12px rgba(139, 92, 246, 0.3)' 
+                      : 'none'
+                  }}
+                >
+                  <DateRangeIcon style={{ fontSize: '18px' }} />
+                  <span>Cycle</span>
+                </button>
+                <button
+                  onClick={() => handleDateRangeModeChange('custom')}
+                  title="Custom date range (up to 5 years)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: dateRangeMode === 'custom' 
+                      ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' 
+                      : 'transparent',
+                    color: dateRangeMode === 'custom' ? '#ffffff' : '#64748b',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: dateRangeMode === 'custom' 
+                      ? '0 4px 12px rgba(16, 185, 129, 0.3)' 
+                      : 'none'
+                  }}
+                >
+                  <TuneIcon style={{ fontSize: '18px' }} />
+                  <span>Custom</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Date range indicator */}
+          {dateRangeMode === 'custom' ? (
+            <div style={{
+              marginTop: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+                justifyContent: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>From:</span>
+                  <TextField
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => handleCustomDateChange('start', e.target.value)}
+                    size="small"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        '& fieldset': {
+                          borderColor: dateRangeError ? '#ef4444' : 'rgba(148, 163, 184, 0.3)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#10b981',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#10b981',
+                        },
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '10px 14px',
+                        fontSize: '14px',
+                      }
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>To:</span>
+                  <TextField
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => handleCustomDateChange('end', e.target.value)}
+                    size="small"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        '& fieldset': {
+                          borderColor: dateRangeError ? '#ef4444' : 'rgba(148, 163, 184, 0.3)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#10b981',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#10b981',
+                        },
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: '10px 14px',
+                        fontSize: '14px',
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              {dateRangeError && (
+                <span style={{ 
+                  color: '#ef4444', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239, 68, 68, 0.2)'
+                }}>
+                  {dateRangeError}
+                </span>
+              )}
+              {customStartDate && customEndDate && !dateRangeError && (
+                <span style={{ 
+                  background: 'rgba(16, 185, 129, 0.1)', 
+                  padding: '6px 12px', 
+                  borderRadius: '8px',
+                  border: '1px solid rgba(16, 185, 129, 0.2)',
+                  color: '#10b981',
+                  fontSize: '13px',
+                  fontWeight: 500
+                }}>
+                  📅 {new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+            </div>
+          ) : selectedYear && selectedMonth && dateRangeMode === 'billing' ? (
+            <div style={{
+              marginTop: '16px',
+              textAlign: 'center',
+              color: '#64748b',
+              fontSize: '14px',
+              fontWeight: 500
+            }}>
+              <span style={{ 
+                background: 'rgba(139, 92, 246, 0.1)', 
+                padding: '6px 12px', 
+                borderRadius: '8px',
+                border: '1px solid rgba(139, 92, 246, 0.2)'
+              }}>
+                💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        {loading ? (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '300px'
+          }}>
+            <CircularProgress size={60} style={{ color: '#3b82f6' }} />
+          </div>
+        ) : (
+          <>
+            {/* Summary Cards Section */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderRadius: '32px',
+              padding: '24px 32px',
+              marginLeft: '24px',
+              marginRight: '24px',
+              marginBottom: '32px',
+              border: '1px solid rgba(148, 163, 184, 0.15)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
+            }}>
+              <div style={{
+                display: 'flex',
+                gap: '16px',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start',
+                alignItems: 'stretch'
+              }}>
+                {/* Total Card Expenses - Main Card */}
+                <div 
+                  onClick={handleAllTransactionsClick}
+                  style={{
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                    borderRadius: '20px',
+                    padding: '20px 24px',
+                    minWidth: '200px',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
+                    opacity: loadingAll ? 0.7 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.3)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    {loadingAll ? (
+                      <CircularProgress size={20} style={{ color: 'white' }} />
+                    ) : (
+                      <CreditCardIcon sx={{ color: 'white', fontSize: '20px' }} />
+                    )}
+                    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
+                      Total Expenses
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'white' }}>
+                    ₪{formatNumber(totals.card_expenses)}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
+                    Click to view all
+                  </div>
+                </div>
+
+                {/* Individual Cards by Last 4 Digits */}
+                {cardSummary.map((card) => {
+                  const isLoading = loadingLast4 === card.last4digits;
+                  const percentage = totals.card_expenses > 0 
+                    ? Math.round((card.card_expenses / totals.card_expenses) * 100) 
+                    : 0;
+                  const cardVendor = cardVendorMap[card.last4digits];
+                  
+                  return (
+                    <div 
+                      key={card.last4digits}
+                      style={{
+                        background: 'rgba(248, 250, 252, 0.8)',
+                        borderRadius: '16px',
+                        padding: '16px 20px',
+                        minWidth: '160px',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        opacity: isLoading ? 0.7 : 1,
+                        position: 'relative'
+                      }}
+                      onClick={() => handleLast4DigitsClick(card.last4digits)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                        const settingsBtn = e.currentTarget.querySelector('.vendor-settings-btn') as HTMLElement;
+                        if (settingsBtn) settingsBtn.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.background = 'rgba(248, 250, 252, 0.8)';
+                        e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+                        e.currentTarget.style.boxShadow = 'none';
+                        const settingsBtn = e.currentTarget.querySelector('.vendor-settings-btn') as HTMLElement;
+                        if (settingsBtn) settingsBtn.style.opacity = '0';
+                      }}
+                    >
+                      {/* Settings button for vendor selection */}
+                      <IconButton
+                        className="vendor-settings-btn"
+                        size="small"
+                        onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
+                        sx={{
+                          position: 'absolute',
+                          top: '4px',
+                          right: '4px',
+                          opacity: 0,
+                          transition: 'opacity 0.2s',
+                          padding: '4px',
+                          color: '#64748b',
+                          '&:hover': {
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            color: '#3b82f6'
+                          }
+                        }}
+                      >
+                        <SettingsIcon sx={{ fontSize: '16px' }} />
+                      </IconButton>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        {isLoading ? (
+                          <CircularProgress size={20} style={{ color: '#3b82f6' }} />
+                        ) : (
+                          <CardVendorIcon vendor={cardVendor || null} size={28} />
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {cardNicknameMap[card.last4digits] ? (
+                            <>
+                              <span style={{ 
+                                color: '#1e293b', 
+                                fontSize: '13px', 
+                                fontWeight: 700,
+                              }}>
+                                {cardNicknameMap[card.last4digits]}
+                              </span>
+                              <span style={{ 
+                                color: '#94a3b8', 
+                                fontSize: '11px', 
+                                fontFamily: 'monospace',
+                                letterSpacing: '1px'
+                              }}>
+                                •••• {card.last4digits}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ 
+                              color: '#475569', 
+                              fontSize: '13px', 
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              letterSpacing: '1px'
+                            }}>
+                              •••• {card.last4digits}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>
+                        ₪{formatNumber(card.card_expenses)}
+                      </div>
+                      <div style={{ 
+                        fontSize: '11px', 
+                        color: '#94a3b8', 
+                        marginTop: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <div style={{
+                          flex: 1,
+                          height: '4px',
+                          background: 'rgba(148, 163, 184, 0.2)',
+                          borderRadius: '2px',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{
+                            width: `${percentage}%`,
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                            borderRadius: '2px',
+                            transition: 'width 0.3s ease'
+                          }} />
+                        </div>
+                        <span>{percentage}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Vendor Selection Menu */}
+                <Menu
+                  anchorEl={vendorMenuAnchor}
+                  open={Boolean(vendorMenuAnchor)}
+                  onClose={handleVendorMenuClose}
+                  PaperProps={{
+                    sx: {
+                      borderRadius: '16px',
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                      minWidth: '240px',
+                      maxHeight: '500px'
+                    }
+                  }}
+                >
+                  {/* Nickname Field */}
+                  <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                      Card Nickname
+                    </span>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      placeholder="e.g., My Personal Card"
+                      value={editingNickname}
+                      onChange={(e) => setEditingNickname(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && selectedCardForVendor) {
+                          handleNicknameSave(selectedCardForVendor, editingNickname);
+                        }
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      InputProps={{
+                        endAdornment: editingNickname !== (cardNicknameMap[selectedCardForVendor || ''] || '') && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (selectedCardForVendor) {
+                                handleNicknameSave(selectedCardForVendor, editingNickname);
+                              }
+                            }}
+                            sx={{ color: '#10b981' }}
+                          >
+                            <CheckIcon sx={{ fontSize: '18px' }} />
+                          </IconButton>
+                        )
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '10px',
+                          backgroundColor: '#f8fafc',
+                        }
+                      }}
+                    />
+                  </Box>
+                  
+                  <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Card Vendor
+                    </span>
+                  </Box>
+                  {Object.entries(CARD_VENDORS).map(([key, config]) => (
+                    <MenuItem
+                      key={key}
+                      onClick={() => handleVendorSelect(key)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        py: 1.5,
+                        '&:hover': {
+                          backgroundColor: 'rgba(59, 130, 246, 0.08)'
+                        }
+                      }}
+                    >
+                      <CardVendorIcon vendor={key} size={32} />
+                      <span style={{ fontWeight: 500, color: '#1e293b' }}>{config.name}</span>
+                      {cardVendorMap[selectedCardForVendor || ''] === key && (
+                        <CheckIcon sx={{ fontSize: '18px', color: '#10b981', ml: 'auto' }} />
+                      )}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </div>
+            </div>
+
+            {/* Breakdown Table */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderRadius: '32px',
+              padding: '32px',
+              marginLeft: '24px',
+              marginRight: '24px',
+              border: '1px solid rgba(148, 163, 184, 0.15)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                <h2 style={{
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  margin: 0,
+                  color: '#1e293b'
+                }}>
+                  {groupBy === 'description' 
+                    ? 'Breakdown by Description' 
+                    : groupBy === 'last4digits' 
+                      ? 'Breakdown by Last 4 Digits'
+                      : 'Breakdown by Card / Account'}
+                </h2>
+                
+                {/* Sorting Controls */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                    <SortIcon sx={{ fontSize: '16px' }} />
+                    Sort:
+                  </div>
+                  {[
+                    { field: 'name' as SortField, label: 'Name' },
+                    ...(groupBy === 'description' || groupBy === 'last4digits' ? [{ field: 'count' as SortField, label: 'Count' }] : []),
+                    { field: 'card_expenses' as SortField, label: 'Amount' }
+                  ].map(({ field, label }) => (
+                    <button
+                      key={field}
+                      onClick={() => handleSortChange(field)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: sortField === field ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(148, 163, 184, 0.2)',
+                        background: sortField === field 
+                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)' 
+                          : 'rgba(255, 255, 255, 0.8)',
+                        color: sortField === field ? '#3b82f6' : '#64748b',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease-in-out',
+                      }}
+                    >
+                      {label}
+                      {sortField === field && (
+                        sortDirection === 'asc' 
+                          ? <ArrowUpwardIcon sx={{ fontSize: '14px' }} />
+                          : <ArrowDownwardIcon sx={{ fontSize: '14px' }} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {sortedData.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '48px',
+                  color: '#64748b'
+                }}>
+                  No transactions found for this period.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '14px'
+                  }}>
+                    <thead>
+                      <tr style={{
+                        borderBottom: '2px solid #e2e8f0'
+                      }}>
+                        <th style={{
+                          padding: '16px 12px',
+                          textAlign: 'left',
+                          color: '#64748b',
+                          fontWeight: 600,
+                          fontSize: '13px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          {groupBy === 'description' 
+                            ? 'Description' 
+                            : groupBy === 'last4digits'
+                              ? 'Last 4 Digits'
+                              : 'Card / Account'}
+                        </th>
+                        {groupBy === 'description' && (
+                          <th style={{
+                            padding: '16px 12px',
+                            textAlign: 'left',
+                            color: '#64748b',
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}>Category</th>
+                        )}
+                        {(groupBy === 'description' || groupBy === 'last4digits') && (
+                          <th style={{
+                            padding: '16px 12px',
+                            textAlign: 'center',
+                            color: '#64748b',
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}>Count</th>
+                        )}
+                        <th style={{
+                          padding: '16px 12px',
+                          textAlign: 'right',
+                          color: '#3B82F6',
+                          fontWeight: 600,
+                          fontSize: '13px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                            <CreditCardIcon sx={{ fontSize: '16px' }} />
+                            Amount
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedData.map((row, index) => {
+                        const rowKey = groupBy === 'description' 
+                          ? `description-${row.description}-${index}` 
+                          : groupBy === 'last4digits'
+                            ? `last4-${row.last4digits}-${index}`
+                            : `${row.month}-${row.vendor}`;
+                        const displayName = groupBy === 'description' 
+                          ? row.description 
+                          : groupBy === 'last4digits'
+                            ? row.last4digits || 'Unknown'
+                            : (row.vendor_nickname || row.vendor);
+                        const isClickable = (groupBy === 'description' && row.description) || (groupBy === 'last4digits' && row.last4digits);
+                        const isLoading = loadingDescription === row.description || loadingLast4 === row.last4digits;
+                        
+                        return (
+                          <tr 
+                            key={rowKey}
+                            style={{
+                              borderBottom: '1px solid #f1f5f9',
+                              transition: 'background 0.2s ease',
+                              background: index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)',
+                              cursor: isClickable ? 'pointer' : 'default'
+                            }}
+                            onClick={() => {
+                              if (groupBy === 'description' && row.description) {
+                                handleDescriptionClick(row.description);
+                              } else if (groupBy === 'last4digits' && row.last4digits) {
+                                handleLast4DigitsClick(row.last4digits);
+                              }
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = isClickable 
+                                ? 'rgba(96, 165, 250, 0.15)' 
+                                : 'rgba(96, 165, 250, 0.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)';
+                            }}
+                          >
+                            <td style={{
+                              padding: '16px 12px',
+                              fontWeight: 600,
+                              color: isClickable ? '#3b82f6' : '#1e293b',
+                              maxWidth: '300px'
+                            }}>
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px',
+                                opacity: isLoading ? 0.5 : 1
+                              }}>
+                                {isLoading ? (
+                                  <CircularProgress size={18} style={{ color: '#3b82f6' }} />
+                                ) : groupBy === 'description' ? (
+                                  <DescriptionIcon sx={{ fontSize: '18px', color: '#64748b' }} />
+                                ) : (
+                                  <CreditCardIcon sx={{ fontSize: '18px', color: '#3B82F6' }} />
+                                )}
+                                <span style={{ 
+                                  overflow: 'hidden', 
+                                  textOverflow: 'ellipsis', 
+                                  whiteSpace: 'nowrap',
+                                  textDecoration: isClickable ? 'underline' : 'none',
+                                  textDecorationColor: 'rgba(59, 130, 246, 0.3)'
+                                }}>
+                                  {groupBy === 'last4digits' ? `****${displayName}` : displayName}
+                                </span>
+                              </div>
+                            </td>
+                            {groupBy === 'description' && (
+                              <td style={{
+                                padding: '16px 12px',
+                                color: '#64748b',
+                                fontWeight: 500
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              >
+                                {editingDescription === row.description ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Autocomplete
+                                      value={editCategory}
+                                      onChange={(event, newValue) => setEditCategory(newValue || '')}
+                                      onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                                      freeSolo
+                                      options={availableCategories}
+                                      size="small"
+                                      sx={{
+                                        minWidth: 140,
+                                        '& .MuiOutlinedInput-root': {
+                                          backgroundColor: 'white',
+                                          '& fieldset': {
+                                            borderColor: '#e2e8f0',
+                                          },
+                                          '&:hover fieldset': {
+                                            borderColor: '#3b82f6',
+                                          },
+                                          '&.Mui-focused fieldset': {
+                                            borderColor: '#3b82f6',
+                                          },
+                                        },
+                                      }}
+                                      renderInput={(params) => (
+                                        <TextField
+                                          {...params}
+                                          placeholder="Category..."
+                                          autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault();
+                                              handleCategorySave(row.description!);
+                                            } else if (e.key === 'Escape') {
+                                              handleCategoryCancel();
+                                            }
+                                          }}
+                                          sx={{
+                                            '& .MuiInputBase-input': {
+                                              fontSize: '13px',
+                                              padding: '6px 10px',
+                                            },
+                                          }}
+                                        />
+                                      )}
+                                    />
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleCategorySave(row.description!)}
+                                      sx={{ 
+                                        color: '#4ADE80',
+                                        padding: '4px',
+                                        '&:hover': { backgroundColor: 'rgba(74, 222, 128, 0.1)' }
+                                      }}
+                                    >
+                                      <CheckIcon sx={{ fontSize: '18px' }} />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      onClick={handleCategoryCancel}
+                                      sx={{ 
+                                        color: '#ef4444',
+                                        padding: '4px',
+                                        '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.1)' }
+                                      }}
+                                    >
+                                      <CloseIcon sx={{ fontSize: '18px' }} />
+                                    </IconButton>
+                                  </div>
+                                ) : (
+                                  <span 
+                                    style={{
+                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '13px',
+                                      cursor: 'pointer',
+                                      color: '#3b82f6',
+                                      fontWeight: 500,
+                                      transition: 'all 0.2s ease-in-out',
+                                      display: 'inline-block'
+                                    }}
+                                    onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                                      e.currentTarget.style.transform = 'scale(1.02)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                  >
+                                    {row.category || 'Uncategorized'}
+                                  </span>
+                                )}
+                              </td>
+                            )}
+                            {(groupBy === 'description' || groupBy === 'last4digits') && (
+                              <td style={{
+                                padding: '16px 12px',
+                                textAlign: 'center',
+                                color: '#64748b',
+                                fontWeight: 500
+                              }}>{row.transaction_count}</td>
+                            )}
+                            <td style={{
+                              padding: '16px 12px',
+                              textAlign: 'right',
+                              color: '#3B82F6',
+                              fontWeight: 600
+                            }}>₪{formatNumber(row.card_expenses)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {/* Totals row */}
+                    <tfoot>
+                      <tr style={{
+                        borderTop: '2px solid #e2e8f0',
+                        background: 'rgba(248, 250, 252, 0.8)'
+                      }}>
+                        <td style={{
+                          padding: '16px 12px',
+                          fontWeight: 700,
+                          color: '#1e293b',
+                          fontSize: '15px'
+                        }}>TOTAL</td>
+                        {groupBy === 'description' && (
+                          <td style={{
+                            padding: '16px 12px'
+                          }}></td>
+                        )}
+                        {(groupBy === 'description' || groupBy === 'last4digits') && (
+                          <td style={{
+                            padding: '16px 12px',
+                            textAlign: 'center',
+                            color: '#64748b',
+                            fontWeight: 700,
+                            fontSize: '15px'
+                          }}>{sortedData.reduce((sum, row) => sum + Number(row.transaction_count || 0), 0)}</td>
+                        )}
+                        <td style={{
+                          padding: '16px 12px',
+                          textAlign: 'right',
+                          color: '#3B82F6',
+                          fontWeight: 700,
+                          fontSize: '15px'
+                        }}>₪{formatNumber(totals.card_expenses)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Transaction Details Modal */}
+      {modalData && (
+        <ExpensesModal
+          open={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          data={modalData}
+          color="#3b82f6"
+          setModalData={setModalData}
+          currentMonth={dateRangeMode === 'custom' ? `${customStartDate}` : `${selectedYear}-${selectedMonth}`}
+        />
+      )}
+
+      {/* Snackbar for feedback messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ 
+            width: '100%',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </div>
+  );
+};
+
+export default MonthlySummary;

@@ -12,10 +12,10 @@ export default async function handler(req, res) {
   const { password } = req.body;
 
   // Get password from environment variable
-  const AUTH_PASSWORD = process.env.CLARIFY_AUTH_PASSWORD;
+  const AUTH_PASSWORD = process.env.NUDLERS_AUTH_PASSWORD;
 
   if (!AUTH_PASSWORD) {
-    console.error('CLARIFY_AUTH_PASSWORD not configured');
+    console.error('NUDLERS_AUTH_PASSWORD not configured');
     return res.status(500).json({ error: 'Authentication not configured' });
   }
 

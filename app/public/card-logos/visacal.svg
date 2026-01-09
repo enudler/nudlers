@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+  <rect fill="#1A1F71" width="48" height="32" rx="4"/>
+  <text x="24" y="14" font-family="Arial, sans-serif" font-size="9" font-weight="bold" font-style="italic" fill="#ffffff" text-anchor="middle">VISA</text>
+  <text x="24" y="24" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#FFD700" text-anchor="middle">CAL</text>
+</svg>

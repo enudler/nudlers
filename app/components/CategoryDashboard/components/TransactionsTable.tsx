@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete } from '@mui/material';
+import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -7,6 +7,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import { formatNumber } from '../utils/formatUtils';
 import { dateUtils } from '../utils/dateUtils';
 import { useCategories } from '../utils/useCategories';
+import { useCardVendors } from '../utils/useCardVendors';
+import { CardVendorIcon } from '../../CardVendorsModal';
 import { TABLE_HEADER_CELL_STYLE, TABLE_BODY_CELL_STYLE, TABLE_ROW_HOVER_STYLE, TABLE_ROW_HOVER_BACKGROUND } from '../utils/tableStyles';
 
 interface Transaction {
@@ -16,6 +18,13 @@ interface Transaction {
   category: string;
   identifier: string;
   vendor: string;
+  installments_number?: number;
+  installments_total?: number;
+  vendor_nickname?: string;
+  original_amount?: number;
+  original_currency?: string;
+  charged_currency?: string;
+  account_number?: string;
 }
 
 interface TransactionsTableProps {
@@ -23,26 +32,124 @@ interface TransactionsTableProps {
   isLoading?: boolean;
   onDelete?: (transaction: Transaction) => void;
   onUpdate?: (transaction: Transaction, newPrice: number, newCategory?: string) => void;
+  onTransactionsUpdated?: (updatedTransactions: Transaction[]) => void;
 }
 
-const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate }) => {
+const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, onTransactionsUpdated }) => {
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
   const [editCategory, setEditCategory] = React.useState<string>('');
+  const [applyToAll, setApplyToAll] = React.useState<boolean>(false);
   const { categories: availableCategories } = useCategories();
+  const { getCardVendor, getCardNickname } = useCardVendors();
+  const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   const handleEditClick = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setEditPrice(Math.abs(transaction.price).toString());
     setEditCategory(transaction.category);
+    setApplyToAll(false); // Default to single transaction only
   };
 
-  const handleSaveClick = () => {
+  const handleSaveClick = async () => {
     if (editingTransaction && editPrice) {
       const newPrice = parseFloat(editPrice);
       if (!isNaN(newPrice)) {
         const priceWithSign = editingTransaction.price < 0 ? -newPrice : newPrice;
-        onUpdate?.(editingTransaction, priceWithSign, editCategory);
+        const categoryChanged = editCategory !== editingTransaction.category;
+        const priceChanged = priceWithSign !== editingTransaction.price;
+        
+        try {
+          if (categoryChanged) {
+            if (applyToAll) {
+              // Apply to ALL matching transactions and create rule
+              const response = await fetch('/api/update_category_by_description', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  description: editingTransaction.name,
+                  newCategory: editCategory,
+                  createRule: true
+                }),
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                
+                // Show success message with count
+                const message = result.transactionsUpdated > 1
+                  ? `Updated ${result.transactionsUpdated} transactions with "${editingTransaction.name}" to "${editCategory}". Rule saved for future transactions.`
+                  : `Category updated to "${editCategory}". Rule saved for future transactions.`;
+                
+                setSnackbar({
+                  open: true,
+                  message,
+                  severity: 'success'
+                });
+                
+                // Also update price if it changed
+                if (priceChanged) {
+                  onUpdate?.(editingTransaction, priceWithSign);
+                }
+                
+                // Trigger a refresh of the dashboard data
+                window.dispatchEvent(new CustomEvent('dataRefresh'));
+              } else {
+                setSnackbar({
+                  open: true,
+                  message: 'Failed to update category',
+                  severity: 'error'
+                });
+              }
+            } else {
+              // Apply to THIS transaction only - no rule created
+              const response = await fetch(`/api/transactions/${editingTransaction.identifier}|${editingTransaction.vendor}`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                  category: editCategory,
+                  ...(priceChanged && { price: priceWithSign })
+                }),
+              });
+              
+              if (response.ok) {
+                setSnackbar({
+                  open: true,
+                  message: `Category updated to "${editCategory}" for this transaction only.`,
+                  severity: 'success'
+                });
+                
+                // Trigger a refresh of the dashboard data
+                window.dispatchEvent(new CustomEvent('dataRefresh'));
+              } else {
+                setSnackbar({
+                  open: true,
+                  message: 'Failed to update transaction',
+                  severity: 'error'
+                });
+              }
+            }
+          } else if (priceChanged) {
+            // Only price changed, use the regular update callback
+            onUpdate?.(editingTransaction, priceWithSign, editCategory);
+          }
+        } catch (error) {
+          console.error("Error updating transaction:", error);
+          setSnackbar({
+            open: true,
+            message: 'Error updating transaction',
+            severity: 'error'
+          });
+        }
+        
         setEditingTransaction(null);
       }
     }
@@ -100,6 +207,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
             <TableCell style={TABLE_HEADER_CELL_STYLE}>Description</TableCell>
             <TableCell style={TABLE_HEADER_CELL_STYLE}>Category</TableCell>
             <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Amount</TableCell>
+            <TableCell style={TABLE_HEADER_CELL_STYLE}>Installment</TableCell>
+            <TableCell style={TABLE_HEADER_CELL_STYLE}>Card</TableCell>
             <TableCell style={TABLE_HEADER_CELL_STYLE}>Date</TableCell>
             <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Actions</TableCell>
           </TableRow>
@@ -122,40 +231,68 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
               </TableCell>
               <TableCell style={TABLE_BODY_CELL_STYLE}>
                 {editingTransaction?.identifier === transaction.identifier ? (
-                  <Autocomplete
-                    value={editCategory}
-                    onChange={(event, newValue) => setEditCategory(newValue || '')}
-                    onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                    freeSolo
-                    options={availableCategories}
-                    size="small"
-                    sx={{
-                      minWidth: 150,
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': {
-                          borderColor: '#e2e8f0',
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#3b82f6',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#3b82f6',
-                        },
-                      },
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        placeholder="Enter category..."
-                        sx={{
-                          '& .MuiInputBase-input': {
-                            fontSize: '14px',
-                            padding: '8px 12px',
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <Autocomplete
+                      value={editCategory}
+                      onChange={(event, newValue) => setEditCategory(newValue || '')}
+                      onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                      freeSolo
+                      options={availableCategories}
+                      size="small"
+                      sx={{
+                        minWidth: 150,
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': {
+                            borderColor: '#e2e8f0',
                           },
-                        }}
-                      />
+                          '&:hover fieldset': {
+                            borderColor: '#3b82f6',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#3b82f6',
+                          },
+                        },
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Enter category..."
+                          sx={{
+                            '& .MuiInputBase-input': {
+                              fontSize: '14px',
+                              padding: '8px 12px',
+                            },
+                          }}
+                        />
+                      )}
+                    />
+                    {editCategory !== editingTransaction.category && (
+                      <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={applyToAll}
+                              onChange={(e) => setApplyToAll(e.target.checked)}
+                              size="small"
+                              sx={{
+                                color: '#94a3b8',
+                                '&.Mui-checked': {
+                                  color: '#3b82f6',
+                                },
+                                padding: '2px',
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography sx={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                              Apply to all & create rule
+                            </Typography>
+                          }
+                          sx={{ margin: 0 }}
+                        />
+                      </Tooltip>
                     )}
-                  />
+                  </Box>
                 ) : (
                   <span
                     style={{
@@ -219,7 +356,88 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                     }}
                   />
                 ) : (
-                  `₪${formatNumber(Math.abs(transaction.price))}`
+                  (() => {
+                    // Price is already the per-installment amount (combineInstallments: false)
+                    const displayAmount = Math.abs(transaction.price);
+                    
+                    // Check if original currency is different from ILS (foreign transaction)
+                    const isForeignCurrency = transaction.original_currency && 
+                      !['ILS', '₪', 'NIS'].includes(transaction.original_currency);
+                    
+                    // Get the appropriate currency symbol
+                    const getCurrencySymbol = (currency?: string) => {
+                      if (!currency) return '₪';
+                      if (['EUR', '€'].includes(currency)) return '€';
+                      if (['USD', '$'].includes(currency)) return '$';
+                      if (['GBP', '£'].includes(currency)) return '£';
+                      if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
+                      return currency + ' ';
+                    };
+                    
+                    // For foreign currency transactions, show ILS amount with original amount below
+                    if (isForeignCurrency && transaction.original_amount) {
+                      const symbol = getCurrencySymbol(transaction.original_currency);
+                      // original_amount is also already the per-installment amount
+                      const originalDisplayAmount = Math.abs(transaction.original_amount);
+                      
+                      return (
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span>₪{formatNumber(displayAmount)}</span>
+                          <span style={{ 
+                            fontSize: '11px', 
+                            color: '#64748b'
+                          }}>
+                            ({symbol}{formatNumber(originalDisplayAmount)})
+                          </span>
+                        </span>
+                      );
+                    }
+                    
+                    return `₪${formatNumber(displayAmount)}`;
+                  })()
+                )}
+              </TableCell>
+              <TableCell style={{ ...TABLE_BODY_CELL_STYLE, textAlign: 'center' }}>
+                {transaction.installments_total && transaction.installments_total > 1 ? (
+                  <span style={{
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    color: '#6366f1',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}>
+                    {transaction.installments_number}/{transaction.installments_total}
+                  </span>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                )}
+              </TableCell>
+              <TableCell style={{ ...TABLE_BODY_CELL_STYLE, fontSize: '12px' }}>
+                {transaction.vendor_nickname || transaction.vendor || transaction.account_number ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                  }}>
+                    <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={24} />
+                    <span style={{ 
+                      fontWeight: '500', 
+                      color: '#334155',
+                      backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                      padding: '4px 8px',
+                      borderRadius: '6px'
+                    }}>
+                      {getCardNickname(transaction.account_number) || transaction.vendor_nickname || transaction.vendor}
+                      {transaction.account_number && (
+                        <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>
+                          •••• {transaction.account_number.slice(-4)}
+                        </span>
+                      )}
+                    </span>
+                  </Box>
+                ) : (
+                  <span style={{ color: '#94a3b8' }}>—</span>
                 )}
               </TableCell>
               <TableCell style={{ ...TABLE_BODY_CELL_STYLE, color: '#64748b' }}>
@@ -269,6 +487,26 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
           ))}
         </TableBody>
       </Table>
+      
+      {/* Snackbar for feedback messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ 
+            width: '100%',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 };

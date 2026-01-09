@@ -75,7 +75,9 @@ const handler = createAuthenticatedApiHandler({
         card6_digits: row.card6_digits ? decrypt(row.card6_digits) : null,
         nickname: row.nickname,
         bank_account_number: row.bank_account_number,
-        created_at: row.created_at
+        is_active: row.is_active !== false, // Default to true if null
+        created_at: row.created_at,
+        last_synced_at: row.last_synced_at
       }));
     }
     return result;

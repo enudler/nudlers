@@ -1,13 +1,13 @@
 services:
-  clarify-db:
+  nudlers-db:
     image: postgres:16
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      POSTGRES_DB: ${CLARIFY_DB_NAME}
-      POSTGRES_USER: ${CLARIFY_DB_USER}
-      POSTGRES_PASSWORD: ${CLARIFY_DB_PASSWORD}
+      POSTGRES_DB: ${NUDLERS_DB_NAME}
+      POSTGRES_USER: ${NUDLERS_DB_USER}
+      POSTGRES_PASSWORD: ${NUDLERS_DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -15,32 +15,32 @@ services:
       - ./db-init:/docker-entrypoint-initdb.d
     command: postgres -c ssl=off
     networks:
-      - clarify-network
+      - nudlers-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${CLARIFY_DB_USER} -d ${CLARIFY_DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${NUDLERS_DB_USER} -d ${NUDLERS_DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  clarify-app:
+  nudlers-app:
     build:
       context: ./app
     env_file:
       - .env
     environment:
-      - CLARIFY_DB_USER=${CLARIFY_DB_USER}
-      - CLARIFY_DB_HOST=${CLARIFY_DB_HOST}
-      - CLARIFY_DB_NAME=${CLARIFY_DB_NAME}
-      - CLARIFY_DB_PASSWORD=${CLARIFY_DB_PASSWORD}
-      - CLARIFY_DB_PORT=${CLARIFY_DB_PORT}
-      - CLARIFY_ENCRYPTION_KEY=${CLARIFY_ENCRYPTION_KEY}
+      - NUDLERS_DB_USER=${NUDLERS_DB_USER}
+      - NUDLERS_DB_HOST=${NUDLERS_DB_HOST}
+      - NUDLERS_DB_NAME=${NUDLERS_DB_NAME}
+      - NUDLERS_DB_PASSWORD=${NUDLERS_DB_PASSWORD}
+      - NUDLERS_DB_PORT=${NUDLERS_DB_PORT}
+      - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY}
     ports:
       - "3000:3000"
     depends_on:
-      clarify-db:
+      nudlers-db:
         condition: service_healthy
     networks:
-      - clarify-network
+      - nudlers-network
     cap_add:
       - SYS_ADMIN
     security_opt:
@@ -51,5 +51,5 @@ volumes:
   db-data:
 
 networks:
-  clarify-network:
+  nudlers-network:
     driver: bridge

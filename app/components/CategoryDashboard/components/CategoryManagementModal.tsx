@@ -72,6 +72,10 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const [editingRule, setEditingRule] = useState<CategorizationRule | null>(null);
   const [newRule, setNewRule] = useState({ name_pattern: '', target_category: '' });
   const [isApplyingRules, setIsApplyingRules] = useState(false);
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  const [renameNewName, setRenameNewName] = useState('');
+  const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
+  const [deleteOptions, setDeleteOptions] = useState({ deleteRules: true, deleteBudget: true });
   const categoryColors = useCategoryColors();
 
   useEffect(() => {
@@ -194,7 +198,121 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     setCurrentTab(0);
     setEditingRule(null);
     setNewRule({ name_pattern: '', target_category: '' });
+    setRenamingCategory(null);
+    setRenameNewName('');
+    setDeletingCategory(null);
+    setDeleteOptions({ deleteRules: true, deleteBudget: true });
     onClose();
+  };
+
+  const handleRenameCategory = async () => {
+    if (!renamingCategory || !renameNewName.trim()) {
+      setError('Please enter a new category name');
+      return;
+    }
+
+    if (renamingCategory === renameNewName.trim()) {
+      setError('New category name must be different from the current name');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/rename_category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          oldName: renamingCategory,
+          newName: renameNewName.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to rename category');
+      }
+
+      const result = await response.json();
+      setSuccess(`Successfully renamed "${renamingCategory}" to "${renameNewName.trim()}" (${result.transactionsUpdated} transactions updated)`);
+      setRenamingCategory(null);
+      setRenameNewName('');
+      
+      // Refresh categories list
+      await fetchCategories();
+      
+      // Notify parent component
+      onCategoriesUpdated();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      console.error('Error renaming category:', error);
+      setError(error instanceof Error ? error.message : 'Failed to rename category');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openRenameDialog = (categoryName: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setRenamingCategory(categoryName);
+    setRenameNewName(categoryName);
+  };
+
+  const openDeleteDialog = (categoryName: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setDeletingCategory(categoryName);
+    setDeleteOptions({ deleteRules: true, deleteBudget: true });
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deletingCategory) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/delete_category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          categoryName: deletingCategory,
+          deleteRules: deleteOptions.deleteRules,
+          deleteBudget: deleteOptions.deleteBudget
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete category');
+      }
+
+      const result = await response.json();
+      setSuccess(`Successfully deleted "${deletingCategory}" (${result.transactionsUncategorized} transactions uncategorized)`);
+      setDeletingCategory(null);
+      
+      // Refresh categories list
+      await fetchCategories();
+      
+      // Notify parent component
+      onCategoriesUpdated();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete category');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCreateRule = async () => {
@@ -426,41 +544,64 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                   }}
                 >
                   {categories.map((category, index) => (
-                    <Chip
-                      key={category.name}
-                      label={category.name}
-                      onClick={() => handleCategoryToggle(category.name)}
-                      onDelete={selectedCategories.includes(category.name) ? () => handleCategoryToggle(category.name) : undefined}
-                      deleteIcon={<Checkbox
-                        checked={selectedCategories.includes(category.name)}
-                        style={{ color: 'white' }}
-                      />}
-                      style={{
-                        backgroundColor: selectedCategories.includes(category.name) 
-                          ? categoryColors[category.name] || '#3b82f6'
-                          : '#f8f9fa',
-                        color: selectedCategories.includes(category.name) 
-                          ? 'white'
-                          : '#333',
-                        border: selectedCategories.includes(category.name) 
-                          ? 'none'
-                          : `1px solid ${categoryColors[category.name] || '#3b82f6'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease-in-out',
-                        fontWeight: selectedCategories.includes(category.name) ? '600' : '500',
-                        fontSize: '14px',
-                        height: '32px'
-                      }}
-                      sx={{
-                        '&:hover': {
+                    <Box key={category.name} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <Chip
+                        label={category.name}
+                        onClick={() => handleCategoryToggle(category.name)}
+                        onDelete={selectedCategories.includes(category.name) ? () => handleCategoryToggle(category.name) : undefined}
+                        deleteIcon={<Checkbox
+                          checked={selectedCategories.includes(category.name)}
+                          style={{ color: 'white' }}
+                        />}
+                        style={{
                           backgroundColor: selectedCategories.includes(category.name) 
                             ? categoryColors[category.name] || '#3b82f6'
-                            : 'rgba(59, 130, 246, 0.1)',
-                          transform: 'translateY(-1px)',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-                        }
-                      }}
-                    />
+                            : '#f8f9fa',
+                          color: selectedCategories.includes(category.name) 
+                            ? 'white'
+                            : '#333',
+                          border: selectedCategories.includes(category.name) 
+                            ? 'none'
+                            : `1px solid ${categoryColors[category.name] || '#3b82f6'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out',
+                          fontWeight: selectedCategories.includes(category.name) ? '600' : '500',
+                          fontSize: '14px',
+                          height: '32px'
+                        }}
+                        sx={{
+                          '&:hover': {
+                            backgroundColor: selectedCategories.includes(category.name) 
+                              ? categoryColors[category.name] || '#3b82f6'
+                              : 'rgba(59, 130, 246, 0.1)',
+                            transform: 'translateY(-1px)',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+                          }
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={(e) => openRenameDialog(category.name, e)}
+                        style={{ 
+                          padding: '4px',
+                          color: categoryColors[category.name] || '#3b82f6'
+                        }}
+                        title={`Rename "${category.name}"`}
+                      >
+                        <EditIcon style={{ fontSize: '16px' }} />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => openDeleteDialog(category.name, e)}
+                        style={{ 
+                          padding: '4px',
+                          color: '#ef4444'
+                        }}
+                        title={`Delete "${category.name}"`}
+                      >
+                        <DeleteIcon style={{ fontSize: '16px' }} />
+                      </IconButton>
+                    </Box>
                   ))}
                 </Box>
               )}
@@ -663,6 +804,146 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               </Box>
             )}
           </>
+        )}
+
+        {/* Delete Category Dialog */}
+        {deletingCategory && (
+          <Box style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            backgroundColor: 'rgba(0,0,0,0.5)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <Card style={{ padding: '24px', maxWidth: '450px', width: '100%', margin: '16px', borderRadius: '16px' }}>
+              <Typography variant="h6" style={{ marginBottom: '8px', fontWeight: 600, color: '#ef4444' }}>
+                Delete Category
+              </Typography>
+              <Typography variant="body2" color="textSecondary" style={{ marginBottom: '20px' }}>
+                Are you sure you want to delete "{deletingCategory}"? All transactions with this category will become uncategorized.
+              </Typography>
+              
+              <Box style={{ marginBottom: '20px' }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={deleteOptions.deleteRules}
+                      onChange={(e) => setDeleteOptions({ ...deleteOptions, deleteRules: e.target.checked })}
+                      disabled={isLoading}
+                    />
+                  }
+                  label={<Typography variant="body2">Also delete categorization rules targeting this category</Typography>}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={deleteOptions.deleteBudget}
+                      onChange={(e) => setDeleteOptions({ ...deleteOptions, deleteBudget: e.target.checked })}
+                      disabled={isLoading}
+                    />
+                  }
+                  label={<Typography variant="body2">Also delete budget for this category</Typography>}
+                />
+              </Box>
+
+              <Box display="flex" gap="8px" justifyContent="flex-end">
+                <Button
+                  onClick={() => {
+                    setDeletingCategory(null);
+                    setDeleteOptions({ deleteRules: true, deleteBudget: true });
+                  }}
+                  style={{ color: '#666', textTransform: 'none' }}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleDeleteCategory}
+                  disabled={isLoading}
+                  style={{
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    borderRadius: '8px',
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Delete Category'}
+                </Button>
+              </Box>
+            </Card>
+          </Box>
+        )}
+
+        {/* Rename Category Dialog */}
+        {renamingCategory && (
+          <Box style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            backgroundColor: 'rgba(0,0,0,0.5)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <Card style={{ padding: '24px', maxWidth: '400px', width: '100%', margin: '16px', borderRadius: '16px' }}>
+              <Typography variant="h6" style={{ marginBottom: '8px', fontWeight: 600 }}>
+                Rename Category
+              </Typography>
+              <Typography variant="body2" color="textSecondary" style={{ marginBottom: '20px' }}>
+                Rename "{renamingCategory}" to a new name. All transactions with this category will be updated.
+              </Typography>
+              <TextField
+                fullWidth
+                label="New Category Name"
+                value={renameNewName}
+                onChange={(e) => setRenameNewName(e.target.value)}
+                disabled={isLoading}
+                autoFocus
+                style={{ marginBottom: '20px' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && renameNewName.trim() && renameNewName.trim() !== renamingCategory) {
+                    handleRenameCategory();
+                  }
+                }}
+              />
+              <Box display="flex" gap="8px" justifyContent="flex-end">
+                <Button
+                  onClick={() => {
+                    setRenamingCategory(null);
+                    setRenameNewName('');
+                  }}
+                  style={{ color: '#666', textTransform: 'none' }}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleRenameCategory}
+                  disabled={isLoading || !renameNewName.trim() || renameNewName.trim() === renamingCategory}
+                  style={{
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    borderRadius: '8px',
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Rename'}
+                </Button>
+              </Box>
+            </Card>
+          </Box>
         )}
       </DialogContent>
 

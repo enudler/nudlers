@@ -13,17 +13,39 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import LogoutIcon from '@mui/icons-material/Logout';
+import SummarizeIcon from '@mui/icons-material/Summarize';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
+import SavingsIcon from '@mui/icons-material/Savings';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import BackupIcon from '@mui/icons-material/Backup';
 import ScrapeModal from './ScrapeModal';
 import ManualModal from './ManualModal';
 import DatabaseIndicator from './DatabaseIndicator';
 import AccountsModal from './AccountsModal';
 import CategoryManagementModal from './CategoryDashboard/components/CategoryManagementModal';
 import ScrapeAuditModal from './ScrapeAuditModal';
+import BackgroundSyncModal from './BackgroundSyncModal';
+import CardVendorsModal from './CardVendorsModal';
+import CatchUpSyncButton from './CatchUpSyncButton';
+import QuickCategoryModal from './QuickCategoryModal';
+import DuplicatesModal from './DuplicatesModal';
+import RecurringPaymentsModal from './RecurringPaymentsModal';
+import SyncStatusIndicator from './SyncStatusIndicator';
+import DatabaseBackupModal from './DatabaseBackupModal';
 import { useNotification } from './NotificationContext';
 import { useAuth } from './AuthContext';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import RepeatIcon from '@mui/icons-material/Repeat';
 
 interface StringDictionary {
   [key: string]: string;
+}
+
+interface ResponsiveAppBarProps {
+  currentView?: 'dashboard' | 'summary' | 'budget';
+  onViewChange?: (view: 'dashboard' | 'summary' | 'budget') => void;
 }
 
 const pages: StringDictionary = {};
@@ -118,13 +140,19 @@ const redirectTo = (page: string) => {
   return () => (window.location.href = page);
 };
 
-function ResponsiveAppBar() {
+function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: ResponsiveAppBarProps) {
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
   const [isScrapeModalOpen, setIsScrapeModalOpen] = React.useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
   const [isAccountsModalOpen, setIsAccountsModalOpen] = React.useState(false);
   const [isCategoryManagementOpen, setIsCategoryManagementOpen] = React.useState(false);
   const [isAuditOpen, setIsAuditOpen] = React.useState(false);
+  const [isBackgroundSyncOpen, setIsBackgroundSyncOpen] = React.useState(false);
+  const [isCardVendorsOpen, setIsCardVendorsOpen] = React.useState(false);
+  const [isQuickCategoryOpen, setIsQuickCategoryOpen] = React.useState(false);
+  const [isDuplicatesOpen, setIsDuplicatesOpen] = React.useState(false);
+  const [isRecurringOpen, setIsRecurringOpen] = React.useState(false);
+  const [isBackupOpen, setIsBackupOpen] = React.useState(false);
   const { showNotification } = useNotification();
   const { logout } = useAuth();
 
@@ -218,16 +246,83 @@ function ResponsiveAppBar() {
             </Box>
             <Box sx={{ flexGrow: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <NavButton
+                onClick={() => onViewChange?.('summary')}
+                startIcon={<SummarizeIcon />}
+                sx={{
+                  ...(currentView === 'summary' && {
+                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+                    color: '#fff',
+                  })
+                }}
+              >
+                Summary
+              </NavButton>
+              <NavButton
+                onClick={() => onViewChange?.('dashboard')}
+                startIcon={<DashboardIcon />}
+                sx={{
+                  ...(currentView === 'dashboard' && {
+                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+                    color: '#fff',
+                  })
+                }}
+              >
+                Overview
+              </NavButton>
+              <NavButton
+                onClick={() => onViewChange?.('budget')}
+                startIcon={<SavingsIcon />}
+                sx={{
+                  ...(currentView === 'budget' && {
+                    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                    color: '#22c55e',
+                  })
+                }}
+              >
+                Budget
+              </NavButton>
+              <NavButton
+                onClick={() => setIsBackgroundSyncOpen(true)}
+                startIcon={<CloudSyncIcon />}
+              >
+                Full Sync
+              </NavButton>
+              <NavButton
                 onClick={() => setIsAuditOpen(true)}
                 startIcon={<HistoryIcon />}
               >
                 Audit
               </NavButton>
               <NavButton
+                onClick={() => setIsDuplicatesOpen(true)}
+                startIcon={<ContentCopyIcon />}
+              >
+                Duplicates
+              </NavButton>
+              <NavButton
+                onClick={() => setIsRecurringOpen(true)}
+                startIcon={<RepeatIcon />}
+              >
+                Recurring
+              </NavButton>
+              <NavButton
                 onClick={() => setIsManualModalOpen(true)}
                 startIcon={<EditIcon />}
               >
                 Manual
+              </NavButton>
+              <NavButton
+                onClick={() => setIsQuickCategoryOpen(true)}
+                startIcon={<FlashOnIcon />}
+                sx={{
+                  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(245, 158, 11, 0.2) 100%)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.3) 0%, rgba(245, 158, 11, 0.3) 100%)',
+                    boxShadow: '0 8px 16px rgba(251, 191, 36, 0.3)',
+                  }
+                }}
+              >
+                Quick
               </NavButton>
               <NavButton
                 onClick={() => setIsCategoryManagementOpen(true)}
@@ -241,6 +336,20 @@ function ResponsiveAppBar() {
               >
                 Accounts
               </NavButton>
+              <NavButton
+                onClick={() => setIsCardVendorsOpen(true)}
+                startIcon={<CreditCardIcon />}
+              >
+                Cards
+              </NavButton>
+              <NavButton
+                onClick={() => setIsBackupOpen(true)}
+                startIcon={<BackupIcon />}
+              >
+                Backup
+              </NavButton>
+              <CatchUpSyncButton />
+              <SyncStatusIndicator />
               <SignOutButton
                 onClick={handleLogout}
                 startIcon={<LogoutIcon />}
@@ -291,6 +400,40 @@ function ResponsiveAppBar() {
         }}
       />
       <ScrapeAuditModal open={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
+      <BackgroundSyncModal
+        isOpen={isBackgroundSyncOpen}
+        onClose={() => setIsBackgroundSyncOpen(false)}
+        onSuccess={() => {
+          window.dispatchEvent(new CustomEvent('dataRefresh'));
+        }}
+      />
+      <CardVendorsModal
+        isOpen={isCardVendorsOpen}
+        onClose={() => setIsCardVendorsOpen(false)}
+      />
+      <QuickCategoryModal
+        open={isQuickCategoryOpen}
+        onClose={() => setIsQuickCategoryOpen(false)}
+        onComplete={() => {
+          showNotification('Quick categorization complete!', 'success');
+          window.dispatchEvent(new CustomEvent('dataRefresh'));
+        }}
+      />
+      <DuplicatesModal
+        open={isDuplicatesOpen}
+        onClose={() => {
+          setIsDuplicatesOpen(false);
+          window.dispatchEvent(new CustomEvent('dataRefresh'));
+        }}
+      />
+      <RecurringPaymentsModal
+        open={isRecurringOpen}
+        onClose={() => setIsRecurringOpen(false)}
+      />
+      <DatabaseBackupModal
+        open={isBackupOpen}
+        onClose={() => setIsBackupOpen(false)}
+      />
     </>
   );
 }

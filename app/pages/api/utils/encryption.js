@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const ENCRYPTION_KEY = process.env.CLARIFY_ENCRYPTION_KEY;
+const ENCRYPTION_KEY = process.env.NUDLERS_ENCRYPTION_KEY;
 
 if (!ENCRYPTION_KEY) {
   throw new Error('ENCRYPTION_KEY environment variable is required');

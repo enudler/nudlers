@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogActions,
+  DialogTitle,
   IconButton,
   Table,
   TableBody,
@@ -14,10 +16,15 @@ import {
   MenuItem,
   styled,
   Typography,
+  Tooltip,
+  Switch,
+  Chip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import AddIcon from '@mui/icons-material/Add';
 import SyncIcon from '@mui/icons-material/Sync';
+import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import ScrapeModal from './ScrapeModal';
@@ -25,6 +32,33 @@ import { CREDIT_CARD_VENDORS, BANK_VENDORS, BEINLEUMI_GROUP_VENDORS, STANDARD_BA
 import { dateUtils } from './CategoryDashboard/utils/dateUtils';
 import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
+
+// Format a date as a relative time string (e.g., "2 hours ago", "3 days ago")
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSeconds < 60) {
+    return 'Just now';
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  } else if (diffDays < 7) {
+    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+  } else {
+    const months = Math.floor(diffDays / 30);
+    return `${months} month${months !== 1 ? 's' : ''} ago`;
+  }
+}
 
 interface Account {
   id: number;
@@ -34,12 +68,23 @@ interface Account {
   card6_digits?: string;
   bank_account_number?: string;
   nickname?: string;
+  is_active: boolean;
   // SECURITY: password field removed - fetched separately when needed
   created_at: string;
+  last_synced_at?: string;
 }
 
 interface AccountWithPassword extends Account {
   password: string;
+}
+
+interface CardOwnership {
+  id: number;
+  vendor: string;
+  account_number: string;
+  credential_id: number;
+  card_vendor?: string;
+  card_nickname?: string;
 }
 
 interface AccountsModalProps {
@@ -84,6 +129,7 @@ const AccountSection = styled(Box)(({ theme }) => ({
 
 export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [cardOwnership, setCardOwnership] = useState<CardOwnership[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -101,10 +147,16 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     id: 0,
     created_at: new Date().toISOString(),
   });
+  const [truncateConfirm, setTruncateConfirm] = useState<{ isOpen: boolean; account: Account | null }>({
+    isOpen: false,
+    account: null,
+  });
+  const [isTruncating, setIsTruncating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       fetchAccounts();
+      fetchCardOwnership();
     }
   }, [isOpen]);
 
@@ -123,6 +175,24 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchCardOwnership = async () => {
+    try {
+      const response = await fetch('/api/card_ownership');
+      if (response.ok) {
+        const data = await response.json();
+        setCardOwnership(data);
+      }
+    } catch (err) {
+      // Silent fail - card ownership is supplementary info
+      console.error('Failed to fetch card ownership:', err);
+    }
+  };
+
+  // Helper to get owned cards for a specific credential
+  const getOwnedCards = (credentialId: number): CardOwnership[] => {
+    return cardOwnership.filter(co => co.credential_id === credentialId);
   };
 
   const handleAdd = async () => {
@@ -218,6 +288,67 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     }
   };
 
+  const handleToggleActive = async (account: Account) => {
+    try {
+      const response = await fetch(`/api/credentials/${account.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_active: !account.is_active }),
+      });
+      if (response.ok) {
+        const updatedAccount = await response.json();
+        setAccounts(accounts.map((a) => 
+          a.id === account.id ? { ...a, is_active: updatedAccount.is_active } : a
+        ));
+        showNotification(
+          `Account ${account.nickname} ${updatedAccount.is_active ? 'activated' : 'deactivated'}`,
+          'success'
+        );
+      } else {
+        throw new Error('Failed to update account status');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleTruncateClick = (account: Account) => {
+    setTruncateConfirm({ isOpen: true, account });
+  };
+
+  const handleTruncateConfirm = async () => {
+    if (!truncateConfirm.account) return;
+    
+    setIsTruncating(true);
+    try {
+      const response = await fetch(`/api/credentials/truncate/${truncateConfirm.account.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to truncate account data');
+      }
+      
+      const result = await response.json();
+      showNotification(`Successfully deleted ${result.deletedCount} transactions for ${truncateConfirm.account.nickname || truncateConfirm.account.vendor}`, 'success');
+      
+      // Refresh data across the app
+      window.dispatchEvent(new CustomEvent('dataRefresh'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to truncate account data');
+      showNotification('Failed to truncate account data', 'error');
+    } finally {
+      setIsTruncating(false);
+      setTruncateConfirm({ isOpen: false, account: null });
+    }
+  };
+
+  const handleTruncateCancel = () => {
+    setTruncateConfirm({ isOpen: false, account: null });
+  };
+
   const handleScrape = async (account: Account) => {
     try {
       // SECURITY: Fetch full credentials including password from secure endpoint
@@ -238,6 +369,9 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const handleScrapeSuccess = () => {
     showNotification('Scraping process completed successfully!', 'success');
     window.dispatchEvent(new CustomEvent('dataRefresh'));
+    // Refresh accounts to update last_synced_at and card ownership
+    fetchAccounts();
+    fetchCardOwnership();
   };
 
   // Separate accounts by type
@@ -333,7 +467,17 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
               letterSpacing: '0.5px',
               background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
               padding: '16px'
-            }}>Created At</TableCell>
+            }}>Last Synced</TableCell>
+            <TableCell align="center" style={{
+              color: '#475569',
+              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+              fontWeight: 600,
+              fontSize: '13px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+              padding: '16px'
+            }}>Active</TableCell>
             <TableCell align="right" style={{
               color: '#475569',
               borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
@@ -348,35 +492,128 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         </TableHead>
         <TableBody>
           {accounts.map((account) => (
-            <StyledTableRow key={account.id}>
-              <TableCell style={{ color: '#1e293b' }}>{account.nickname}</TableCell>
-              <TableCell style={{ color: '#475569' }}>{account.vendor}</TableCell>
-              <TableCell style={{ color: '#475569' }}>{account.username || account.id_number}</TableCell>
-              <TableCell style={{ color: '#475569' }}>{type === 'bank' ? account.bank_account_number : (account.card6_digits || '-')}</TableCell>
-              <TableCell style={{ color: '#64748b' }}>{dateUtils.formatDate(account.created_at)}</TableCell>
+            <StyledTableRow 
+              key={account.id}
+              sx={{
+                opacity: account.is_active ? 1 : 0.6,
+              }}
+            >
+              <TableCell style={{ color: account.is_active ? '#1e293b' : '#94a3b8' }}>
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    {account.nickname}
+                    {!account.is_active && (
+                      <Tooltip title="Account is inactive - won't be synced automatically">
+                        <PauseCircleOutlineIcon 
+                          sx={{ 
+                            fontSize: '16px', 
+                            ml: 1, 
+                            verticalAlign: 'middle',
+                            color: '#94a3b8' 
+                          }} 
+                        />
+                      </Tooltip>
+                    )}
+                  </Box>
+                  {type === 'credit' && getOwnedCards(account.id).length > 0 && (
+                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                      {getOwnedCards(account.id).map((card) => (
+                        <Tooltip 
+                          key={card.id} 
+                          title={card.card_nickname || card.card_vendor || `Card ending in ${card.account_number}`}
+                        >
+                          <Chip
+                            size="small"
+                            label={`****${card.account_number}`}
+                            sx={{
+                              height: '20px',
+                              fontSize: '11px',
+                              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                              color: '#7c3aed',
+                              border: '1px solid rgba(139, 92, 246, 0.2)',
+                              '& .MuiChip-label': {
+                                px: 1,
+                              },
+                            }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              </TableCell>
+              <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.vendor}</TableCell>
+              <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.username || account.id_number}</TableCell>
+              <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{type === 'bank' ? account.bank_account_number : (account.card6_digits || '-')}</TableCell>
+              <TableCell style={{ color: account.is_active ? '#64748b' : '#94a3b8' }}>
+                {account.last_synced_at ? (
+                  <Tooltip title={dateUtils.formatDate(account.last_synced_at)}>
+                    <span>{formatRelativeTime(account.last_synced_at)}</span>
+                  </Tooltip>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Never</span>
+                )}
+              </TableCell>
+              <TableCell align="center">
+                <Tooltip title={account.is_active ? 'Click to deactivate (won\'t be synced automatically)' : 'Click to activate'}>
+                  <Switch
+                    checked={account.is_active}
+                    onChange={() => handleToggleActive(account)}
+                    size="small"
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#22c55e',
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: '#22c55e',
+                      },
+                    }}
+                  />
+                </Tooltip>
+              </TableCell>
               <TableCell align="right">
-                <IconButton
-                  onClick={() => handleScrape(account)}
-                  sx={{ 
-                    color: '#3b82f6',
-                    '&:hover': {
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    },
-                  }}
-                >
-                  <SyncIcon />
-                </IconButton>
-                <IconButton 
-                  onClick={() => handleDelete(account.id)}
-                  sx={{ 
-                    color: '#ef4444',
-                    '&:hover': {
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    },
-                  }}
-                >
-                  <DeleteIcon />
-                </IconButton>
+                <Tooltip title={account.is_active ? "Sync transactions" : "Activate account to sync"}>
+                  <span>
+                    <IconButton
+                      onClick={() => handleScrape(account)}
+                      disabled={!account.is_active}
+                      sx={{ 
+                        color: account.is_active ? '#3b82f6' : '#cbd5e1',
+                        '&:hover': {
+                          backgroundColor: account.is_active ? 'rgba(59, 130, 246, 0.1)' : undefined,
+                        },
+                      }}
+                    >
+                      <SyncIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Delete all transactions for this account">
+                  <IconButton 
+                    onClick={() => handleTruncateClick(account)}
+                    sx={{ 
+                      color: '#f59e0b',
+                      '&:hover': {
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                      },
+                    }}
+                  >
+                    <DeleteSweepIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Delete account">
+                  <IconButton 
+                    onClick={() => handleDelete(account.id)}
+                    sx={{ 
+                      color: '#ef4444',
+                      '&:hover': {
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      },
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Tooltip>
               </TableCell>
             </StyledTableRow>
           ))}
@@ -623,9 +860,63 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
             username: selectedAccount.username,
             bankAccountNumber: selectedAccount.bank_account_number,
             nickname: selectedAccount.nickname
-          }
+          },
+          credentialId: selectedAccount.id
         } : undefined}
       />
+
+      {/* Truncate Confirmation Dialog */}
+      <Dialog
+        open={truncateConfirm.isOpen}
+        onClose={handleTruncateCancel}
+        PaperProps={{
+          style: {
+            borderRadius: '16px',
+            padding: '8px',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          color: '#f59e0b', 
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <DeleteSweepIcon />
+          Truncate Account Data
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Are you sure you want to delete <strong>all transactions</strong> for account{' '}
+            <strong>{truncateConfirm.account?.nickname || truncateConfirm.account?.vendor}</strong>?
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#ef4444' }}>
+            ⚠️ This action cannot be undone. All transaction history for this account will be permanently deleted.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ padding: '16px 24px' }}>
+          <Button 
+            onClick={handleTruncateCancel}
+            disabled={isTruncating}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleTruncateConfirm}
+            variant="contained"
+            disabled={isTruncating}
+            sx={{
+              backgroundColor: '#f59e0b',
+              '&:hover': {
+                backgroundColor: '#d97706',
+              },
+            }}
+          >
+            {isTruncating ? 'Deleting...' : 'Delete All Transactions'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

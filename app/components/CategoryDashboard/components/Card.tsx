@@ -3,6 +3,14 @@ import { SvgIconComponent } from '@mui/icons-material';
 import CircularProgress from '@mui/material/CircularProgress';
 import { formatNumber } from '../utils/format';
 
+interface BudgetInfo {
+  budget_limit: number;
+  actual_spent: number;
+  remaining: number;
+  percent_used: number;
+  is_over_budget: boolean;
+}
+
 interface CardProps {
   title: string;
   value: number;
@@ -15,7 +23,45 @@ interface CardProps {
   secondaryValue?: number;
   secondaryColor?: string;
   secondaryLabel?: string;
+  budget?: BudgetInfo;
 }
+
+// Mini burndown chart component
+const BurndownChart: React.FC<{ percentUsed: number; isOverBudget: boolean }> = ({ percentUsed, isOverBudget }) => {
+  const clampedPercent = Math.min(percentUsed, 100);
+  const chartColor = isOverBudget ? '#ef4444' : percentUsed >= 80 ? '#f59e0b' : '#22c55e';
+  
+  return (
+    <div style={{
+      width: '100%',
+      height: '6px',
+      background: 'rgba(148, 163, 184, 0.2)',
+      borderRadius: '3px',
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        height: '100%',
+        width: `${clampedPercent}%`,
+        background: `linear-gradient(90deg, ${chartColor} 0%, ${chartColor}cc 100%)`,
+        borderRadius: '3px',
+        transition: 'width 0.5s ease-out'
+      }} />
+      {/* Threshold markers */}
+      <div style={{
+        position: 'absolute',
+        left: '80%',
+        top: 0,
+        width: '1px',
+        height: '100%',
+        background: 'rgba(148, 163, 184, 0.4)'
+      }} />
+    </div>
+  );
+};
 
 const Card: React.FC<CardProps> = ({ 
   title, 
@@ -27,7 +73,8 @@ const Card: React.FC<CardProps> = ({
   size = 'medium',
   secondaryValue,
   secondaryColor,
-  secondaryLabel
+  secondaryLabel,
+  budget
 }) => {
   const padding = size === 'large' ? '32px' : '20px';
   const titleSize = size === 'large' ? '16px' : '20px';
@@ -37,20 +84,51 @@ const Card: React.FC<CardProps> = ({
   const iconPadding = size === 'large' ? '10px' : '12px';
   const iconBorderRadius = size === 'large' ? '12px' : '16px';
 
+  // Determine border color based on budget status
+  const getBorderColor = () => {
+    if (!budget) return 'rgba(148, 163, 184, 0.15)';
+    if (budget.is_over_budget) return 'rgba(239, 68, 68, 0.5)';
+    if (budget.percent_used >= 80) return 'rgba(245, 158, 11, 0.4)';
+    return 'rgba(34, 197, 94, 0.4)';
+  };
+
+  // Determine background gradient based on budget status  
+  const getBackgroundGradient = () => {
+    if (!budget) return 'rgba(255, 255, 255, 0.95)';
+    if (budget.is_over_budget) {
+      return 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 226, 226, 0.4) 100%)';
+    }
+    if (budget.percent_used >= 80) {
+      return 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.3) 100%)';
+    }
+    return 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(220, 252, 231, 0.3) 100%)';
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('he-IL', {
+      style: 'currency',
+      currency: 'ILS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   return (
     <div
       style={{
-        background: 'rgba(255, 255, 255, 0.95)',
+        background: budget ? getBackgroundGradient() : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(20px)',
         borderRadius: '28px',
         padding: padding,
         width: '100%',
-        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+        boxShadow: budget?.is_over_budget 
+          ? '0 4px 20px rgba(239, 68, 68, 0.15)' 
+          : '0 2px 12px rgba(0, 0, 0, 0.04)',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
         overflow: 'hidden',
-        border: '1px solid rgba(148, 163, 184, 0.15)',
+        border: `2px solid ${getBorderColor()}`,
         cursor: onClick ? (isLoading ? 'default' : 'pointer') : 'default',
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
       }}
@@ -60,15 +138,15 @@ const Card: React.FC<CardProps> = ({
           (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-8px) scale(1.03)';
           (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 32px ${color}20`;
           (e.currentTarget as HTMLDivElement).style.borderColor = `${color}80`;
-          (e.currentTarget as HTMLDivElement).style.background = 'rgba(255, 255, 255, 0.98)';
         }
       }}
       onMouseLeave={(e) => {
         if (!isLoading) {
           (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0) scale(1)';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.04)';
-          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(148, 163, 184, 0.15)';
-          (e.currentTarget as HTMLDivElement).style.background = 'rgba(255, 255, 255, 0.95)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = budget?.is_over_budget 
+            ? '0 4px 20px rgba(239, 68, 68, 0.15)' 
+            : '0 2px 12px rgba(0, 0, 0, 0.04)';
+          (e.currentTarget as HTMLDivElement).style.borderColor = getBorderColor();
         }
       }}
     >
@@ -129,7 +207,7 @@ const Card: React.FC<CardProps> = ({
             <span style={{ 
               fontSize: valueSize, 
               fontWeight: size === 'large' ? '800' : '700', 
-              color: color,
+              color: budget ? (budget.is_over_budget ? '#ef4444' : color) : color,
               letterSpacing: '-0.02em',
               fontFamily: 'Assistant, sans-serif',
               textShadow: `0 2px 12px ${color}60`
@@ -175,8 +253,73 @@ const Card: React.FC<CardProps> = ({
           <Icon sx={{ fontSize: iconSize, color: color, filter: `drop-shadow(0 2px 8px ${color}60)` }} />
         </div>
       </div>
+
+      {/* Budget Section */}
+      {budget && budget.budget_limit > 0 && (
+        <div style={{ marginTop: '16px', position: 'relative', zIndex: 1 }}>
+          {/* Burndown Chart */}
+          <BurndownChart percentUsed={budget.percent_used} isOverBudget={budget.is_over_budget} />
+          
+          {/* Budget Info Row */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginTop: '10px',
+            fontSize: '12px'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px'
+            }}>
+              {/* Budget remaining badge */}
+              <span style={{
+                background: budget.is_over_budget 
+                  ? 'rgba(239, 68, 68, 0.15)' 
+                  : budget.percent_used >= 80 
+                    ? 'rgba(245, 158, 11, 0.15)' 
+                    : 'rgba(34, 197, 94, 0.15)',
+                color: budget.is_over_budget 
+                  ? '#dc2626' 
+                  : budget.percent_used >= 80 
+                    ? '#d97706' 
+                    : '#16a34a',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontWeight: 700,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                {budget.is_over_budget ? (
+                  <>
+                    <span>⚠️</span>
+                    <span>{formatCurrency(Math.abs(budget.remaining))} over</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{budget.percent_used >= 80 ? '⚡' : '✓'}</span>
+                    <span>{formatCurrency(budget.remaining)} left</span>
+                  </>
+                )}
+              </span>
+            </div>
+            
+            {/* Budget limit */}
+            <span style={{ 
+              color: '#94a3b8', 
+              fontSize: '11px',
+              fontWeight: 500
+            }}>
+              Budget: {formatCurrency(budget.budget_limit)}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Card; 
+export default Card;

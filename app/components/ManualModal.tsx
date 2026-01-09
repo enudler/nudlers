@@ -10,10 +10,9 @@ import {
   Tabs,
   Tab,
   FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Typography,
+  Autocomplete,
+  createFilterOptions,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
@@ -460,50 +459,108 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
             />
 
             <FormControl fullWidth error={categoryError}>
-              <InputLabel style={{ color: '#666' }}>Category</InputLabel>
-              <Select
+              <Autocomplete
                 value={category}
-                label="Category"
-                onChange={(e) => setCategory(e.target.value)}
-                style={{ color: '#333' }}
-                MenuProps={{
-                  PaperProps: {
-                    style: {
+                onChange={(event, newValue) => {
+                  if (typeof newValue === 'string') {
+                    // Handle when user types and selects
+                    setCategory(newValue);
+                  } else if (newValue && typeof newValue === 'object' && 'inputValue' in newValue) {
+                    // Handle "Add new" option
+                    setCategory((newValue as { inputValue: string }).inputValue);
+                  } else {
+                    setCategory(newValue || '');
+                  }
+                }}
+                filterOptions={(options, params) => {
+                  const filter = createFilterOptions<string>();
+                  const filtered = filter(options, params);
+
+                  const { inputValue } = params;
+                  // Suggest the creation of a new value
+                  const isExisting = options.some((option) => inputValue.toLowerCase() === option.toLowerCase());
+                  if (inputValue !== '' && !isExisting) {
+                    filtered.push(inputValue);
+                  }
+
+                  return filtered;
+                }}
+                selectOnFocus
+                clearOnBlur
+                handleHomeEndKeys
+                freeSolo
+                options={categories}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') {
+                    return option;
+                  }
+                  if (option && typeof option === 'object' && 'inputValue' in option) {
+                    return (option as { inputValue: string }).inputValue;
+                  }
+                  return '';
+                }}
+                renderOption={(props, option) => {
+                  const isNewOption = !categories.includes(option);
+                  return (
+                    <li {...props}>
+                      {isNewOption ? (
+                        <span style={{ color: '#22c55e', fontWeight: 600 }}>
+                          + Add "{option}"
+                        </span>
+                      ) : (
+                        option
+                      )}
+                    </li>
+                  );
+                }}
+                disabled={loadingCategories}
+                loading={loadingCategories}
+                loadingText="Loading categories..."
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Category"
+                    placeholder="Select or type a new category"
+                    error={categoryError}
+                    InputLabelProps={{
+                      style: { color: '#666' },
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        background: 'rgba(255, 255, 255, 0.8)',
+                        backdropFilter: 'blur(10px)',
+                        borderRadius: '12px',
+                        '& fieldset': {
+                          borderColor: 'rgba(148, 163, 184, 0.2)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: 'rgba(96, 165, 250, 0.5)',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#ef4444',
+                        },
+                      },
+                      '& .MuiInputBase-input': {
+                        color: '#333',
+                      },
+                    }}
+                  />
+                )}
+                sx={{
+                  '& .MuiAutocomplete-popupIndicator': {
+                    color: '#666',
+                  },
+                }}
+                componentsProps={{
+                  paper: {
+                    sx: {
                       background: 'rgba(255, 255, 255, 0.98)',
                       backdropFilter: 'blur(20px)',
                       border: '1px solid rgba(148, 163, 184, 0.2)',
                     }
                   }
                 }}
-                disabled={loadingCategories}
-                sx={{
-                  background: 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: '12px',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(148, 163, 184, 0.2)',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(96, 165, 250, 0.5)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#ef4444',
-                  },
-                  '& .MuiSvgIcon-root': {
-                    color: '#666',
-                  },
-                }}
-              >
-                {loadingCategories ? (
-                  <MenuItem disabled style={{ color: '#999' }}>Loading categories...</MenuItem>
-                ) : (
-                  categories.map((cat) => (
-                    <MenuItem key={cat} value={cat} style={{ color: '#333' }}>
-                      {cat}
-                    </MenuItem>
-                  ))
-                )}
-              </Select>
+              />
               {categoryError && (
                 <Typography variant="caption" color="error" style={{ marginTop: '4px', marginLeft: '14px' }}>
                   Category is required

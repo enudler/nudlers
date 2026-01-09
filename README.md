@@ -1,6 +1,6 @@
-# Clarify
+# Nudlers
 
-Personal finance management app for tracking income, expenses, and bank transactions with automatic categorization.
+Personal finance management application for tracking credit card expenses and bank transactions with automatic categorization.
 
 **Stack:** Next.js · PostgreSQL · TypeScript · Material-UI
 
@@ -8,67 +8,14 @@ Personal finance management app for tracking income, expenses, and bank transact
 
 ## Features
 
-- 🏦 Automatic bank scraping (Israeli banks)
-- 📝 Manual transaction entry
-- 🔐 Password-protected with encrypted credentials (AES-256-GCM)
-- 📊 Category-based tracking and analytics
-- 🎯 Monthly/yearly financial summaries
-- ⚙️ Customizable categorization rules
-
----
-
-## Setup
-
-**Prerequisites:** Node.js 20+, PostgreSQL 16+
-
-### Quick Start
-
-1. **Clone and install**
-   ```bash
-   git clone https://github.com/clarify/clarify-expenses.git
-   cd clarify-expenses/app
-   npm install
-   ```
-
-2. **Configure environment**
-   
-   Create `.env` in the root directory:
-   ```env
-   CLARIFY_DB_USER=myuser
-   CLARIFY_DB_HOST=localhost
-   CLARIFY_DB_NAME=mydb
-   CLARIFY_DB_PASSWORD=mypassword
-   CLARIFY_DB_PORT=5432
-   CLARIFY_ENCRYPTION_KEY=<64-char-hex>
-   CLARIFY_AUTH_PASSWORD=<your-password>
-   ```
-   
-   Generate encryption key:
-   ```bash
-   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-   ```
-
-3. **Run**
-   ```bash
-   npm run dev
-   ```
-   Open http://localhost:3000
-
-### Docker
-
-```bash
-docker-compose up -d
-```
-
----
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `CLARIFY_DB_*` | PostgreSQL connection details |
-| `CLARIFY_ENCRYPTION_KEY` | 64-char hex key (use generator above) |
-| `CLARIFY_AUTH_PASSWORD` | App login password |
+- 🏦 **Automatic bank & credit card scraping** (Israeli financial institutions)
+- 📝 **Manual transaction entry** for cash purchases
+- 🔐 **Secure authentication** with encrypted credentials (AES-256-GCM)
+- 📊 **Category-based tracking** and spending analytics
+- 🎯 **Monthly/yearly summaries** with budget comparisons
+- ⚙️ **Customizable categorization rules** for automatic transaction labeling
+- 🔄 **Background sync** to keep transactions up-to-date
+- 💡 **AI-powered insights** using Google Gemini
 
 ---
 
@@ -87,10 +34,211 @@ docker-compose up -d
 
 ---
 
+## Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL 16+
+- Google Chrome (for scraping)
+
+### Option 1: Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/enudler/credit-card-usage.git
+cd credit-card-usage
+
+# Copy and configure environment variables
+cp .env_example .env
+# Edit .env with your values
+
+# Start the application
+docker-compose up -d
+```
+
+Open http://localhost:3000
+
+### Option 2: Manual Setup
+
+1. **Clone and install dependencies**
+   ```bash
+   git clone https://github.com/enudler/credit-card-usage.git
+   cd credit-card-usage/app
+   npm install
+   ```
+
+2. **Configure environment variables**
+   
+   Create `.env` in the root directory:
+   ```env
+   NUDLERS_DB_USER=myuser
+   NUDLERS_DB_HOST=localhost
+   NUDLERS_DB_NAME=nudlers
+   NUDLERS_DB_PASSWORD=mypassword
+   NUDLERS_DB_PORT=5432
+   NUDLERS_ENCRYPTION_KEY=<64-char-hex>
+   NUDLERS_AUTH_PASSWORD=<your-password>
+   ```
+   
+   Generate encryption key:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+3. **Initialize the database**
+   ```bash
+   psql -U myuser -d nudlers -f db-init/init.sql
+   ```
+
+4. **Run the application**
+   ```bash
+   npm run dev
+   ```
+   
+   Open http://localhost:3000
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `NUDLERS_DB_USER` | PostgreSQL username |
+| `NUDLERS_DB_HOST` | Database host (use `nudlers-db` for Docker) |
+| `NUDLERS_DB_NAME` | Database name |
+| `NUDLERS_DB_PASSWORD` | Database password |
+| `NUDLERS_DB_PORT` | Database port (default: 5432) |
+| `NUDLERS_ENCRYPTION_KEY` | 64-character hex key for credential encryption |
+| `NUDLERS_AUTH_PASSWORD` | Application login password |
+| `GEMINI_API_KEY` | (Optional) Google Gemini API key for AI features |
+
+---
+
+## Supported Financial Institutions
+
+### Credit Cards
+- Visa Cal
+- Max (Leumi Card)
+- Isracard
+- American Express (Israel)
+
+### Banks
+- Bank Hapoalim
+- Bank Leumi
+- Mizrahi Tefahot
+- Discount Bank
+- Bank Yahav
+- First International Bank (FIBI)
+- Otsar Hahayal
+- Massad
+- Bank Pagi
+
+---
+
+## Architecture
+
+```
+nudlers/
+├── app/                    # Next.js application
+│   ├── components/         # React components
+│   ├── pages/
+│   │   ├── api/           # API routes
+│   │   │   ├── utils/     # Shared utilities
+│   │   │   └── ...        # API endpoints
+│   │   └── index.tsx      # Main page
+│   └── public/            # Static assets
+├── db-init/               # Database initialization scripts
+├── docker-compose.yaml    # Docker configuration
+└── .env_example           # Environment template
+```
+
+---
+
+## API Endpoints
+
+### Scraping
+- `POST /api/scrape` - Scrape a single account
+- `POST /api/scrape_stream` - Scrape with real-time progress updates (SSE)
+- `POST /api/background_sync` - Sync all accounts for multiple days
+- `POST /api/catchup_sync` - Smart sync from last transaction date
+- `POST /api/scheduled_sync` - For external schedulers (cron jobs)
+
+### Transactions
+- `GET /api/month_by_categories` - Get spending by category for a month
+- `GET /api/category_expenses` - Get expenses for a specific category
+- `GET /api/monthly_summary` - Get monthly financial summary
+- `POST /api/manual_transaction` - Add a manual transaction
+
+### Categories
+- `GET /api/get_all_categories` - List all categories
+- `POST /api/rename_category` - Rename a category
+- `POST /api/merge_categories` - Merge categories
+- `POST /api/apply_categorization_rules` - Apply auto-categorization rules
+
+### Credentials
+- `GET /api/credentials` - List saved credentials
+- `POST /api/credentials` - Add new credentials
+- `DELETE /api/credentials/[id]` - Remove credentials
+
+---
+
+## Troubleshooting
+
+### Isracard/Amex/Max "Block Automation" Error
+
+These vendors have aggressive bot detection. The app includes mitigations:
+
+- **Category caching**: Known descriptions are mapped to categories locally
+- **Rate limiting delays**: 3-8 second random delays between requests
+- **Extended timeouts**: 3 minutes for these vendors
+- **Anti-detection measures**: Browser fingerprint spoofing
+
+**If you still encounter issues:**
+
+1. Wait 24-48 hours between sync attempts
+2. Sync one account at a time
+3. Try logging into the website manually first
+4. Reduce the date range being synced
+
+### Database Connection Issues
+
+1. Verify PostgreSQL is running: `docker-compose ps`
+2. Check environment variables match your setup
+3. For Docker, ensure the database container is healthy
+
+### Chrome/Chromium Not Found
+
+The scraper needs Chrome. Install it or set the path:
+```env
+PUPPETEER_EXECUTABLE_PATH=/path/to/chrome
+```
+
+---
+
+## Development
+
+```bash
+# Install dependencies
+cd app && npm install
+
+# Run in development mode
+npm run dev
+
+# Build for production
+npm run build
+npm start
+```
+
+---
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) file for details.
 
+---
+
 ## Credits
 
-Bank integration: [`israeli-bank-scrapers`](https://github.com/eshaham/israeli-bank-scrapers)
+- Bank scraping: [`israeli-bank-scrapers`](https://github.com/eshaham/israeli-bank-scrapers)
+- UI Framework: [Material-UI](https://mui.com/)

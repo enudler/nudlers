@@ -43,9 +43,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         onClose={handleClose}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         sx={{
-          '& .MuiSnackbar-root': {
-            zIndex: 9999,
-          },
+          top: '64px !important',
+          zIndex: 1300,
         }}
       >
         <Alert
