@@ -4,6 +4,8 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
+  // Standalone output for minimal Docker images
+  output: 'standalone',
 };
 
 export default nextConfig;

@@ -33,6 +33,12 @@ FROM node:22-slim AS runner
 
 WORKDIR /app
 
+# Add user so we don't need --no-sandbox in Puppeteer
+# Do this BEFORE installing packages to avoid permission issues
+RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
+    && mkdir -p /home/pptruser/Downloads \
+    && chown -R pptruser:pptruser /home/pptruser
+
 # Install dependencies required by Chromium in a single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -69,17 +75,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxss1 \
     libxtst6 \
     lsb-release \
-    wget \
     xdg-utils \
     chromium \
     xvfb \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Add user so we don't need --no-sandbox in Puppeteer
-RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
-    && mkdir -p /home/pptruser/Downloads \
-    && chown -R pptruser:pptruser /home/pptruser
+    && apt-get clean \
+    && rm -rf /var/cache/apt/archives/*
 
 # Set production environment
 ENV NODE_ENV=production
@@ -89,17 +90,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROME_PATH=/usr/lib/chromium/
 
-# Copy only production dependencies
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy built application
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/next.config.js ./next.config.js
-
-# Set ownership
-RUN chown -R pptruser:pptruser /app
+# Copy standalone build output with proper ownership (avoids extra chown layer)
+# The standalone output includes only production node_modules
+COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
+COPY --from=builder --chown=pptruser:pptruser /app/.next/static ./.next/static
+COPY --from=builder --chown=pptruser:pptruser /app/public ./public
 
 # Create startup script
 RUN echo '#!/bin/sh\n\
@@ -107,7 +102,7 @@ export DISPLAY=:99\n\
 Xvfb :99 -screen 0 1024x768x16 &\n\
 sleep 1\n\
 export PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --headless --disable-software-rasterizer --disable-extensions --single-process"\n\
-exec npm start' > /app/start.sh && \
+exec node server.js' > /app/start.sh && \
     chmod +x /app/start.sh && \
     chown pptruser:pptruser /app/start.sh
 
@@ -115,5 +110,8 @@ exec npm start' > /app/start.sh && \
 USER pptruser
 
 EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["/app/start.sh"]
