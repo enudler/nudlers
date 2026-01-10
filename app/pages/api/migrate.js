@@ -272,6 +272,32 @@ const migrations = [
         ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)')
       ON CONFLICT (key) DO NOTHING;
     `
+  },
+  {
+    name: 'add_linked_bank_account_to_card_ownership',
+    sql: `
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                       WHERE table_name = 'card_ownership' AND column_name = 'linked_bank_account_id') THEN
+          ALTER TABLE card_ownership ADD COLUMN linked_bank_account_id INTEGER REFERENCES vendor_credentials(id) ON DELETE SET NULL;
+          CREATE INDEX IF NOT EXISTS idx_card_ownership_bank_account ON card_ownership(linked_bank_account_id);
+        END IF;
+      END $$;
+    `
+  },
+  {
+    name: 'add_custom_bank_account_to_card_ownership',
+    sql: `
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                       WHERE table_name = 'card_ownership' AND column_name = 'custom_bank_account_number') THEN
+          ALTER TABLE card_ownership ADD COLUMN custom_bank_account_number VARCHAR(100);
+          ALTER TABLE card_ownership ADD COLUMN custom_bank_account_nickname VARCHAR(100);
+        END IF;
+      END $$;
+    `
   }
 ];
 
@@ -292,10 +318,10 @@ const optionalMigrations = [
 export async function runMigrations() {
   const client = await getDB();
   const results = [];
-  
+
   try {
     console.log('[migrate] Starting database migrations...');
-    
+
     // Run all required migrations
     for (const migration of migrations) {
       try {
@@ -308,7 +334,7 @@ export async function runMigrations() {
         throw error; // Stop on required migration failure
       }
     }
-    
+
     // Run optional migrations (don't fail if they error)
     for (const migration of optionalMigrations) {
       try {
@@ -326,7 +352,7 @@ export async function runMigrations() {
         }
       }
     }
-    
+
     console.log('[migrate] Database migrations completed successfully');
     return { success: true, migrations: results };
   } catch (error) {
@@ -343,14 +369,14 @@ export default async function handler(req, res) {
   }
 
   const result = await runMigrations();
-  
+
   if (result.success) {
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Migration completed successfully',
       migrations: result.migrations
     });
   } else {
-    res.status(500).json({ 
+    res.status(500).json({
       error: result.error,
       migrations: result.migrations
     });

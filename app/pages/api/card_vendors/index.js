@@ -6,6 +6,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       // Get all unique last 4 digits from transactions and their associated card vendors
+      // Also include card ownership and bank account information
       const result = await client.query(`
         WITH unique_cards AS (
           SELECT DISTINCT 
@@ -22,9 +23,19 @@ export default async function handler(req, res) {
           uc.transaction_count,
           cv.card_vendor,
           cv.card_nickname,
-          cv.id as card_vendor_id
+          cv.id as card_vendor_id,
+          co.id as card_ownership_id,
+          co.linked_bank_account_id,
+          ba.id as bank_account_id,
+          ba.nickname as bank_account_nickname,
+          ba.bank_account_number,
+          ba.vendor as bank_account_vendor,
+          co.custom_bank_account_number,
+          co.custom_bank_account_nickname
         FROM unique_cards uc
         LEFT JOIN card_vendors cv ON uc.last4_digits = cv.last4_digits
+        LEFT JOIN card_ownership co ON uc.last4_digits = RIGHT(co.account_number, 4)
+        LEFT JOIN vendor_credentials ba ON co.linked_bank_account_id = ba.id
         ORDER BY uc.transaction_count DESC
       `);
 

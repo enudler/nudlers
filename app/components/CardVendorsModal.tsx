@@ -19,6 +19,7 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import ModalHeader from './ModalHeader';
+import { BANK_VENDORS } from '../utils/constants';
 
 // Card vendor definitions with their logos and colors
 export const CARD_VENDORS = {
@@ -75,6 +76,21 @@ interface CardData {
   card_vendor: string | null;
   card_nickname: string | null;
   card_vendor_id: number | null;
+  card_ownership_id?: number | null;
+  linked_bank_account_id?: number | null;
+  bank_account_id?: number | null;
+  bank_account_nickname?: string | null;
+  bank_account_number?: string | null;
+  bank_account_vendor?: string | null;
+  custom_bank_account_number?: string | null;
+  custom_bank_account_nickname?: string | null;
+}
+
+interface BankAccount {
+  id: number;
+  nickname: string;
+  bank_account_number?: string;
+  vendor: string;
 }
 
 interface CardVendorsModalProps {
@@ -110,12 +126,12 @@ const CardChip = styled(Box)({
 });
 
 // Component to display card vendor logo/icon
-export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> = ({ 
-  vendor, 
-  size = 32 
+export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> = ({
+  vendor,
+  size = 32
 }) => {
   const vendorConfig = vendor ? CARD_VENDORS[vendor as keyof typeof CARD_VENDORS] : null;
-  
+
   if (!vendorConfig) {
     return (
       <Box
@@ -169,9 +185,22 @@ export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> 
 
 export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalProps) {
   const [cards, setCards] = useState<CardData[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editingCard, setEditingCard] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ vendor: string; nickname: string }>({ vendor: '', nickname: '' });
+  const [editValues, setEditValues] = useState<{
+    vendor: string;
+    nickname: string;
+    bankAccountId: number | null;
+    customBankNumber: string;
+    customBankNickname: string;
+  }>({
+    vendor: '',
+    nickname: '',
+    bankAccountId: null,
+    customBankNumber: '',
+    customBankNickname: ''
+  });
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -181,6 +210,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
   useEffect(() => {
     if (isOpen) {
       fetchCards();
+      fetchBankAccounts();
     }
   }, [isOpen]);
 
@@ -204,17 +234,38 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
     }
   };
 
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await fetch('/api/credentials');
+      if (response.ok) {
+        const data = await response.json();
+        // Filter to only bank accounts
+        const banks = data.filter((acc: any) =>
+          ['hapoalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'otsarHahayal', 'beinleumi', 'massad', 'pagi'].includes(acc.vendor)
+        );
+        setBankAccounts(banks);
+      }
+    } catch (err) {
+      // Silent fail - bank accounts are supplementary
+      console.error('Failed to fetch bank accounts:', err);
+    }
+  };
+
   const handleEdit = (card: CardData) => {
     setEditingCard(card.last4_digits);
     setEditValues({
       vendor: card.card_vendor || '',
       nickname: card.card_nickname || '',
+      bankAccountId: card.linked_bank_account_id || ((card.custom_bank_account_number || card.custom_bank_account_nickname) ? -1 : null),
+      customBankNumber: card.custom_bank_account_number || '',
+      customBankNickname: card.custom_bank_account_nickname || '',
     });
   };
 
   const handleSave = async (last4_digits: string) => {
     try {
-      const response = await fetch('/api/card_vendors', {
+      // Save card vendor info
+      const cardResponse = await fetch('/api/card_vendors', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,24 +277,58 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         }),
       });
 
-      if (!response.ok) {
+      if (!cardResponse.ok) {
         throw new Error('Failed to save card vendor');
+      }
+
+      // Update bank account assignment if card ownership exists
+      const card = cards.find(c => c.last4_digits === last4_digits);
+
+      if (card?.card_ownership_id) {
+        const payload: any = {};
+
+        if (editValues.bankAccountId === -1) {
+          // Custom bank account validation
+          if (!editValues.customBankNumber?.trim() && !editValues.customBankNickname?.trim()) {
+            throw new Error('Please provide at least a number or nickname for the custom account');
+          }
+
+          // Custom bank account
+          payload.custom_bank_account_number = editValues.customBankNumber;
+          payload.custom_bank_account_nickname = editValues.customBankNickname;
+          // Ensure linked account is cleared (though API handles this too)
+          payload.linked_bank_account_id = null;
+        } else {
+          // Regular linked account or null
+          payload.linked_bank_account_id = editValues.bankAccountId;
+          // Ensure custom fields are cleared (API handles this)
+          payload.custom_bank_account_number = null;
+          payload.custom_bank_account_nickname = null;
+        }
+
+        const bankResponse = await fetch(`/api/card_ownership/${card.card_ownership_id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!bankResponse.ok) {
+          throw new Error('Failed to update bank account assignment');
+        }
       }
 
       setSnackbar({
         open: true,
-        message: 'Card vendor saved successfully',
+        message: 'Card settings saved successfully',
         severity: 'success',
       });
 
-      // Update local state
-      setCards(cards.map(card => 
-        card.last4_digits === last4_digits
-          ? { ...card, card_vendor: editValues.vendor, card_nickname: editValues.nickname }
-          : card
-      ));
+      // Refresh cards to get updated data
+      await fetchCards();
       setEditingCard(null);
-      
+
       // Trigger refresh to update card icons in other views
       window.dispatchEvent(new CustomEvent('cardVendorsUpdated'));
     } catch (err) {
@@ -260,7 +345,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
       <Dialog
         open={isOpen}
         onClose={onClose}
-        maxWidth="md"
+        maxWidth="xl"
         fullWidth
         PaperProps={{
           style: {
@@ -269,6 +354,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
             borderRadius: '28px',
             boxShadow: '0 24px 64px rgba(0, 0, 0, 0.15)',
             border: '1px solid rgba(148, 163, 184, 0.2)',
+            maxWidth: '1200px',
           },
         }}
         BackdropProps={{
@@ -362,6 +448,21 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                       }}
                     >
                       Nickname
+                    </TableCell>
+                    <TableCell
+                      style={{
+                        color: '#475569',
+                        borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                        padding: '16px',
+                        minWidth: '200px',
+                      }}
+                    >
+                      Bank Account
                     </TableCell>
                     <TableCell
                       align="right"
@@ -482,6 +583,71 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                           </Typography>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {editingCard === card.last4_digits ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <TextField
+                              select
+                              size="small"
+                              value={editValues.bankAccountId !== null ? editValues.bankAccountId : ''}
+                              onChange={(e) => setEditValues({ ...editValues, bankAccountId: e.target.value ? Number(e.target.value) : null })}
+                              fullWidth
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: '12px',
+                                },
+                              }}
+                            >
+                              <MenuItem value="">
+                                <em>No bank account</em>
+                              </MenuItem>
+                              <MenuItem value="-1">
+                                <em>Custom Bank Account</em>
+                              </MenuItem>
+                              {bankAccounts.map((bankAccount) => (
+                                <MenuItem key={bankAccount.id} value={bankAccount.id}>
+                                  {bankAccount.nickname} ({bankAccount.bank_account_number || bankAccount.vendor})
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                            {editValues.bankAccountId === -1 && (
+                              <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <TextField
+                                  size="small"
+                                  placeholder="Nickname (e.g. My Bank)"
+                                  value={editValues.customBankNickname}
+                                  onChange={(e) => setEditValues({ ...editValues, customBankNickname: e.target.value })}
+                                  fullWidth
+                                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                                />
+                                <TextField
+                                  size="small"
+                                  placeholder="Account Number"
+                                  value={editValues.customBankNumber}
+                                  onChange={(e) => setEditValues({ ...editValues, customBankNumber: e.target.value })}
+                                  fullWidth
+                                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                                />
+                              </Box>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography
+                            sx={{
+                              color: card.bank_account_nickname || card.custom_bank_account_nickname ? '#1e293b' : '#94a3b8',
+                              fontStyle: card.bank_account_nickname || card.custom_bank_account_nickname ? 'normal' : 'italic',
+                            }}
+                            onClick={() => handleEdit(card)}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {card.bank_account_nickname
+                              ? `${card.bank_account_nickname} (${card.bank_account_number || card.bank_account_vendor})`
+                              : card.custom_bank_account_nickname
+                                ? `${card.custom_bank_account_nickname} (${card.custom_bank_account_number})`
+                                : 'No bank account'}
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="right">
                         {editingCard === card.last4_digits && (
                           <IconButton
@@ -504,7 +670,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
             </Box>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       <Snackbar
         open={snackbar.open}

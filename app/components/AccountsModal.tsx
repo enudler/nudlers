@@ -28,6 +28,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import CloseIcon from '@mui/icons-material/Close';
 import ScrapeModal from './ScrapeModal';
 import { CREDIT_CARD_VENDORS, BANK_VENDORS, BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
 import { dateUtils } from './CategoryDashboard/utils/dateUtils';
@@ -84,8 +85,13 @@ interface CardOwnership {
   vendor: string;
   account_number: string;
   credential_id: number;
+  linked_bank_account_id?: number;
   card_vendor?: string;
   card_nickname?: string;
+  bank_account_id?: number;
+  bank_account_nickname?: string;
+  bank_account_number?: string;
+  bank_account_vendor?: string;
 }
 
 interface AccountsModalProps {
@@ -138,6 +144,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [isScrapeModalOpen, setIsScrapeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<AccountWithPassword | null>(null);
+  const [editingCardBankAccount, setEditingCardBankAccount] = useState<number | null>(null);
   const { showNotification } = useNotification();
   const [formAccount, setFormAccount] = useState({
     vendor: 'isracard',
@@ -196,6 +203,35 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   // Helper to get owned cards for a specific credential
   const getOwnedCards = (credentialId: number): CardOwnership[] => {
     return cardOwnership.filter(co => co.credential_id === credentialId);
+  };
+
+  // Helper to get bank accounts for dropdown
+  const getBankAccounts = (): Account[] => {
+    return accounts.filter(account => BANK_VENDORS.includes(account.vendor));
+  };
+
+  // Update card's linked bank account
+  const handleUpdateCardBankAccount = async (cardId: number, bankAccountId: number | null) => {
+    try {
+      const response = await fetch(`/api/card_ownership/${cardId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ linked_bank_account_id: bankAccountId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update card bank account');
+      }
+
+      await fetchCardOwnership();
+      setEditingCardBankAccount(null);
+      showNotification('Card bank account updated successfully', 'success');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update card bank account');
+      showNotification('Failed to update card bank account', 'error');
+    }
   };
 
   const resetFormAccount = () => {
@@ -585,27 +621,101 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                     )}
                   </Box>
                   {type === 'credit' && getOwnedCards(account.id).length > 0 && (
-                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
                       {getOwnedCards(account.id).map((card) => (
-                        <Tooltip 
-                          key={card.id} 
-                          title={card.card_nickname || card.card_vendor || `Card ending in ${card.account_number}`}
-                        >
-                          <Chip
-                            size="small"
-                            label={`****${card.account_number}`}
-                            sx={{
-                              height: '20px',
-                              fontSize: '11px',
-                              backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                              color: '#7c3aed',
-                              border: '1px solid rgba(139, 92, 246, 0.2)',
-                              '& .MuiChip-label': {
-                                px: 1,
-                              },
-                            }}
-                          />
-                        </Tooltip>
+                        <Box key={card.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {editingCardBankAccount === card.id ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <TextField
+                                select
+                                size="small"
+                                value={card.linked_bank_account_id || ''}
+                                onChange={(e) => {
+                                  const bankAccountId = e.target.value ? Number(e.target.value) : null;
+                                  handleUpdateCardBankAccount(card.id, bankAccountId);
+                                }}
+                                sx={{
+                                  minWidth: 150,
+                                  '& .MuiOutlinedInput-root': {
+                                    fontSize: '11px',
+                                    height: '24px',
+                                  },
+                                }}
+                                SelectProps={{
+                                  native: true,
+                                }}
+                              >
+                                <option value="">No bank account</option>
+                                {getBankAccounts().map((bankAccount) => (
+                                  <option key={bankAccount.id} value={bankAccount.id}>
+                                    {bankAccount.nickname} ({bankAccount.bank_account_number || bankAccount.vendor})
+                                  </option>
+                                ))}
+                              </TextField>
+                              <IconButton
+                                size="small"
+                                onClick={() => setEditingCardBankAccount(null)}
+                                sx={{ 
+                                  padding: '2px',
+                                  color: '#64748b',
+                                  '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.1)' }
+                                }}
+                              >
+                                <CloseIcon sx={{ fontSize: '14px' }} />
+                              </IconButton>
+                            </Box>
+                          ) : (
+                            <Tooltip 
+                              title={
+                                <Box>
+                                  <Box>{card.card_nickname || card.card_vendor || `Card ending in ${card.account_number}`}</Box>
+                                  {card.bank_account_nickname ? (
+                                    <Box sx={{ mt: 0.5, fontSize: '11px' }}>
+                                      Bank: {card.bank_account_nickname} ({card.bank_account_number || card.bank_account_vendor})
+                                    </Box>
+                                  ) : (
+                                    <Box sx={{ mt: 0.5, fontSize: '11px', fontStyle: 'italic' }}>
+                                      No bank account linked
+                                    </Box>
+                                  )}
+                                </Box>
+                              }
+                            >
+                              <Chip
+                                size="small"
+                                label={
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <span>****{card.account_number}</span>
+                                    {card.bank_account_nickname && (
+                                      <span style={{ fontSize: '9px', opacity: 0.7 }}>
+                                        • {card.bank_account_nickname}
+                                      </span>
+                                    )}
+                                  </Box>
+                                }
+                                onClick={() => setEditingCardBankAccount(card.id)}
+                                sx={{
+                                  height: '20px',
+                                  fontSize: '11px',
+                                  backgroundColor: card.linked_bank_account_id 
+                                    ? 'rgba(59, 130, 246, 0.1)' 
+                                    : 'rgba(139, 92, 246, 0.1)',
+                                  color: card.linked_bank_account_id ? '#2563eb' : '#7c3aed',
+                                  border: `1px solid ${card.linked_bank_account_id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(139, 92, 246, 0.2)'}`,
+                                  cursor: 'pointer',
+                                  '&:hover': {
+                                    backgroundColor: card.linked_bank_account_id 
+                                      ? 'rgba(59, 130, 246, 0.15)' 
+                                      : 'rgba(139, 92, 246, 0.15)',
+                                  },
+                                  '& .MuiChip-label': {
+                                    px: 1,
+                                  },
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
                       ))}
                     </Box>
                   )}

@@ -11,6 +11,8 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import Divider from '@mui/material/Divider';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
@@ -21,6 +23,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
 import ExpensesModal from './CategoryDashboard/components/ExpensesModal';
+import Typography from '@mui/material/Typography';
 import { ModalData } from './CategoryDashboard/types';
 import { useCategories } from './CategoryDashboard/utils/useCategories';
 import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
@@ -44,6 +47,20 @@ interface CardSummary {
   last4digits: string;
   card_expenses: number;
   card_vendor?: string | null;
+  bank_account_id?: number | null;
+  bank_account_nickname?: string | null;
+  bank_account_number?: string | null;
+  bank_account_vendor?: string | null;
+  custom_bank_account_number?: string | null;
+  custom_bank_account_nickname?: string | null;
+}
+
+interface BankAccountSummary {
+  bank_account_id: number | null;
+  bank_account_nickname: string;
+  bank_account_number: string | null;
+  bank_account_vendor: string | null;
+  total_expenses: number;
 }
 
 type GroupByType = 'vendor' | 'description' | 'last4digits';
@@ -55,7 +72,7 @@ type SortDirection = 'asc' | 'desc';
 const getDateRange = (year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
   const y = parseInt(year);
   const m = parseInt(month);
-  
+
   if (mode === 'calendar') {
     // Full calendar month: 1st to last day of month
     const startDate = `${year}-${month}-01`;
@@ -126,34 +143,36 @@ const MonthlySummary: React.FC = () => {
   const [data, setData] = useState<MonthlySummaryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Month/Year selection
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [uniqueYears, setUniqueYears] = useState<string[]>([]);
   const [uniqueMonths, setUniqueMonths] = useState<string[]>([]);
   const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
-  
-  
+
+
   // Grouping
   const [groupBy, setGroupBy] = useState<GroupByType>('description');
-  
+
   // Date range mode
   const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
-  
+
   // Modal for transaction details
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<ModalData | undefined>();
   const [loadingDescription, setLoadingDescription] = useState<string | null>(null);
   const [loadingLast4, setLoadingLast4] = useState<string | null>(null);
-  
+
   // Card summary for cards display (grouped by last 4 digits)
   const [cardSummary, setCardSummary] = useState<CardSummary[]>([]);
-  
+
+  // Sorting
   // Sorting
   const [sortField, setSortField] = useState<SortField>('card_expenses');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  
+  const [bankAccountSummary, setBankAccountSummary] = useState<BankAccountSummary[]>([]);
+
   // Category editing
   const [editingDescription, setEditingDescription] = useState<string | null>(null);
   const [editCategory, setEditCategory] = useState<string>('');
@@ -163,42 +182,42 @@ const MonthlySummary: React.FC = () => {
     message: '',
     severity: 'success'
   });
-  
+
   // Card vendor selection
   const [vendorMenuAnchor, setVendorMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedCardForVendor, setSelectedCardForVendor] = useState<string | null>(null);
   const [cardVendorMap, setCardVendorMap] = useState<Record<string, string>>({});
   const [cardNicknameMap, setCardNicknameMap] = useState<Record<string, string>>({});
   const [editingNickname, setEditingNickname] = useState<string>('');
-  
+
   // Custom date range state
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [dateRangeError, setDateRangeError] = useState<string>('');
-  
+
   // AI context
   const { setScreenContext } = useScreenContext();
-  
+
   // Validate date range (max 5 years)
   const validateDateRange = (start: string, end: string): boolean => {
     if (!start || !end) return false;
-    
+
     const startDateObj = new Date(start);
     const endDateObj = new Date(end);
-    
+
     if (startDateObj > endDateObj) {
       setDateRangeError('Start date must be before end date');
       return false;
     }
-    
+
     const diffTime = Math.abs(endDateObj.getTime() - startDateObj.getTime());
     const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365);
-    
+
     if (diffYears > MAX_YEARS_RANGE) {
       setDateRangeError(`Date range cannot exceed ${MAX_YEARS_RANGE} years`);
       return false;
     }
-    
+
     setDateRangeError('');
     return true;
   };
@@ -245,10 +264,10 @@ const MonthlySummary: React.FC = () => {
 
   const handleVendorSelect = async (vendorKey: string) => {
     if (!selectedCardForVendor) return;
-    
+
     // Keep existing nickname if any
     const existingNickname = cardNicknameMap[selectedCardForVendor] || null;
-    
+
     try {
       const response = await fetch('/api/card_vendors', {
         method: 'POST',
@@ -281,13 +300,13 @@ const MonthlySummary: React.FC = () => {
         severity: 'error'
       });
     }
-    
+
     handleVendorMenuClose();
   };
 
   const handleNicknameSave = async (last4digits: string, nickname: string) => {
     const existingVendor = cardVendorMap[last4digits] || null;
-    
+
     try {
       const response = await fetch('/api/card_vendors', {
         method: 'POST',
@@ -326,23 +345,23 @@ const MonthlySummary: React.FC = () => {
       const response = await fetch('/api/available_months');
       const datesData = await response.json();
       setAllAvailableDates(datesData);
-      
+
       // Sort dates in descending order to get the most recent first
       const sortedDates = datesData.sort((a: string, b: string) => b.localeCompare(a));
-      
+
       // Default to current month/year (the current billing cycle)
       const now = new Date();
       const currentYear = now.getFullYear().toString();
       const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
       const currentYearMonth = `${currentYear}-${currentMonth}`;
-      
+
       // Use current month if available, otherwise fall back to most recent
       const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
       const defaultYear = defaultDate.substring(0, 4);
       const defaultMonth = defaultDate.substring(5, 7);
-      
+
       const years = Array.from(new Set(datesData.map((date: string) => date.substring(0, 4)))) as string[];
-      
+
       setUniqueYears(years);
       setSelectedYear(defaultYear);
 
@@ -350,9 +369,9 @@ const MonthlySummary: React.FC = () => {
       const monthsForYear = datesData
         .filter((date: string) => date.startsWith(defaultYear))
         .map((date: string) => date.substring(5, 7));
-      
+
       const months = Array.from(new Set(monthsForYear)) as string[];
-      
+
       setUniqueMonths(months);
       setSelectedMonth(defaultMonth);
     } catch (error) {
@@ -367,13 +386,13 @@ const MonthlySummary: React.FC = () => {
     } else {
       if (!selectedYear || !selectedMonth) return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       let url: string;
       let cardUrl: string;
-      
+
       if (dateRangeMode === 'custom') {
         // In custom mode, use custom date range
         url = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=${groupBy}`;
@@ -389,30 +408,93 @@ const MonthlySummary: React.FC = () => {
         url = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
         cardUrl = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
       }
-      
+
       // Fetch both main data and card summary in parallel
       const [mainResponse, cardResponse] = await Promise.all([
         fetch(url),
         fetch(cardUrl)
       ]);
-      
+
       if (!mainResponse.ok) {
         throw new Error('Failed to fetch monthly summary');
       }
-      
+
       const result = await mainResponse.json();
       setData(result);
-      
+
       if (cardResponse.ok) {
-        const cardResult = await cardResponse.json();
+        interface CardAPIResponse {
+          last4digits: string;
+          card_expenses: string | number;
+          bank_account_id?: number | null;
+          bank_account_nickname?: string | null;
+          bank_account_number?: string | null;
+          bank_account_vendor?: string | null;
+          custom_bank_account_number?: string | null;
+          custom_bank_account_nickname?: string | null;
+        }
+        const cardResult: CardAPIResponse[] = await cardResponse.json();
         // Filter to only include cards with expenses (exclude 0 card_expenses)
-        const cards = cardResult
-          .filter((c: any) => Number(c.card_expenses) > 0)
-          .map((c: any) => ({
+        const cards: CardSummary[] = cardResult
+          .filter((c) => Number(c.card_expenses) > 0)
+          .map((c) => ({
             last4digits: c.last4digits,
-            card_expenses: Number(c.card_expenses)
+            card_expenses: Number(c.card_expenses),
+            bank_account_id: c.bank_account_id || null,
+            bank_account_nickname: c.bank_account_nickname || null,
+            bank_account_number: c.bank_account_number || null,
+            bank_account_vendor: c.bank_account_vendor || null,
+            // Prioritize custom details if they exist and no linked account
+            custom_bank_account_number: c.custom_bank_account_number || null,
+            custom_bank_account_nickname: c.custom_bank_account_nickname || null,
           }));
         setCardSummary(cards);
+
+        // Process bank account summary from card data
+        const bankSummaryMap = new Map<string, BankAccountSummary>();
+
+        cards.forEach((card) => {
+          let key = 'unassigned';
+          let nickname = 'Unassigned Cards';
+          let number = null;
+          let vendor = null;
+          let id = null;
+
+          if (card.bank_account_id) {
+            // Linked Account
+            key = `id-${card.bank_account_id}`;
+            id = card.bank_account_id;
+            nickname = card.bank_account_nickname || 'Unknown Bank';
+            number = card.bank_account_number;
+            vendor = card.bank_account_vendor;
+          } else if (card.custom_bank_account_number || card.custom_bank_account_nickname) {
+            // Custom Account (Group by number if available, else nickname)
+            const customKey = card.custom_bank_account_number || card.custom_bank_account_nickname || 'custom-unknown';
+            key = `custom-${customKey}`;
+            nickname = card.custom_bank_account_nickname || 'Custom Bank Account';
+            number = card.custom_bank_account_number;
+            vendor = 'Custom';
+          }
+
+          if (!bankSummaryMap.has(key)) {
+            bankSummaryMap.set(key, {
+              bank_account_id: id,
+              bank_account_nickname: nickname,
+              bank_account_number: number,
+              bank_account_vendor: vendor,
+              total_expenses: 0
+            });
+          }
+
+          const summary = bankSummaryMap.get(key)!;
+          summary.total_expenses += card.card_expenses;
+        });
+
+        // Convert map to array and sort by expenses descending
+        const bankSummaryArray = Array.from(bankSummaryMap.values())
+          .sort((a, b) => b.total_expenses - a.total_expenses);
+
+        setBankAccountSummary(bankSummaryArray);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -423,7 +505,8 @@ const MonthlySummary: React.FC = () => {
 
   useEffect(() => {
     if (dateRangeMode === 'custom') {
-      if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
+      if (customStartDate && customEndDate) {
+        // Ensure not null/undefined before checking
         fetchMonthlySummary();
       }
     } else if (selectedYear && selectedMonth) {
@@ -439,10 +522,10 @@ const MonthlySummary: React.FC = () => {
     const monthsForYear = allAvailableDates
       .filter((date: string) => date.startsWith(newYear))
       .map((date: string) => date.substring(5, 7));
-    
+
     const uniqueMonthsForYear = Array.from(new Set(monthsForYear)) as string[];
     setUniqueMonths(uniqueMonthsForYear);
-    
+
     // If current month is not available in new year, select the first available month
     if (!uniqueMonthsForYear.includes(selectedMonth)) {
       setSelectedMonth(uniqueMonthsForYear[0]);
@@ -456,7 +539,7 @@ const MonthlySummary: React.FC = () => {
   const handleDateRangeModeChange = (mode: DateRangeMode) => {
     setDateRangeMode(mode);
     setDateRangeError('');
-    
+
     if (mode === 'custom') {
       // Initialize custom dates if not set
       if (!customStartDate || !customEndDate) {
@@ -464,14 +547,14 @@ const MonthlySummary: React.FC = () => {
         const today = new Date();
         const threeMonthsAgo = new Date(today);
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        
+
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
         setCustomStartDate(formatDate(threeMonthsAgo));
         setCustomEndDate(formatDate(today));
       }
     }
   };
-  
+
   const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
     if (type === 'start') {
       setCustomStartDate(value);
@@ -504,10 +587,10 @@ const MonthlySummary: React.FC = () => {
     } else {
       if (!selectedYear || !selectedMonth) return;
     }
-    
+
     try {
       setLoadingAll(true);
-      
+
       let url: string;
       if (dateRangeMode === 'custom') {
         url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
@@ -518,18 +601,18 @@ const MonthlySummary: React.FC = () => {
         const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
       }
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
-      
+
       const transactions = await response.json();
       // Filter to only credit card transactions (exclude Bank and Income)
-      const cardTransactions = transactions.filter((t: any) => 
+      const cardTransactions = transactions.filter((t: any) =>
         t.category !== 'Bank' && t.category !== 'Income'
       );
-      
+
       setModalData({
         type: 'All Card Expenses',
         data: cardTransactions
@@ -573,26 +656,26 @@ const MonthlySummary: React.FC = () => {
 
       if (response.ok) {
         const result = await response.json();
-        
+
         // Update local data
-        setData(prevData => 
-          prevData.map(row => 
-            row.description === description 
+        setData(prevData =>
+          prevData.map(row =>
+            row.description === description
               ? { ...row, category: editCategory.trim() }
               : row
           )
         );
-        
+
         const message = result.transactionsUpdated > 1
           ? `Updated ${result.transactionsUpdated} transactions with "${description}" to "${editCategory}". Rule saved for future transactions.`
           : `Category updated to "${editCategory}". Rule saved for future transactions.`;
-        
+
         setSnackbar({
           open: true,
           message,
           severity: 'success'
         });
-        
+
         // Trigger a refresh of any other open components
         window.dispatchEvent(new CustomEvent('dataRefresh'));
       } else {
@@ -610,7 +693,7 @@ const MonthlySummary: React.FC = () => {
         severity: 'error'
       });
     }
-    
+
     setEditingDescription(null);
   };
 
@@ -625,10 +708,10 @@ const MonthlySummary: React.FC = () => {
     } else {
       if (!selectedYear || !selectedMonth) return;
     }
-    
+
     try {
       setLoadingDescription(description);
-      
+
       let url: string;
       if (dateRangeMode === 'custom') {
         url = `/api/transactions_by_description?startDate=${customStartDate}&endDate=${customEndDate}&description=${encodeURIComponent(description)}`;
@@ -639,14 +722,14 @@ const MonthlySummary: React.FC = () => {
         const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/transactions_by_description?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
       }
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
-      
+
       const transactions = await response.json();
-      
+
       setModalData({
         type: description,
         data: transactions
@@ -665,10 +748,10 @@ const MonthlySummary: React.FC = () => {
     } else {
       if (!selectedYear || !selectedMonth) return;
     }
-    
+
     try {
       setLoadingLast4(last4digits);
-      
+
       let url: string;
       if (dateRangeMode === 'custom') {
         url = `/api/transactions_by_last4?startDate=${customStartDate}&endDate=${customEndDate}&last4digits=${encodeURIComponent(last4digits)}`;
@@ -679,14 +762,14 @@ const MonthlySummary: React.FC = () => {
         const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/transactions_by_last4?startDate=${startDate}&endDate=${endDate}&last4digits=${encodeURIComponent(last4digits)}`;
       }
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
-      
+
       const transactions = await response.json();
-      
+
       setModalData({
         type: `Card ending in ${last4digits}`,
         data: transactions
@@ -760,21 +843,21 @@ const MonthlySummary: React.FC = () => {
   // Sort the data
   const sortedData = useMemo(() => {
     if (!data.length) return data;
-    
+
     return [...data].sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortField) {
         case 'name':
-          const nameA = groupBy === 'description' 
-            ? (a.description || '') 
-            : groupBy === 'last4digits' 
-              ? (a.last4digits || '') 
+          const nameA = groupBy === 'description'
+            ? (a.description || '')
+            : groupBy === 'last4digits'
+              ? (a.last4digits || '')
               : (a.vendor_nickname || a.vendor || '');
-          const nameB = groupBy === 'description' 
-            ? (b.description || '') 
-            : groupBy === 'last4digits' 
-              ? (b.last4digits || '') 
+          const nameB = groupBy === 'description'
+            ? (b.description || '')
+            : groupBy === 'last4digits'
+              ? (b.last4digits || '')
               : (b.vendor_nickname || b.vendor || '');
           comparison = nameA.localeCompare(nameB);
           break;
@@ -785,7 +868,7 @@ const MonthlySummary: React.FC = () => {
           comparison = Number(a.card_expenses) - Number(b.card_expenses);
           break;
       }
-      
+
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [data, sortField, sortDirection, groupBy]);
@@ -880,17 +963,17 @@ const MonthlySummary: React.FC = () => {
                 fontSize: { xs: '14px', md: '16px' }
               }}>
                 Overview of credit card expenses for{' '}
-                {dateRangeMode === 'custom' 
-                  ? (customStartDate && customEndDate 
-                      ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                      : 'custom date range')
-                  : (selectedMonth && selectedYear && 
-                      new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)
-                        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))
+                {dateRangeMode === 'custom'
+                  ? (customStartDate && customEndDate
+                    ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : 'custom date range')
+                  : (selectedMonth && selectedYear &&
+                    new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)
+                      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))
                 }
               </Box>
             </div>
-            
+
             {/* Controls */}
             <Box sx={{
               display: 'flex',
@@ -905,10 +988,10 @@ const MonthlySummary: React.FC = () => {
               >
                 <RefreshIcon />
               </IconButton>
-              
+
               {dateRangeMode !== 'custom' && (
                 <>
-                  <select 
+                  <select
                     value={selectedYear}
                     onChange={handleYearChange}
                     style={{ ...SELECT_STYLE, minWidth: '120px' }}
@@ -919,8 +1002,8 @@ const MonthlySummary: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                  
-                  <select 
+
+                  <select
                     value={selectedMonth}
                     onChange={handleMonthChange}
                     style={{ ...SELECT_STYLE, minWidth: '160px' }}
@@ -933,7 +1016,7 @@ const MonthlySummary: React.FC = () => {
                   </select>
                 </>
               )}
-              
+
               {/* Date Range Mode Toggle */}
               <div style={{
                 display: 'flex',
@@ -954,16 +1037,16 @@ const MonthlySummary: React.FC = () => {
                     padding: '10px 14px',
                     borderRadius: '12px',
                     border: 'none',
-                    background: dateRangeMode === 'calendar' 
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' 
+                    background: dateRangeMode === 'calendar'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
                       : 'transparent',
                     color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'calendar' 
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)' 
+                    boxShadow: dateRangeMode === 'calendar'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -980,16 +1063,16 @@ const MonthlySummary: React.FC = () => {
                     padding: '10px 14px',
                     borderRadius: '12px',
                     border: 'none',
-                    background: dateRangeMode === 'billing' 
-                      ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)' 
+                    background: dateRangeMode === 'billing'
+                      ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
                       : 'transparent',
                     color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'billing' 
-                      ? '0 4px 12px rgba(139, 92, 246, 0.3)' 
+                    boxShadow: dateRangeMode === 'billing'
+                      ? '0 4px 12px rgba(139, 92, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1006,16 +1089,16 @@ const MonthlySummary: React.FC = () => {
                     padding: '10px 14px',
                     borderRadius: '12px',
                     border: 'none',
-                    background: dateRangeMode === 'custom' 
-                      ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' 
+                    background: dateRangeMode === 'custom'
+                      ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
                       : 'transparent',
                     color: dateRangeMode === 'custom' ? '#ffffff' : '#64748b',
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'custom' 
-                      ? '0 4px 12px rgba(16, 185, 129, 0.3)' 
+                    boxShadow: dateRangeMode === 'custom'
+                      ? '0 4px 12px rgba(16, 185, 129, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1025,7 +1108,7 @@ const MonthlySummary: React.FC = () => {
               </div>
             </Box>
           </Box>
-          
+
           {/* Date range indicator */}
           {dateRangeMode === 'custom' ? (
             <div style={{
@@ -1100,9 +1183,9 @@ const MonthlySummary: React.FC = () => {
                 </div>
               </div>
               {dateRangeError && (
-                <span style={{ 
-                  color: '#ef4444', 
-                  fontSize: '13px', 
+                <span style={{
+                  color: '#ef4444',
+                  fontSize: '13px',
                   fontWeight: 500,
                   background: 'rgba(239, 68, 68, 0.1)',
                   padding: '6px 12px',
@@ -1113,9 +1196,9 @@ const MonthlySummary: React.FC = () => {
                 </span>
               )}
               {customStartDate && customEndDate && !dateRangeError && (
-                <span style={{ 
-                  background: 'rgba(16, 185, 129, 0.1)', 
-                  padding: '6px 12px', 
+                <span style={{
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  padding: '6px 12px',
                   borderRadius: '8px',
                   border: '1px solid rgba(16, 185, 129, 0.2)',
                   color: '#10b981',
@@ -1134,9 +1217,9 @@ const MonthlySummary: React.FC = () => {
               fontSize: '14px',
               fontWeight: 500
             }}>
-              <span style={{ 
-                background: 'rgba(139, 92, 246, 0.1)', 
-                padding: '6px 12px', 
+              <span style={{
+                background: 'rgba(139, 92, 246, 0.1)',
+                padding: '6px 12px',
                 borderRadius: '8px',
                 border: '1px solid rgba(139, 92, 246, 0.2)'
               }}>
@@ -1177,7 +1260,7 @@ const MonthlySummary: React.FC = () => {
                 alignItems: 'stretch'
               }}>
                 {/* Total Card Expenses - Main Card */}
-                <Box 
+                <Box
                   onClick={handleAllTransactionsClick}
                   sx={{
                     background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
@@ -1224,13 +1307,13 @@ const MonthlySummary: React.FC = () => {
                 {/* Individual Cards by Last 4 Digits */}
                 {cardSummary.map((card) => {
                   const isLoading = loadingLast4 === card.last4digits;
-                  const percentage = totals.card_expenses > 0 
-                    ? Math.round((card.card_expenses / totals.card_expenses) * 100) 
+                  const percentage = totals.card_expenses > 0
+                    ? Math.round((card.card_expenses / totals.card_expenses) * 100)
                     : 0;
                   const cardVendor = cardVendorMap[card.last4digits];
-                  
+
                   return (
-                    <div 
+                    <div
                       key={card.last4digits}
                       style={{
                         background: 'rgba(248, 250, 252, 0.8)',
@@ -1289,19 +1372,19 @@ const MonthlySummary: React.FC = () => {
                         ) : (
                           <CardVendorIcon vendor={cardVendor || null} size={28} />
                         )}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
                           {cardNicknameMap[card.last4digits] ? (
                             <>
-                              <span style={{ 
-                                color: '#1e293b', 
-                                fontSize: '13px', 
+                              <span style={{
+                                color: '#1e293b',
+                                fontSize: '13px',
                                 fontWeight: 700,
                               }}>
                                 {cardNicknameMap[card.last4digits]}
                               </span>
-                              <span style={{ 
-                                color: '#94a3b8', 
-                                fontSize: '11px', 
+                              <span style={{
+                                color: '#94a3b8',
+                                fontSize: '11px',
                                 fontFamily: 'monospace',
                                 letterSpacing: '1px'
                               }}>
@@ -1309,9 +1392,9 @@ const MonthlySummary: React.FC = () => {
                               </span>
                             </>
                           ) : (
-                            <span style={{ 
-                              color: '#475569', 
-                              fontSize: '13px', 
+                            <span style={{
+                              color: '#475569',
+                              fontSize: '13px',
                               fontWeight: 700,
                               fontFamily: 'monospace',
                               letterSpacing: '1px'
@@ -1319,14 +1402,25 @@ const MonthlySummary: React.FC = () => {
                               •••• {card.last4digits}
                             </span>
                           )}
+                          {card.bank_account_nickname && (
+                            <span style={{
+                              color: '#3b82f6',
+                              fontSize: '10px',
+                              fontWeight: 500,
+                              marginTop: '2px',
+                              opacity: 0.8
+                            }}>
+                              Bank: {card.bank_account_nickname}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>
                         ₪{formatNumber(card.card_expenses)}
                       </div>
-                      <div style={{ 
-                        fontSize: '11px', 
-                        color: '#94a3b8', 
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#94a3b8',
                         marginTop: '4px',
                         display: 'flex',
                         alignItems: 'center',
@@ -1352,7 +1446,60 @@ const MonthlySummary: React.FC = () => {
                     </div>
                   );
                 })}
-                
+
+                {/* Bank Account Summary Section */}
+                <Box sx={{ width: '100%', pt: 2, borderTop: '1px solid rgba(148, 163, 184, 0.2)', mt: 1 }}>
+                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
+                    By Bank Account
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {bankAccountSummary.map((bank) => (
+                      <Box
+                        key={bank.bank_account_id || 'unassigned'}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          p: 1.5,
+                          borderRadius: '12px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                          border: '1px solid rgba(148, 163, 184, 0.15)',
+                          minWidth: '200px',
+                          flex: '1 1 auto'
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 36,
+                            height: 36,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: 'rgba(241, 245, 249, 0.8)',
+                            borderRadius: '10px',
+                            color: '#64748b'
+                          }}
+                        >
+                          <AccountBalanceIcon sx={{ fontSize: 20 }} />
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', lineHeight: 1.2 }}>
+                            {bank.bank_account_nickname}
+                          </Typography>
+                          {(bank.bank_account_number || bank.bank_account_vendor) && (
+                            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '10px' }}>
+                              {bank.bank_account_vendor} {bank.bank_account_number ? `• ${bank.bank_account_number}` : ''}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>
+                          ₪{formatNumber(bank.total_expenses)}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+
                 {/* Vendor Selection Menu */}
                 <Menu
                   anchorEl={vendorMenuAnchor}
@@ -1409,7 +1556,7 @@ const MonthlySummary: React.FC = () => {
                       }}
                     />
                   </Box>
-                  
+
                   <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e2e8f0' }}>
                     <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                       Card Vendor
@@ -1451,13 +1598,13 @@ const MonthlySummary: React.FC = () => {
               border: '1px solid rgba(148, 163, 184, 0.15)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
             }}>
-              <Box sx={{ 
-                display: 'flex', 
+              <Box sx={{
+                display: 'flex',
                 flexDirection: { xs: 'column', md: 'row' },
-                justifyContent: 'space-between', 
-                alignItems: { xs: 'flex-start', md: 'center' }, 
-                marginBottom: { xs: '16px', md: '24px' }, 
-                gap: { xs: '12px', md: '16px' } 
+                justifyContent: 'space-between',
+                alignItems: { xs: 'flex-start', md: 'center' },
+                marginBottom: { xs: '16px', md: '24px' },
+                gap: { xs: '12px', md: '16px' }
               }}>
                 <Box component="h2" sx={{
                   fontSize: { xs: '16px', md: '20px' },
@@ -1465,13 +1612,13 @@ const MonthlySummary: React.FC = () => {
                   margin: 0,
                   color: '#1e293b'
                 }}>
-                  {groupBy === 'description' 
-                    ? 'Breakdown by Description' 
-                    : groupBy === 'last4digits' 
+                  {groupBy === 'description'
+                    ? 'Breakdown by Description'
+                    : groupBy === 'last4digits'
                       ? 'Breakdown by Last 4 Digits'
                       : 'Breakdown by Card / Account'}
                 </Box>
-                
+
                 {/* Sorting Controls */}
                 <div style={{
                   display: 'flex',
@@ -1498,8 +1645,8 @@ const MonthlySummary: React.FC = () => {
                         padding: '6px 10px',
                         borderRadius: '8px',
                         border: sortField === field ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(148, 163, 184, 0.2)',
-                        background: sortField === field 
-                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)' 
+                        background: sortField === field
+                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)'
                           : 'rgba(255, 255, 255, 0.8)',
                         color: sortField === field ? '#3b82f6' : '#64748b',
                         fontSize: '12px',
@@ -1510,7 +1657,7 @@ const MonthlySummary: React.FC = () => {
                     >
                       {label}
                       {sortField === field && (
-                        sortDirection === 'asc' 
+                        sortDirection === 'asc'
                           ? <ArrowUpwardIcon sx={{ fontSize: '14px' }} />
                           : <ArrowDownwardIcon sx={{ fontSize: '14px' }} />
                       )}
@@ -1528,7 +1675,7 @@ const MonthlySummary: React.FC = () => {
                   No transactions found for this period.
                 </Box>
               ) : (
-                <Box sx={{ 
+                <Box sx={{
                   overflowX: 'auto',
                   WebkitOverflowScrolling: 'touch',
                   mx: { xs: -2, md: 0 },
@@ -1553,8 +1700,8 @@ const MonthlySummary: React.FC = () => {
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px'
                         }}>
-                          {groupBy === 'description' 
-                            ? 'Description' 
+                          {groupBy === 'description'
+                            ? 'Description'
                             : groupBy === 'last4digits'
                               ? 'Last 4 Digits'
                               : 'Card / Account'}
@@ -1599,21 +1746,21 @@ const MonthlySummary: React.FC = () => {
                     </thead>
                     <tbody>
                       {sortedData.map((row, index) => {
-                        const rowKey = groupBy === 'description' 
-                          ? `description-${row.description}-${index}` 
+                        const rowKey = groupBy === 'description'
+                          ? `description-${row.description}-${index}`
                           : groupBy === 'last4digits'
                             ? `last4-${row.last4digits}-${index}`
                             : `${row.month}-${row.vendor}`;
-                        const displayName = groupBy === 'description' 
-                          ? row.description 
+                        const displayName = groupBy === 'description'
+                          ? row.description
                           : groupBy === 'last4digits'
                             ? row.last4digits || 'Unknown'
                             : (row.vendor_nickname || row.vendor);
                         const isClickable = (groupBy === 'description' && row.description) || (groupBy === 'last4digits' && row.last4digits);
                         const isLoading = loadingDescription === row.description || loadingLast4 === row.last4digits;
-                        
+
                         return (
-                          <tr 
+                          <tr
                             key={rowKey}
                             style={{
                               borderBottom: '1px solid #f1f5f9',
@@ -1629,8 +1776,8 @@ const MonthlySummary: React.FC = () => {
                               }
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = isClickable 
-                                ? 'rgba(96, 165, 250, 0.15)' 
+                              e.currentTarget.style.background = isClickable
+                                ? 'rgba(96, 165, 250, 0.15)'
                                 : 'rgba(96, 165, 250, 0.08)';
                             }}
                             onMouseLeave={(e) => {
@@ -1643,9 +1790,9 @@ const MonthlySummary: React.FC = () => {
                               color: isClickable ? '#3b82f6' : '#1e293b',
                               maxWidth: '300px'
                             }}>
-                              <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
                                 gap: '8px',
                                 opacity: isLoading ? 0.5 : 1
                               }}>
@@ -1656,9 +1803,9 @@ const MonthlySummary: React.FC = () => {
                                 ) : (
                                   <CreditCardIcon sx={{ fontSize: '18px', color: '#3B82F6' }} />
                                 )}
-                                <span style={{ 
-                                  overflow: 'hidden', 
-                                  textOverflow: 'ellipsis', 
+                                <span style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap',
                                   textDecoration: isClickable ? 'underline' : 'none',
                                   textDecorationColor: 'rgba(59, 130, 246, 0.3)'
@@ -1673,7 +1820,7 @@ const MonthlySummary: React.FC = () => {
                                 color: '#64748b',
                                 fontWeight: 500
                               }}
-                              onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
                               >
                                 {editingDescription === row.description ? (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1724,7 +1871,7 @@ const MonthlySummary: React.FC = () => {
                                     <IconButton
                                       size="small"
                                       onClick={() => handleCategorySave(row.description!)}
-                                      sx={{ 
+                                      sx={{
                                         color: '#4ADE80',
                                         padding: '4px',
                                         '&:hover': { backgroundColor: 'rgba(74, 222, 128, 0.1)' }
@@ -1735,7 +1882,7 @@ const MonthlySummary: React.FC = () => {
                                     <IconButton
                                       size="small"
                                       onClick={handleCategoryCancel}
-                                      sx={{ 
+                                      sx={{
                                         color: '#ef4444',
                                         padding: '4px',
                                         '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.1)' }
@@ -1745,7 +1892,7 @@ const MonthlySummary: React.FC = () => {
                                     </IconButton>
                                   </div>
                                 ) : (
-                                  <span 
+                                  <span
                                     style={{
                                       background: 'rgba(59, 130, 246, 0.1)',
                                       padding: '4px 10px',
@@ -1852,10 +1999,10 @@ const MonthlySummary: React.FC = () => {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ 
+          sx={{
             width: '100%',
             borderRadius: '12px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
