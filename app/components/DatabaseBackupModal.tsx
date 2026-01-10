@@ -28,7 +28,6 @@ import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import StorageIcon from '@mui/icons-material/Storage';
 import TableChartIcon from '@mui/icons-material/TableChart';
-import { authFetch, isAuthError } from '../utils/authFetch';
 
 interface DatabaseBackupModalProps {
   open: boolean;
@@ -82,15 +81,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
     setResult(null);
 
     try {
-      const response = await authFetch('/api/database/export');
-      
-      if (isAuthError(response)) {
-        setResult({
-          type: 'error',
-          message: 'Session expired. Please refresh the page and log in again.'
-        });
-        return;
-      }
+      const response = await fetch('/api/database/export');
       
       if (!response.ok) {
         throw new Error('Export failed');
@@ -155,21 +146,13 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
         throw new Error('Invalid backup file format');
       }
 
-      const response = await authFetch('/api/database/import', {
+      const response = await fetch('/api/database/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ data, mode: importMode })
       });
-
-      if (isAuthError(response)) {
-        setResult({
-          type: 'error',
-          message: 'Session expired. Please refresh the page and log in again.'
-        });
-        return;
-      }
 
       const importRes: ImportResult = await response.json();
 

@@ -9,9 +9,11 @@ import crypto from 'crypto';
  * - Vendor/company ID
  * - Account number (card last digits)
  * - Transaction date
- * - Processed date (billing date)
  * - Description (normalized)
  * - Amount (to distinguish similar transactions)
+ * 
+ * Note: processedDate is NOT included because it can change between scrapes
+ * (initially null, then set when billing cycle closes), which would cause duplicates.
  */
 export function generateTransactionIdentifier(txn, companyId, accountNumber) {
   // Normalize all components to handle nulls/undefined
@@ -19,17 +21,17 @@ export function generateTransactionIdentifier(txn, companyId, accountNumber) {
   const vendor = companyId || '';
   const account = accountNumber || '';
   const date = txn.date ? new Date(txn.date).toISOString().split('T')[0] : '';
-  const processedDate = txn.processedDate ? new Date(txn.processedDate).toISOString().split('T')[0] : '';
   const description = normalizeDescription(txn.description || '');
   const amount = txn.chargedAmount ?? txn.originalAmount ?? 0;
   
   // Create a comprehensive unique string
+  // Note: We intentionally exclude processedDate to prevent duplicates when
+  // the billing date gets assigned after initial scrape
   const uniqueId = [
     originalId,
     vendor,
     account,
     date,
-    processedDate,
     description,
     amount.toFixed(2)
   ].join('|');

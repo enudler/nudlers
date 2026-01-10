@@ -4,9 +4,6 @@
  * Consolidated functions used across scraper endpoints:
  * - scrape.js
  * - scrape_stream.js
- * - background_sync.js
- * - catchup_sync.js
- * - scheduled_sync.js
  */
 
 import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants';
@@ -14,7 +11,8 @@ import { generateTransactionIdentifier } from './transactionUtils';
 
 // Vendors that are known to have rate limiting issues
 // Max uses the same base scraper as Isracard/Amex (base-isracard-amex.js)
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max'];
+// VisaCal also experiences rate limiting and JSON parsing errors
+export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
 
 // Cache for description -> category mappings from our database
 let categoryCache = null;
@@ -64,6 +62,40 @@ export function lookupCachedCategory(description, cache) {
 }
 
 /**
+ * Normalize a date to local date string (YYYY-MM-DD) to handle timezone issues
+ * This ensures consistent date handling regardless of when the scrape runs
+ */
+function normalizeDate(dateInput) {
+  if (!dateInput) return null;
+  const date = new Date(dateInput);
+  // Use local date components to avoid timezone shifts
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Check if a similar transaction already exists within a 1-day window
+ * This catches timezone-related duplicates where dates are off by 1 day
+ */
+async function checkForExistingTransaction(client, companyId, txn, amount, accountNumber) {
+  const txnDate = new Date(txn.date);
+  const result = await client.query(`
+    SELECT identifier, date, processed_date 
+    FROM transactions 
+    WHERE vendor = $1 
+      AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+      AND ABS(price) = ABS($3)
+      AND COALESCE(account_number, '') = COALESCE($4, '')
+      AND ABS(date - $5::date) <= 1
+    LIMIT 1
+  `, [companyId, txn.description, amount, accountNumber || '', txnDate]);
+  
+  return result.rows.length > 0 ? result.rows[0] : null;
+}
+
+/**
  * Insert a transaction into the database with duplicate handling
  */
 export async function insertTransaction(txn, client, companyId, isBank, accountNumber = null, cache = null) {
@@ -84,6 +116,20 @@ export async function insertTransaction(txn, client, companyId, isBank, accountN
     }
   } else {
     category = "Bank";
+  }
+
+  // Pre-insert check: Look for existing transactions within 1-day window (timezone duplicates)
+  const existingTxn = await checkForExistingTransaction(client, companyId, txn, amount, accountNumber);
+  if (existingTxn) {
+    // Update the existing transaction's processed_date if we have a newer one
+    if (txn.processedDate && (!existingTxn.processed_date || new Date(txn.processedDate) > new Date(existingTxn.processed_date))) {
+      await client.query(`
+        UPDATE transactions 
+        SET processed_date = $1
+        WHERE identifier = $2 AND vendor = $3
+      `, [txn.processedDate, existingTxn.identifier, companyId]);
+    }
+    return { inserted: false, reason: 'duplicate_within_1_day', existingIdentifier: existingTxn.identifier };
   }
 
   try {
@@ -284,8 +330,10 @@ export function prepareCredentials(vendor, credentials) {
 
 /**
  * Validate that all credential values are strings and not undefined
+ * @param {Object} scraperCredentials - The credentials object
+ * @param {string} vendor - The vendor name (for vendor-specific validation)
  */
-export function validateCredentials(scraperCredentials) {
+export function validateCredentials(scraperCredentials, vendor = null) {
   for (const [key, value] of Object.entries(scraperCredentials)) {
     if (typeof value !== 'string') {
       throw new Error(`Credential ${key} must be a string, got ${typeof value}`);
@@ -294,6 +342,97 @@ export function validateCredentials(scraperCredentials) {
       throw new Error(`Credential ${key} has invalid value`);
     }
   }
+  
+  // Vendor-specific validation
+  if (vendor === 'isracard' || vendor === 'amex') {
+    // Isracard and Amex REQUIRE id, card6Digits, and password
+    if (!scraperCredentials.id || scraperCredentials.id.trim() === '') {
+      throw new Error('ID number is required for Isracard/Amex');
+    }
+    if (!scraperCredentials.card6Digits || scraperCredentials.card6Digits.trim() === '') {
+      throw new Error('Card 6 digits is required for Isracard/Amex login');
+    }
+    if (!scraperCredentials.password || scraperCredentials.password.trim() === '') {
+      throw new Error('Password is required');
+    }
+    console.log(`[Isracard Validation] id: ${scraperCredentials.id.length} chars, card6Digits: ${scraperCredentials.card6Digits.length} chars, password: ${scraperCredentials.password.length} chars`);
+  } else if (vendor === 'max' || vendor === 'visaCal') {
+    // Max and VisaCal REQUIRE username and password
+    if (!scraperCredentials.username || scraperCredentials.username.trim() === '') {
+      throw new Error('Username is required for Max/VisaCal');
+    }
+    if (!scraperCredentials.password || scraperCredentials.password.trim() === '') {
+      throw new Error('Password is required for Max/VisaCal');
+    }
+    console.log(`[Max/VisaCal Validation] username: ${scraperCredentials.username.length} chars, password: ${scraperCredentials.password.length} chars`);
+  }
+}
+
+/**
+ * Get a boolean setting from the database
+ * @param {Object} client - Optional database client (if provided, won't release it)
+ * @param {string} key - The setting key to fetch
+ * @param {boolean} defaultValue - Default value if setting doesn't exist
+ */
+async function getBooleanSetting(client, key, defaultValue = false) {
+  let dbClient = client;
+  let shouldRelease = false;
+  
+  try {
+    if (!dbClient) {
+      const { getDB } = await import('../db.js');
+      dbClient = await getDB();
+      shouldRelease = true;
+    }
+    
+    const result = await dbClient.query(
+      `SELECT value FROM app_settings WHERE key = $1`,
+      [key]
+    );
+    
+    if (result.rows.length > 0) {
+      const value = result.rows[0].value;
+      // Handle JSONB value (could be string "true"/"false" or boolean)
+      if (typeof value === 'boolean') {
+        return value;
+      }
+      if (typeof value === 'string') {
+        return value === 'true' || value === '"true"';
+      }
+      // If it's JSON parsed, it might be a boolean already
+      return value === true;
+    }
+    
+    // Return default if setting doesn't exist
+    return defaultValue;
+  } catch (error) {
+    console.error(`[Scraper Utils] Error getting ${key} setting:`, error);
+    // Return default on error
+    return defaultValue;
+  } finally {
+    if (shouldRelease && dbClient) {
+      dbClient.release();
+    }
+  }
+}
+
+/**
+ * Get the show_browser setting from database
+ * This is async and should be called before getScraperOptions if you need the setting
+ * @param {Object} client - Optional database client (if provided, won't release it)
+ */
+export async function getShowBrowserSetting(client = null) {
+  return getBooleanSetting(client, 'show_browser', false);
+}
+
+/**
+ * Get the fetch_categories_from_scrapers setting from database
+ * When false, the scraper won't fetch categories from card providers (reduces rate limiting)
+ * Local category cache will still be used to assign categories
+ * @param {Object} client - Optional database client (if provided, won't release it)
+ */
+export async function getFetchCategoriesSetting(client = null) {
+  return getBooleanSetting(client, 'fetch_categories_from_scrapers', true);
 }
 
 /**
@@ -302,11 +441,23 @@ export function validateCredentials(scraperCredentials) {
  * @param {Date} startDate - Start date for scraping
  * @param {boolean} isIsracardAmex - Whether this is a rate-limited vendor
  * @param {Object} options - Additional options
- * @param {boolean} options.showBrowser - Show browser window for debugging/2FA (default: false)
+ * @param {boolean} options.showBrowser - Show browser window for debugging/2FA (default: false - respects app setting)
  * @param {boolean} options.verbose - Enable verbose logging (default: true)
+ * @param {boolean} options.fetchCategories - Fetch categories from card providers (default: true)
  */
 export function getScraperOptions(companyId, startDate, isIsracardAmex, options = {}) {
+  // Default to false - browser should only show if explicitly enabled via setting or option
+  // The setting will be checked by the caller before calling this function
   const showBrowser = options.showBrowser ?? false;
+  
+  // additionalTransactionInformation fetches categories from card providers
+  // Disabling this reduces API calls and helps avoid rate limiting
+  // Default to true for backwards compatibility
+  const fetchCategories = options.fetchCategories ?? true;
+  
+  // Latest Chrome version user agent (updated January 2026)
+  const chromeVersion = '132.0.6834.83';
+  const userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
   
   // Base Chrome args for headless/anti-detection
   const baseArgs = [
@@ -317,10 +468,27 @@ export function getScraperOptions(companyId, startDate, isIsracardAmex, options 
     '--disable-features=IsolateOrigins,site-per-process',
     '--window-size=1920,1080',
     '--disable-web-security',
-    '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    `--user-agent=${userAgent}`,
     '--disable-infobars',
     '--disable-extensions',
-    '--lang=he-IL,he,en-US,en'
+    '--lang=he-IL,he,en-US,en',
+    // Additional anti-detection flags
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-breakpad',
+    '--disable-component-update',
+    '--disable-default-apps',
+    '--disable-hang-monitor',
+    '--disable-ipc-flooding-protection',
+    '--disable-popup-blocking',
+    '--disable-prompt-on-repost',
+    '--disable-renderer-backgrounding',
+    '--disable-sync',
+    '--metrics-recording-only',
+    '--no-first-run',
+    '--password-store=basic',
+    '--use-mock-keychain',
   ];
   
   // Add remote debugging port when showing browser (useful for debugging)
@@ -329,24 +497,74 @@ export function getScraperOptions(companyId, startDate, isIsracardAmex, options 
     baseArgs.push('--remote-debugging-address=0.0.0.0');
   }
   
+  // For rate-limited vendors (isracard, amex, max, visaCal), use longer timeouts
+  // VisaCal needs longer timeout due to API issues (JSON parsing errors, GetFrameStatus)
+  // All rate-limited vendors get 240s timeout to handle slow responses and rate limiting
+  const timeout = isIsracardAmex ? 240000 : 120000;
+  
+  console.log(`[Scraper Options] vendor=${companyId}, showBrowser=${showBrowser}, isRateLimited=${isIsracardAmex}, fetchCategories=${fetchCategories}, timeout=${timeout}ms`);
+  
   return {
     companyId,
     startDate,
     combineInstallments: false,
-    additionalTransactionInformation: true,
+    additionalTransactionInformation: fetchCategories,
     showBrowser,
     verbose: options.verbose ?? true,
-    timeout: isIsracardAmex ? 180000 : 120000,
+    timeout,
     executablePath: getChromePath(),
     args: baseArgs,
     viewportSize: { width: 1920, height: 1080 },
-    defaultTimeout: isIsracardAmex ? 180000 : 120000,
+    defaultTimeout: timeout,
     ...options
   };
 }
 
 /**
+ * Retry function with exponential backoff
+ * Particularly useful for VisaCal/Cal which has intermittent JSON parsing errors
+ * @param {Function} fn - Async function to retry
+ * @param {number} maxRetries - Maximum number of retries (default: 2)
+ * @param {number} baseDelay - Base delay in ms between retries (default: 5000)
+ * @param {string} vendor - Vendor name for logging
+ */
+export async function retryWithBackoff(fn, maxRetries = 2, baseDelay = 5000, vendor = 'unknown') {
+  let lastError;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const errorMessage = error.message || '';
+      
+      // Only retry for specific errors (JSON parsing, network issues)
+      const isRetryableError = 
+        errorMessage.includes('JSON') ||
+        errorMessage.includes('Unexpected end of JSON') ||
+        errorMessage.includes('invalid json') ||
+        errorMessage.includes('GetFrameStatus') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('ECONNRESET') ||
+        errorMessage.includes('timeout');
+      
+      if (!isRetryableError || attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Exponential backoff: baseDelay * 2^attempt (e.g., 5s, 10s, 20s)
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`[Retry] ${vendor} attempt ${attempt + 1}/${maxRetries + 1} failed with: ${errorMessage}. Retrying in ${delay / 1000}s...`);
+      await sleep(delay);
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Get preparePage function with anti-detection measures
+ * @param {boolean} isIsracardAmex - True for rate-limited vendors (isracard, amex, max, visaCal)
  */
 export function getPreparePage(isIsracardAmex) {
   return async (page) => {
@@ -354,25 +572,55 @@ export function getPreparePage(isIsracardAmex) {
       setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
     );
 
-    // Longer initial delay for rate-limited vendors
+    console.log(`[PreparePage] Setting up anti-detection measures (isRateLimited=${isIsracardAmex})`);
+
+    // Longer initial delay for rate-limited vendors (isracard, amex, max, visaCal)
     if (isIsracardAmex) {
+      const delay = Math.floor(Math.random() * 3000) + 2000;
+      console.log(`[PreparePage] Adding initial delay of ${delay}ms for rate-limited vendor`);
       await randomDelay(2000, 5000);
     }
 
     // Override navigator properties to hide automation
     await page.evaluateOnNewDocument(() => {
+      // Remove webdriver property
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      delete navigator.__proto__.webdriver;
       
+      // Delete webdriver from prototype
+      try {
+        delete Object.getPrototypeOf(navigator).webdriver;
+      } catch (e) {}
+      
+      // Add realistic plugins
       Object.defineProperty(navigator, 'plugins', {
-        get: () => [
-          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
-          { name: 'Native Client', filename: 'internal-nacl-plugin' },
-        ],
+        get: () => {
+          const pluginData = [
+            { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+            { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+            { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+          ];
+          const plugins = pluginData.map(p => {
+            const plugin = Object.create(Plugin.prototype);
+            Object.defineProperties(plugin, {
+              name: { value: p.name },
+              filename: { value: p.filename },
+              description: { value: p.description },
+              length: { value: 0 },
+            });
+            return plugin;
+          });
+          const pluginArray = Object.create(PluginArray.prototype);
+          plugins.forEach((p, i) => {
+            pluginArray[i] = p;
+          });
+          Object.defineProperty(pluginArray, 'length', { value: plugins.length });
+          return pluginArray;
+        },
       });
+      
       Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
       
+      // Mock permissions API
       const originalQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters) => (
         parameters.name === 'notifications' ?
@@ -380,16 +628,66 @@ export function getPreparePage(isIsracardAmex) {
           originalQuery(parameters)
       );
       
+      // Add chrome object to look like a real browser
       window.chrome = { 
-        runtime: { id: 'random-extension-id', connect: () => {}, sendMessage: () => {} },
-        loadTimes: () => ({}),
-        csi: () => ({})
+        runtime: { 
+          id: undefined,
+          connect: () => {},
+          sendMessage: () => {},
+          onMessage: { addListener: () => {} },
+          onConnect: { addListener: () => {} },
+        },
+        loadTimes: () => ({
+          commitLoadTime: Date.now() / 1000 - Math.random() * 10,
+          connectionInfo: 'h2',
+          finishDocumentLoadTime: Date.now() / 1000 - Math.random() * 5,
+          finishLoadTime: Date.now() / 1000 - Math.random() * 2,
+          firstPaintAfterLoadTime: 0,
+          firstPaintTime: Date.now() / 1000 - Math.random() * 8,
+          navigationType: 'Other',
+          npnNegotiatedProtocol: 'h2',
+          requestTime: Date.now() / 1000 - Math.random() * 12,
+          startLoadTime: Date.now() / 1000 - Math.random() * 11,
+          wasAlternateProtocolAvailable: false,
+          wasFetchedViaSpdy: true,
+          wasNpnNegotiated: true,
+        }),
+        csi: () => ({
+          onloadT: Date.now() - Math.floor(Math.random() * 1000),
+          startE: Date.now() - Math.floor(Math.random() * 5000),
+          pageT: Math.floor(Math.random() * 3000),
+        }),
+        app: {
+          isInstalled: false,
+          InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+          RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+        },
       };
       
+      // Set realistic hardware properties
       Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
       Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
       Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
       Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+      Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
+      Object.defineProperty(navigator, 'productSub', { get: () => '20030107' });
+      
+      // Override WebGL to prevent fingerprinting detection
+      const getParameter = WebGLRenderingContext.prototype.getParameter;
+      WebGLRenderingContext.prototype.getParameter = function(parameter) {
+        if (parameter === 37445) return 'Intel Inc.';
+        if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+        return getParameter.call(this, parameter);
+      };
+      
+      // Prevent detection via toString
+      const originalFunction = Function.prototype.toString;
+      Function.prototype.toString = function() {
+        if (this === Function.prototype.toString) {
+          return 'function toString() { [native code] }';
+        }
+        return originalFunction.call(this);
+      };
     });
 
     // Set extra HTTP headers
@@ -402,6 +700,9 @@ export function getPreparePage(isIsracardAmex) {
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'same-origin',
       'Sec-Fetch-User': '?1',
+      'Sec-CH-UA': '"Chromium";v="132", "Google Chrome";v="132", "Not-A.Brand";v="99"',
+      'Sec-CH-UA-Mobile': '?0',
+      'Sec-CH-UA-Platform': '"macOS"',
       'Upgrade-Insecure-Requests': '1',
     });
 
@@ -409,10 +710,14 @@ export function getPreparePage(isIsracardAmex) {
     if (isIsracardAmex) {
       const originalGoto = page.goto.bind(page);
       page.goto = async (url, options) => {
+        const delay = Math.floor(Math.random() * 2500) + 1500;
+        console.log(`[PreparePage] Navigating to ${url} with ${delay}ms delay`);
         await randomDelay(1500, 4000);
         return originalGoto(url, options);
       };
     }
+    
+    console.log('[PreparePage] Anti-detection setup complete');
   };
 }
 

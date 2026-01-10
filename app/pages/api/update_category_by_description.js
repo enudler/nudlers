@@ -1,4 +1,4 @@
-import { createAuthenticatedApiHandler } from "./middleware/auth";
+import { createApiHandler } from "./utils/apiHandler";
 import { getDB } from "./db";
 
 /**
@@ -10,7 +10,7 @@ import { getDB } from "./db";
  * - newCategory: string - The new category to apply
  * - createRule: boolean (optional, default true) - Whether to create a categorization rule
  */
-const handler = createAuthenticatedApiHandler({
+const handler = createApiHandler({
   validate: (req) => {
     if (req.method !== 'POST') {
       return "Only POST method is allowed";

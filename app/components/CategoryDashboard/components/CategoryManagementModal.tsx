@@ -32,8 +32,21 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import CheckIcon from '@mui/icons-material/Check';
+import SkipNextIcon from '@mui/icons-material/SkipNext';
 import { useCategoryColors } from '../utils/categoryUtils';
 import ModalHeader from '../../ModalHeader';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Paper from '@mui/material/Paper';
+import LinearProgress from '@mui/material/LinearProgress';
+import InputAdornment from '@mui/material/InputAdornment';
+import Badge from '@mui/material/Badge';
 
 interface Category {
   name: string;
@@ -47,6 +60,27 @@ interface CategorizationRule {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface UncategorizedDescription {
+  description: string;
+  count: number;
+  totalAmount: number;
+}
+
+interface Transaction {
+  name: string;
+  price: number;
+  date: string;
+  processed_date: string;
+  vendor: string;
+  vendor_nickname?: string;
+  account_number?: string;
+  card6_digits?: string;
+  installments_number?: number;
+  installments_total?: number;
+  original_amount?: number;
+  original_currency?: string;
 }
 
 interface CategoryManagementModalProps {
@@ -77,13 +111,148 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
   const [deleteOptions, setDeleteOptions] = useState({ deleteRules: true, deleteBudget: true });
   const categoryColors = useCategoryColors();
+  
+  // Quick Categorize state
+  const [uncategorizedDescriptions, setUncategorizedDescriptions] = useState<UncategorizedDescription[]>([]);
+  const [currentQuickIndex, setCurrentQuickIndex] = useState(0);
+  const [isLoadingQuick, setIsLoadingQuick] = useState(false);
+  const [isSavingQuick, setIsSavingQuick] = useState(false);
+  const [quickTransactions, setQuickTransactions] = useState<Transaction[]>([]);
+  const [isLoadingQuickTransactions, setIsLoadingQuickTransactions] = useState(false);
+  const [totalQuickProcessed, setTotalQuickProcessed] = useState(0);
+  const [newQuickCategoryInput, setNewQuickCategoryInput] = useState('');
+  const [showNewQuickCategoryInput, setShowNewQuickCategoryInput] = useState(false);
 
   useEffect(() => {
     if (open) {
       fetchCategories();
       fetchRules();
+      fetchUncategorizedDescriptions();
     }
   }, [open]);
+
+  // Reset quick categorize state when switching tabs
+  useEffect(() => {
+    if (currentTab === 2 && uncategorizedDescriptions.length > 0) {
+      fetchQuickTransactions(uncategorizedDescriptions[currentQuickIndex]?.description);
+    }
+  }, [currentTab, currentQuickIndex, uncategorizedDescriptions]);
+
+  const fetchUncategorizedDescriptions = async () => {
+    try {
+      setIsLoadingQuick(true);
+      const response = await fetch('/api/uncategorized_descriptions');
+      if (!response.ok) throw new Error('Failed to fetch uncategorized descriptions');
+      const data = await response.json();
+      setUncategorizedDescriptions(data);
+      setCurrentQuickIndex(0);
+      setTotalQuickProcessed(0);
+    } catch (error) {
+      console.error('Error fetching uncategorized descriptions:', error);
+    } finally {
+      setIsLoadingQuick(false);
+    }
+  };
+
+  const fetchQuickTransactions = async (description: string) => {
+    if (!description) {
+      setQuickTransactions([]);
+      return;
+    }
+    try {
+      setIsLoadingQuickTransactions(true);
+      const response = await fetch(
+        `/api/transactions_by_description?description=${encodeURIComponent(description)}&uncategorizedOnly=true`
+      );
+      if (!response.ok) throw new Error('Failed to fetch transactions');
+      const data = await response.json();
+      setQuickTransactions(data);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      setQuickTransactions([]);
+    } finally {
+      setIsLoadingQuickTransactions(false);
+    }
+  };
+
+  const handleQuickCategorySelect = async (category: string) => {
+    const currentDescription = uncategorizedDescriptions[currentQuickIndex];
+    if (!currentDescription) return;
+
+    try {
+      setIsSavingQuick(true);
+      setError(null);
+
+      const response = await fetch('/api/update_category_by_description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: currentDescription.description,
+          newCategory: category,
+          createRule: true
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update category');
+      }
+
+      const result = await response.json();
+      setSuccess(`Updated ${result.transactionsUpdated} transaction(s) to "${category}"`);
+      setTotalQuickProcessed(prev => prev + 1);
+
+      // Move to next description
+      moveToNextQuick();
+
+      // Refresh categories
+      await fetchCategories();
+      
+      setTimeout(() => setSuccess(null), 1500);
+    } catch (error) {
+      console.error('Error updating category:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update category');
+    } finally {
+      setIsSavingQuick(false);
+    }
+  };
+
+  const handleQuickSkip = () => {
+    moveToNextQuick();
+  };
+
+  const handleAddNewQuickCategory = () => {
+    const trimmedCategory = newQuickCategoryInput.trim();
+    if (trimmedCategory) {
+      handleQuickCategorySelect(trimmedCategory);
+      setNewQuickCategoryInput('');
+      setShowNewQuickCategoryInput(false);
+    }
+  };
+
+  const moveToNextQuick = () => {
+    if (currentQuickIndex < uncategorizedDescriptions.length - 1) {
+      setCurrentQuickIndex(prev => prev + 1);
+    }
+  };
+
+  const formatQuickCurrency = (amount: number) => {
+    return new Intl.NumberFormat('he-IL', {
+      style: 'currency',
+      currency: 'ILS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const formatQuickDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('he-IL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    });
+  };
 
   const fetchCategories = async () => {
     try {
@@ -191,6 +360,11 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   };
 
   const handleClose = () => {
+    // Trigger refresh if any quick categorizations were done
+    if (totalQuickProcessed > 0) {
+      onCategoriesUpdated();
+    }
+    
     setSelectedCategories([]);
     setNewCategoryName('');
     setError(null);
@@ -202,6 +376,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     setRenameNewName('');
     setDeletingCategory(null);
     setDeleteOptions({ deleteRules: true, deleteBudget: true });
+    
+    // Reset quick categorize state
+    setCurrentQuickIndex(0);
+    setTotalQuickProcessed(0);
+    setNewQuickCategoryInput('');
+    setShowNewQuickCategoryInput(false);
+    
     onClose();
   };
 
@@ -481,6 +662,28 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
         >
           <Tab label="Categories" />
           <Tab label="Rules" />
+          <Tab 
+            label={
+              <Badge 
+                badgeContent={uncategorizedDescriptions.length} 
+                color="warning"
+                max={99}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: uncategorizedDescriptions.length > 0 ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FlashOnIcon sx={{ fontSize: 18, color: uncategorizedDescriptions.length > 0 ? '#f59e0b' : 'inherit' }} />
+                  Uncategorized
+                </Box>
+              </Badge>
+            }
+          />
         </Tabs>
 
         {currentTab === 0 && (
@@ -802,6 +1005,330 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                   </Box>
                 </Card>
               </Box>
+            )}
+          </>
+        )}
+
+        {currentTab === 2 && (
+          <>
+            {uncategorizedDescriptions.length > 0 && (
+              <LinearProgress
+                variant="determinate"
+                value={(currentQuickIndex / uncategorizedDescriptions.length) * 100}
+                sx={{
+                  height: 4,
+                  borderRadius: 2,
+                  marginBottom: 2,
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: '#3b82f6'
+                  }
+                }}
+              />
+            )}
+
+            {isLoadingQuick ? (
+              <Box display="flex" justifyContent="center" padding="64px">
+                <CircularProgress />
+              </Box>
+            ) : uncategorizedDescriptions.length === 0 ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '64px 32px',
+                  textAlign: 'center'
+                }}
+              >
+                <CheckIcon sx={{ fontSize: 64, color: '#22c55e', marginBottom: 2 }} />
+                <Typography variant="h5" sx={{ fontWeight: 600, marginBottom: 1 }}>
+                  All Done!
+                </Typography>
+                <Typography color="textSecondary">
+                  All transactions have been categorized.
+                </Typography>
+                {totalQuickProcessed > 0 && (
+                  <Typography color="textSecondary" sx={{ marginTop: 1 }}>
+                    You categorized {totalQuickProcessed} description(s) in this session.
+                  </Typography>
+                )}
+              </Box>
+            ) : currentQuickIndex >= uncategorizedDescriptions.length ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '64px 32px',
+                  textAlign: 'center'
+                }}
+              >
+                <CheckIcon sx={{ fontSize: 64, color: '#22c55e', marginBottom: 2 }} />
+                <Typography variant="h5" sx={{ fontWeight: 600, marginBottom: 1 }}>
+                  Session Complete!
+                </Typography>
+                <Typography color="textSecondary">
+                  You categorized {totalQuickProcessed} description(s).
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {/* Header with remaining count */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Assign Categories
+                  </Typography>
+                  <Chip
+                    label={`${uncategorizedDescriptions.length - currentQuickIndex} remaining`}
+                    size="small"
+                    sx={{
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      color: '#3b82f6',
+                      fontWeight: 600
+                    }}
+                  />
+                </Box>
+
+                {/* Current Description Card */}
+                <Box
+                  sx={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    marginBottom: '20px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    position: 'relative'
+                  }}
+                >
+                  {isSavingQuick && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '16px',
+                        zIndex: 1
+                      }}
+                    >
+                      <CircularProgress size={32} />
+                    </Box>
+                  )}
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1e293b',
+                        wordBreak: 'break-word'
+                      }}
+                    >
+                      {uncategorizedDescriptions[currentQuickIndex]?.description}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, marginLeft: 2 }}>
+                      <Chip
+                        label={`${uncategorizedDescriptions[currentQuickIndex]?.count} txns`}
+                        size="small"
+                        sx={{
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          color: '#3b82f6',
+                          fontWeight: 600
+                        }}
+                      />
+                      <Chip
+                        label={formatQuickCurrency(uncategorizedDescriptions[currentQuickIndex]?.totalAmount || 0)}
+                        size="small"
+                        sx={{
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          fontWeight: 600
+                        }}
+                      />
+                    </Box>
+                  </Box>
+
+                  {/* Transactions Table */}
+                  {isLoadingQuickTransactions ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', padding: 2 }}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : quickTransactions.length > 0 ? (
+                    <TableContainer 
+                      component={Paper} 
+                      sx={{ 
+                        maxHeight: 150, 
+                        boxShadow: 'none',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px' }}>Date</TableCell>
+                            <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px' }}>Amount</TableCell>
+                            <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px' }}>Card</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {quickTransactions.slice(0, 5).map((tx, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell sx={{ color: '#64748b', fontSize: '12px' }}>
+                                {formatQuickDate(tx.date)}
+                              </TableCell>
+                              <TableCell sx={{ color: tx.price < 0 ? '#ef4444' : '#22c55e', fontWeight: 600, fontSize: '12px' }}>
+                                {formatQuickCurrency(Math.abs(tx.price))}
+                              </TableCell>
+                              <TableCell sx={{ color: '#64748b', fontSize: '12px' }}>
+                                {tx.vendor_nickname || tx.vendor}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : null}
+                </Box>
+
+                {/* Skip Button */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
+                  <Button
+                    onClick={handleQuickSkip}
+                    disabled={isSavingQuick}
+                    startIcon={<SkipNextIcon />}
+                    sx={{
+                      color: '#64748b',
+                      textTransform: 'none',
+                      fontWeight: 500
+                    }}
+                  >
+                    Skip for now
+                  </Button>
+                </Box>
+
+                {/* Category Buttons */}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ color: '#64748b', marginBottom: 1, fontWeight: 500 }}
+                >
+                  Select a category:
+                </Typography>
+
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    maxHeight: '200px',
+                    overflow: 'auto',
+                    padding: '4px'
+                  }}
+                >
+                  {categories.map((cat) => (
+                    <Button
+                      key={cat.name}
+                      onClick={() => handleQuickCategorySelect(cat.name)}
+                      disabled={isSavingQuick}
+                      sx={{
+                        backgroundColor: categoryColors[cat.name] || '#3b82f6',
+                        color: '#fff',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        minWidth: 'auto',
+                        '&:hover': {
+                          backgroundColor: categoryColors[cat.name] || '#3b82f6',
+                          filter: 'brightness(1.1)',
+                          transform: 'translateY(-1px)',
+                        },
+                        '&:disabled': {
+                          backgroundColor: '#e2e8f0',
+                          color: '#94a3b8'
+                        }
+                      }}
+                    >
+                      {cat.name}
+                    </Button>
+                  ))}
+
+                  {/* Add New Category Button/Input */}
+                  {showNewQuickCategoryInput ? (
+                    <TextField
+                      size="small"
+                      value={newQuickCategoryInput}
+                      onChange={(e) => setNewQuickCategoryInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newQuickCategoryInput.trim()) {
+                          handleAddNewQuickCategory();
+                        } else if (e.key === 'Escape') {
+                          setShowNewQuickCategoryInput(false);
+                          setNewQuickCategoryInput('');
+                        }
+                      }}
+                      autoFocus
+                      placeholder="New category"
+                      disabled={isSavingQuick}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={handleAddNewQuickCategory}
+                              disabled={!newQuickCategoryInput.trim() || isSavingQuick}
+                              sx={{ color: '#22c55e' }}
+                            >
+                              <CheckIcon fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
+                      sx={{
+                        minWidth: '160px',
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '10px',
+                          backgroundColor: '#fff',
+                          '& fieldset': {
+                            borderColor: '#22c55e',
+                            borderWidth: '2px'
+                          }
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Button
+                      onClick={() => setShowNewQuickCategoryInput(true)}
+                      disabled={isSavingQuick}
+                      startIcon={<AddIcon />}
+                      sx={{
+                        backgroundColor: 'transparent',
+                        color: '#22c55e',
+                        border: '2px dashed #22c55e',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        '&:hover': {
+                          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        }
+                      }}
+                    >
+                      Add New
+                    </Button>
+                  )}
+                </Box>
+              </>
             )}
           </>
         )}

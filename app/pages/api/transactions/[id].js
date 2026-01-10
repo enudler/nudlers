@@ -1,6 +1,6 @@
-import { createAuthenticatedApiHandler } from "../middleware/auth";
+import { createApiHandler } from "../utils/apiHandler";
 
-const handler = createAuthenticatedApiHandler({
+const handler = createApiHandler({
   validate: (req) => {
     if (!['DELETE', 'PUT'].includes(req.method)) {
       return "Only DELETE and PUT methods are allowed";

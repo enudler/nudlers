@@ -1,4 +1,3 @@
-import { withAuth } from "./middleware/auth";
 import { getDB } from "./db";
 
 async function handler(req, res) {
@@ -66,4 +65,4 @@ async function handler(req, res) {
   }
 }
 
-export default withAuth(handler);
+export default handler;

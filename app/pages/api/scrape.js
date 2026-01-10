@@ -1,7 +1,6 @@
 import { CompanyTypes, createScraper } from 'israeli-bank-scrapers';
 import { getDB } from './db';
 import { BANK_VENDORS } from '../../utils/constants';
-import { withAuth } from './middleware/auth';
 import {
   RATE_LIMITED_VENDORS,
   loadCategoryCache,
@@ -16,6 +15,9 @@ import {
   insertScrapeAudit,
   updateScrapeAudit,
   updateCredentialLastSynced,
+  getShowBrowserSetting,
+  getFetchCategoriesSetting,
+  retryWithBackoff,
   sleep,
 } from './utils/scraperUtils';
 
@@ -39,19 +41,29 @@ async function handler(req, res) {
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
-    validateCredentials(scraperCredentials);
+    validateCredentials(scraperCredentials, options.companyId);
 
-    // For Isracard/Amex/Max, add a pre-scrape delay to avoid rate limiting
+    // Get settings from database (unless explicitly overridden)
+    const showBrowserSetting = options.showBrowser !== undefined 
+      ? options.showBrowser 
+      : await getShowBrowserSetting(client);
+    
+    // Get category fetching setting - disabling helps avoid rate limiting
+    const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
+    console.log(`[Scraper] fetchCategories setting: ${fetchCategoriesSetting}`);
+
+    // For rate-limited vendors (Isracard/Amex/Max/VisaCal), add a pre-scrape delay to avoid rate limiting
     if (isIsracardAmex) {
       const preDelay = Math.floor(Math.random() * 5000) + 3000;
-      console.log(`[Scraper] Rate-limited vendor detected - adding ${Math.round(preDelay/1000)}s pre-scrape delay...`);
+      console.log(`[Scraper] Rate-limited vendor detected (${options.companyId}) - adding ${Math.round(preDelay/1000)}s pre-scrape delay...`);
       await sleep(preDelay);
     }
 
     // Build scraper options with anti-detection measures
     const scraperOptions = {
       ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex, {
-        showBrowser: options.showBrowser ?? false,
+        showBrowser: showBrowserSetting,
+        fetchCategories: fetchCategoriesSetting,
       }),
       preparePage: getPreparePage(isIsracardAmex),
     };
@@ -62,19 +74,59 @@ async function handler(req, res) {
     const triggeredBy = credentials?.username || credentials?.id || credentials?.nickname || 'unknown';
     auditId = await insertScrapeAudit(client, triggeredBy, options.companyId, new Date(options.startDate));
 
-    // Execute scraping
+    // Execute scraping with retry for VisaCal/Cal (which has intermittent JSON parsing errors)
+    const isVisaCal = options.companyId === 'visaCal';
+    const maxRetries = isVisaCal ? 2 : 0; // Only retry for VisaCal
+    
     let result;
     try {
-      result = await scraper.scrape(scraperCredentials);
+      result = await retryWithBackoff(
+        async () => {
+          const scrapeResult = await scraper.scrape(scraperCredentials);
+          // Also check for failure in result (not just thrown error)
+          if (!scrapeResult.success) {
+            const errorMsg = scrapeResult.errorMessage || scrapeResult.errorType || 'Scraping failed';
+            // Throw retryable errors so they can be retried
+            if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || 
+                errorMsg.includes('GetFrameStatus') || errorMsg.includes('timeout')) {
+              throw new Error(errorMsg);
+            }
+          }
+          return scrapeResult;
+        },
+        maxRetries,
+        5000,
+        options.companyId
+      );
     } catch (scrapeError) {
-      await updateScrapeAudit(client, auditId, 'failed', scrapeError.message || 'Scraper exception');
-      throw new Error(`Scraper exception: ${scrapeError.message}`);
+      const errorMessage = scrapeError.message || 'Scraper exception';
+      await updateScrapeAudit(client, auditId, 'failed', errorMessage);
+      
+      // Handle JSON parsing errors (common with VisaCal API)
+      if (errorMessage.includes('JSON') || errorMessage.includes('Unexpected end of JSON') || errorMessage.includes('invalid json') || errorMessage.includes('GetFrameStatus') || errorMessage.includes('frame') || errorMessage.includes('timeout')) {
+        if (options.companyId === 'visaCal') {
+          throw new Error(`VisaCal API Error: The Cal website returned an invalid response. This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes. Try disabling "Fetch Categories from Scrapers" in Settings to reduce API calls. Error: ${errorMessage}`);
+        }
+        throw new Error(`API Error: Invalid JSON response from ${options.companyId}. This may be a temporary issue. Try disabling "Fetch Categories from Scrapers" in Settings. Error: ${errorMessage}`);
+      }
+      
+      throw new Error(`Scraper exception: ${errorMessage}`);
     }
     
     if (!result.success) {
-      const errorMsg = result.errorMessage || result.errorType || 'Scraping failed';
+      const errorType = result.errorType || 'GENERIC';
+      const errorMsg = result.errorMessage || errorType || 'Scraping failed';
       await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-      throw new Error(`${result.errorType || 'GENERIC'}: ${errorMsg}`);
+      
+      // Handle JSON parsing errors (common with VisaCal API)
+      if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || errorMsg.includes('invalid json') || errorMsg.includes('GetFrameStatus') || errorMsg.includes('frame') || errorMsg.includes('timeout')) {
+        if (options.companyId === 'visaCal') {
+          throw new Error(`VisaCal API Error: The Cal website returned an invalid response (${errorMsg}). This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes. If the problem persists, try enabling "Show Browser" mode for debugging.`);
+        }
+        throw new Error(`API Error: Invalid JSON response from ${options.companyId} (${errorMsg}). This may be a temporary issue. Please try again later.`);
+      }
+      
+      throw new Error(`${errorType}: ${errorMsg}`);
     }
     
     // Load category cache and process transactions
@@ -146,4 +198,4 @@ async function handler(req, res) {
   }
 }
 
-export default withAuth(handler);
+export default handler;

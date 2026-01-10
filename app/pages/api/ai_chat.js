@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { withAuth } from './middleware/auth';
 
 const SYSTEM_PROMPT = `You are a concise financial assistant for "Clarify" expense tracker.
 
@@ -112,4 +111,4 @@ async function handler(req, res) {
   }
 }
 
-export default withAuth(handler);
+export default handler;

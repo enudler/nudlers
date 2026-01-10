@@ -80,7 +80,7 @@ const MetricItem: React.FC<{
           position: 'relative',
           zIndex: 1
         }}>
-          {React.cloneElement(icon as React.ReactElement, { 
+          {React.cloneElement(icon as React.ReactElement<{ sx?: object }>, { 
             sx: { 
               fontSize: '20px', 
               color: color 

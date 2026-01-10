@@ -13,16 +13,24 @@ const handler = createApiHandler({
     
     // If billingCycle is provided (e.g., "2026-01"), filter by processed_date month
     // This is more accurate for credit card billing cycles
+    // Use DISTINCT ON to prevent counting duplicates
     if (billingCycle) {
       return {
         sql: `
+          WITH unique_transactions AS (
+            SELECT DISTINCT ON (identifier, vendor)
+              category,
+              price
+            FROM transactions
+            WHERE TO_CHAR(processed_date, 'YYYY-MM') = $1
+            AND category != 'Bank'
+            ORDER BY identifier, vendor, date DESC
+          )
           SELECT 
             category as name, 
             COUNT(*) AS transaction_count, 
             ABS(ROUND(SUM(price))) AS value
-          FROM transactions
-          WHERE TO_CHAR(processed_date, 'YYYY-MM') = $1
-          AND category != 'Bank'
+          FROM unique_transactions
           GROUP BY category
         `,
         params: [billingCycle]
@@ -30,16 +38,24 @@ const handler = createApiHandler({
     }
     
     // If date range is provided, use it; otherwise fall back to month
+    // Use DISTINCT ON to prevent counting duplicates
     if (startDate && endDate) {
       return {
         sql: `
+          WITH unique_transactions AS (
+            SELECT DISTINCT ON (identifier, vendor)
+              category,
+              price
+            FROM transactions
+            WHERE date >= $1::date AND date <= $2::date
+            AND category != 'Bank'
+            ORDER BY identifier, vendor, date DESC
+          )
           SELECT 
             category as name, 
             COUNT(*) AS transaction_count, 
             ABS(ROUND(SUM(price))) AS value
-          FROM transactions
-          WHERE date >= $1::date AND date <= $2::date
-          AND category != 'Bank'
+          FROM unique_transactions
           GROUP BY category
         `,
         params: [startDate, endDate]
@@ -48,13 +64,20 @@ const handler = createApiHandler({
     
     return {
       sql: `
+        WITH unique_transactions AS (
+          SELECT DISTINCT ON (identifier, vendor)
+            category,
+            price
+          FROM transactions
+          WHERE TO_CHAR(date, 'YYYY-MM') = $1 
+          AND category != 'Bank'
+          ORDER BY identifier, vendor, date DESC
+        )
         SELECT 
           category as name, 
           COUNT(*) AS transaction_count, 
           ABS(ROUND(SUM(price))) AS value
-        FROM transactions
-        WHERE TO_CHAR(date, 'YYYY-MM') = $1 
-        AND category != 'Bank'
+        FROM unique_transactions
         GROUP BY category
       `,
       params: [month]

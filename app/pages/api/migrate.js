@@ -208,84 +208,6 @@ const migrations = [
     sql: `CREATE INDEX IF NOT EXISTS idx_card_vendors_last4 ON card_vendors(last4_digits);`
   },
   {
-    name: 'create_transactions_duplicate_check_index',
-    sql: `
-      CREATE INDEX IF NOT EXISTS idx_transactions_duplicate_check 
-      ON transactions (vendor, date, ABS(price));
-    `
-  },
-  {
-    name: 'create_potential_duplicates_table',
-    sql: `
-      CREATE TABLE IF NOT EXISTS potential_duplicates (
-        id SERIAL PRIMARY KEY,
-        transaction1_id VARCHAR(50) NOT NULL,
-        transaction1_vendor VARCHAR(50) NOT NULL,
-        transaction2_id VARCHAR(50) NOT NULL,
-        transaction2_vendor VARCHAR(50) NOT NULL,
-        similarity_score FLOAT NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending',
-        resolved_at TIMESTAMP,
-        resolved_action VARCHAR(20),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(transaction1_id, transaction1_vendor, transaction2_id, transaction2_vendor)
-      );
-    `
-  },
-  {
-    name: 'create_potential_duplicates_indexes',
-    sql: `
-      CREATE INDEX IF NOT EXISTS idx_potential_duplicates_status ON potential_duplicates(status);
-      CREATE INDEX IF NOT EXISTS idx_potential_duplicates_created ON potential_duplicates(created_at DESC);
-    `
-  },
-  {
-    name: 'create_scheduled_sync_runs_table',
-    sql: `
-      CREATE TABLE IF NOT EXISTS scheduled_sync_runs (
-        id SERIAL PRIMARY KEY,
-        started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP,
-        status VARCHAR(20) NOT NULL DEFAULT 'running',
-        total_accounts INTEGER DEFAULT 0,
-        successful_accounts INTEGER DEFAULT 0,
-        failed_accounts INTEGER DEFAULT 0,
-        total_transactions INTEGER DEFAULT 0,
-        error_message TEXT,
-        details JSONB,
-        triggered_by VARCHAR(50) DEFAULT 'scheduler'
-      );
-    `
-  },
-  {
-    name: 'create_scheduled_sync_runs_indexes',
-    sql: `
-      CREATE INDEX IF NOT EXISTS idx_scheduled_sync_runs_started ON scheduled_sync_runs(started_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_scheduled_sync_runs_status ON scheduled_sync_runs(status);
-    `
-  },
-  {
-    name: 'create_scheduled_sync_config_table',
-    sql: `
-      CREATE TABLE IF NOT EXISTS scheduled_sync_config (
-        id SERIAL PRIMARY KEY,
-        is_enabled BOOLEAN DEFAULT true,
-        schedule_hours INTEGER[] DEFAULT ARRAY[6, 18],
-        days_to_sync INTEGER DEFAULT 7,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `
-  },
-  {
-    name: 'insert_default_scheduled_sync_config',
-    sql: `
-      INSERT INTO scheduled_sync_config (is_enabled, schedule_hours, days_to_sync)
-      SELECT true, ARRAY[6, 18], 7
-      WHERE NOT EXISTS (SELECT 1 FROM scheduled_sync_config);
-    `
-  },
-  {
     name: 'create_total_budget_table',
     sql: `
       CREATE TABLE IF NOT EXISTS total_budget (
@@ -312,6 +234,44 @@ const migrations = [
         END IF;
       END $$;
     `
+  },
+  {
+    name: 'drop_potential_duplicates_feature',
+    sql: `
+      DROP TABLE IF EXISTS potential_duplicates;
+      DROP INDEX IF EXISTS idx_transactions_duplicate_check;
+    `
+  },
+  {
+    name: 'create_app_settings_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id SERIAL PRIMARY KEY,
+        key VARCHAR(100) NOT NULL UNIQUE,
+        value JSONB NOT NULL,
+        description VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `
+  },
+  {
+    name: 'create_app_settings_index',
+    sql: `CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);`
+  },
+  {
+    name: 'insert_default_settings',
+    sql: `
+      INSERT INTO app_settings (key, value, description) VALUES
+        ('sync_enabled', 'false', 'Enable automatic background sync'),
+        ('sync_interval_hours', '24', 'Hours between automatic syncs'),
+        ('sync_days_back', '30', 'Number of days to sync back for each account'),
+        ('default_currency', '"ILS"', 'Default currency for transactions'),
+        ('date_format', '"DD/MM/YYYY"', 'Date display format'),
+        ('billing_cycle_start_day', '10', 'Day of month when billing cycle starts'),
+        ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)')
+      ON CONFLICT (key) DO NOTHING;
+    `
   }
 ];
 
@@ -325,7 +285,7 @@ const optionalMigrations = [
       WHERE vendor NOT LIKE 'manual_%';
     `,
     optional: true,
-    warningOnFail: 'Could not create unique business key index - existing duplicates may be present. Run /api/duplicates to clean up.'
+    warningOnFail: 'Could not create unique business key index - existing duplicates may be present.'
   }
 ];
 

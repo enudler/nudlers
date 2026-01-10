@@ -1,6 +1,6 @@
-import { createAuthenticatedApiHandler } from "../middleware/auth";
+import { createApiHandler } from "../utils/apiHandler";
 
-const handler = createAuthenticatedApiHandler({
+const handler = createApiHandler({
   validate: (req) => {
     if (req.method !== 'DELETE') {
       return "Only DELETE method is allowed";

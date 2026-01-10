@@ -1,7 +1,7 @@
-import { createAuthenticatedApiHandler } from "../middleware/auth";
+import { createApiHandler } from "../utils/apiHandler";
 import { encrypt, decrypt } from "../utils/encryption";
 
-const handler = createAuthenticatedApiHandler({
+const handler = createApiHandler({
   validate: (req) => {
     if (req.method === 'GET') {
       return null;

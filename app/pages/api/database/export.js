@@ -4,7 +4,6 @@
  */
 
 import { getDB } from '../db';
-import { withAuth } from '../middleware/auth';
 
 // Tables to export (in order to handle foreign key dependencies)
 const TABLES_TO_EXPORT = [
@@ -14,10 +13,7 @@ const TABLES_TO_EXPORT = [
   'scrape_events',
   'card_ownership',
   'budgets',
-  'card_vendors',
-  'potential_duplicates',
-  'scheduled_sync_runs',
-  'scheduled_sync_config'
+  'card_vendors'
 ];
 
 async function handler(req, res) {
@@ -67,4 +63,4 @@ async function handler(req, res) {
   }
 }
 
-export default withAuth(handler);
+export default handler;

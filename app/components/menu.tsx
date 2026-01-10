@@ -22,13 +22,10 @@ import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
-import LogoutIcon from '@mui/icons-material/Logout';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
 import BackupIcon from '@mui/icons-material/Backup';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
@@ -38,18 +35,15 @@ import DatabaseIndicator from './DatabaseIndicator';
 import AccountsModal from './AccountsModal';
 import CategoryManagementModal from './CategoryDashboard/components/CategoryManagementModal';
 import ScrapeAuditModal from './ScrapeAuditModal';
-import BackgroundSyncModal from './BackgroundSyncModal';
 import CardVendorsModal from './CardVendorsModal';
-import CatchUpSyncButton from './CatchUpSyncButton';
-import QuickCategoryModal from './QuickCategoryModal';
-import DuplicatesModal from './DuplicatesModal';
 import RecurringPaymentsModal from './RecurringPaymentsModal';
-import SyncStatusIndicator from './SyncStatusIndicator';
 import DatabaseBackupModal from './DatabaseBackupModal';
+import SettingsModal from './SettingsModal';
+import SyncStatusIndicator from './SyncStatusIndicator';
+import SyncStatusModal from './SyncStatusModal';
 import { useNotification } from './NotificationContext';
-import { useAuth } from './AuthContext';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RepeatIcon from '@mui/icons-material/Repeat';
+import TuneIcon from '@mui/icons-material/Tune';
 
 interface StringDictionary {
   [key: string]: string;
@@ -125,29 +119,6 @@ const NavButton = styled(Button)({
   },
 });
 
-const SignOutButton = styled(Button)({
-  color: '#fff',
-  textTransform: 'none',
-  fontSize: '0.95rem',
-  fontWeight: 500,
-  padding: '6px 12px',
-  borderRadius: '12px',
-  marginLeft: '8px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  transition: 'all 0.2s ease-in-out',
-  '&:hover': {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    color: '#ef4444',
-    transform: 'translateY(-1px)',
-    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.1)',
-  },
-  '&:active': {
-    transform: 'translateY(0)',
-  },
-});
-
 const redirectTo = (page: string) => {
   return () => (window.location.href = page);
 };
@@ -162,14 +133,12 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   const [isAccountsModalOpen, setIsAccountsModalOpen] = React.useState(false);
   const [isCategoryManagementOpen, setIsCategoryManagementOpen] = React.useState(false);
   const [isAuditOpen, setIsAuditOpen] = React.useState(false);
-  const [isBackgroundSyncOpen, setIsBackgroundSyncOpen] = React.useState(false);
   const [isCardVendorsOpen, setIsCardVendorsOpen] = React.useState(false);
-  const [isQuickCategoryOpen, setIsQuickCategoryOpen] = React.useState(false);
-  const [isDuplicatesOpen, setIsDuplicatesOpen] = React.useState(false);
   const [isRecurringOpen, setIsRecurringOpen] = React.useState(false);
   const [isBackupOpen, setIsBackupOpen] = React.useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isSyncStatusOpen, setIsSyncStatusOpen] = React.useState(false);
   const { showNotification } = useNotification();
-  const { logout } = useAuth();
 
   const handleDrawerToggle = () => {
     setMobileDrawerOpen(!mobileDrawerOpen);
@@ -183,12 +152,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   ];
 
   const actionMenuItems = [
-    { label: 'Full Sync', icon: <CloudSyncIcon />, action: () => setIsBackgroundSyncOpen(true) },
     { label: 'Audit', icon: <HistoryIcon />, action: () => setIsAuditOpen(true) },
-    { label: 'Duplicates', icon: <ContentCopyIcon />, action: () => setIsDuplicatesOpen(true) },
     { label: 'Recurring', icon: <RepeatIcon />, action: () => setIsRecurringOpen(true) },
     { label: 'Manual', icon: <EditIcon />, action: () => setIsManualModalOpen(true) },
-    { label: 'Quick Category', icon: <FlashOnIcon />, action: () => setIsQuickCategoryOpen(true) },
   ];
 
   const settingsMenuItems = [
@@ -196,16 +162,8 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
     { label: 'Accounts', icon: <PersonIcon />, action: () => setIsAccountsModalOpen(true) },
     { label: 'Cards', icon: <CreditCardIcon />, action: () => setIsCardVendorsOpen(true) },
     { label: 'Backup', icon: <BackupIcon />, action: () => setIsBackupOpen(true) },
+    { label: 'Settings', icon: <TuneIcon />, action: () => setIsSettingsOpen(true) },
   ];
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      showNotification('Logged out successfully', 'success');
-    } catch (error) {
-      showNotification('Logout failed', 'error');
-    }
-  };
 
   const handleCloseUserMenu = () => {
     setAnchorElUser(null);
@@ -397,31 +355,6 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         </List>
       </Box>
 
-      <Divider sx={{ my: 1 }} />
-
-      {/* Logout */}
-      <Box sx={{ p: 1, pb: 2 }}>
-        <ListItem disablePadding>
-          <ListItemButton
-            onClick={() => {
-              handleLogout();
-              handleDrawerToggle();
-            }}
-            sx={{
-              borderRadius: '12px',
-              mx: 1,
-              '&:hover': {
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              },
-            }}
-          >
-            <ListItemIcon sx={{ color: '#ef4444', minWidth: 40 }}>
-              <LogoutIcon />
-            </ListItemIcon>
-            <ListItemText primary="Logout" sx={{ '& .MuiTypography-root': { fontWeight: 500, color: '#ef4444' } }} />
-          </ListItemButton>
-        </ListItem>
-      </Box>
     </Box>
   );
 
@@ -513,22 +446,10 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
                 Budget
               </NavButton>
               <NavButton
-                onClick={() => setIsBackgroundSyncOpen(true)}
-                startIcon={<CloudSyncIcon />}
-              >
-                Full Sync
-              </NavButton>
-              <NavButton
                 onClick={() => setIsAuditOpen(true)}
                 startIcon={<HistoryIcon />}
               >
                 Audit
-              </NavButton>
-              <NavButton
-                onClick={() => setIsDuplicatesOpen(true)}
-                startIcon={<ContentCopyIcon />}
-              >
-                Duplicates
               </NavButton>
               <NavButton
                 onClick={() => setIsRecurringOpen(true)}
@@ -541,19 +462,6 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
                 startIcon={<EditIcon />}
               >
                 Manual
-              </NavButton>
-              <NavButton
-                onClick={() => setIsQuickCategoryOpen(true)}
-                startIcon={<FlashOnIcon />}
-                sx={{
-                  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(245, 158, 11, 0.2) 100%)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.3) 0%, rgba(245, 158, 11, 0.3) 100%)',
-                    boxShadow: '0 8px 16px rgba(251, 191, 36, 0.3)',
-                  }
-                }}
-              >
-                Quick
               </NavButton>
               <NavButton
                 onClick={() => setIsCategoryManagementOpen(true)}
@@ -579,14 +487,13 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               >
                 Backup
               </NavButton>
-              <CatchUpSyncButton />
-              <SyncStatusIndicator />
-              <SignOutButton
-                onClick={handleLogout}
-                startIcon={<LogoutIcon />}
+              <NavButton
+                onClick={() => setIsSettingsOpen(true)}
+                startIcon={<TuneIcon />}
               >
-                Logout
-              </SignOutButton>
+                Settings
+              </NavButton>
+              <SyncStatusIndicator onClick={() => setIsSyncStatusOpen(true)} />
               <Menu
                 sx={{ mt: "45px" }}
                 id="menu-appbar"
@@ -608,7 +515,7 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
 
             {/* Mobile Status Indicators */}
             <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' }, justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
-              <SyncStatusIndicator />
+              <SyncStatusIndicator onClick={() => setIsSyncStatusOpen(true)} />
               <DatabaseIndicator />
             </Box>
           </Toolbar>
@@ -654,31 +561,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         }}
       />
       <ScrapeAuditModal open={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
-      <BackgroundSyncModal
-        isOpen={isBackgroundSyncOpen}
-        onClose={() => setIsBackgroundSyncOpen(false)}
-        onSuccess={() => {
-          window.dispatchEvent(new CustomEvent('dataRefresh'));
-        }}
-      />
       <CardVendorsModal
         isOpen={isCardVendorsOpen}
         onClose={() => setIsCardVendorsOpen(false)}
-      />
-      <QuickCategoryModal
-        open={isQuickCategoryOpen}
-        onClose={() => setIsQuickCategoryOpen(false)}
-        onComplete={() => {
-          showNotification('Quick categorization complete!', 'success');
-          window.dispatchEvent(new CustomEvent('dataRefresh'));
-        }}
-      />
-      <DuplicatesModal
-        open={isDuplicatesOpen}
-        onClose={() => {
-          setIsDuplicatesOpen(false);
-          window.dispatchEvent(new CustomEvent('dataRefresh'));
-        }}
       />
       <RecurringPaymentsModal
         open={isRecurringOpen}
@@ -687,6 +572,14 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
       <DatabaseBackupModal
         open={isBackupOpen}
         onClose={() => setIsBackupOpen(false)}
+      />
+      <SettingsModal
+        open={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+      <SyncStatusModal
+        open={isSyncStatusOpen}
+        onClose={() => setIsSyncStatusOpen(false)}
       />
     </>
   );

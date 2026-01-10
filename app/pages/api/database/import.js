@@ -8,7 +8,6 @@
  */
 
 import { getDB } from '../db';
-import { withAuth } from '../middleware/auth';
 
 // Tables to import (in order to handle foreign key dependencies)
 const TABLES_IMPORT_ORDER = [
@@ -18,10 +17,7 @@ const TABLES_IMPORT_ORDER = [
   'scrape_events',
   'card_ownership',
   'budgets',
-  'card_vendors',
-  'potential_duplicates',
-  'scheduled_sync_runs',
-  'scheduled_sync_config'
+  'card_vendors'
 ];
 
 // Tables that should be cleared in reverse order due to FK constraints
@@ -60,21 +56,6 @@ const TABLE_CONFIGS = {
     skipColumns: []
   },
   card_vendors: {
-    pk: 'id',
-    uniqueColumns: ['id'],
-    skipColumns: []
-  },
-  potential_duplicates: {
-    pk: 'id',
-    uniqueColumns: ['id'],
-    skipColumns: []
-  },
-  scheduled_sync_runs: {
-    pk: 'id',
-    uniqueColumns: ['id'],
-    skipColumns: []
-  },
-  scheduled_sync_config: {
     pk: 'id',
     uniqueColumns: ['id'],
     skipColumns: []
@@ -199,7 +180,7 @@ async function handler(req, res) {
   }
 }
 
-export default withAuth(handler);
+export default handler;
 
 export const config = {
   api: {

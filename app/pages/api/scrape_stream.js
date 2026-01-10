@@ -1,7 +1,6 @@
 import { CompanyTypes, createScraper } from 'israeli-bank-scrapers';
 import { getDB } from './db';
 import { BANK_VENDORS } from '../../utils/constants';
-import { withAuth } from './middleware/auth';
 import {
   RATE_LIMITED_VENDORS,
   loadCategoryCache,
@@ -16,6 +15,9 @@ import {
   insertScrapeAudit,
   updateScrapeAudit,
   updateCredentialLastSynced,
+  getShowBrowserSetting,
+  getFetchCategoriesSetting,
+  retryWithBackoff,
   sleep,
 } from './utils/scraperUtils';
 
@@ -50,6 +52,9 @@ async function handler(req, res) {
       return;
     }
 
+    console.log(`[Scrape Stream] Starting scrape for vendor: ${options.companyId}, credentialId: ${credentialId}`);
+    console.log(`[Scrape Stream] Start date: ${options.startDate}, showBrowser: ${options.showBrowser}`);
+    
     sendSSE(res, 'progress', { 
       step: 'init', 
       message: `Initializing scraper for ${options.companyId}...`,
@@ -58,19 +63,31 @@ async function handler(req, res) {
 
     const isBank = BANK_VENDORS.includes(options.companyId);
     const isIsracardAmex = RATE_LIMITED_VENDORS.includes(options.companyId);
+    
+    console.log(`[Scrape Stream] isBank: ${isBank}, isIsracardAmex: ${isIsracardAmex}`);
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
     
+    // Log credential fields (masked) for debugging
+    const maskedCreds = Object.fromEntries(
+      Object.entries(scraperCredentials).map(([k, v]) => [
+        k, 
+        v ? `${v.substring(0, 2)}***${v.substring(v.length - 2)} (${v.length} chars)` : 'EMPTY'
+      ])
+    );
+    console.log(`[Scrape Stream] Prepared credentials:`, maskedCreds);
+    
     try {
-      validateCredentials(scraperCredentials);
+      validateCredentials(scraperCredentials, options.companyId);
     } catch (error) {
+      console.error(`[Scrape Stream] Credential validation failed:`, error.message);
       sendSSE(res, 'error', { message: error.message });
       res.end();
       return;
     }
 
-    // For Isracard/Amex/Max, add a pre-scrape delay
+    // For rate-limited vendors (Isracard/Amex/Max/VisaCal), add a pre-scrape delay
     if (isIsracardAmex) {
       const preDelay = Math.floor(Math.random() * 5000) + 3000;
       sendSSE(res, 'progress', { 
@@ -87,13 +104,23 @@ async function handler(req, res) {
       percent: 10
     });
 
+    // Get settings from database (unless explicitly overridden)
+    const showBrowserSetting = options.showBrowser !== undefined 
+      ? options.showBrowser 
+      : await getShowBrowserSetting(client);
+    
+    // Get category fetching setting - disabling helps avoid rate limiting
+    const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
+    console.log(`[Scrape Stream] fetchCategories setting: ${fetchCategoriesSetting}`);
+
     // Build scraper options with progress callback
-    // Pass showBrowser option from client (for debugging/2FA)
+    // Pass showBrowser option from client (for debugging/2FA) or use setting
     const scraperOptions = {
       ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex, {
         timeout: isIsracardAmex ? 240000 : 120000,
         defaultTimeout: isIsracardAmex ? 240000 : 120000,
-        showBrowser: options.showBrowser ?? false,
+        showBrowser: showBrowserSetting,
+        fetchCategories: fetchCategoriesSetting,
       }),
       onProgress: (companyId, payload) => {
         const stepMessages = {
@@ -139,20 +166,105 @@ async function handler(req, res) {
       percent: 20
     });
 
+    console.log(`[Scrape Stream] Starting scraper.scrape() call...`);
+    
+    // Use retry logic for VisaCal (which has intermittent JSON parsing errors)
+    const isVisaCal = options.companyId === 'visaCal';
+    const maxRetries = isVisaCal ? 2 : 0;
+    let retryAttempt = 0;
+    
     let result;
     try {
-      result = await scraper.scrape(scraperCredentials);
+      result = await retryWithBackoff(
+        async () => {
+          retryAttempt++;
+          if (retryAttempt > 1) {
+            sendSSE(res, 'progress', {
+              step: 'retry',
+              message: `Retrying (attempt ${retryAttempt}/${maxRetries + 1})...`,
+              percent: 22
+            });
+          }
+          const scrapeResult = await scraper.scrape(scraperCredentials);
+          // Also check for failure in result (not just thrown error)
+          if (!scrapeResult.success) {
+            const errorMsg = scrapeResult.errorMessage || scrapeResult.errorType || 'Scraping failed';
+            // Throw retryable errors so they can be retried
+            if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || 
+                errorMsg.includes('GetFrameStatus') || errorMsg.includes('timeout')) {
+              throw new Error(errorMsg);
+            }
+          }
+          return scrapeResult;
+        },
+        maxRetries,
+        5000,
+        options.companyId
+      );
+      console.log(`[Scrape Stream] Scraper returned, success: ${result.success}`);
     } catch (scrapeError) {
+      const errorDetails = {
+        message: scrapeError.message,
+        name: scrapeError.name,
+        stack: scrapeError.stack?.split('\n').slice(0, 5).join('\n'),
+      };
+      console.error(`[Scrape Stream] Scraper threw exception:`, errorDetails);
       await updateScrapeAudit(client, auditId, 'failed', scrapeError.message || 'Scraper exception');
-      sendSSE(res, 'error', { message: `Scraper exception: ${scrapeError.message}` });
+      
+      // Handle JSON parsing errors (common with VisaCal API)
+      let errorMessage = scrapeError.message || 'Scraper exception';
+      let hint = undefined;
+      
+      if (errorMessage.includes('JSON') || errorMessage.includes('Unexpected end of JSON') || errorMessage.includes('invalid json') || errorMessage.includes('GetFrameStatus') || errorMessage.includes('frame') || errorMessage.includes('timeout')) {
+        if (options.companyId === 'visaCal') {
+          errorMessage = `VisaCal API Error: The Cal website returned an invalid response. This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes.`;
+          hint = 'Try disabling "Fetch Categories from Scrapers" in Settings to reduce API calls and avoid rate limiting.';
+        } else {
+          errorMessage = `API Error: Invalid JSON response from ${options.companyId}. This may be a temporary issue. Please try again later.`;
+          hint = 'Try disabling "Fetch Categories from Scrapers" in Settings to reduce API calls.';
+        }
+      } else if (isIsracardAmex) {
+        hint = 'Isracard/Amex/VisaCal may be blocking automation. Try enabling Debug Mode (Show Browser) or disabling "Fetch Categories from Scrapers" in Settings.';
+      }
+      
+      sendSSE(res, 'error', { 
+        message: errorMessage,
+        hint: hint
+      });
       res.end();
       return;
     }
 
     if (!result.success) {
       const errorMsg = result.errorMessage || result.errorType || 'Scraping failed';
+      console.error(`[Scrape Stream] Scraper failed:`, { errorType: result.errorType, errorMessage: result.errorMessage });
       await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-      sendSSE(res, 'error', { message: `${result.errorType || 'GENERIC'}: ${errorMsg}` });
+      
+      // Provide helpful hints for common errors
+      let hint = undefined;
+      let displayError = errorMsg;
+      
+      if (result.errorType === 'InvalidPassword') {
+        hint = 'Check your credentials. For Isracard, you need ID number + card 6 digits + password. For VisaCal, you need username + password.';
+      } else if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || errorMsg.includes('invalid json') || errorMsg.includes('GetFrameStatus') || errorMsg.includes('frame') || errorMsg.includes('timeout')) {
+        if (options.companyId === 'visaCal') {
+          displayError = `VisaCal API Error: The Cal website returned an invalid response (${errorMsg}). This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes.`;
+          hint = 'VisaCal API may be experiencing issues. Try enabling "Show Browser" mode to see what\'s happening, or wait a few minutes and try again.';
+        } else {
+          displayError = `API Error: Invalid JSON response from ${options.companyId} (${errorMsg}). This may be a temporary issue. Please try again later.`;
+        }
+      } else if (result.errorType === 'ChangePassword') {
+        hint = 'You need to log into the bank/card website and change your password first.';
+      } else if (errorMsg.includes('Block') || errorMsg.includes('automation')) {
+        hint = 'The site is blocking automation. Enable Debug Mode to see the browser and try manually.';
+      } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
+        hint = 'The request timed out. The site may be slow or blocking. Try again with Debug Mode enabled.';
+      }
+      
+      sendSSE(res, 'error', { 
+        message: `${result.errorType || 'GENERIC'}: ${displayError}`,
+        hint 
+      });
       res.end();
       return;
     }
@@ -240,4 +352,4 @@ export const config = {
   },
 };
 
-export default withAuth(handler);
+export default handler;

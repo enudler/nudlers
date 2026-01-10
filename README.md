@@ -14,7 +14,7 @@ Personal finance management application for tracking credit card expenses and ba
 - 📊 **Category-based tracking** and spending analytics
 - 🎯 **Monthly/yearly summaries** with budget comparisons
 - ⚙️ **Customizable categorization rules** for automatic transaction labeling
-- 🔄 **Background sync** to keep transactions up-to-date
+- 🔄 **Catch-up sync** to keep transactions up-to-date
 - 💡 **AI-powered insights** using Google Gemini
 
 ---
@@ -193,9 +193,7 @@ nudlers/
 ### Scraping
 - `POST /api/scrape` - Scrape a single account
 - `POST /api/scrape_stream` - Scrape with real-time progress updates (SSE)
-- `POST /api/background_sync` - Sync all accounts for multiple days
 - `POST /api/catchup_sync` - Smart sync from last transaction date
-- `POST /api/scheduled_sync` - For external schedulers (cron jobs)
 
 ### Transactions
 - `GET /api/month_by_categories` - Get spending by category for a month

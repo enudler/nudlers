@@ -249,7 +249,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
               setScrapeResult(data.summary);
               showNotification('Scraping completed successfully!', 'success');
             } else if (currentEvent === 'error') {
-              throw new Error(data.message);
+              const errorWithHint = data.hint ? `${data.message}\n\n💡 Hint: ${data.hint}` : data.message;
+              throw new Error(errorWithHint);
             }
           }
         }

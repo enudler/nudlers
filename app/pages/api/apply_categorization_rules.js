@@ -1,7 +1,7 @@
-import { createAuthenticatedApiHandler } from "./middleware/auth";
+import { createApiHandler } from "./utils/apiHandler";
 import { getDB } from "./db";
 
-const handler = createAuthenticatedApiHandler({
+const handler = createApiHandler({
   validate: (req) => {
     if (req.method !== 'POST') {
       return "Only POST method is allowed";

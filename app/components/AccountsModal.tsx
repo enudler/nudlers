@@ -228,6 +228,10 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         setError('ID number is required for Isracard and American Express');
         return false;
       }
+      if (!formAccount.card6_digits) {
+        setError('Card 6 digits is required for Isracard and American Express login');
+        return false;
+      }
       if (formAccount.username) {
         setError('Username is not used for Isracard and American Express');
         return false;
@@ -875,6 +879,8 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                   value={formAccount.card6_digits}
                   onChange={(e) => setFormAccount({ ...formAccount, card6_digits: e.target.value })}
                   margin="normal"
+                  required
+                  helperText="Required for login - the last 6 digits of your credit card"
                 />
               )}
               <TextField

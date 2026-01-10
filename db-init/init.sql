@@ -168,61 +168,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_business_key
 ON transactions (vendor, date, LOWER(TRIM(name)), ABS(price), COALESCE(account_number, ''))
 WHERE vendor NOT LIKE 'manual_%';
 
--- Index for efficient duplicate detection queries
-CREATE INDEX IF NOT EXISTS idx_transactions_duplicate_check 
-ON transactions (vendor, date, ABS(price));
-
--- Table to track detected duplicates for user review
-CREATE TABLE IF NOT EXISTS potential_duplicates (
-    id SERIAL PRIMARY KEY,
-    transaction1_id VARCHAR(50) NOT NULL,
-    transaction1_vendor VARCHAR(50) NOT NULL,
-    transaction2_id VARCHAR(50) NOT NULL,
-    transaction2_vendor VARCHAR(50) NOT NULL,
-    similarity_score FLOAT NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending', -- pending, confirmed_duplicate, not_duplicate
-    resolved_at TIMESTAMP,
-    resolved_action VARCHAR(20), -- kept_first, kept_second, kept_both, deleted_both
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(transaction1_id, transaction1_vendor, transaction2_id, transaction2_vendor)
-);
-
-CREATE INDEX IF NOT EXISTS idx_potential_duplicates_status ON potential_duplicates(status);
-CREATE INDEX IF NOT EXISTS idx_potential_duplicates_created ON potential_duplicates(created_at DESC);
-
--- Scheduled sync runs - tracks automatic background sync runs (2x daily)
-CREATE TABLE IF NOT EXISTS scheduled_sync_runs (
-    id SERIAL PRIMARY KEY,
-    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP,
-    status VARCHAR(20) NOT NULL DEFAULT 'running', -- running, success, partial, failed
-    total_accounts INTEGER DEFAULT 0,
-    successful_accounts INTEGER DEFAULT 0,
-    failed_accounts INTEGER DEFAULT 0,
-    total_transactions INTEGER DEFAULT 0,
-    error_message TEXT,
-    details JSONB, -- Detailed results per account
-    triggered_by VARCHAR(50) DEFAULT 'scheduler' -- scheduler, manual
-);
-
-CREATE INDEX IF NOT EXISTS idx_scheduled_sync_runs_started ON scheduled_sync_runs(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_scheduled_sync_runs_status ON scheduled_sync_runs(status);
-
--- Scheduled sync configuration
-CREATE TABLE IF NOT EXISTS scheduled_sync_config (
-    id SERIAL PRIMARY KEY,
-    is_enabled BOOLEAN DEFAULT true,
-    schedule_hours INTEGER[] DEFAULT ARRAY[6, 18], -- Hours of day to run (default: 6 AM and 6 PM)
-    days_to_sync INTEGER DEFAULT 7, -- How many days back to sync
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Insert default config if not exists
-INSERT INTO scheduled_sync_config (is_enabled, schedule_hours, days_to_sync)
-SELECT true, ARRAY[6, 18], 7
-WHERE NOT EXISTS (SELECT 1 FROM scheduled_sync_config);
-
 -- Total spend budget table - stores a single overall spending limit across all credit cards
 CREATE TABLE IF NOT EXISTS total_budget (
     id SERIAL PRIMARY KEY,
@@ -233,3 +178,28 @@ CREATE TABLE IF NOT EXISTS total_budget (
 
 -- Ensure only one row exists in total_budget
 CREATE UNIQUE INDEX IF NOT EXISTS idx_total_budget_single_row ON total_budget ((true));
+
+-- App settings table - stores application configuration as key-value pairs
+CREATE TABLE IF NOT EXISTS app_settings (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value JSONB NOT NULL,
+    description VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for quick key lookup
+CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
+
+-- Insert default settings
+INSERT INTO app_settings (key, value, description) VALUES
+    ('sync_enabled', 'false', 'Enable automatic background sync'),
+    ('sync_interval_hours', '24', 'Hours between automatic syncs'),
+    ('sync_days_back', '30', 'Number of days to sync back for each account'),
+    ('default_currency', '"ILS"', 'Default currency for transactions'),
+    ('date_format', '"DD/MM/YYYY"', 'Date display format'),
+    ('billing_cycle_start_day', '10', 'Day of month when billing cycle starts'),
+    ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)'),
+    ('fetch_categories_from_scrapers', 'true', 'Fetch categories from card providers during scraping. Disable to reduce rate limiting on Isracard/Amex/Cal.')
+ON CONFLICT (key) DO NOTHING;
