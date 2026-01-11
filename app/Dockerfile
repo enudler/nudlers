@@ -98,6 +98,7 @@ ENV CHROME_PATH=/usr/lib/chromium/
 COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
 COPY --from=builder --chown=pptruser:pptruser /app/.next/static ./.next/static
 COPY --from=builder --chown=pptruser:pptruser /app/public ./public
+COPY --from=builder --chown=pptruser:pptruser /app/scrapers ./scrapers
 
 # Re-create ultra-lean startup script that supports optional VNC
 RUN echo '#!/bin/sh\n\

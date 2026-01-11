@@ -8,9 +8,12 @@
 
 import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants';
 import { generateTransactionIdentifier } from './transactionUtils';
-import { fork } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const cp = require('child_process');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -284,11 +287,16 @@ export function formatLocalDate(date) {
  */
 export function runScraperInWorker(scraperOptions, credentials, onProgress) {
   return new Promise((resolve, reject) => {
-    // Path to runner.js relative to this file's directory
-    const runnerPath = path.resolve(__dirname, '..', '..', '..', 'scrapers', 'runner.js');
+    // Path to runner.js relative to the project root
+    // In standalone build, process.cwd() is the root of the standalone folder
+    // We use join with a dynamic element to hide this from the Turbopack optimizer/tracer
+    const scrapersDir = 'scrapers';
+    const runnerPath = path.join(process.cwd(), scrapersDir, 'runner.js');
     console.log(`[Worker] Spawning worker for ${scraperOptions.companyId} using ${runnerPath}`);
 
-    const worker = fork(runnerPath, [], {
+    // Use eval to hide the call from Turbopack's static analysis
+    const forkFn = eval('cp.fork');
+    const worker = forkFn(runnerPath, [], {
       stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
       env: { ...process.env }
     });
