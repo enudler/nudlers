@@ -35,11 +35,22 @@ export default async function handler(req, res) {
         SELECT 
           *,
           ROW_NUMBER() OVER (
-            -- Partition by name, price, account, AND original purchase date
-            -- This separates: different cards, and multiple purchases of same item
-            PARTITION BY LOWER(TRIM(name)), ABS(price), COALESCE(account_number, vendor), 
+            -- Partition by name, original amount, total installments, account, AND original purchase month
+            -- This separates: different cards, different items, and multiple purchases of same item
+            -- We EXCLUDE exact price from partition to allow for 1-cent/shekel differences due to rounding
+            PARTITION BY 
+              LOWER(TRIM(name)), 
+              COALESCE(ABS(original_amount), 0),
+              installments_total,
+              COALESCE(account_number, vendor), 
               DATE_TRUNC('month', original_purchase_date)
-            ORDER BY date DESC
+            -- Prioritize the "Next" installment:
+            -- 1. Earliest future payment (date >= today)
+            -- 2. Latest past payment (if all are in the past)
+            ORDER BY 
+              CASE WHEN date >= CURRENT_DATE THEN 0 ELSE 1 END,
+              CASE WHEN date >= CURRENT_DATE THEN date ELSE NULL END ASC,
+              date DESC
           ) as rn
         FROM installments_with_origin
       )
@@ -63,11 +74,11 @@ export default async function handler(req, res) {
         END as status,
         -- Calculate the next payment date:
         -- If final installment and date passed, no next payment (truly completed)
-        -- If date is in the future (including final installment), that's the next payment
-        -- If date is in the past and more installments remain, add 1 month
+        -- If current installment date is in the future, THAT is the next payment
+        -- If date is in the past and more installments remain, estimate next month
         CASE 
           WHEN installments_number >= installments_total AND date <= CURRENT_DATE THEN NULL
-          WHEN date > CURRENT_DATE THEN date
+          WHEN date >= CURRENT_DATE THEN date
           ELSE (date + '1 month'::interval)::date
         END as next_payment_date,
         -- Calculate the last/final payment date from the original purchase date
@@ -169,9 +180,9 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Error fetching recurring payments:", error);
-    res.status(500).json({ 
-      error: "Internal Server Error", 
-      details: error.message 
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message
     });
   } finally {
     client.release();

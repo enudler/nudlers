@@ -2811,10 +2811,10 @@ isexe@^2.0.0:
   resolved "https://registry.npmjs.org/isexe/-/isexe-2.0.0.tgz"
   integrity sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==
 
-israeli-bank-scrapers@6.6.0:
-  version "6.6.0"
-  resolved "https://registry.npmjs.org/israeli-bank-scrapers/-/israeli-bank-scrapers-6.6.0.tgz"
-  integrity sha512-X+lqlohDw4+vkpSbuUWq5Yg81/cCbcZda1heFfkELb3eDkQzqKizuGxzxi9gQZg/3vps6QZqr6MrLrEHFmoFuQ==
+israeli-bank-scrapers@6.5.1:
+  version "6.5.1"
+  resolved "https://registry.npmjs.org/israeli-bank-scrapers/-/israeli-bank-scrapers-6.5.1.tgz"
+  integrity sha512-vDWI5QO+wgGBAheqwo5BUd0M2jmEYMZFjQ1WROwWSoHgYoWvfFfepYbF1hQyfGqMRMgEXVh6LONwPWQEjpyaNg==
   dependencies:
     core-js "^3.1.4"
     debug "^4.3.2"
