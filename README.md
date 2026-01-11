@@ -46,8 +46,8 @@ Personal finance management application for tracking credit card expenses and ba
 
 ```bash
 # Clone the repository
-git clone https://github.com/enudler/credit-card-usage.git
-cd credit-card-usage
+git clone https://github.com/enudler/nudlers.git
+cd nudlers
 
 # Copy and configure environment variables
 cp .env_example .env
@@ -68,8 +68,8 @@ For NAS or server deployment, use the pre-built Docker image from GitHub Contain
 mkdir nudlers && cd nudlers
 
 # Download the production docker-compose and env template
-curl -O https://raw.githubusercontent.com/enudler/credit-card-usage/main/docker-compose.prod.yaml
-curl -O https://raw.githubusercontent.com/enudler/credit-card-usage/main/.env_example
+curl -O https://raw.githubusercontent.com/enudler/nudlers/main/docker-compose.prod.yaml
+curl -O https://raw.githubusercontent.com/enudler/nudlers/main/.env_example
 
 # Configure environment variables
 cp .env_example .env
@@ -93,8 +93,8 @@ The image supports both `linux/amd64` and `linux/arm64` architectures.
 
 1. **Clone and install dependencies**
    ```bash
-   git clone https://github.com/enudler/credit-card-usage.git
-   cd credit-card-usage/app
+   git clone https://github.com/enudler/nudlers.git
+   cd nudlers/app
    npm install
    ```
 
