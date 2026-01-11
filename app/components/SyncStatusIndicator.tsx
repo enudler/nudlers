@@ -52,15 +52,15 @@ const StatusContainer = styled(Box)({
 // Helper function to parse date strings from API (now returns ISO strings with timezone)
 const parseDate = (dateStr: string | null): Date => {
   if (!dateStr) return new Date();
-  
+
   // API should return ISO strings (e.g., "2026-01-29T10:30:00.000Z")
   // But handle edge cases where it might not be properly formatted
   let date: Date;
-  
+
   // If it already has 'Z' or timezone offset, parse directly
   if (dateStr.includes('Z') || dateStr.match(/[+-]\d{2}:?\d{2}$/)) {
     date = new Date(dateStr);
-  } 
+  }
   // If it's PostgreSQL format without timezone (shouldn't happen but handle it)
   else if (dateStr.match(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/)) {
     // Treat as UTC by appending 'Z'
@@ -73,20 +73,20 @@ const parseDate = (dateStr: string | null): Date => {
   else {
     date = new Date(dateStr);
   }
-  
+
   // Validate the date is valid
   if (isNaN(date.getTime())) {
     console.warn(`[parseDate] Invalid date string: ${dateStr}`);
     return new Date();
   }
-  
+
   return date;
 };
 
 const formatRelativeTime = (dateStr: string) => {
   const date = parseDate(dateStr);
   const now = new Date();
-  
+
   // Both dates are in milliseconds since epoch (UTC), so comparison is timezone-independent
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -152,14 +152,14 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
     if (!status) {
       return {
         icon: <CloudOffIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-        label: 'Unknown',
+        label: 'Connecting...',
         color: '#64748b',
-        tooltip: 'Unable to fetch sync status'
+        tooltip: 'Fetching sync status...'
       };
     }
 
     const health = status.syncHealth;
-    const lastSync = status.latestScrape?.created_at 
+    const lastSync = status.latestScrape?.created_at
       ? formatRelativeTime(status.latestScrape.created_at)
       : 'Never';
 
@@ -216,9 +216,9 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
       default:
         return {
           icon: <SyncIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-          label: 'Unknown',
+          label: 'Check Status',
           color: '#64748b',
-          tooltip: 'Unknown status'
+          tooltip: 'Status unavailable'
         };
     }
   };
@@ -234,7 +234,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
   };
 
   return (
-    <Tooltip 
+    <Tooltip
       title={
         <Box sx={{ p: 0.5 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>

@@ -269,7 +269,8 @@ const migrations = [
         ('default_currency', '"ILS"', 'Default currency for transactions'),
         ('date_format', '"DD/MM/YYYY"', 'Date display format'),
         ('billing_cycle_start_day', '10', 'Day of month when billing cycle starts'),
-        ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)')
+        ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)'),
+        ('israeli_bank_scrapers_version', '"none"', 'Specific version or branch of the scraper library (e.g. "latest", "master", "6.6.0")')
       ON CONFLICT (key) DO NOTHING;
     `
   },

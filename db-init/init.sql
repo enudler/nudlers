@@ -97,12 +97,14 @@ CREATE TABLE IF NOT EXISTS card_ownership (
     vendor VARCHAR(50) NOT NULL,
     account_number VARCHAR(50) NOT NULL,
     credential_id INTEGER NOT NULL REFERENCES vendor_credentials(id) ON DELETE CASCADE,
+    linked_bank_account_id INTEGER REFERENCES vendor_credentials(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(vendor, account_number)
 );
 
 CREATE INDEX IF NOT EXISTS idx_card_ownership_vendor ON card_ownership(vendor);
 CREATE INDEX IF NOT EXISTS idx_card_ownership_credential ON card_ownership(credential_id);
+CREATE INDEX IF NOT EXISTS idx_card_ownership_bank_account ON card_ownership(linked_bank_account_id);
 
 -- Budget table to store general category spending limits (applies to any month)
 CREATE TABLE IF NOT EXISTS budgets (

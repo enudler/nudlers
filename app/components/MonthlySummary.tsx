@@ -456,23 +456,23 @@ const MonthlySummary: React.FC = () => {
         cards.forEach((card) => {
           let key = 'unassigned';
           let nickname = 'Unassigned Cards';
-          let number = null;
-          let vendor = null;
-          let id = null;
+          let acctNumber: string | null = null;
+          let vendor: string | null = null;
+          let id: number | null = null;
 
           if (card.bank_account_id) {
             // Linked Account
             key = `id-${card.bank_account_id}`;
             id = card.bank_account_id;
             nickname = card.bank_account_nickname || 'Unknown Bank';
-            number = card.bank_account_number;
-            vendor = card.bank_account_vendor;
+            acctNumber = card.bank_account_number || null;
+            vendor = card.bank_account_vendor || null;
           } else if (card.custom_bank_account_number || card.custom_bank_account_nickname) {
             // Custom Account (Group by number if available, else nickname)
             const customKey = card.custom_bank_account_number || card.custom_bank_account_nickname || 'custom-unknown';
             key = `custom-${customKey}`;
             nickname = card.custom_bank_account_nickname || 'Custom Bank Account';
-            number = card.custom_bank_account_number;
+            acctNumber = card.custom_bank_account_number || null;
             vendor = 'Custom';
           }
 
@@ -480,8 +480,8 @@ const MonthlySummary: React.FC = () => {
             bankSummaryMap.set(key, {
               bank_account_id: id,
               bank_account_nickname: nickname,
-              bank_account_number: number,
-              bank_account_vendor: vendor,
+              bank_account_number: acctNumber,
+              bank_account_vendor: vendor || 'Unknown',
               total_expenses: 0
             });
           }

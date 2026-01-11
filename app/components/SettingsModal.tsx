@@ -34,6 +34,9 @@ interface Settings {
   billing_cycle_start_day: number;
   show_browser: boolean;
   fetch_categories_from_scrapers: boolean;
+  scraper_timeout_standard: number;
+  scraper_timeout_rate_limited: number;
+  israeli_bank_scrapers_version: string;
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -96,13 +99,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     date_format: 'DD/MM/YYYY',
     billing_cycle_start_day: 10,
     show_browser: false,
-    fetch_categories_from_scrapers: true
+    fetch_categories_from_scrapers: true,
+    scraper_timeout_standard: 60000,
+    scraper_timeout_rate_limited: 120000,
+    israeli_bank_scrapers_version: 'none'
   });
   const [loading, setLoading] = useState(true);
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
   const [originalSettings, setOriginalSettings] = useState<Settings | null>(null);
+  const [versionInput, setVersionInput] = useState<string>('');
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -118,12 +125,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           date_format: (data.settings.date_format || 'DD/MM/YYYY').replace(/"/g, ''),
           billing_cycle_start_day: parseInt(data.settings.billing_cycle_start_day) || 10,
           show_browser: parseBool(data.settings.show_browser),
-          fetch_categories_from_scrapers: data.settings.fetch_categories_from_scrapers === undefined 
+          fetch_categories_from_scrapers: data.settings.fetch_categories_from_scrapers === undefined
             ? true  // Default to true if not set
-            : parseBool(data.settings.fetch_categories_from_scrapers)
+            : parseBool(data.settings.fetch_categories_from_scrapers),
+          scraper_timeout_standard: parseInt(data.settings.scraper_timeout_standard) || 60000,
+          scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000,
+          israeli_bank_scrapers_version: (data.settings.israeli_bank_scrapers_version || 'none').replace(/"/g, '')
         };
         setSettings(newSettings);
+        setVersionInput(newSettings.israeli_bank_scrapers_version);
         setOriginalSettings(newSettings);
+        setCurrentVersion(data.settings.current_scrapers_version || 'unknown');
+        setHasInitialLoad(true);
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
@@ -139,17 +152,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     }
   }, [open, fetchSettings]);
 
+  const [hasInitialLoad, setHasInitialLoad] = useState(false);
+
+  // Auto-save effect
   useEffect(() => {
-    if (originalSettings) {
-      const changed = JSON.stringify(settings) !== JSON.stringify(originalSettings);
-      setHasChanges(changed);
-    }
-  }, [settings, originalSettings]);
+    if (!hasInitialLoad || !originalSettings) return;
+
+    const changed = JSON.stringify(settings) !== JSON.stringify(originalSettings);
+    if (!changed) return;
+
+    const handler = setTimeout(() => {
+      handleSave();
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(handler);
+  }, [settings, originalSettings, hasInitialLoad]);
 
   const handleSave = async () => {
     setSaving(true);
-    setResult(null);
-
+    // Silent save, only show errors if they happen
     try {
       const response = await fetch('/api/settings', {
         method: 'PUT',
@@ -158,29 +179,88 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       });
 
       if (response.ok) {
-        setResult({ type: 'success', message: 'Settings saved successfully' });
         setOriginalSettings(settings);
-        setHasChanges(false);
-        setTimeout(() => setResult(null), 3000);
-      } else {
-        throw new Error('Failed to save settings');
       }
     } catch (error) {
-      console.error('Save error:', error);
-      setResult({ type: 'error', message: 'Failed to save settings' });
+      console.error('Auto-save error:', error);
+      setResult({ type: 'error', message: 'Failed to auto-save settings' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleClose = () => {
-    if (hasChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
-        onClose();
-      }
-    } else {
-      onClose();
+  const [updateState, setUpdateState] = useState<'idle' | 'validating' | 'installing' | 'restarting'>('idle');
+  const [countdown, setCountdown] = useState(30);
+
+  const handleUpdateLibrary = async () => {
+    if (!window.confirm('This will install the selected version. The new version will be used for the next scrape. Proceed?')) {
+      return;
     }
+
+    setUpdateState('validating');
+    setResult(null);
+
+    try {
+      // Step 1: Validate
+      const valResponse = await fetch('/api/settings/update-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          version: versionInput,
+          validateOnly: true
+        })
+      });
+
+      let valData: any = {};
+      try {
+        valData = await valResponse.json();
+      } catch (e) {
+        console.error('Failed to parse validation response', e);
+      }
+
+      if (!valResponse.ok) {
+        setResult({ type: 'error', message: `Update failed: ${valData.error || `Validation failed (Status: ${valResponse.status})`}` });
+        setUpdateState('idle');
+        return;
+      }
+
+      // Step 2: Install
+      setUpdateState('installing');
+      const response = await fetch('/api/settings/update-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: versionInput })
+      });
+
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('Failed to parse install response', e);
+      }
+
+      if (response.ok) {
+        setUpdateState('restarting'); // We use this state to show 'Reloading...'
+        setResult({ type: 'success', message: 'Library updated! Reloading UI to apply changes...' });
+
+        // Short delay before reload just to show the message
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setResult({ type: 'error', message: `Update failed: ${data.error || `Installation failed (Status: ${response.status})`}` });
+        setUpdateState('idle');
+        return;
+      }
+    } catch (error: any) {
+      console.error('Update error:', error);
+      setResult({ type: 'error', message: `Update failed: ${error.message}` });
+      setUpdateState('idle');
+    }
+  };
+
+  const handleClose = () => {
+    onClose();
   };
 
   return (
@@ -197,17 +277,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             App Settings
           </Typography>
+          {saving && (
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, fontStyle: 'italic' }}>
+              Saving...
+            </Typography>
+          )}
+          {!saving && originalSettings && JSON.stringify(settings) === JSON.stringify(originalSettings) && (
+            <Typography variant="caption" sx={{ color: '#22c55e', ml: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <CheckCircleIcon sx={{ fontSize: '14px' }} /> Saved
+            </Typography>
+          )}
         </Box>
-        {hasChanges && (
-          <Chip
-            label="Unsaved changes"
-            size="small"
-            sx={{
-              backgroundColor: 'rgba(245, 158, 11, 0.2)',
-              color: '#f59e0b'
-            }}
-          />
-        )}
       </DialogTitle>
 
       <DialogContent sx={{ pt: 3 }}>
@@ -217,11 +297,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           </Box>
         ) : (
           <>
-            {result && (
+            {result && result.type === 'error' && (
               <Alert
-                severity={result.type}
+                severity="error"
                 sx={{ mb: 3 }}
-                icon={result.type === 'success' ? <CheckCircleIcon /> : <ErrorIcon />}
+                icon={<ErrorIcon />}
               >
                 {result.message}
               </Alert>
@@ -400,6 +480,87 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   }}
                 />
               </SettingRow>
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Standard Timeout (ms)</Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                    Timeout for standard vendors (default: 60000ms)
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="number"
+                  value={settings.scraper_timeout_standard}
+                  onChange={(e) => setSettings({ ...settings, scraper_timeout_standard: parseInt(e.target.value) || 60000 })}
+                  size="small"
+                  sx={{ width: '120px' }}
+                  inputProps={{ min: 1000, step: 1000 }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Rate-Limited Timeout (ms)</Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                    Timeout for rate-limited vendors (Isracard, Amex) (default: 120000ms)
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="number"
+                  value={settings.scraper_timeout_rate_limited}
+                  onChange={(e) => setSettings({ ...settings, scraper_timeout_rate_limited: parseInt(e.target.value) || 120000 })}
+                  size="small"
+                  sx={{ width: '120px' }}
+                  inputProps={{ min: 1000, step: 1000 }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body1">
+                    Library Version
+                    {currentVersion && currentVersion !== 'unknown' && (
+                      <Chip
+                        label={`Current: ${currentVersion}`}
+                        size="small"
+                        sx={{ ml: 1, height: '20px', fontSize: '11px', background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa' }}
+                      />
+                    )}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                    Specify version/branch for <code style={{ color: '#60a5fa' }}>israeli-bank-scrapers</code> (e.g., "latest", "master", "6.6.0").
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <StyledTextField
+                    value={versionInput}
+                    onChange={(e) => setVersionInput(e.target.value.trim())}
+                    size="small"
+                    sx={{ width: '150px' }}
+                    placeholder="none"
+                  />
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleUpdateLibrary}
+                    disabled={updateState !== 'idle' || versionInput === 'none' || versionInput === currentVersion}
+                    sx={{
+                      borderColor: 'rgba(96, 165, 250, 0.5)',
+                      color: '#60a5fa',
+                      minWidth: '150px',
+                      '&:hover': {
+                        borderColor: '#60a5fa',
+                        background: 'rgba(96, 165, 250, 0.1)',
+                      },
+                    }}
+                  >
+                    {updateState === 'validating' ? 'Checking...' :
+                      updateState === 'installing' ? 'Installing...' :
+                        updateState === 'restarting' ? 'Reloading...' :
+                          'Update Library'}
+                  </Button>
+                </Box>
+              </SettingRow>
             </SettingSection>
           </>
         )}
@@ -408,30 +569,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       <DialogActions sx={{
         borderTop: '1px solid rgba(148, 163, 184, 0.1)',
         p: 2,
-        gap: 1
+        justifyContent: 'flex-end'
       }}>
         <Button
           onClick={handleClose}
-          sx={{ color: 'rgba(255,255,255,0.7)' }}
+          variant="outlined"
+          sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}
         >
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving || !hasChanges}
-          sx={{
-            background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-            },
-            '&:disabled': {
-              background: 'rgba(96, 165, 250, 0.3)',
-              color: 'rgba(255,255,255,0.3)'
-            }
-          }}
-        >
-          {saving ? 'Saving...' : 'Save Settings'}
+          Close
         </Button>
       </DialogActions>
     </StyledDialog>

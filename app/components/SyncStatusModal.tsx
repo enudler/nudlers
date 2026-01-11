@@ -106,15 +106,15 @@ const AccountItem = styled(ListItem)(({ theme }) => ({
 // Helper function to parse date strings from API (now returns ISO strings with timezone)
 const parseDate = (dateStr: string | null): Date => {
   if (!dateStr) return new Date();
-  
+
   // API should return ISO strings (e.g., "2026-01-29T10:30:00.000Z")
   // But handle edge cases where it might not be properly formatted
   let date: Date;
-  
+
   // If it already has 'Z' or timezone offset, parse directly
   if (dateStr.includes('Z') || dateStr.match(/[+-]\d{2}:?\d{2}$/)) {
     date = new Date(dateStr);
-  } 
+  }
   // If it's PostgreSQL format without timezone (shouldn't happen but handle it)
   else if (dateStr.match(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/)) {
     // Treat as UTC by appending 'Z'
@@ -127,13 +127,13 @@ const parseDate = (dateStr: string | null): Date => {
   else {
     date = new Date(dateStr);
   }
-  
+
   // Validate the date is valid
   if (isNaN(date.getTime())) {
     console.warn(`[parseDate] Invalid date string: ${dateStr}`);
     return new Date();
   }
-  
+
   return date;
 };
 
@@ -141,7 +141,7 @@ const formatRelativeTime = (dateStr: string | null) => {
   if (!dateStr) return 'Never';
   const date = parseDate(dateStr);
   const now = new Date();
-  
+
   // Both dates are in milliseconds since epoch (UTC), so comparison is timezone-independent
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -188,9 +188,9 @@ const getStatusColor = (status: string) => {
 };
 
 const getVendorIcon = (vendor: string) => {
-  if (vendor.toLowerCase().includes('bank') || vendor.toLowerCase().includes('leumi') || 
-      vendor.toLowerCase().includes('hapoalim') || vendor.toLowerCase().includes('discount') ||
-      vendor.toLowerCase().includes('mizrahi')) {
+  if (vendor.toLowerCase().includes('bank') || vendor.toLowerCase().includes('leumi') ||
+    vendor.toLowerCase().includes('hapoalim') || vendor.toLowerCase().includes('discount') ||
+    vendor.toLowerCase().includes('mizrahi')) {
     return <AccountBalanceIcon />;
   }
   return <CreditCardIcon />;
@@ -324,7 +324,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
 
       setSyncProgress({ current: 0, total: accounts.length, currentAccount: null });
 
-          // Sync each account sequentially
+      // Sync each account sequentially
       for (let i = 0; i < accounts.length; i++) {
         const account = accounts[i];
         setSyncProgress({
@@ -400,7 +400,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
               }
             }
           }
-          
+
           // Update progress after account completes
           setSyncProgress({
             current: i + 1,
@@ -431,7 +431,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
   };
 
   const getSyncHealthDisplay = () => {
-    if (!status) return { icon: <CloudOffIcon />, label: 'Unknown', color: '#64748b', description: 'Unable to determine sync status' };
+    if (!status) return { icon: <CloudOffIcon />, label: 'Connecting...', color: '#64748b', description: 'Fetching sync status...' };
 
     switch (status.syncHealth) {
       case 'healthy':
@@ -486,9 +486,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
       default:
         return {
           icon: <SyncIcon sx={{ fontSize: 48 }} />,
-          label: 'Unknown',
+          label: 'Check Status',
           color: '#64748b',
-          description: 'Unknown status'
+          description: 'Status unavailable'
         };
     }
   };
@@ -560,7 +560,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
           <>
             {/* Sync Progress */}
             {isSyncing && syncProgress && (
-              <StatusCard sx={{ 
+              <StatusCard sx={{
                 background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0.05) 100%)',
                 borderColor: 'rgba(96, 165, 250, 0.4)'
               }}>
@@ -578,23 +578,23 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                     {syncProgress.current} / {syncProgress.total}
                   </Typography>
                 </Box>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(syncProgress.current / syncProgress.total) * 100} 
-                  sx={{ 
-                    height: 6, 
+                <LinearProgress
+                  variant="determinate"
+                  value={(syncProgress.current / syncProgress.total) * 100}
+                  sx={{
+                    height: 6,
                     borderRadius: 3,
                     backgroundColor: 'rgba(96, 165, 250, 0.2)',
                     '& .MuiLinearProgress-bar': {
                       backgroundColor: '#60a5fa'
                     }
-                  }} 
+                  }}
                 />
               </StatusCard>
             )}
 
             {/* Main Status Display */}
-            <StatusCard sx={{ 
+            <StatusCard sx={{
               background: `linear-gradient(135deg, ${healthDisplay.color}10 0%, ${healthDisplay.color}05 100%)`,
               borderColor: `${healthDisplay.color}40`
             }}>
@@ -620,10 +620,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
 
             {/* Quick Stats */}
             <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-              <Box sx={{ 
-                flex: 1, 
-                p: 1.5, 
-                borderRadius: '10px', 
+              <Box sx={{
+                flex: 1,
+                p: 1.5,
+                borderRadius: '10px',
                 backgroundColor: 'rgba(34, 197, 94, 0.1)',
                 border: '1px solid rgba(34, 197, 94, 0.2)',
                 textAlign: 'center'
@@ -635,10 +635,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                   Accounts
                 </Typography>
               </Box>
-              <Box sx={{ 
-                flex: 1, 
-                p: 1.5, 
-                borderRadius: '10px', 
+              <Box sx={{
+                flex: 1,
+                p: 1.5,
+                borderRadius: '10px',
                 backgroundColor: 'rgba(96, 165, 250, 0.1)',
                 border: '1px solid rgba(96, 165, 250, 0.2)',
                 textAlign: 'center'
@@ -650,10 +650,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                   Syncs
                 </Typography>
               </Box>
-              <Box sx={{ 
-                flex: 1, 
-                p: 1.5, 
-                borderRadius: '10px', 
+              <Box sx={{
+                flex: 1,
+                p: 1.5,
+                borderRadius: '10px',
                 backgroundColor: 'rgba(167, 139, 250, 0.1)',
                 border: '1px solid rgba(167, 139, 250, 0.2)',
                 textAlign: 'center'
@@ -684,13 +684,13 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                     const hoursSinceSync = lastSynced ? Math.max(0, (now.getTime() - lastSynced.getTime()) / 3600000) : Infinity;
                     const isStale = hoursSinceSync > 48;
                     const isRecent = hoursSinceSync < 24;
-                    
+
                     return (
                       <AccountItem key={index} sx={{ py: 1 }}>
                         <ListItemIcon sx={{ minWidth: 40 }}>
-                          <Avatar sx={{ 
-                            width: 32, 
-                            height: 32, 
+                          <Avatar sx={{
+                            width: 32,
+                            height: 32,
                             bgcolor: isRecent ? 'rgba(34, 197, 94, 0.2)' : isStale ? 'rgba(245, 158, 11, 0.2)' : 'rgba(148, 163, 184, 0.2)'
                           }}>
                             {getVendorIcon(account.vendor)}
@@ -738,8 +738,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                     Recent Activity
                   </Typography>
                 </Box>
-                <Box sx={{ 
-                  maxHeight: '200px', 
+                <Box sx={{
+                  maxHeight: '200px',
                   overflowY: 'auto',
                   '&::-webkit-scrollbar': {
                     width: '6px',
@@ -792,10 +792,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                           />
                         </Box>
                         {event.message && (
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              color: 'rgba(255,255,255,0.5)', 
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'rgba(255,255,255,0.5)',
                               display: 'block',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
