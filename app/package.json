@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "scrape": "ts-node --esm scrapers/index.ts"
+    "scrape": "ts-node --esm scrapers/index.ts",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -43,6 +44,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",
+    "patch-package": "^8.0.1",
     "postcss": "^8.4.47",
     "prettier": "^3.5.1",
     "tailwindcss": "^3.4.14",

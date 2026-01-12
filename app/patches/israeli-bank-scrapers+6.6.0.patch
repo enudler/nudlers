@@ -1,0 +1,219 @@
+diff --git a/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js b/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js
+index 9252ba4..77ff4c6 100644
+--- a/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js
++++ b/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js
+@@ -42,7 +42,43 @@ async function fetchPost(url, data, extraHeaders = {}) {
+     body: JSON.stringify(data)
+   };
+   const result = await (0, _nodeFetch.default)(url, request);
+-  return result.json();
++  
++  let responseText = null;
++  try {
++    responseText = await result.text();
++  } catch {
++    // ignore read error
++  }
++  
++  if (result.status !== 200) {
++    let errorMessage = `HTTP ${result.status}`;
++    if (responseText) {
++      try {
++        const errorJson = JSON.parse(responseText);
++        errorMessage = errorJson.title || errorJson.message || errorJson.error || errorMessage;
++      } catch {
++        errorMessage = responseText.length > 200 ? responseText.substring(0, 200) + '...' : responseText;
++      }
++    }
++    const finalErr = `HTTP ${result.status} from ${url}: ${errorMessage}`;
++    console.log(`[VISA-CAL-PATCH] ${finalErr}`);
++    throw new Error(finalErr);
++  }
++  
++  if (!responseText) {
++    const emptyErr = `Empty response from ${url}`;
++    console.log(`[VISA-CAL-PATCH] ${emptyErr}`);
++    throw new Error(emptyErr);
++  }
++  
++  try {
++    return JSON.parse(responseText);
++  } catch (e) {
++    const preview = responseText.length > 200 ? responseText.substring(0, 200) + '...' : responseText;
++    const jsonErr = `Invalid JSON response from ${url}: ${e.message}. Response: ${preview}`;
++    console.log(`[VISA-CAL-PATCH] ${jsonErr}`);
++    throw new Error(jsonErr);
++  }
+ }
+ async function fetchGraphql(url, query, variables = {}, extraHeaders = {}) {
+   const result = await fetchPost(url, {
+diff --git a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+index e1db751..601e319 100644
+--- a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
++++ b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+@@ -60,14 +60,20 @@ async function getLoginFrame(page) {
+   await (0, _waiting.waitUntil)(() => {
+     frame = page.frames().find(f => f.url().includes('connect')) || null;
+     return Promise.resolve(!!frame);
+-  }, 'wait for iframe with login form', 10000, 1000);
++  }, 'wait for iframe with login form', 120000, 1000).catch(e => {
++        const frameUrls = page.frames().map(f => f.url()).join(', ');
++        console.log(`[VISA-CAL-PATCH] Frames found: ${frameUrls}`);
++        console.log(`[VISA-CAL-PATCH] Current URL: ${page.url()}`);
++        throw e;
++      });
+   if (!frame) {
+-    debug('failed to find login frame for 10 seconds');
++    console.log('[VISA-CAL-PATCH] failed to find login frame for 120 seconds');
+     throw new Error('failed to extract login iframe');
+   }
+   return frame;
+ }
+ async function hasInvalidPasswordError(page) {
++  if (page.url().includes('dashboard')) return false;
+   const frame = await getLoginFrame(page);
+   const errorFound = await (0, _elementsInteractions.elementPresentOnPage)(frame, 'div.general-error > div');
+   const errorMessage = errorFound ? await (0, _elementsInteractions.pageEval)(frame, 'div.general-error > div', '', item => {
+@@ -76,6 +82,7 @@ async function hasInvalidPasswordError(page) {
+   return errorMessage === InvalidPasswordMessage;
+ }
+ async function hasChangePasswordForm(page) {
++  if (page.url().includes('dashboard')) return false;
+   const frame = await getLoginFrame(page);
+   const errorFound = await (0, _elementsInteractions.elementPresentOnPage)(frame, '.change-password-subtitle');
+   return errorFound;
+@@ -155,17 +162,17 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+   authorization = undefined;
+   openLoginPopup = async () => {
+     debug('open login popup, wait until login button available');
+-    await (0, _elementsInteractions.waitUntilElementFound)(this.page, '#ccLoginDesktopBtn', true);
++    await (0, _elementsInteractions.waitUntilElementFound)(this.page, '#ccLoginDesktopBtn', true, 60000);
+     debug('click on the login button');
+     await (0, _elementsInteractions.clickButton)(this.page, '#ccLoginDesktopBtn');
+     debug('get the frame that holds the login');
+     const frame = await getLoginFrame(this.page);
+     debug('wait until the password login tab header is available');
+-    await (0, _elementsInteractions.waitUntilElementFound)(frame, '#regular-login');
++    await (0, _elementsInteractions.waitUntilElementFound)(frame, '#regular-login', true, 60000);
+     debug('navigate to the password login tab');
+     await (0, _elementsInteractions.clickButton)(frame, '#regular-login');
+     debug('wait until the password login tab is active');
+-    await (0, _elementsInteractions.waitUntilElementFound)(frame, 'regular-login');
++    await (0, _elementsInteractions.waitUntilElementFound)(frame, 'regular-login', true, 60000);
+     return frame;
+   };
+   async getCards() {
+@@ -214,13 +221,51 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+     return {
+       loginUrl: `${LOGIN_URL}`,
+       fields: createLoginFields(credentials),
+-      submitButtonSelector: 'button[type="submit"]',
++      submitButtonSelector: async () => {
++      const frame = await getLoginFrame(this.page);
++      await new Promise(resolve => setTimeout(resolve, 2000));
++      const passwordField = await frame.$('[formcontrolname="password"]');
++      if (passwordField) {
++        await passwordField.focus();
++        await passwordField.press('Enter');
++        console.log('[VISA-CAL-PATCH] Pressed Enter for login');
++      }
++    },
+       possibleResults: getPossibleLoginResults(),
+-      checkReadiness: async () => (0, _elementsInteractions.waitUntilElementFound)(this.page, '#ccLoginDesktopBtn'),
++      checkReadiness: async () => (0, _elementsInteractions.waitUntilElementFound)(this.page, '#ccLoginDesktopBtn', true, 60000),
+       preAction: this.openLoginPopup,
+       postAction: async () => {
+         try {
+-          await (0, _navigation.waitForNavigation)(this.page);
++          const currentUrlBefore = await (0, _navigation.getCurrentUrl)(this.page);
++          if (!currentUrlBefore.includes('dashboard')) {
++            try {
++              await (0, _navigation.waitForNavigation)(this.page);
++            } catch (e) {
++              console.log('[VISA-CAL-PATCH] Navigation timeout, checking if we are on dashboard anyway');
++            }
++          }
++          
++          // Close WhatsApp popup if it appears
++          await new Promise(resolve => setTimeout(resolve, 5000));
++          const selectors = [
++            'button.close[data-dismiss="modal"]',
++            'button.close[title="סגירה"]',
++            '.modal-header button.close'
++          ];
++          
++          for (const selector of selectors) {
++            try {
++              const closeButton = await this.page.$(selector);
++              if (closeButton) {
++                console.log(`[VISA-CAL-PATCH] Closing popup with selector: ${selector}`);
++                await closeButton.click();
++                await new Promise(resolve => setTimeout(resolve, 2000));
++                break;
++              }
++            } catch (e) {
++              // Continue to next selector
++            }
++          }
+           const currentUrl = await (0, _navigation.getCurrentUrl)(this.page);
+           if (currentUrl.endsWith('site-tutorial')) {
+             await (0, _elementsInteractions.clickButton)(this.page, 'button.btn-close');
+@@ -246,23 +291,45 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+     const [cards, xSiteId, Authorization] = await Promise.all([this.getCards(), this.getXSiteId(), this.getAuthorizationHeader()]);
+     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
+     debug('fetch frames (misgarot) of cards');
+-    const frames = await (0, _fetch.fetchPost)(FRAMES_REQUEST_ENDPOINT, {
+-      cardsForFrameData: cards.map(({
+-        cardUniqueId
+-      }) => ({
+-        cardUniqueId
+-      }))
+-    }, {
+-      Authorization,
+-      'X-Site-Id': xSiteId,
+-      'Content-Type': 'application/json',
+-      ...apiHeaders
+-    });
++    let frames;
++    try {
++      frames = await (0, _fetch.fetchPost)(FRAMES_REQUEST_ENDPOINT, {
++        cardsForFrameData: cards.map(({
++          cardUniqueId
++        }) => ({
++          cardUniqueId
++        }))
++      }, {
++        Authorization,
++        'X-Site-Id': xSiteId,
++        'Content-Type': 'application/json',
++        ...apiHeaders
++      });
++      console.log('[VISA-CAL-PATCH] Successfully fetched frames via API');
++    } catch (e) {
++      console.log(`[VISA-CAL-PATCH] Frames fetch failed (${e.message}), using fallback synthesis`);
++      frames = {
++        result: {
++          calIssuedCards: {
++            accountLevelFrames: cards.map(c => ({
++              cardUniqueId: c.cardUniqueId
++            }))
++          }
++        }
++      };
++    }
+     const accounts = await Promise.all(cards.map(async card => {
+       const finalMonthToFetchMoment = (0, _moment.default)().add(futureMonthsToScrape, 'month');
+       const months = finalMonthToFetchMoment.diff(startMoment, 'months');
+       const allMonthsData = [];
+-      const frame = _lodash.default.find(frames.result?.bankIssuedCards?.cardLevelFrames, {
++      // Support both old and new API structures
++      let cardFrames;
++      if (frames.result?.calIssuedCards?.accountLevelFrames) {
++        cardFrames = frames.result.calIssuedCards.accountLevelFrames;
++      } else if (frames.result?.bankIssuedCards?.cardLevelFrames) {
++        cardFrames = frames.result.bankIssuedCards.cardLevelFrames;
++      }
++      const frame = _lodash.default.find(cardFrames, {
+         cardUniqueId: card.cardUniqueId
+       });
+       debug(`fetch pending transactions for card ${card.cardUniqueId}`);
