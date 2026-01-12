@@ -24,6 +24,11 @@ export function getChromePath() {
     } else if (process.platform === 'darwin') {
         return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
     } else {
+        // Alpine Linux often uses chromium-browser specifically
+        const fs = require('fs');
+        if (fs.existsSync('/usr/bin/chromium-browser')) {
+            return '/usr/bin/chromium-browser';
+        }
         return '/usr/bin/chromium';
     }
 }
@@ -66,6 +71,9 @@ export function getScraperOptions(companyId, startDate, isIsracardAmex, options 
         '--no-first-run',
         '--password-store=basic',
         '--use-mock-keychain',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--headless=new',
     ];
 
     if (showBrowser) {
