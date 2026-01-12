@@ -54,13 +54,13 @@ const handler = createApiHandler({
             -- Credit card transactions (excluding Bank and Income categories)
             -- Note: price is already the per-installment amount (combineInstallments: false)
             ROUND(COALESCE(SUM(
-              CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
             ), 0)::numeric, 0) as card_expenses,
             ROUND((
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) -
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) -
               COALESCE(SUM(
-                CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+                CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
               ), 0)
             )::numeric, 0) as net_balance
           FROM transactions t
@@ -71,7 +71,7 @@ const handler = createApiHandler({
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) +
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) +
             COALESCE(SUM(
-              CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
             ), 0)
           ) DESC, t.name
         `,
@@ -92,13 +92,13 @@ const handler = createApiHandler({
             -- Credit card transactions (excluding Bank and Income categories)
             -- Note: price is already the per-installment amount (combineInstallments: false)
             ROUND(COALESCE(SUM(
-              CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
             ), 0)::numeric, 0) as card_expenses,
             ROUND((
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) -
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) -
               COALESCE(SUM(
-                CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+                CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
               ), 0)
             )::numeric, 0) as net_balance,
             -- Include bank account info from card ownership
@@ -117,7 +117,7 @@ const handler = createApiHandler({
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) +
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) +
             COALESCE(SUM(
-              CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
             ), 0)
           ) DESC, COALESCE(RIGHT(t.account_number, 4), 'Unknown')
         `,
@@ -139,7 +139,7 @@ const handler = createApiHandler({
             -- Credit card transactions (excluding Bank and Income categories)
             -- Note: price is already the per-installment amount (combineInstallments: false)
             COALESCE(SUM(
-              CASE WHEN t.category != 'Bank' AND t.category != 'Income' THEN ABS(t.price) ELSE 0 END
+              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
             ), 0) as card_expenses
           FROM transactions t
           ${credentialJoin}

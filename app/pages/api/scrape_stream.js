@@ -21,7 +21,7 @@ import {
   getRateLimitedTimeoutSetting,
   retryWithBackoff,
   sleep,
-  runScraperInWorker,
+  runScraper,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -112,10 +112,10 @@ async function handler(req, res) {
     // For rate-limited vendors (VisaCal, Isracard/Amex/Max), add a pre-scrape delay
     if (isIsracardAmex || isVisaCal) {
       // VisaCal needs longer delays due to API rate limiting
-      const preDelay = isVisaCal 
+      const preDelay = isVisaCal
         ? Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds for VisaCal
         : Math.floor(Math.random() * 5000) + 3000;  // 3-8 seconds for others
-      
+
       sendSSE(res, 'progress', {
         step: 'rate_limit_delay',
         message: `Adding ${Math.round(preDelay / 1000)}s delay to avoid rate limiting...`,
@@ -132,6 +132,17 @@ async function handler(req, res) {
         success: true
       });
     }
+
+    // Show date range being scraped
+    const startDateStr = new Date(options.startDate).toLocaleDateString('en-GB');
+    const todayStr = new Date().toLocaleDateString('en-GB');
+    sendSSE(res, 'progress', {
+      step: 'date_range',
+      message: `📅 Scraping from ${startDateStr} to ${todayStr}`,
+      percent: 4,
+      phase: 'initialization',
+      success: null
+    });
 
     sendSSE(res, 'progress', {
       step: 'browser',
@@ -168,83 +179,83 @@ async function handler(req, res) {
 
     // Track completed steps for better status reporting
     const completedSteps = new Set();
-    
+
     const progressHandler = (companyId, payload) => {
       const stepMessages = {
-        'initializing': { 
-          message: 'Initializing scraper...', 
+        'initializing': {
+          message: 'Initializing scraper...',
           percent: 5,
           phase: 'initialization',
           success: true
         },
-        'startScraping': { 
-          message: 'Starting scrape process...', 
+        'startScraping': {
+          message: 'Starting scrape process...',
           percent: 10,
           phase: 'initialization',
           success: true
         },
-        'loginStarted': { 
-          message: 'Navigating to login page...', 
+        'loginStarted': {
+          message: 'Navigating to login page...',
           percent: 20,
           phase: 'authentication',
           success: null
         },
-        'loginWaitingForOTP': { 
-          message: 'Waiting for OTP verification...', 
+        'loginWaitingForOTP': {
+          message: 'Waiting for OTP verification...',
           percent: 25,
           phase: 'authentication',
           success: null
         },
-        'loginSuccess': { 
-          message: '✓ Login successful', 
+        'loginSuccess': {
+          message: '✓ Login successful',
           percent: 35,
           phase: 'authentication',
           success: true
         },
-        'loginFailed': { 
-          message: '✗ Login failed', 
+        'loginFailed': {
+          message: '✗ Login failed',
           percent: 35,
           phase: 'authentication',
           success: false
         },
-        'changePassword': { 
-          message: 'Password change required', 
+        'changePassword': {
+          message: 'Password change required',
           percent: 30,
           phase: 'authentication',
           success: false
         },
-        'fetchingTransactions': { 
-          message: 'Fetching transactions from website...', 
+        'fetchingTransactions': {
+          message: 'Fetching transactions from website...',
           percent: 45,
           phase: 'data_fetching',
           success: null
         },
-        'gettingAccountDetails': { 
-          message: 'Retrieving account details...', 
+        'gettingAccountDetails': {
+          message: 'Retrieving account details...',
           percent: 50,
           phase: 'data_fetching',
           success: null
         },
-        'accountDetailsReceived': { 
-          message: '✓ Account details received', 
+        'accountDetailsReceived': {
+          message: '✓ Account details received',
           percent: 55,
           phase: 'data_fetching',
           success: true
         },
-        'processingAccount': { 
-          message: `Processing account ${payload?.accountNumber || ''}...`, 
+        'processingAccount': {
+          message: `Processing account ${payload?.accountNumber || ''}...`,
           percent: 60,
           phase: 'processing',
           success: null
         },
-        'processingTransactions': { 
-          message: 'Processing transactions...', 
+        'processingTransactions': {
+          message: 'Processing transactions...',
           percent: 65,
           phase: 'processing',
           success: null
         },
-        'endScraping': { 
-          message: '✓ Scraping completed', 
+        'endScraping': {
+          message: '✓ Scraping completed',
           percent: 75,
           phase: 'processing',
           success: true
@@ -307,7 +318,7 @@ async function handler(req, res) {
               success: null
             });
           }
-          return await runScraperInWorker(scraperOptions, scraperCredentials, progressHandler);
+          return await runScraper(scraperOptions, scraperCredentials, progressHandler);
         },
         maxRetries,
         retryBaseDelay,
@@ -352,7 +363,7 @@ async function handler(req, res) {
       const errorMsg = 'Invalid scraper result: result is not an object';
       logger.error({ resultType: typeof result, result }, '[Scrape Stream] Invalid scraper result structure');
       await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-      sendSSE(res, 'error', { 
+      sendSSE(res, 'error', {
         message: errorMsg,
         hint: 'The scraper returned an invalid result structure. This may indicate a problem with the scraper library or bank website changes.'
       });
@@ -434,13 +445,13 @@ async function handler(req, res) {
     // Validate accounts array exists and is an array
     if (!result.accounts || !Array.isArray(result.accounts)) {
       const errorMsg = `Invalid accounts structure: expected array, got ${typeof result.accounts}`;
-      logger.error({ 
+      logger.error({
         accountsType: typeof result.accounts,
         accountsValue: result.accounts,
         resultKeys: Object.keys(result || {})
       }, '[Scrape Stream] Invalid accounts structure');
       await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-      sendSSE(res, 'error', { 
+      sendSSE(res, 'error', {
         message: errorMsg,
         hint: 'The scraper returned accounts in an unexpected format. This may be due to website changes or temporary issues.'
       });
@@ -450,7 +461,7 @@ async function handler(req, res) {
 
     for (let i = 0; i < result.accounts.length; i++) {
       const account = result.accounts[i];
-      
+
       sendSSE(res, 'progress', {
         step: 'processing_account',
         message: `Processing account ${i + 1}/${result.accounts.length} (${account.accountNumber || 'unknown'})...`,
@@ -481,8 +492,8 @@ async function handler(req, res) {
 
       // Defensive check: ensure txns is an array
       if (!account.txns || !Array.isArray(account.txns)) {
-        logger.warn({ 
-          accountNumber: account.accountNumber, 
+        logger.warn({
+          accountNumber: account.accountNumber,
           txnsType: typeof account.txns,
           txnsValue: account.txns,
           accountKeys: Object.keys(account || {})
@@ -503,7 +514,7 @@ async function handler(req, res) {
         const hadCategory = txn.category && txn.category !== 'N/A';
         const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
         const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency);
-        
+
         if (insertResult.duplicated) {
           duplicateTransactions++;
           accountDuplicates++;
@@ -511,7 +522,7 @@ async function handler(req, res) {
           savedTransactions++;
           accountSaved++;
         }
-        
+
         if (!hadCategory && lookupCachedCategory(txn.description, cache)) {
           cachedCategoryCount++;
         }

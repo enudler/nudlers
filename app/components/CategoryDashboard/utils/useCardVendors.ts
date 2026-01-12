@@ -21,7 +21,12 @@ async function fetchCardVendors(): Promise<CardVendorMapping> {
   }
   
   fetchPromise = fetch('/api/card_vendors')
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Failed to fetch card vendors: ${res.status} ${res.statusText}`);
+      }
+      return res.json();
+    })
     .then(data => {
       const mapping: CardVendorMapping = {};
       for (const card of data) {

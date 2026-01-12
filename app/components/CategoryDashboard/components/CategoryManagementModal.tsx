@@ -194,8 +194,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update category');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update category');
+        } else {
+          throw new Error(`Failed to update category: ${response.status} ${response.statusText}`);
+        }
       }
 
       const result = await response.json();
@@ -257,27 +262,42 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const fetchCategories = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const response = await fetch('/api/get_all_categories');
-      if (!response.ok) throw new Error('Failed to fetch categories');
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
+        throw new Error(errorMessage);
+      }
       
       const categoryNames = await response.json();
       
       // Get transaction counts for each category
       const categoriesWithCounts = await Promise.all(
         categoryNames.map(async (name: string) => {
-          const countResponse = await fetch(`/api/category_expenses?month=all&category=${encodeURIComponent(name)}`);
-          const transactions = await countResponse.json();
-          return {
-            name,
-            count: Array.isArray(transactions) ? transactions.length : 0
-          };
+          try {
+            const countResponse = await fetch(`/api/category_expenses?all=true&category=${encodeURIComponent(name)}`);
+            if (!countResponse.ok) {
+              console.warn(`Failed to fetch count for category "${name}": ${countResponse.status}`);
+              return { name, count: 0 };
+            }
+            const transactions = await countResponse.json();
+            return {
+              name,
+              count: Array.isArray(transactions) ? transactions.length : 0
+            };
+          } catch (err) {
+            console.warn(`Error fetching count for category "${name}":`, err);
+            return { name, count: 0 };
+          }
         })
       );
       
       setCategories(categoriesWithCounts.sort((a, b) => b.count - a.count));
     } catch (error) {
-      console.error('Error fetching categories:', error);
-      setError('Failed to load categories');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error fetching categories:', errorMessage);
+      setError(`Failed to load categories: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -335,8 +355,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to merge categories');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to merge categories');
+        } else {
+          throw new Error(`Failed to merge categories: ${response.status} ${response.statusText}`);
+        }
       }
 
       setSuccess(`Successfully merged ${selectedCategories.length} categories into "${newCategoryName}"`);
@@ -413,8 +438,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to rename category');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to rename category');
+        } else {
+          throw new Error(`Failed to rename category: ${response.status} ${response.statusText}`);
+        }
       }
 
       const result = await response.json();
@@ -472,8 +502,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete category');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete category');
+        } else {
+          throw new Error(`Failed to delete category: ${response.status} ${response.statusText}`);
+        }
       }
 
       const result = await response.json();
@@ -515,8 +550,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create rule');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create rule');
+        } else {
+          throw new Error(`Failed to create rule: ${response.status} ${response.statusText}`);
+        }
       }
 
       setSuccess('Rule created successfully');
@@ -546,8 +586,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update rule');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update rule');
+        } else {
+          throw new Error(`Failed to update rule: ${response.status} ${response.statusText}`);
+        }
       }
 
       setSuccess('Rule updated successfully');
@@ -577,8 +622,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete rule');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete rule');
+        } else {
+          throw new Error(`Failed to delete rule: ${response.status} ${response.statusText}`);
+        }
       }
 
       setSuccess('Rule deleted successfully');
@@ -606,8 +656,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to apply rules');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to apply rules');
+        } else {
+          throw new Error(`Failed to apply rules: ${response.status} ${response.statusText}`);
+        }
       }
 
       const result = await response.json();

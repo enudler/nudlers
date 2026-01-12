@@ -246,12 +246,17 @@ export const fetchCategories = async (): Promise<string[]> => {
   try {
     const response = await fetch('/api/get_all_categories');
     if (!response.ok) {
-      throw new Error('Failed to fetch categories');
+      const errorText = await response.text().catch(() => 'Unknown error');
+      const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
     }
     return await response.json();
   } catch (error) {
-    console.error('Error fetching categories:', error);
-    return Object.keys(defaultIconMap); // Return default categories as fallback
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Error fetching categories:', errorMessage);
+    // Return default categories as fallback
+    return Object.keys(defaultIconMap);
   }
 };
 

@@ -21,7 +21,7 @@ import {
   getRateLimitedTimeoutSetting,
   retryWithBackoff,
   sleep,
-  runScraperInWorker,
+  runScraper,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -76,7 +76,7 @@ async function handler(req, res) {
     // For rate-limited vendors (VisaCal, Isracard/Amex/Max), add a pre-scrape delay to avoid rate limiting
     if (isIsracardAmex || isVisaCal) {
       // VisaCal needs longer delays due to API rate limiting
-      const preDelay = isVisaCal 
+      const preDelay = isVisaCal
         ? Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds for VisaCal
         : Math.floor(Math.random() * 5000) + 3000;  // 3-8 seconds for others
       logger.info({ vendor: options.companyId, delaySeconds: Math.round(preDelay / 1000) }, '[Scraper] Rate-limited vendor detected, adding pre-scrape delay');
@@ -112,7 +112,7 @@ async function handler(req, res) {
     try {
       result = await retryWithBackoff(
         async () => {
-          return await runScraperInWorker(scraperOptions, scraperCredentials);
+          return await runScraper(scraperOptions, scraperCredentials);
         },
         maxRetries,
         retryBaseDelay,
@@ -171,8 +171,8 @@ async function handler(req, res) {
 
       // Defensive check: ensure txns is an array
       if (!account.txns || !Array.isArray(account.txns)) {
-        logger.warn({ 
-          accountNumber: account.accountNumber, 
+        logger.warn({
+          accountNumber: account.accountNumber,
           txnsType: typeof account.txns,
           txnsValue: account.txns,
           accountKeys: Object.keys(account || {})

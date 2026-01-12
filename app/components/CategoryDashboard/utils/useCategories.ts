@@ -8,17 +8,21 @@ export const useCategories = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       setLoading(true);
+      setError(null);
       try {
         const response = await fetch('/api/get_all_categories');
         if (response.ok) {
           const data = await response.json();
           setCategories(data);
         } else {
-          throw new Error('Failed to fetch categories');
+          const errorText = await response.text().catch(() => 'Unknown error');
+          const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
+          throw new Error(errorMessage);
         }
       } catch (err) {
-        setError(err as Error);
-        console.error('Error fetching categories:', err);
+        const error = err instanceof Error ? err : new Error('Unknown error occurred');
+        setError(error);
+        console.error('Error fetching categories:', error.message);
       } finally {
         setLoading(false);
       }

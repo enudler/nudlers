@@ -37,7 +37,6 @@ interface Settings {
   fetch_categories_from_scrapers: boolean;
   scraper_timeout_standard: number;
   scraper_timeout_rate_limited: number;
-  israeli_bank_scrapers_version: string;
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -102,15 +101,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     show_browser: false,
     fetch_categories_from_scrapers: true,
     scraper_timeout_standard: 60000,
-    scraper_timeout_rate_limited: 120000,
-    israeli_bank_scrapers_version: 'none'
+    scraper_timeout_rate_limited: 120000
   });
   const [loading, setLoading] = useState(true);
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [originalSettings, setOriginalSettings] = useState<Settings | null>(null);
-  const [versionInput, setVersionInput] = useState<string>('');
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -130,13 +126,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             ? true  // Default to true if not set
             : parseBool(data.settings.fetch_categories_from_scrapers),
           scraper_timeout_standard: parseInt(data.settings.scraper_timeout_standard) || 60000,
-          scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000,
-          israeli_bank_scrapers_version: (data.settings.israeli_bank_scrapers_version || 'none').replace(/"/g, '')
+          scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000
         };
         setSettings(newSettings);
-        setVersionInput(newSettings.israeli_bank_scrapers_version);
         setOriginalSettings(newSettings);
-        setCurrentVersion(data.settings.current_scrapers_version || 'unknown');
         setHasInitialLoad(true);
       }
     } catch (error) {
@@ -187,76 +180,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       setResult({ type: 'error', message: 'Failed to auto-save settings' });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const [updateState, setUpdateState] = useState<'idle' | 'validating' | 'installing' | 'restarting'>('idle');
-  const [countdown, setCountdown] = useState(30);
-
-  const handleUpdateLibrary = async () => {
-    if (!window.confirm('This will install the selected version. The new version will be used for the next scrape. Proceed?')) {
-      return;
-    }
-
-    setUpdateState('validating');
-    setResult(null);
-
-    try {
-      // Step 1: Validate
-      const valResponse = await fetch('/api/settings/update-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          version: versionInput,
-          validateOnly: true
-        })
-      });
-
-      let valData: any = {};
-      try {
-        valData = await valResponse.json();
-      } catch (e) {
-        console.error('Failed to parse validation response', e);
-      }
-
-      if (!valResponse.ok) {
-        setResult({ type: 'error', message: `Update failed: ${valData.error || `Validation failed (Status: ${valResponse.status})`}` });
-        setUpdateState('idle');
-        return;
-      }
-
-      // Step 2: Install
-      setUpdateState('installing');
-      const response = await fetch('/api/settings/update-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version: versionInput })
-      });
-
-      let data: any = {};
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error('Failed to parse install response', e);
-      }
-
-      if (response.ok) {
-        setUpdateState('restarting'); // We use this state to show 'Reloading...'
-        setResult({ type: 'success', message: 'Library updated! Reloading UI to apply changes...' });
-
-        // Short delay before reload just to show the message
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } else {
-        setResult({ type: 'error', message: `Update failed: ${data.error || `Installation failed (Status: ${response.status})`}` });
-        setUpdateState('idle');
-        return;
-      }
-    } catch (error: any) {
-      console.error('Update error:', error);
-      setResult({ type: 'error', message: `Update failed: ${error.message}` });
-      setUpdateState('idle');
     }
   };
 
@@ -514,53 +437,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   sx={{ width: '120px' }}
                   inputProps={{ min: 1000, step: 1000 }}
                 />
-              </SettingRow>
-
-              <SettingRow>
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="body1">
-                    Library Version
-                    {currentVersion && currentVersion !== 'unknown' && (
-                      <Chip
-                        label={`Current: ${currentVersion}`}
-                        size="small"
-                        sx={{ ml: 1, height: '20px', fontSize: '11px', background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa' }}
-                      />
-                    )}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-                    Specify version/branch for <code style={{ color: '#60a5fa' }}>israeli-bank-scrapers</code> (e.g., "latest", "master", "6.6.0").
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <StyledTextField
-                    value={versionInput}
-                    onChange={(e) => setVersionInput(e.target.value.trim())}
-                    size="small"
-                    sx={{ width: '150px' }}
-                    placeholder="none"
-                  />
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleUpdateLibrary}
-                    disabled={updateState !== 'idle' || versionInput === 'none' || versionInput === currentVersion}
-                    sx={{
-                      borderColor: 'rgba(96, 165, 250, 0.5)',
-                      color: '#60a5fa',
-                      minWidth: '150px',
-                      '&:hover': {
-                        borderColor: '#60a5fa',
-                        background: 'rgba(96, 165, 250, 0.1)',
-                      },
-                    }}
-                  >
-                    {updateState === 'validating' ? 'Checking...' :
-                      updateState === 'installing' ? 'Installing...' :
-                        updateState === 'restarting' ? 'Reloading...' :
-                          'Update Library'}
-                  </Button>
-                </Box>
               </SettingRow>
             </SettingSection>
           </>

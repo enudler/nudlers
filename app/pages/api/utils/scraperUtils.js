@@ -8,16 +8,7 @@
 
 import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants';
 import { generateTransactionIdentifier } from './transactionUtils.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-import fs from 'fs';
-
-const require = createRequire(import.meta.url);
-const cp = require('child_process');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { createScraper } from 'israeli-bank-scrapers';
 
 import logger from '../../../utils/logger.js';
 import {
@@ -383,118 +374,79 @@ export function formatLocalDate(date) {
 }
 
 /**
- * Runs the scraper in an isolated worker process (hot-reload compatible)
+ * Runs the scraper directly in the main process
  * @param {Object} scraperOptions - Options for createScraper
  * @param {Object} credentials - Scraper credentials
  * @param {Function} onProgress - Progress callback
  */
-export function runScraperInWorker(scraperOptions, credentials, onProgress) {
-  return new Promise((resolve, reject) => {
-    // Path to runner.js relative to the project root
-    // In standalone build, process.cwd() is the root of the standalone folder
-    // We use join with a dynamic element to hide this from the Turbopack optimizer/tracer
-    const scrapersDir = 'scrapers';
-    // Try multiple possible paths for runner.js
-    let runnerPath = path.join(process.cwd(), scrapersDir, 'runner.js');
-    
-    // If running from app directory, adjust path
-    if (!fs.existsSync(runnerPath) && process.cwd().endsWith('app')) {
-      runnerPath = path.join(process.cwd(), '..', scrapersDir, 'runner.js');
+export async function runScraper(scraperOptions, credentials, onProgress) {
+  logger.info({ companyId: scraperOptions.companyId }, '[Scraper] Starting Direct Scrape');
+
+  // Fix non-serializable options (just in case they came from JSON)
+  const startDate = new Date(scraperOptions.startDate);
+
+  // Add non-serializable options like preparePage
+  const isRateLimited = RATE_LIMITED_VENDORS.includes(scraperOptions.companyId);
+
+  const options = {
+    ...scraperOptions,
+    startDate,
+    preparePage: getPreparePage(isRateLimited)
+  };
+
+  logger.info('[Scraper] Creating scraper instance');
+  const scraper = createScraper(options);
+
+  // Listen for internal scraper events
+  if (scraper && typeof scraper.on === 'function') {
+    scraper.on('progress', (companyId, progress) => {
+      logger.debug({ companyId, progressType: progress?.type || 'unknown' }, '[Scraper] Progress event');
+      if (onProgress) {
+        onProgress(companyId, progress);
+      }
+    });
+  }
+
+  logger.info('[Scraper] Starting scrape execution');
+
+  // Log credentials structure (masked)
+  const maskedCreds = Object.fromEntries(
+    Object.entries(credentials || {}).map(([k, v]) => [
+      k,
+      v ? `${String(v).substring(0, 2)}***${String(v).substring(String(v).length - 2)} (${String(v).length} chars)` : 'EMPTY'
+    ])
+  );
+  logger.info({
+    companyId: scraperOptions.companyId,
+    credentialKeys: Object.keys(credentials || {}),
+    credentials: maskedCreds
+  }, '[Scraper] Credentials ready');
+
+  try {
+    const result = await scraper.scrape(credentials);
+    logger.info({ success: result?.success }, '[Scraper] Scrape completed');
+
+    // We don't need complex sanitization since we are in the same process,
+    // but we should still ensure the result structure matches what the API expects
+
+    // Ensure accounts is an array if present
+    if (result.success && result.accounts && !Array.isArray(result.accounts)) {
+      result.accounts = [];
     }
-    // If still not found, try app/scrapers
-    if (!fs.existsSync(runnerPath)) {
-      runnerPath = path.join(process.cwd(), 'app', scrapersDir, 'runner.js');
-    }
-    
-    logger.info({ companyId: scraperOptions.companyId, runnerPath, pathExists: fs.existsSync(runnerPath), cwd: process.cwd() }, '[Worker] Spawning worker');
-    
-    if (!fs.existsSync(runnerPath)) {
-      reject(new Error(`Scraper runner not found at ${runnerPath}. Please ensure runner.js exists in the scrapers directory.`));
-      return;
-    }
 
-    // Use eval to hide the call from Turbopack's static analysis
-    const forkFn = eval('cp.fork');
-    const worker = forkFn(runnerPath, [], {
-      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-      env: { ...process.env }
-    });
+    return result;
+  } catch (err) {
+    logger.error({
+      error: err.message,
+      stack: err.stack,
+      name: err.name,
+      vendor: scraperOptions.companyId
+    }, '[Scraper] Fatal error during scrape');
 
-    let result = null;
-    let workerReady = false;
-    let scrapeStarted = false;
-    const timeout = scraperOptions.timeout || scraperOptions.defaultTimeout || 120000;
-    let timeoutHandle = null;
-
-    // Set up timeout to detect hanging workers
-    timeoutHandle = setTimeout(() => {
-      if (!result && !scrapeStarted) {
-        logger.error({ timeout }, '[Worker] Timeout: Worker did not start scraping');
-        worker.kill('SIGTERM');
-        reject(new Error(`Scraper timeout: Worker did not start scraping within ${timeout / 1000} seconds. The scraper may be hanging or the website may be blocking automation.`));
-      } else if (!result && scrapeStarted) {
-        logger.error({ timeout }, '[Worker] Timeout: Scraper exceeded timeout');
-        worker.kill('SIGTERM');
-        reject(new Error(`Scraper timeout: The scraping process exceeded the timeout of ${timeout / 1000} seconds. This may indicate the website is slow or blocking automation.`));
-      }
-    }, timeout + 10000); // Add 10 seconds buffer
-
-    worker.on('message', (message) => {
-      logger.debug({ messageType: message.type }, '[Worker] Received message');
-      if (message.type === 'ready') {
-        workerReady = true;
-        logger.info('[Worker] Worker ready, sending scrape command');
-        worker.send({ action: 'scrape', scraperOptions, credentials });
-      } else if (message.type === 'progress') {
-        scrapeStarted = true;
-        if (onProgress) {
-          logger.debug({ progress: message.progress }, '[Worker] Progress update');
-          onProgress(message.companyId, message.progress);
-        }
-      } else if (message.type === 'success') {
-        clearTimeout(timeoutHandle);
-        result = message.result;
-        logger.info({ accountCount: result.accounts?.length || 0 }, '[Worker] Scrape successful');
-        worker.kill();
-        resolve(result);
-      } else if (message.type === 'error') {
-        clearTimeout(timeoutHandle);
-        const err = new Error(message.errorMessage || 'Unknown error in scraper worker');
-        err.errorType = message.error;
-        logger.error({ error: err.message }, '[Worker] Scrape error');
-        worker.kill();
-        reject(err);
-      }
-    });
-
-    worker.on('exit', (code, signal) => {
-      clearTimeout(timeoutHandle);
-      logger.info({ code, signal }, '[Worker] Worker exited');
-      if (code !== 0 && !result) {
-        reject(new Error(`Scraper worker exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`));
-      } else if (result) {
-        resolve(result);
-      } else if (code === 0) {
-        // Worker exited cleanly but no result - might have been killed
-        reject(new Error('Scraper worker exited unexpectedly without completing'));
-      }
-    });
-
-    worker.on('error', (err) => {
-      clearTimeout(timeoutHandle);
-      logger.error({ error: err.message, stack: err.stack }, '[Worker] Fatal error');
-      reject(err);
-    });
-
-    // Handle case where worker doesn't send 'ready' message
-    setTimeout(() => {
-      if (!workerReady) {
-        logger.error('[Worker] Worker did not send ready message within 5 seconds');
-        worker.kill('SIGTERM');
-        reject(new Error('Scraper worker failed to initialize. Check if runner.js exists and is executable.'));
-      }
-    }, 5000);
-  });
+    // Re-throw or format error similar to how worker did?
+    // The API endpoint catching this likely expects an Error object.
+    throw err;
+  }
 }
 
 // Re-export specific settings helpers

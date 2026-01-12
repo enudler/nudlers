@@ -78,7 +78,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [retryState, setRetryState] = useState<RetryState | null>(null);
-  const [stepHistory, setStepHistory] = useState<Array<{step: string, message: string, success: boolean | null, phase?: string}>>([]);
+  const [stepHistory, setStepHistory] = useState<Array<{ step: string, message: string, success: boolean | null, phase?: string }>>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { showNotification } = useNotification();
   const todayStr = new Date().toISOString().split('T')[0];
@@ -165,7 +165,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
 
   const handleRetry = async (continueFromLastDate: boolean) => {
     if (!retryState) return;
-    
+
     // If user wants to continue from where it stopped, use the last transaction date
     if (continueFromLastDate && retryState.lastTransactionDate) {
       // Start from the day after the last transaction to avoid re-fetching it
@@ -176,11 +176,11 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       // Retry from the original start date
       handleConfigChange('options.startDate', retryState.originalStartDate);
     }
-    
+
     // Clear retry state and error, then start scraping
     setRetryState(null);
     setError(null);
-    
+
     // Small delay to allow state to update before starting scrape
     setTimeout(() => {
       handleScrape();
@@ -222,11 +222,11 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        
+
         // Parse SSE events from buffer
         const lines = buffer.split('\n');
         buffer = lines.pop() || ''; // Keep incomplete line in buffer
@@ -237,7 +237,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             currentEvent = line.slice(7);
           } else if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6));
-            
+
             if (currentEvent === 'progress') {
               const progressData = {
                 step: data.step,
@@ -249,7 +249,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                 details: data.details
               };
               setProgress(progressData);
-              
+
               // Track step history for display
               if (data.success !== null || data.message.includes('✓') || data.message.includes('✗')) {
                 setStepHistory(prev => {
@@ -289,7 +289,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
       setError(errorMessage);
       setProgress(null);
-      
+
       // Set up retry state - fetch last transaction date for this vendor
       const lastDate = await fetchLastTransactionDate(config.options.companyId);
       setRetryState({
@@ -579,9 +579,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           </Typography>
         </Box>
       </Box>
-      
-      <LinearProgress 
-        variant="determinate" 
+
+      <LinearProgress
+        variant="determinate"
         value={progress?.percent || 0}
         sx={{
           height: 8,
@@ -595,7 +595,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           }
         }}
       />
-      
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: stepHistory.length > 0 ? 2 : 0 }}>
         <Typography variant="body2" sx={{ color: '#6b7280' }}>
           {progress?.percent || 0}%
@@ -609,10 +609,10 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
 
       {/* Step History */}
       {stepHistory.length > 0 && (
-        <Box sx={{ 
-          mt: 2, 
-          p: 2, 
-          backgroundColor: '#f9fafb', 
+        <Box sx={{
+          mt: 2,
+          p: 2,
+          backgroundColor: '#f9fafb',
           borderRadius: 2,
           border: '1px solid #e5e7eb',
           maxHeight: 200,
@@ -639,10 +639,10 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       )}
 
       {scrapeResult && (
-        <Box sx={{ 
-          mt: 3, 
-          p: 2, 
-          backgroundColor: '#f0fdf4', 
+        <Box sx={{
+          mt: 3,
+          p: 2,
+          backgroundColor: '#f0fdf4',
           borderRadius: 2,
           border: '1px solid #bbf7d0'
         }}>
@@ -669,8 +669,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   );
 
   return (
-    <Dialog 
-      open={isOpen} 
+    <Dialog
+      open={isOpen}
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
@@ -696,7 +696,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
               {error}
             </Typography>
-            
+
             {retryState?.canRetry && (
               <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <Typography variant="body2" sx={{ color: '#991b1b', mb: 1 }}>
@@ -718,7 +718,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                   >
                     Retry from {config.options.startDate.toLocaleDateString()}
                   </Button>
-                  
+
                   {retryState.lastTransactionDate && (
                     <Button
                       size="small"
@@ -752,11 +752,11 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
               Scraping <strong>{config.options.companyId}</strong>
               {config.credentials.nickname && ` (${config.credentials.nickname})`}
             </Typography>
-            
+
             {config.options.showBrowser && isLoading && (
-              <Box sx={{ 
-                p: 2, 
-                backgroundColor: '#dbeafe', 
+              <Box sx={{
+                p: 2,
+                backgroundColor: '#dbeafe',
                 borderRadius: 2,
                 border: '1px solid #93c5fd',
                 display: 'flex',
@@ -777,9 +777,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                     </Typography>
                     <Typography variant="caption" sx={{ color: '#3b82f6' }}>
                       <strong>🐳 Docker:</strong>{' '}
-                      <a 
-                        href="/vnc" 
-                        target="_blank" 
+                      <a
+                        href="/vnc"
+                        target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: '#2563eb', textDecoration: 'underline' }}
                       >
@@ -791,7 +791,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                 </Box>
               </Box>
             )}
-            
+
             {renderProgress()}
           </Box>
         ) : (

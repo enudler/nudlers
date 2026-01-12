@@ -35,6 +35,7 @@ import { useCategories } from '../utils/useCategories';
 import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
 import { TABLE_HEADER_CELL_STYLE, TABLE_BODY_CELL_STYLE, TABLE_ROW_HOVER_STYLE, TABLE_ROW_HOVER_BACKGROUND } from '../utils/tableStyles';
+import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
 type SortField = 'date' | 'amount' | 'installments';
 type SortDirection = 'asc' | 'desc';
@@ -63,14 +64,15 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
   });
   const [sortField, setSortField] = React.useState<SortField>('date');
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc');
+  const [confirmDeleteExpense, setConfirmDeleteExpense] = React.useState<Expense | null>(null);
 
   // Sort function for expenses
   const getSortedData = React.useCallback((expenses: Expense[]) => {
     if (!Array.isArray(expenses)) return expenses;
-    
+
     return [...expenses].sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortField) {
         case 'date':
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -86,7 +88,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           comparison = installA - installB;
           break;
       }
-      
+
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [sortField, sortDirection]);
@@ -142,7 +144,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
   const handleEditClick = (expense: Expense) => {
     setEditingExpense(expense);
     setEditPrice(Math.abs(expense.price).toString());
-    setEditCategory(expense.category || data.type);
+    setEditCategory(expense.category || 'Uncategorized');
     setApplyToAll(false); // Default to single transaction only
   };
 
@@ -151,9 +153,9 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       const newPrice = parseFloat(editPrice);
       if (!isNaN(newPrice)) {
         const priceWithSign = editingExpense.price < 0 ? -newPrice : newPrice;
-        const categoryChanged = editCategory !== editingExpense.category && editCategory !== data.type;
+        const categoryChanged = editCategory !== editingExpense.category && editCategory !== (editingExpense.category || 'Uncategorized');
         const priceChanged = priceWithSign !== editingExpense.price;
-        
+
         try {
           if (categoryChanged) {
             if (applyToAll) {
@@ -169,40 +171,40 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   createRule: true
                 }),
               });
-              
+
               if (response.ok) {
                 const result = await response.json();
-                
+
                 // Update all matching items in local data
-                const updatedData = data.data.map((item: Expense) => 
+                const updatedData = data.data.map((item: Expense) =>
                   item.name === editingExpense.name
                     ? { ...item, category: editCategory }
                     : item
                 );
-                
+
                 // Also update price for the specific transaction
-                const finalData = updatedData.map((item: Expense) => 
+                const finalData = updatedData.map((item: Expense) =>
                   item.identifier === editingExpense.identifier && item.vendor === editingExpense.vendor
                     ? { ...item, price: priceWithSign }
                     : item
                 );
-                
+
                 setModalData?.({
                   ...data,
                   data: finalData
                 });
-                
+
                 // Show success message with count
                 const message = result.transactionsUpdated > 1
                   ? `Updated ${result.transactionsUpdated} transactions with "${editingExpense.name}" to "${editCategory}". Rule saved for future transactions.`
                   : `Category updated to "${editCategory}". Rule saved for future transactions.`;
-                
+
                 setSnackbar({
                   open: true,
                   message,
                   severity: 'success'
                 });
-                
+
                 // Trigger a refresh of the dashboard data
                 window.dispatchEvent(new CustomEvent('dataRefresh'));
               } else {
@@ -219,31 +221,31 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                   category: editCategory,
                   ...(priceChanged && { price: priceWithSign })
                 }),
               });
-              
+
               if (response.ok) {
                 // Update only this transaction in local data
-                const updatedData = data.data.map((item: Expense) => 
+                const updatedData = data.data.map((item: Expense) =>
                   item.identifier === editingExpense.identifier && item.vendor === editingExpense.vendor
                     ? { ...item, category: editCategory, price: priceWithSign }
                     : item
                 );
-                
+
                 setModalData?.({
                   ...data,
                   data: updatedData
                 });
-                
+
                 setSnackbar({
                   open: true,
                   message: `Category updated to "${editCategory}" for this transaction only.`,
                   severity: 'success'
                 });
-                
+
                 // Trigger a refresh of the dashboard data
                 window.dispatchEvent(new CustomEvent('dataRefresh'));
               } else {
@@ -263,20 +265,20 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
               },
               body: JSON.stringify({ price: priceWithSign }),
             });
-            
+
             if (response.ok) {
               // Update the local data
-              const updatedData = data.data.map((item: Expense) => 
+              const updatedData = data.data.map((item: Expense) =>
                 item.identifier === editingExpense.identifier && item.vendor === editingExpense.vendor
                   ? { ...item, price: priceWithSign }
                   : item
               );
-              
+
               setModalData?.({
                 ...data,
                 data: updatedData
               });
-              
+
               // Trigger a refresh of the dashboard data
               window.dispatchEvent(new CustomEvent('dataRefresh'));
             } else {
@@ -291,7 +293,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             severity: 'error'
           });
         }
-        
+
         setEditingExpense(null);
       }
     }
@@ -315,30 +317,43 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     }
   };
 
-  const handleDeleteTransaction = async (expense: Expense) => {
+  const handleDeleteTransaction = async () => {
+    if (!confirmDeleteExpense) return;
+
+    const expense = confirmDeleteExpense;
     try {
       // Use identifier-based delete if available, otherwise fall back to name-based delete
       if (expense.identifier && expense.vendor) {
         const response = await fetch(`/api/transactions/${expense.identifier}|${expense.vendor}`, {
           method: 'DELETE',
         });
-        
+
         if (response.ok) {
           // Remove the transaction from the local data
-          const updatedData = data.data.filter((item: Expense) => 
+          const updatedData = data.data.filter((item: Expense) =>
             !(item.identifier === expense.identifier && item.vendor === expense.vendor)
           );
-          
+
           // Update the modal data if setModalData is provided
           setModalData?.({
             ...data,
             data: updatedData
           });
-          
+
+          setSnackbar({
+            open: true,
+            message: 'Transaction deleted successfully',
+            severity: 'success'
+          });
+
           // Trigger a refresh of the dashboard data
           window.dispatchEvent(new CustomEvent('dataRefresh'));
         } else {
-          console.error('Failed to delete transaction');
+          setSnackbar({
+            open: true,
+            message: 'Failed to delete transaction',
+            severity: 'error'
+          });
         }
       } else {
         // Fallback to name-based delete for backward compatibility
@@ -354,35 +369,50 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             category: data.type === "Bank Transactions" ? 'Bank' : (expense.category || data.type)
           }),
         });
-        
+
         if (response.ok) {
           // Remove the transaction from the local data
-          const updatedData = data.data.filter((item: Expense) => 
-            !(item.name === expense.name && 
-              item.date === expense.date && 
+          const updatedData = data.data.filter((item: Expense) =>
+            !(item.name === expense.name &&
+              item.date === expense.date &&
               item.price === expense.price)
           );
-          
+
           // Update the modal data if setModalData is provided
           setModalData?.({
             ...data,
             data: updatedData
           });
-          
+
+          setSnackbar({
+            open: true,
+            message: 'Transaction deleted successfully',
+            severity: 'success'
+          });
+
           // Trigger a refresh of the dashboard data
           window.dispatchEvent(new CustomEvent('dataRefresh'));
         } else {
-          console.error('Failed to delete transaction');
+          setSnackbar({
+            open: true,
+            message: 'Failed to delete transaction',
+            severity: 'error'
+          });
         }
       }
     } catch (error) {
       console.error("Error deleting transaction:", error);
+      setSnackbar({
+        open: true,
+        message: 'Error deleting transaction',
+        severity: 'error'
+      });
     }
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={onClose}
       maxWidth="lg"
       fullWidth
@@ -407,8 +437,8 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       <ModalHeader title={data.type} onClose={onClose} />
       <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
         {data.type !== "Bank Transactions" && (
-          <Box sx={{ 
-            mb: 4, 
+          <Box sx={{
+            mb: 4,
             p: 3,
             borderRadius: '20px',
             background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%)',
@@ -504,8 +534,8 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                 padding: '8px 14px',
                 borderRadius: '10px',
                 border: sortField === field ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(148, 163, 184, 0.2)',
-                background: sortField === field 
-                  ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)' 
+                background: sortField === field
+                  ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)'
                   : 'rgba(255, 255, 255, 0.8)',
                 color: sortField === field ? '#3b82f6' : '#64748b',
                 fontSize: '13px',
@@ -516,7 +546,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             >
               {label}
               {sortField === field && (
-                sortDirection === 'asc' 
+                sortDirection === 'asc'
                   ? <ArrowUpwardIcon sx={{ fontSize: '16px' }} />
                   : <ArrowDownwardIcon sx={{ fontSize: '16px' }} />
               )}
@@ -532,332 +562,332 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
           backdropFilter: 'blur(10px)'
         }}>
-        <Table
-          onClick={handleTableClick}
-        >
-          <TableHead>
-            <TableRow>
-              <TableCell style={{ ...TABLE_HEADER_CELL_STYLE, width: '200px', maxWidth: '200px' }}>Description</TableCell>
-              <TableCell style={TABLE_HEADER_CELL_STYLE}>Category</TableCell>
-              <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Amount</TableCell>
-              <TableCell style={TABLE_HEADER_CELL_STYLE}>Installment</TableCell>
-              <TableCell style={TABLE_HEADER_CELL_STYLE}>Card</TableCell>
-              <TableCell style={TABLE_HEADER_CELL_STYLE}>Date</TableCell>
-              <TableCell align="center" style={{ ...TABLE_HEADER_CELL_STYLE, width: '120px' }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {Array.isArray(sortedExpenses) ? sortedExpenses.map((expense: Expense, index) => (
-              <TableRow 
-                key={index}
-                onClick={() => handleRowClick(expense)}
-                style={TABLE_ROW_HOVER_STYLE}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = TABLE_ROW_HOVER_BACKGROUND;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <TableCell style={TABLE_BODY_CELL_STYLE}>
-                  {expense.name}
-                </TableCell>
-                <TableCell style={TABLE_BODY_CELL_STYLE}>
-                  {editingExpense?.identifier === expense.identifier && 
-                   editingExpense?.vendor === expense.vendor ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <Autocomplete
-                        value={editCategory}
-                        onChange={(event, newValue) => setEditCategory(newValue || '')}
-                        onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                        freeSolo
-                        options={availableCategories}
-                        size="small"
-                        sx={{
-                          minWidth: 120,
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: '#e2e8f0',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: '#3b82f6',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#3b82f6',
-                            },
-                          },
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            placeholder="Enter category..."
-                            sx={{
-                              '& .MuiInputBase-input': {
-                                fontSize: '14px',
-                                padding: '6px 10px',
+          <Table
+            onClick={handleTableClick}
+          >
+            <TableHead>
+              <TableRow>
+                <TableCell style={{ ...TABLE_HEADER_CELL_STYLE, width: '200px', maxWidth: '200px' }}>Description</TableCell>
+                <TableCell style={TABLE_HEADER_CELL_STYLE}>Category</TableCell>
+                <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Amount</TableCell>
+                <TableCell style={TABLE_HEADER_CELL_STYLE}>Installment</TableCell>
+                <TableCell style={TABLE_HEADER_CELL_STYLE}>Card</TableCell>
+                <TableCell style={TABLE_HEADER_CELL_STYLE}>Date</TableCell>
+                <TableCell align="center" style={{ ...TABLE_HEADER_CELL_STYLE, width: '120px' }}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Array.isArray(sortedExpenses) ? sortedExpenses.map((expense: Expense, index) => (
+                <TableRow
+                  key={index}
+                  onClick={() => handleRowClick(expense)}
+                  style={TABLE_ROW_HOVER_STYLE}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = TABLE_ROW_HOVER_BACKGROUND;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <TableCell style={TABLE_BODY_CELL_STYLE}>
+                    {expense.name}
+                  </TableCell>
+                  <TableCell style={TABLE_BODY_CELL_STYLE}>
+                    {editingExpense?.identifier === expense.identifier &&
+                      editingExpense?.vendor === expense.vendor ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <Autocomplete
+                          value={editCategory}
+                          onChange={(event, newValue) => setEditCategory(newValue || '')}
+                          onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                          freeSolo
+                          options={availableCategories}
+                          size="small"
+                          sx={{
+                            minWidth: 120,
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#e2e8f0',
                               },
-                            }}
-                          />
+                              '&:hover fieldset': {
+                                borderColor: '#3b82f6',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#3b82f6',
+                              },
+                            },
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Enter category..."
+                              sx={{
+                                '& .MuiInputBase-input': {
+                                  fontSize: '14px',
+                                  padding: '6px 10px',
+                                },
+                              }}
+                            />
+                          )}
+                        />
+                        {editingExpense && editCategory !== editingExpense.category && editCategory !== (editingExpense.category || 'Uncategorized') && (
+                          <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={applyToAll}
+                                  onChange={(e) => setApplyToAll(e.target.checked)}
+                                  size="small"
+                                  sx={{
+                                    color: '#94a3b8',
+                                    '&.Mui-checked': {
+                                      color: '#3b82f6',
+                                    },
+                                    padding: '2px',
+                                  }}
+                                />
+                              }
+                              label={
+                                <Typography sx={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                  Apply to all & create rule
+                                </Typography>
+                              }
+                              sx={{ margin: 0 }}
+                            />
+                          </Tooltip>
                         )}
-                      />
-                      {editingExpense && editCategory !== editingExpense.category && editCategory !== data.type && (
-                        <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={applyToAll}
-                                onChange={(e) => setApplyToAll(e.target.checked)}
-                                size="small"
-                                sx={{
-                                  color: '#94a3b8',
-                                  '&.Mui-checked': {
-                                    color: '#3b82f6',
-                                  },
-                                  padding: '2px',
-                                }}
-                              />
-                            }
-                            label={
-                              <Typography sx={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
-                                Apply to all & create rule
-                              </Typography>
-                            }
-                            sx={{ margin: 0 }}
-                          />
-                        </Tooltip>
-                      )}
-                    </Box>
-                  ) : (
-                    <span
-                      style={{
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        transition: 'all 0.2s ease-in-out',
-                        display: 'inline-block',
-                        minWidth: '60px',
-                        textAlign: 'center',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        color: '#3b82f6',
-                        fontWeight: '500',
-                        fontSize: '13px'
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRowClick(expense);
-                        handleEditClick(expense);
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
-                        e.currentTarget.style.transform = 'scale(1.02)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-                        e.currentTarget.style.transform = 'scale(1)';
-                      }}
-                    >
-                      {expense.category || data.type}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell align="right" style={{ 
-                  ...TABLE_BODY_CELL_STYLE,
-                  color: data.type === "Bank Transactions" 
-                    ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                    : color,
-                  fontWeight: '600'
-                }}>
-                  {editingExpense?.identifier === expense.identifier && 
-                   editingExpense?.vendor === expense.vendor ? (
-                    <TextField
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
-                      size="small"
-                      type="number"
-                      inputProps={{ 
-                        style: { 
-                          textAlign: 'right',
-                          color: data.type === "Bank Transactions" 
-                            ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                            : color
-                        } 
-                      }}
-                      sx={{ 
-                        width: '100px',
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: data.type === "Bank Transactions" 
-                              ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                              : color,
-                          },
-                        },
-                      }}
-                    />
-                  ) : (
-                    (() => {
-                      // Price is already the per-installment amount (combineInstallments: false)
-                      const displayAmount = Math.abs(expense.price);
-                      
-                      // Check if original currency is different from ILS (foreign transaction)
-                      const isForeignCurrency = expense.original_currency && 
-                        !['ILS', '₪', 'NIS'].includes(expense.original_currency);
-                      
-                      // Get the appropriate currency symbol
-                      const getCurrencySymbol = (currency?: string) => {
-                        if (!currency) return '₪';
-                        if (['EUR', '€'].includes(currency)) return '€';
-                        if (['USD', '$'].includes(currency)) return '$';
-                        if (['GBP', '£'].includes(currency)) return '£';
-                        if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
-                        return currency + ' ';
-                      };
-                      
-                      if (data.type === "Bank Transactions") {
-                        return `${expense.price >= 0 ? '+' : ''}₪${formatNumber(displayAmount)}`;
-                      }
-                      
-                      // For foreign currency transactions, show ILS amount with original amount below
-                      if (isForeignCurrency && expense.original_amount) {
-                        const symbol = getCurrencySymbol(expense.original_currency);
-                        // original_amount is also already the per-installment amount
-                        const originalDisplayAmount = Math.abs(expense.original_amount);
-                        
-                        return (
-                          <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <span>₪{formatNumber(displayAmount)}</span>
-                            <span style={{ 
-                              fontSize: '11px', 
-                              color: '#64748b'
-                            }}>
-                              ({symbol}{formatNumber(originalDisplayAmount)})
-                            </span>
-                          </span>
-                        );
-                      }
-                      
-                      return `₪${formatNumber(displayAmount)}`;
-                    })()
-                  )}
-                </TableCell>
-                <TableCell style={{ ...TABLE_BODY_CELL_STYLE, textAlign: 'center' }}>
-                  {expense.installments_total && expense.installments_total > 1 ? (
-                    <span style={{
-                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                      color: '#6366f1',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '500'
-                    }}>
-                      {expense.installments_number}/{expense.installments_total}
-                    </span>
-                  ) : (
-                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
-                  )}
-                </TableCell>
-                <TableCell style={{ ...TABLE_BODY_CELL_STYLE, fontSize: '12px' }}>
-                  {expense.vendor_nickname || expense.vendor || expense.card6_digits || expense.account_number ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <CardVendorIcon vendor={getCardVendor(expense.account_number)} size={24} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span style={{ 
-                          fontWeight: '500', 
-                          color: '#334155',
-                          backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                      </Box>
+                    ) : (
+                      <span
+                        style={{
+                          cursor: 'pointer',
                           padding: '4px 8px',
                           borderRadius: '6px',
-                          display: 'inline-block'
-                        }}>
-                          {getCardNickname(expense.account_number) || expense.vendor_nickname || expense.vendor}
-                        </span>
-                        {(expense.account_number || expense.card6_digits) && (
-                          <span style={{ 
-                            fontSize: '11px', 
-                            color: '#64748b',
-                            paddingLeft: '8px'
-                          }}>
-                            •••• {expense.account_number 
-                              ? expense.account_number.slice(-4) 
-                              : expense.card6_digits?.slice(-4)}
-                          </span>
-                        )}
-                      </div>
-                    </Box>
-                  ) : (
-                    <span style={{ color: '#94a3b8' }}>—</span>
-                  )}
-                </TableCell>
-                <TableCell style={TABLE_BODY_CELL_STYLE}>
-                  {dateUtils.formatDate(expense.date)}
-                </TableCell>
-                <TableCell align="center" style={TABLE_BODY_CELL_STYLE}>
-                  {editingExpense?.identifier === expense.identifier && 
-                   editingExpense?.vendor === expense.vendor ? (
-                    <>
-                      <IconButton 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveClick();
+                          transition: 'all 0.2s ease-in-out',
+                          display: 'inline-block',
+                          minWidth: '60px',
+                          textAlign: 'center',
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          color: '#3b82f6',
+                          fontWeight: '500',
+                          fontSize: '13px'
                         }}
-                        size="small"
-                        sx={{ color: '#4ADE80' }}
-                      >
-                        <CheckIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCancelClick();
-                        }}
-                        size="small"
-                        sx={{ color: '#ef4444' }}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </>
-                  ) : (
-                    <>
-                      <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRowClick(expense);
                           handleEditClick(expense);
                         }}
-                        size="small"
-                        sx={{ 
-                          color: '#3b82f6',
-                          '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          },
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                          e.currentTarget.style.transform = 'scale(1.02)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+                          e.currentTarget.style.transform = 'scale(1)';
                         }}
                       >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTransaction(expense);
-                        }}
+                        {expense.category || 'Uncategorized'}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell align="right" style={{
+                    ...TABLE_BODY_CELL_STYLE,
+                    color: data.type === "Bank Transactions"
+                      ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
+                      : color,
+                    fontWeight: '600'
+                  }}>
+                    {editingExpense?.identifier === expense.identifier &&
+                      editingExpense?.vendor === expense.vendor ? (
+                      <TextField
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
                         size="small"
-                        sx={{ 
-                          color: '#ef4444',
-                          '&:hover': {
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        type="number"
+                        inputProps={{
+                          style: {
+                            textAlign: 'right',
+                            color: data.type === "Bank Transactions"
+                              ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
+                              : color
+                          }
+                        }}
+                        sx={{
+                          width: '100px',
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: data.type === "Bank Transactions"
+                                ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
+                                : color,
+                            },
                           },
                         }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
+                      />
+                    ) : (
+                      (() => {
+                        // Price is already the per-installment amount (combineInstallments: false)
+                        const displayAmount = Math.abs(expense.price);
+
+                        // Check if original currency is different from ILS (foreign transaction)
+                        const isForeignCurrency = expense.original_currency &&
+                          !['ILS', '₪', 'NIS'].includes(expense.original_currency);
+
+                        // Get the appropriate currency symbol
+                        const getCurrencySymbol = (currency?: string) => {
+                          if (!currency) return '₪';
+                          if (['EUR', '€'].includes(currency)) return '€';
+                          if (['USD', '$'].includes(currency)) return '$';
+                          if (['GBP', '£'].includes(currency)) return '£';
+                          if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
+                          return currency + ' ';
+                        };
+
+                        if (data.type === "Bank Transactions") {
+                          return `${expense.price >= 0 ? '+' : ''}₪${formatNumber(displayAmount)}`;
+                        }
+
+                        // For foreign currency transactions, show ILS amount with original amount below
+                        if (isForeignCurrency && expense.original_amount) {
+                          const symbol = getCurrencySymbol(expense.original_currency);
+                          // original_amount is also already the per-installment amount
+                          const originalDisplayAmount = Math.abs(expense.original_amount);
+
+                          return (
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span>₪{formatNumber(displayAmount)}</span>
+                              <span style={{
+                                fontSize: '11px',
+                                color: '#64748b'
+                              }}>
+                                ({symbol}{formatNumber(originalDisplayAmount)})
+                              </span>
+                            </span>
+                          );
+                        }
+
+                        return `₪${formatNumber(displayAmount)}`;
+                      })()
+                    )}
+                  </TableCell>
+                  <TableCell style={{ ...TABLE_BODY_CELL_STYLE, textAlign: 'center' }}>
+                    {expense.installments_total && expense.installments_total > 1 ? (
+                      <span style={{
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        color: '#6366f1',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '500'
+                      }}>
+                        {expense.installments_number}/{expense.installments_total}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                    )}
+                  </TableCell>
+                  <TableCell style={{ ...TABLE_BODY_CELL_STYLE, fontSize: '12px' }}>
+                    {expense.vendor_nickname || expense.vendor || expense.card6_digits || expense.account_number ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CardVendorIcon vendor={getCardVendor(expense.account_number)} size={24} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{
+                            fontWeight: '500',
+                            color: '#334155',
+                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            display: 'inline-block'
+                          }}>
+                            {getCardNickname(expense.account_number) || expense.vendor_nickname || expense.vendor}
+                          </span>
+                          {(expense.account_number || expense.card6_digits) && (
+                            <span style={{
+                              fontSize: '11px',
+                              color: '#64748b',
+                              paddingLeft: '8px'
+                            }}>
+                              •••• {expense.account_number
+                                ? expense.account_number.slice(-4)
+                                : expense.card6_digits?.slice(-4)}
+                            </span>
+                          )}
+                        </div>
+                      </Box>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>—</span>
+                    )}
+                  </TableCell>
+                  <TableCell style={TABLE_BODY_CELL_STYLE}>
+                    {dateUtils.formatDate(expense.date)}
+                  </TableCell>
+                  <TableCell align="center" style={TABLE_BODY_CELL_STYLE}>
+                    {editingExpense?.identifier === expense.identifier &&
+                      editingExpense?.vendor === expense.vendor ? (
+                      <>
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveClick();
+                          }}
+                          size="small"
+                          sx={{ color: '#4ADE80' }}
+                        >
+                          <CheckIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelClick();
+                          }}
+                          size="small"
+                          sx={{ color: '#ef4444' }}
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    ) : (
+                      <>
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(expense);
+                            handleEditClick(expense);
+                          }}
+                          size="small"
+                          sx={{
+                            color: '#3b82f6',
+                            '&:hover': {
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            },
+                          }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteExpense(expense);
+                          }}
+                          size="small"
+                          sx={{
+                            color: '#ef4444',
+                            '&:hover': {
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            },
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </TableCell>
+                </TableRow>
               )) : <TableRow><TableCell colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>No data available</TableCell></TableRow>}
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
         </Box>
       </DialogContent>
-      
+
       {/* Snackbar for feedback messages */}
       <Snackbar
         open={snackbar.open}
@@ -865,10 +895,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ 
+          sx={{
             width: '100%',
             borderRadius: '12px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
@@ -877,6 +907,14 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={!!confirmDeleteExpense}
+        onClose={() => setConfirmDeleteExpense(null)}
+        onConfirm={handleDeleteTransaction}
+        transaction={confirmDeleteExpense}
+      />
     </Dialog>
   );
 };

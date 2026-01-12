@@ -10,6 +10,7 @@ import { useCategories } from '../utils/useCategories';
 import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
 import { TABLE_HEADER_CELL_STYLE, TABLE_BODY_CELL_STYLE, TABLE_ROW_HOVER_STYLE, TABLE_ROW_HOVER_BACKGROUND } from '../utils/tableStyles';
+import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
 interface Transaction {
   name: string;
@@ -47,6 +48,28 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
     message: '',
     severity: 'success'
   });
+  const [confirmDeleteTransaction, setConfirmDeleteTransaction] = React.useState<Transaction | null>(null);
+
+
+  const handleDeleteClick = () => {
+    if (!confirmDeleteTransaction) return;
+
+    try {
+      onDelete?.(confirmDeleteTransaction);
+      setSnackbar({
+        open: true,
+        message: 'Transaction deleted successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      setSnackbar({
+        open: true,
+        message: 'Error deleting transaction',
+        severity: 'error'
+      });
+    }
+  };
 
   const handleEditClick = (transaction: Transaction) => {
     setEditingTransaction(transaction);
@@ -62,7 +85,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
         const priceWithSign = editingTransaction.price < 0 ? -newPrice : newPrice;
         const categoryChanged = editCategory !== editingTransaction.category;
         const priceChanged = priceWithSign !== editingTransaction.price;
-        
+
         try {
           if (categoryChanged) {
             if (applyToAll) {
@@ -78,26 +101,26 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                   createRule: true
                 }),
               });
-              
+
               if (response.ok) {
                 const result = await response.json();
-                
+
                 // Show success message with count
                 const message = result.transactionsUpdated > 1
                   ? `Updated ${result.transactionsUpdated} transactions with "${editingTransaction.name}" to "${editCategory}". Rule saved for future transactions.`
                   : `Category updated to "${editCategory}". Rule saved for future transactions.`;
-                
+
                 setSnackbar({
                   open: true,
                   message,
                   severity: 'success'
                 });
-                
+
                 // Also update price if it changed
                 if (priceChanged) {
                   onUpdate?.(editingTransaction, priceWithSign);
                 }
-                
+
                 // Trigger a refresh of the dashboard data
                 window.dispatchEvent(new CustomEvent('dataRefresh'));
               } else {
@@ -114,19 +137,19 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                   category: editCategory,
                   ...(priceChanged && { price: priceWithSign })
                 }),
               });
-              
+
               if (response.ok) {
                 setSnackbar({
                   open: true,
                   message: `Category updated to "${editCategory}" for this transaction only.`,
                   severity: 'success'
                 });
-                
+
                 // Trigger a refresh of the dashboard data
                 window.dispatchEvent(new CustomEvent('dataRefresh'));
               } else {
@@ -149,7 +172,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
             severity: 'error'
           });
         }
-        
+
         setEditingTransaction(null);
       }
     }
@@ -190,9 +213,9 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
   }
 
   return (
-    <Paper sx={{ 
-      width: '100%', 
-      overflow: 'hidden', 
+    <Paper sx={{
+      width: '100%',
+      overflow: 'hidden',
       borderRadius: '24px',
       background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
       backdropFilter: 'blur(20px)',
@@ -215,7 +238,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
         </TableHead>
         <TableBody>
           {transactions.map((transaction, index) => (
-            <TableRow 
+            <TableRow
               key={index}
               onClick={() => handleRowClick(transaction)}
               style={TABLE_ROW_HOVER_STYLE}
@@ -326,9 +349,9 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                   </span>
                 )}
               </TableCell>
-              <TableCell 
-                align="right" 
-                style={{ 
+              <TableCell
+                align="right"
+                style={{
                   ...TABLE_BODY_CELL_STYLE,
                   color: transaction.price < 0 ? '#ef4444' : '#10b981',
                   fontWeight: 600
@@ -340,13 +363,13 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                     onChange={(e) => setEditPrice(e.target.value)}
                     size="small"
                     type="number"
-                    inputProps={{ 
-                      style: { 
+                    inputProps={{
+                      style: {
                         textAlign: 'right',
                         color: transaction.price < 0 ? '#F87171' : '#4ADE80'
-                      } 
+                      }
                     }}
-                    sx={{ 
+                    sx={{
                       width: '100px',
                       '& .MuiOutlinedInput-root': {
                         '& fieldset': {
@@ -359,11 +382,11 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                   (() => {
                     // Price is already the per-installment amount (combineInstallments: false)
                     const displayAmount = Math.abs(transaction.price);
-                    
+
                     // Check if original currency is different from ILS (foreign transaction)
-                    const isForeignCurrency = transaction.original_currency && 
+                    const isForeignCurrency = transaction.original_currency &&
                       !['ILS', '₪', 'NIS'].includes(transaction.original_currency);
-                    
+
                     // Get the appropriate currency symbol
                     const getCurrencySymbol = (currency?: string) => {
                       if (!currency) return '₪';
@@ -373,18 +396,18 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                       if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
                       return currency + ' ';
                     };
-                    
+
                     // For foreign currency transactions, show ILS amount with original amount below
                     if (isForeignCurrency && transaction.original_amount) {
                       const symbol = getCurrencySymbol(transaction.original_currency);
                       // original_amount is also already the per-installment amount
                       const originalDisplayAmount = Math.abs(transaction.original_amount);
-                      
+
                       return (
                         <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <span>₪{formatNumber(displayAmount)}</span>
-                          <span style={{ 
-                            fontSize: '11px', 
+                          <span style={{
+                            fontSize: '11px',
                             color: '#64748b'
                           }}>
                             ({symbol}{formatNumber(originalDisplayAmount)})
@@ -392,7 +415,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                         </span>
                       );
                     }
-                    
+
                     return `₪${formatNumber(displayAmount)}`;
                   })()
                 )}
@@ -415,14 +438,14 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
               </TableCell>
               <TableCell style={{ ...TABLE_BODY_CELL_STYLE, fontSize: '12px' }}>
                 {transaction.vendor_nickname || transaction.vendor || transaction.account_number ? (
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: '8px',
                   }}>
                     <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={24} />
-                    <span style={{ 
-                      fontWeight: '500', 
+                    <span style={{
+                      fontWeight: '500',
                       color: '#334155',
                       backgroundColor: 'rgba(148, 163, 184, 0.1)',
                       padding: '4px 8px',
@@ -446,13 +469,13 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
               <TableCell align="right" style={TABLE_BODY_CELL_STYLE}>
                 {editingTransaction?.identifier === transaction.identifier ? (
                   <>
-                    <IconButton 
+                    <IconButton
                       onClick={handleSaveClick}
                       sx={{ color: '#4ADE80' }}
                     >
                       <CheckIcon />
                     </IconButton>
-                    <IconButton 
+                    <IconButton
                       onClick={handleCancelClick}
                       sx={{ color: '#ef4444' }}
                     >
@@ -461,7 +484,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                   </>
                 ) : (
                   <>
-                    <IconButton 
+                    <IconButton
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRowClick(transaction);
@@ -471,10 +494,10 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                     >
                       <EditIcon />
                     </IconButton>
-                    <IconButton 
+                    <IconButton
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDelete?.(transaction);
+                        setConfirmDeleteTransaction(transaction);
                       }}
                       sx={{ color: '#ef4444' }}
                     >
@@ -487,7 +510,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
           ))}
         </TableBody>
       </Table>
-      
+
       {/* Snackbar for feedback messages */}
       <Snackbar
         open={snackbar.open}
@@ -495,10 +518,10 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ 
+          sx={{
             width: '100%',
             borderRadius: '12px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
@@ -507,6 +530,14 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={!!confirmDeleteTransaction}
+        onClose={() => setConfirmDeleteTransaction(null)}
+        onConfirm={handleDeleteClick}
+        transaction={confirmDeleteTransaction}
+      />
     </Paper>
   );
 };

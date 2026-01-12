@@ -45,20 +45,8 @@ export default async function handler(req, res) {
       }
 
       // Add current installed version of israeli-bank-scrapers
-      try {
-        // Use an absolute path relative to process.cwd() for reliability in Docker/Dev
-        const pkgPath = path.join(process.cwd(), 'node_modules', 'israeli-bank-scrapers', 'package.json');
-        if (fs.existsSync(pkgPath)) {
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          settings.current_scrapers_version = pkg.version;
-        } else {
-          // Fallback if node_modules structure is different
-          settings.current_scrapers_version = 'unknown';
-        }
-      } catch (e) {
-        logger.warn({ error: e.message }, 'Could not read scraper version');
-        settings.current_scrapers_version = 'unknown';
-      }
+      // Use an absolute path relative to process.cwd() for reliability in Docker/Dev
+      // Removed as part of reverting dynamic scraper logic - version is now static in package.json
 
       return res.status(200).json({ settings, descriptions });
     }

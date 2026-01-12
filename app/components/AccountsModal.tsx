@@ -404,7 +404,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
       });
       if (response.ok) {
         const updatedAccount = await response.json();
-        setAccounts(accounts.map((a) => 
+        setAccounts(accounts.map((a) =>
           a.id === account.id ? { ...a, is_active: updatedAccount.is_active } : a
         ));
         showNotification(
@@ -425,20 +425,20 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
 
   const handleTruncateConfirm = async () => {
     if (!truncateConfirm.account) return;
-    
+
     setIsTruncating(true);
     try {
       const response = await fetch(`/api/credentials/truncate/${truncateConfirm.account.id}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to truncate account data');
       }
-      
+
       const result = await response.json();
       showNotification(`Successfully deleted ${result.deletedCount} transactions for ${truncateConfirm.account.nickname || truncateConfirm.account.vendor}`, 'success');
-      
+
       // Refresh data across the app
       window.dispatchEvent(new CustomEvent('dataRefresh'));
     } catch (err) {
@@ -462,7 +462,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         throw new Error('Failed to fetch account credentials');
       }
       const accountWithPassword: AccountWithPassword = await response.json();
-      
+
       setSelectedAccount(accountWithPassword);
       setIsScrapeModalOpen(true);
     } catch (err) {
@@ -486,9 +486,9 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const renderAccountTable = (accounts: Account[], type: 'bank' | 'credit') => {
     if (accounts.length === 0) {
       return (
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
+        <Box sx={{
+          display: 'flex',
+          justifyContent: 'center',
           padding: '32px',
           color: '#666',
           fontStyle: 'italic'
@@ -507,40 +507,9 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
         backdropFilter: 'blur(10px)'
       }}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell style={{
-              color: '#475569',
-              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-              fontWeight: 600,
-              fontSize: '13px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '16px'
-            }}>Nickname</TableCell>
-            <TableCell style={{
-              color: '#475569',
-              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-              fontWeight: 600,
-              fontSize: '13px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '16px'
-            }}>Vendor</TableCell>
-            <TableCell style={{
-              color: '#475569',
-              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-              fontWeight: 600,
-              fontSize: '13px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '16px'
-            }}>{type === 'bank' ? 'Username' : 'ID Number'}</TableCell>
-            {type === 'bank' ? (
+        <Table>
+          <TableHead>
+            <TableRow>
               <TableCell style={{
                 color: '#475569',
                 borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
@@ -550,8 +519,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 letterSpacing: '0.5px',
                 background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                 padding: '16px'
-              }}>Account Number</TableCell>
-            ) : (
+              }}>Nickname</TableCell>
               <TableCell style={{
                 color: '#475569',
                 borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
@@ -561,272 +529,304 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 letterSpacing: '0.5px',
                 background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                 padding: '16px'
-              }}>Card Last Digits</TableCell>
-            )}
-            <TableCell style={{
-              color: '#475569',
-              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-              fontWeight: 600,
-              fontSize: '13px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '16px'
-            }}>Last Synced</TableCell>
-            <TableCell align="center" style={{
-              color: '#475569',
-              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-              fontWeight: 600,
-              fontSize: '13px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '16px'
-            }}>Active</TableCell>
-            <TableCell align="right" style={{
-              color: '#475569',
-              borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-              fontWeight: 600,
-              fontSize: '13px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '16px'
-            }}>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {accounts.map((account) => (
-            <StyledTableRow 
-              key={account.id}
-              sx={{
-                opacity: account.is_active ? 1 : 0.6,
-              }}
-            >
-              <TableCell style={{ color: account.is_active ? '#1e293b' : '#94a3b8' }}>
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    {account.nickname}
-                    {!account.is_active && (
-                      <Tooltip title="Account is inactive - won't be synced automatically">
-                        <PauseCircleOutlineIcon 
-                          sx={{ 
-                            fontSize: '16px', 
-                            ml: 1, 
-                            verticalAlign: 'middle',
-                            color: '#94a3b8' 
-                          }} 
-                        />
-                      </Tooltip>
-                    )}
-                  </Box>
-                  {type === 'credit' && getOwnedCards(account.id).length > 0 && (
-                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {getOwnedCards(account.id).map((card) => (
-                        <Box key={card.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          {editingCardBankAccount === card.id ? (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <TextField
-                                select
-                                size="small"
-                                value={card.linked_bank_account_id || ''}
-                                onChange={(e) => {
-                                  const bankAccountId = e.target.value ? Number(e.target.value) : null;
-                                  handleUpdateCardBankAccount(card.id, bankAccountId);
-                                }}
-                                sx={{
-                                  minWidth: 150,
-                                  '& .MuiOutlinedInput-root': {
-                                    fontSize: '11px',
-                                    height: '24px',
-                                  },
-                                }}
-                                SelectProps={{
-                                  native: true,
-                                }}
-                              >
-                                <option value="">No bank account</option>
-                                {getBankAccounts().map((bankAccount) => (
-                                  <option key={bankAccount.id} value={bankAccount.id}>
-                                    {bankAccount.nickname} ({bankAccount.bank_account_number || bankAccount.vendor})
-                                  </option>
-                                ))}
-                              </TextField>
-                              <IconButton
-                                size="small"
-                                onClick={() => setEditingCardBankAccount(null)}
-                                sx={{ 
-                                  padding: '2px',
-                                  color: '#64748b',
-                                  '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.1)' }
-                                }}
-                              >
-                                <CloseIcon sx={{ fontSize: '14px' }} />
-                              </IconButton>
-                            </Box>
-                          ) : (
-                            <Tooltip 
-                              title={
-                                <Box>
-                                  <Box>{card.card_nickname || card.card_vendor || `Card ending in ${card.account_number}`}</Box>
-                                  {card.bank_account_nickname ? (
-                                    <Box sx={{ mt: 0.5, fontSize: '11px' }}>
-                                      Bank: {card.bank_account_nickname} ({card.bank_account_number || card.bank_account_vendor})
-                                    </Box>
-                                  ) : (
-                                    <Box sx={{ mt: 0.5, fontSize: '11px', fontStyle: 'italic' }}>
-                                      No bank account linked
-                                    </Box>
-                                  )}
-                                </Box>
-                              }
-                            >
-                              <Chip
-                                size="small"
-                                label={
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <span>****{card.account_number}</span>
-                                    {card.bank_account_nickname && (
-                                      <span style={{ fontSize: '9px', opacity: 0.7 }}>
-                                        • {card.bank_account_nickname}
-                                      </span>
+              }}>Vendor</TableCell>
+              <TableCell style={{
+                color: '#475569',
+                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                fontWeight: 600,
+                fontSize: '13px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                padding: '16px'
+              }}>{type === 'bank' ? 'Username' : 'ID Number'}</TableCell>
+              {type === 'bank' ? (
+                <TableCell style={{
+                  color: '#475569',
+                  borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  padding: '16px'
+                }}>Account Number</TableCell>
+              ) : (
+                <TableCell style={{
+                  color: '#475569',
+                  borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  padding: '16px'
+                }}>Card Last Digits</TableCell>
+              )}
+              <TableCell style={{
+                color: '#475569',
+                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                fontWeight: 600,
+                fontSize: '13px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                padding: '16px'
+              }}>Last Synced</TableCell>
+              <TableCell align="center" style={{
+                color: '#475569',
+                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                fontWeight: 600,
+                fontSize: '13px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                padding: '16px'
+              }}>Active</TableCell>
+              <TableCell align="right" style={{
+                color: '#475569',
+                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                fontWeight: 600,
+                fontSize: '13px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                padding: '16px'
+              }}>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {accounts.map((account) => (
+              <StyledTableRow
+                key={account.id}
+                sx={{
+                  opacity: account.is_active ? 1 : 0.6,
+                }}
+              >
+                <TableCell style={{ color: account.is_active ? '#1e293b' : '#94a3b8' }}>
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {account.nickname}
+                      {!account.is_active && (
+                        <Tooltip title="Account is inactive - won't be synced automatically">
+                          <PauseCircleOutlineIcon
+                            sx={{
+                              fontSize: '16px',
+                              ml: 1,
+                              verticalAlign: 'middle',
+                              color: '#94a3b8'
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                    </Box>
+                    {type === 'credit' && getOwnedCards(account.id).length > 0 && (
+                      <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {getOwnedCards(account.id).map((card) => (
+                          <Box key={card.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {editingCardBankAccount === card.id ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <TextField
+                                  select
+                                  size="small"
+                                  value={card.linked_bank_account_id || ''}
+                                  onChange={(e) => {
+                                    const bankAccountId = e.target.value ? Number(e.target.value) : null;
+                                    handleUpdateCardBankAccount(card.id, bankAccountId);
+                                  }}
+                                  sx={{
+                                    minWidth: 150,
+                                    '& .MuiOutlinedInput-root': {
+                                      fontSize: '11px',
+                                      height: '24px',
+                                    },
+                                  }}
+                                  SelectProps={{
+                                    native: true,
+                                  }}
+                                >
+                                  <option value="">No bank account</option>
+                                  {getBankAccounts().map((bankAccount) => (
+                                    <option key={bankAccount.id} value={bankAccount.id}>
+                                      {bankAccount.nickname} ({bankAccount.bank_account_number || bankAccount.vendor})
+                                    </option>
+                                  ))}
+                                </TextField>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setEditingCardBankAccount(null)}
+                                  sx={{
+                                    padding: '2px',
+                                    color: '#64748b',
+                                    '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.1)' }
+                                  }}
+                                >
+                                  <CloseIcon sx={{ fontSize: '14px' }} />
+                                </IconButton>
+                              </Box>
+                            ) : (
+                              <Tooltip
+                                title={
+                                  <Box>
+                                    <Box>{card.card_nickname || card.card_vendor || `Card ending in ${card.account_number}`}</Box>
+                                    {card.bank_account_nickname ? (
+                                      <Box sx={{ mt: 0.5, fontSize: '11px' }}>
+                                        Bank: {card.bank_account_nickname} ({card.bank_account_number || card.bank_account_vendor})
+                                      </Box>
+                                    ) : (
+                                      <Box sx={{ mt: 0.5, fontSize: '11px', fontStyle: 'italic' }}>
+                                        No bank account linked
+                                      </Box>
                                     )}
                                   </Box>
                                 }
-                                onClick={() => setEditingCardBankAccount(card.id)}
-                                sx={{
-                                  height: '20px',
-                                  fontSize: '11px',
-                                  backgroundColor: card.linked_bank_account_id 
-                                    ? 'rgba(59, 130, 246, 0.1)' 
-                                    : 'rgba(139, 92, 246, 0.1)',
-                                  color: card.linked_bank_account_id ? '#2563eb' : '#7c3aed',
-                                  border: `1px solid ${card.linked_bank_account_id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(139, 92, 246, 0.2)'}`,
-                                  cursor: 'pointer',
-                                  '&:hover': {
-                                    backgroundColor: card.linked_bank_account_id 
-                                      ? 'rgba(59, 130, 246, 0.15)' 
-                                      : 'rgba(139, 92, 246, 0.15)',
-                                  },
-                                  '& .MuiChip-label': {
-                                    px: 1,
-                                  },
-                                }}
-                              />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      ))}
-                    </Box>
+                              >
+                                <Chip
+                                  size="small"
+                                  label={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <span>****{card.account_number}</span>
+                                      {card.bank_account_nickname && (
+                                        <span style={{ fontSize: '9px', opacity: 0.7 }}>
+                                          • {card.bank_account_nickname}
+                                        </span>
+                                      )}
+                                    </Box>
+                                  }
+                                  onClick={() => setEditingCardBankAccount(card.id)}
+                                  sx={{
+                                    height: '20px',
+                                    fontSize: '11px',
+                                    backgroundColor: card.linked_bank_account_id
+                                      ? 'rgba(59, 130, 246, 0.1)'
+                                      : 'rgba(139, 92, 246, 0.1)',
+                                    color: card.linked_bank_account_id ? '#2563eb' : '#7c3aed',
+                                    border: `1px solid ${card.linked_bank_account_id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(139, 92, 246, 0.2)'}`,
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      backgroundColor: card.linked_bank_account_id
+                                        ? 'rgba(59, 130, 246, 0.15)'
+                                        : 'rgba(139, 92, 246, 0.15)',
+                                    },
+                                    '& .MuiChip-label': {
+                                      px: 1,
+                                    },
+                                  }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                </TableCell>
+                <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.vendor}</TableCell>
+                <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.username || account.id_number}</TableCell>
+                <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{type === 'bank' ? account.bank_account_number : (account.card6_digits || '-')}</TableCell>
+                <TableCell style={{ color: account.is_active ? '#64748b' : '#94a3b8' }}>
+                  {account.last_synced_at ? (
+                    <Tooltip title={dateUtils.formatDate(account.last_synced_at)}>
+                      <span>{formatRelativeTime(account.last_synced_at)}</span>
+                    </Tooltip>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Never</span>
                   )}
-                </Box>
-              </TableCell>
-              <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.vendor}</TableCell>
-              <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.username || account.id_number}</TableCell>
-              <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{type === 'bank' ? account.bank_account_number : (account.card6_digits || '-')}</TableCell>
-              <TableCell style={{ color: account.is_active ? '#64748b' : '#94a3b8' }}>
-                {account.last_synced_at ? (
-                  <Tooltip title={dateUtils.formatDate(account.last_synced_at)}>
-                    <span>{formatRelativeTime(account.last_synced_at)}</span>
+                </TableCell>
+                <TableCell align="center">
+                  <Tooltip title={account.is_active ? 'Click to deactivate (won\'t be synced automatically)' : 'Click to activate'}>
+                    <Switch
+                      checked={account.is_active}
+                      onChange={() => handleToggleActive(account)}
+                      size="small"
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                          color: '#22c55e',
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                          backgroundColor: '#22c55e',
+                        },
+                      }}
+                    />
                   </Tooltip>
-                ) : (
-                  <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Never</span>
-                )}
-              </TableCell>
-              <TableCell align="center">
-                <Tooltip title={account.is_active ? 'Click to deactivate (won\'t be synced automatically)' : 'Click to activate'}>
-                  <Switch
-                    checked={account.is_active}
-                    onChange={() => handleToggleActive(account)}
-                    size="small"
-                    sx={{
-                      '& .MuiSwitch-switchBase.Mui-checked': {
-                        color: '#22c55e',
-                      },
-                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                        backgroundColor: '#22c55e',
-                      },
-                    }}
-                  />
-                </Tooltip>
-              </TableCell>
-              <TableCell align="right">
-                <Tooltip title="Edit account">
-                  <IconButton 
-                    onClick={() => handleEdit(account)}
-                    sx={{ 
-                      color: '#8b5cf6',
-                      '&:hover': {
-                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                      },
-                    }}
-                  >
-                    <EditIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={account.is_active ? "Sync transactions" : "Activate account to sync"}>
-                  <span>
+                </TableCell>
+                <TableCell align="right">
+                  <Tooltip title="Edit account">
                     <IconButton
-                      onClick={() => handleScrape(account)}
-                      disabled={!account.is_active}
-                      sx={{ 
-                        color: account.is_active ? '#3b82f6' : '#cbd5e1',
+                      onClick={() => handleEdit(account)}
+                      sx={{
+                        color: '#8b5cf6',
                         '&:hover': {
-                          backgroundColor: account.is_active ? 'rgba(59, 130, 246, 0.1)' : undefined,
+                          backgroundColor: 'rgba(139, 92, 246, 0.1)',
                         },
                       }}
                     >
-                      <SyncIcon />
+                      <EditIcon />
                     </IconButton>
-                  </span>
-                </Tooltip>
-                <Tooltip title="Delete all transactions for this account">
-                  <IconButton 
-                    onClick={() => handleTruncateClick(account)}
-                    sx={{ 
-                      color: '#f59e0b',
-                      '&:hover': {
-                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                      },
-                    }}
-                  >
-                    <DeleteSweepIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Delete account">
-                  <IconButton 
-                    onClick={() => handleDelete(account.id)}
-                    sx={{ 
-                      color: '#ef4444',
-                      '&:hover': {
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      },
-                    }}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Tooltip>
-              </TableCell>
-            </StyledTableRow>
-          ))}
-        </TableBody>
-      </Table>
+                  </Tooltip>
+                  <Tooltip title={account.is_active ? "Sync transactions" : "Activate account to sync"}>
+                    <span>
+                      <IconButton
+                        onClick={() => handleScrape(account)}
+                        disabled={!account.is_active}
+                        sx={{
+                          color: account.is_active ? '#3b82f6' : '#cbd5e1',
+                          '&:hover': {
+                            backgroundColor: account.is_active ? 'rgba(59, 130, 246, 0.1)' : undefined,
+                          },
+                        }}
+                      >
+                        <SyncIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Delete all transactions for this account">
+                    <IconButton
+                      onClick={() => handleTruncateClick(account)}
+                      sx={{
+                        color: '#f59e0b',
+                        '&:hover': {
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        },
+                      }}
+                    >
+                      <DeleteSweepIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete account">
+                    <IconButton
+                      onClick={() => handleDelete(account.id)}
+                      sx={{
+                        color: '#ef4444',
+                        '&:hover': {
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        },
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
+              </StyledTableRow>
+            ))}
+          </TableBody>
+        </Table>
       </Box>
     );
   };
 
   return (
     <>
-      <Dialog 
-        open={isOpen} 
+      <Dialog
+        open={isOpen}
         onClose={() => {
           if (isAdding || isEditing) {
             handleCancelForm();
           } else {
             onClose();
           }
-        }} 
-        maxWidth="md" 
+        }}
+        maxWidth="md"
         fullWidth
         PaperProps={{
           style: {
@@ -844,8 +844,8 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
           }
         }}
       >
-        <ModalHeader 
-          title={isEditing ? "Edit Account" : "Accounts Management"} 
+        <ModalHeader
+          title={isEditing ? "Edit Account" : "Accounts Management"}
           onClose={() => {
             if (isAdding || isEditing) {
               handleCancelForm();
@@ -1007,8 +1007,8 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 <Button onClick={handleCancelForm} sx={{ mr: 1 }}>
                   Cancel
                 </Button>
-                <Button 
-                  variant="contained" 
+                <Button
+                  variant="contained"
                   onClick={isEditing ? handleUpdate : handleAdd}
                   sx={{
                     backgroundColor: isEditing ? '#8b5cf6' : '#3b82f6',
@@ -1086,8 +1086,8 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
           }
         }}
       >
-        <DialogTitle sx={{ 
-          color: '#f59e0b', 
+        <DialogTitle sx={{
+          color: '#f59e0b',
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -1106,7 +1106,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
           </Typography>
         </DialogContent>
         <DialogActions sx={{ padding: '16px 24px' }}>
-          <Button 
+          <Button
             onClick={handleTruncateCancel}
             disabled={isTruncating}
           >
