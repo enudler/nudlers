@@ -1,4 +1,5 @@
 import { getDB } from "../db";
+import logger from '../../../utils/logger.js';
 
 /**
  * Generic API handler utility for database operations
@@ -26,7 +27,7 @@ export function createApiHandler({ query, validate, transform }) {
 
       res.status(200).json(data);
     } catch (error) {
-      console.error("Error executing query:", error);
+      logger.error({ error: error.message, stack: error.stack }, "Error executing query");
       res.status(500).json({ 
         error: "Internal Server Error", 
         details: error.message 

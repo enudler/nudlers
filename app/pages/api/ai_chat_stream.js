@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getDB } from './db';
+import logger from '../../utils/logger.js';
 
 // Verify auth via session cookies
 function verifyAuth(req) {
@@ -453,7 +454,7 @@ async function searchTransactions({ searchTerm, startDate, endDate }) {
 
 // Execute function
 async function executeFunction(name, args) {
-  console.log(`Executing function: ${name}`, args);
+  logger.info({ functionName: name, args }, 'Executing function');
   switch (name) {
     case 'get_transactions': return await getTransactions(args || {});
     case 'get_spending_by_category': return await getSpendingByCategory(args || {});
@@ -512,10 +513,10 @@ export default async function handler(req, res) {
         // Quick test
         await model.generateContent("test");
         workingModel = modelName;
-        console.log(`Using model: ${modelName}`);
+        logger.info({ modelName }, 'Using model');
         break;
       } catch (e) {
-        console.log(`Model ${modelName} failed:`, e.message);
+        logger.warn({ modelName, error: e.message }, 'Model failed');
       }
     }
 
@@ -565,7 +566,7 @@ export default async function handler(req, res) {
             functionResponse: { name: call.name, response: funcResult }
           });
         } catch (err) {
-          console.error(`Function ${call.name} error:`, err);
+          logger.error({ functionName: call.name, error: err.message, stack: err.stack }, 'Function execution error');
           functionResponses.push({
             functionResponse: { name: call.name, response: { error: err.message } }
           });
@@ -590,7 +591,7 @@ export default async function handler(req, res) {
     sendEvent({ status: 'complete', text: accumulated, done: true, model: workingModel });
 
   } catch (error) {
-    console.error('AI Chat Error:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'AI Chat Error');
     sendEvent({ error: error.message || 'Failed to get AI response', status: 'error' });
   }
 

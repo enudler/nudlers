@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 // All migrations in order - each should be idempotent (safe to run multiple times)
 const migrations = [
@@ -299,6 +300,21 @@ const migrations = [
         END IF;
       END $$;
     `
+  },
+  {
+    name: 'create_transaction_categories_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS transaction_categories (
+        id SERIAL PRIMARY KEY,
+        description VARCHAR(200) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(description)
+      );
+      CREATE INDEX IF NOT EXISTS idx_transaction_categories_description ON transaction_categories(description);
+      CREATE INDEX IF NOT EXISTS idx_transaction_categories_category ON transaction_categories(category);
+    `
   }
 ];
 
@@ -321,16 +337,16 @@ export async function runMigrations() {
   const results = [];
 
   try {
-    console.log('[migrate] Starting database migrations...');
+    logger.info('[migrate] Starting database migrations');
 
     // Run all required migrations
     for (const migration of migrations) {
       try {
         await client.query(migration.sql);
         results.push({ name: migration.name, status: 'success' });
-        console.log(`[migrate] ✓ ${migration.name}`);
+        logger.info({ migration: migration.name }, '[migrate] Migration completed');
       } catch (error) {
-        console.error(`[migrate] ✗ ${migration.name}:`, error.message);
+        logger.error({ migration: migration.name, error: error.message }, '[migrate] Migration failed');
         results.push({ name: migration.name, status: 'error', error: error.message });
         throw error; // Stop on required migration failure
       }
@@ -341,23 +357,23 @@ export async function runMigrations() {
       try {
         await client.query(migration.sql);
         results.push({ name: migration.name, status: 'success' });
-        console.log(`[migrate] ✓ ${migration.name}`);
+        logger.info({ migration: migration.name }, '[migrate] Optional migration completed');
       } catch (error) {
         if (error.code === '23505') {
           // Duplicate key violation - expected if duplicates exist
           results.push({ name: migration.name, status: 'warning', warning: migration.warningOnFail });
-          console.warn(`[migrate] ⚠ ${migration.name}: ${migration.warningOnFail}`);
+          logger.warn({ migration: migration.name, warning: migration.warningOnFail }, '[migrate] Optional migration warning');
         } else {
           results.push({ name: migration.name, status: 'warning', warning: error.message });
-          console.warn(`[migrate] ⚠ ${migration.name}: ${error.message}`);
+          logger.warn({ migration: migration.name, error: error.message }, '[migrate] Optional migration warning');
         }
       }
     }
 
-    console.log('[migrate] Database migrations completed successfully');
+    logger.info('[migrate] Database migrations completed successfully');
     return { success: true, migrations: results };
   } catch (error) {
-    console.error('[migrate] Migration failed:', error);
+    logger.error({ error: error.message, stack: error.stack }, '[migrate] Migration failed');
     return { success: false, migrations: results, error: error.message };
   } finally {
     client.release();

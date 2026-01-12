@@ -122,6 +122,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Sync package.json version
+        run: |
+          VERSION_NUMBER="${{ steps.next_version.outputs.version_number }}"
+          echo "Syncing package.json to version $VERSION_NUMBER"
+          cd app
+          npm version "$VERSION_NUMBER" --no-git-tag-version --allow-same-version
+          echo "✅ package.json version synced to $VERSION_NUMBER"
+
       # Docker build steps
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

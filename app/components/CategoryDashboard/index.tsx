@@ -42,7 +42,8 @@ type DateRangeMode = 'calendar' | 'billing' | 'custom';
 const MAX_YEARS_RANGE = 5;
 
 // Helper function to calculate date range based on mode
-const getDateRange = (year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
+// This will be redefined inside component to access billingStartDay
+const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): { startDate: string; endDate: string } => {
   const y = parseInt(year);
   const m = parseInt(month);
   
@@ -53,16 +54,21 @@ const getDateRange = (year: string, month: string, mode: DateRangeMode): { start
     const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
     return { startDate, endDate };
   } else {
-    // Billing cycle: 10th of previous month to 9th of selected month
-    // Example: February selection = January 10 to February 9
+    // Billing cycle: (Start Day + 1) of previous month to (Start Day) of selected month
+    // Example: Start Day = 10. Range: 11th Prev to 10th Curr.
+    // This matches MonthlySummary logic
     let prevMonth = m - 1;
     let prevYear = y;
     if (prevMonth === 0) {
       prevMonth = 12;
       prevYear = y - 1;
     }
-    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-10`;
-    const endDate = `${year}-${month}-09`;
+    
+    const startDayVal = billingStartDay + 1;
+    const endDayVal = billingStartDay;
+    
+    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
+    const endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
     return { startDate, endDate };
   }
 };
@@ -155,10 +161,16 @@ const CategoryDashboard: React.FC = () => {
   const [transactions, setTransactions] = React.useState<any[]>([]);
   const [loadingTransactions, setLoadingTransactions] = React.useState(false);
   const [dateRangeMode, setDateRangeMode] = React.useState<DateRangeMode>('billing');
+  const [billingStartDay, setBillingStartDay] = React.useState<number>(10);
   const categoryIcons = useCategoryIcons();
   const categoryColors = useCategoryColors();
   const [allAvailableDates, setAllAvailableDates] = React.useState<string[]>([]);
   const { setScreenContext } = useScreenContext();
+  
+  // Helper function to calculate date range based on mode (uses component's billingStartDay)
+  const getDateRange = React.useCallback((year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
+    return getDateRangeBase(year, month, mode, billingStartDay);
+  }, [billingStartDay]);
   
   // Budget data state
   const [budgetMap, setBudgetMap] = React.useState<Map<string, BudgetInfo>>(new Map());
@@ -276,6 +288,12 @@ const CategoryDashboard: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
+    // Load persisted date range mode from localStorage to sync with MonthlySummary
+    const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
+    if (persistedMode && ['billing', 'calendar', 'custom'].includes(persistedMode)) {
+      setDateRangeMode(persistedMode);
+    }
+
     getAvailableMonths();
 
     // Add event listener for data refresh
@@ -295,6 +313,19 @@ const CategoryDashboard: React.FC = () => {
 
   const getAvailableMonths = async () => {
     try {
+      // Fetch billing start day setting
+      let startDay = 10;
+      try {
+        const settingsResponse = await fetch('/api/settings');
+        if (settingsResponse.ok) {
+          const settingsData = await settingsResponse.json();
+          startDay = parseInt(settingsData.settings.billing_cycle_start_day) || 10;
+          setBillingStartDay(startDay);
+        }
+      } catch (e) {
+        console.error("Error fetching settings, using default start day", e);
+      }
+
       const response = await fetch("/api/available_months");
       const transactionsData = await response.json();
       setAllAvailableDates(transactionsData);
@@ -302,22 +333,48 @@ const CategoryDashboard: React.FC = () => {
       // Sort dates in descending order to get the most recent first
       const sortedDates = transactionsData.sort((a: string, b: string) => b.localeCompare(a));
       
-      // Default to current month/year (the current billing cycle)
-      const now = new Date();
-      const currentYear = now.getFullYear().toString();
-      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-      const currentYearMonth = `${currentYear}-${currentMonth}`;
+      // Try to sync with MonthlySummary selection from localStorage
+      const persistedYear = localStorage.getItem('monthlySummary_year');
+      const persistedMonth = localStorage.getItem('monthlySummary_month');
       
-      // Use current month if available, otherwise fall back to most recent
-      const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
-      const defaultYear = defaultDate.substring(0, 4);
-      const defaultMonth = defaultDate.substring(5, 7);
+      let defaultYear: string;
+      let defaultMonth: string;
+
+      // If we have persisted values and they're available, use them
+      if (persistedYear && persistedMonth && sortedDates.includes(`${persistedYear}-${persistedMonth}`)) {
+        defaultYear = persistedYear;
+        defaultMonth = persistedMonth;
+      } else {
+        // Default to current month/year (the current billing cycle)
+        // If today is past the billing start day, we are in the cycle ending next month
+        const now = new Date();
+        let currentYear = now.getFullYear();
+        let currentMonth = now.getMonth() + 1;
+
+        if (now.getDate() > startDay) {
+          currentMonth += 1;
+          if (currentMonth > 12) {
+            currentMonth = 1;
+            currentYear += 1;
+          }
+        }
+
+        const currentYearStr = currentYear.toString();
+        const currentMonthStr = String(currentMonth).padStart(2, '0');
+        const currentYearMonth = `${currentYearStr}-${currentMonthStr}`;
+
+        // Use current month if available, otherwise fall back to most recent
+        const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
+        defaultYear = defaultDate.substring(0, 4);
+        defaultMonth = defaultDate.substring(5, 7);
+      }
       
       const years = Array.from(new Set(transactionsData.map((date: string) => date.substring(0, 4)))) as string[];
       
       setUniqueYears(years);
       setSelectedYear(defaultYear);
-
+      localStorage.setItem('monthlySummary_year', defaultYear);
+      
       // Get months for the default year
       const monthsForYear = transactionsData
         .filter((date: string) => date.startsWith(defaultYear))
@@ -327,7 +384,8 @@ const CategoryDashboard: React.FC = () => {
       
       setUniqueMonths(months);
       setSelectedMonth(defaultMonth);
-
+      localStorage.setItem('monthlySummary_month', defaultMonth);
+      
       // Fetch data for initial selection with current date range mode
       const { startDate, endDate } = getDateRange(defaultYear, defaultMonth, dateRangeMode);
       const billingCycle = dateRangeMode === 'billing' ? `${defaultYear}-${defaultMonth}` : undefined;
@@ -340,6 +398,7 @@ const CategoryDashboard: React.FC = () => {
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newYear = event.target.value;
     setSelectedYear(newYear);
+    localStorage.setItem('monthlySummary_year', newYear);
 
     // Update available months for the selected year
     const monthsForYear = allAvailableDates
@@ -353,6 +412,7 @@ const CategoryDashboard: React.FC = () => {
     const monthToUse = uniqueMonthsForYear.includes(selectedMonth) ? selectedMonth : uniqueMonthsForYear[0];
     if (!uniqueMonthsForYear.includes(selectedMonth)) {
       setSelectedMonth(monthToUse);
+      localStorage.setItem('monthlySummary_month', monthToUse);
     }
     const { startDate, endDate } = getDateRange(newYear, monthToUse, dateRangeMode);
     const billingCycle = dateRangeMode === 'billing' ? `${newYear}-${monthToUse}` : undefined;
@@ -362,6 +422,7 @@ const CategoryDashboard: React.FC = () => {
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newMonth = event.target.value;
     setSelectedMonth(newMonth);
+    localStorage.setItem('monthlySummary_month', newMonth);
     const { startDate, endDate } = getDateRange(selectedYear, newMonth, dateRangeMode);
     const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${newMonth}` : undefined;
     fetchData(startDate, endDate, billingCycle);
@@ -369,6 +430,7 @@ const CategoryDashboard: React.FC = () => {
 
   const handleDateRangeModeChange = (mode: DateRangeMode) => {
     setDateRangeMode(mode);
+    localStorage.setItem('monthlySummary_mode', mode);
     setDateRangeError('');
     
     if (mode === 'custom') {

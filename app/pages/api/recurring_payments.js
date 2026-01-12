@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 // API endpoint to get recurring payments:
 // 1. Active installments (transactions with installments_total > 1)
@@ -179,7 +180,7 @@ export default async function handler(req, res) {
       recurring: recurringResult.rows
     });
   } catch (error) {
-    console.error("Error fetching recurring payments:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error fetching recurring payments");
     res.status(500).json({
       error: "Internal Server Error",
       details: error.message

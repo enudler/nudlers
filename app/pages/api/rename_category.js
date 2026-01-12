@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -55,7 +56,7 @@ async function handler(req, res) {
       budgetsUpdated: budgetsResult.rowCount
     });
   } catch (error) {
-    console.error("Error renaming category:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error renaming category");
     res.status(500).json({ 
       error: "Internal Server Error",
       details: error.message

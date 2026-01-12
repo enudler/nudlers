@@ -1,5 +1,6 @@
 import { createApiHandler } from "./utils/apiHandler";
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 /**
  * API endpoint to update category for all transactions with a given description
@@ -90,7 +91,7 @@ const handler = createApiHandler({
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Error updating category by description:', error);
+      logger.error({ error: error.message, stack: error.stack }, 'Error updating category by description');
       throw error;
     } finally {
       client.release();

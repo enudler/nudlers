@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -138,7 +139,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error("Error in daily_spending API:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error in daily_spending API");
     res.status(500).json({ 
       error: "Internal Server Error", 
       details: error.message 

@@ -4,6 +4,7 @@
  */
 
 import { getDB } from '../db';
+import logger from '../../../utils/logger.js';
 
 // Tables to export (in order to handle foreign key dependencies)
 const TABLES_TO_EXPORT = [
@@ -40,7 +41,7 @@ async function handler(req, res) {
         };
       } catch (error) {
         // Table might not exist yet, skip it
-        console.log(`Table ${tableName} not found or error: ${error.message}`);
+        logger.warn({ tableName, error: error.message }, 'Table not found or error');
         exportData.tables[tableName] = {
           rowCount: 0,
           data: [],
@@ -56,7 +57,7 @@ async function handler(req, res) {
 
     res.status(200).json(exportData);
   } catch (error) {
-    console.error('Error exporting database:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Error exporting database');
     res.status(500).json({ error: 'Failed to export database' });
   } finally {
     client.release();

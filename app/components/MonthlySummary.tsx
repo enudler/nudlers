@@ -69,7 +69,7 @@ type SortField = 'name' | 'count' | 'card_expenses';
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to calculate date range based on mode
-const getDateRange = (year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
+const getDateRange = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): { startDate: string; endDate: string } => {
   const y = parseInt(year);
   const m = parseInt(month);
 
@@ -80,22 +80,34 @@ const getDateRange = (year: string, month: string, mode: DateRangeMode): { start
     const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
     return { startDate, endDate };
   } else {
-    // Billing cycle: 11th of previous month to 10th of selected month
+    // Billing cycle: (Start Day) of previous month to (Start Day - 1) of selected month
+    // Example: Start Day = 10. Range: 10th Prev to 9th Curr.
+    // Existing logic was 11th to 10th.
+    // If I want to maintain compatibility where "10" (default) means "Cycle ends on 10th",
+    // then Start = billingStartDay + 1. End = billingStartDay.
+
     let prevMonth = m - 1;
     let prevYear = y;
     if (prevMonth === 0) {
       prevMonth = 12;
       prevYear = y - 1;
     }
-    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-11`;
-    const endDate = `${year}-${month}-10`;
+
+    // Start Day = Setting. To match "Cycle starts on X", we use X.
+    // However, matching the "Default 10 = End 10" logic means Setting is CUTOFF.
+    // I will use: Start = Setting + 1. End = Setting.
+    const startDayVal = billingStartDay + 1;
+    const endDayVal = billingStartDay;
+
+    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
+    const endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
     return { startDate, endDate };
   }
 };
 
 // Helper to format date range for display
-const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode): string => {
-  const { startDate, endDate } = getDateRange(year, month, mode);
+const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): string => {
+  const { startDate, endDate } = getDateRange(year, month, mode, billingStartDay);
   const start = new Date(startDate);
   const end = new Date(endDate);
   const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -157,6 +169,9 @@ const MonthlySummary: React.FC = () => {
 
   // Date range mode
   const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
+
+  // Settings
+  const [billingStartDay, setBillingStartDay] = useState<number>(10);
 
   // Modal for transaction details
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -223,8 +238,34 @@ const MonthlySummary: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAvailableMonths();
-    fetchCardVendors();
+    // Initialize state from local storage and settings
+    const init = async () => {
+      // Load persistence first
+      const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
+      if (persistedMode) {
+        setDateRangeMode(persistedMode);
+      }
+
+      // Fetch settings
+      let startDay = 10;
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          startDay = parseInt(data.settings.billing_cycle_start_day) || 10;
+          setBillingStartDay(startDay);
+        }
+      } catch (e) {
+        console.error("Error fetching settings, using default start day", e);
+      }
+
+      // Fetch available dates and initialize selection
+      // We pass startDay to ensure the default logic uses the correct cutoff
+      await fetchAvailableMonths(startDay);
+      fetchCardVendors();
+    }
+
+    init();
   }, []);
 
   const fetchCardVendors = async () => {
@@ -350,10 +391,23 @@ const MonthlySummary: React.FC = () => {
       const sortedDates = datesData.sort((a: string, b: string) => b.localeCompare(a));
 
       // Default to current month/year (the current billing cycle)
+      // Default to current month/year (the current billing cycle)
+      // If today is past the 10th, we are in the cycle ending next month
       const now = new Date();
-      const currentYear = now.getFullYear().toString();
-      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-      const currentYearMonth = `${currentYear}-${currentMonth}`;
+      let currentYear = now.getFullYear();
+      let currentMonth = now.getMonth() + 1;
+
+      if (now.getDate() > 10) {
+        currentMonth += 1;
+        if (currentMonth > 12) {
+          currentMonth = 1;
+          currentYear += 1;
+        }
+      }
+
+      const currentYearStr = currentYear.toString();
+      const currentMonthStr = String(currentMonth).padStart(2, '0');
+      const currentYearMonth = `${currentYearStr}-${currentMonthStr}`;
 
       // Use current month if available, otherwise fall back to most recent
       const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
@@ -517,6 +571,7 @@ const MonthlySummary: React.FC = () => {
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newYear = event.target.value;
     setSelectedYear(newYear);
+    localStorage.setItem('monthlySummary_year', newYear);
 
     // Update available months for the selected year
     const monthsForYear = allAvailableDates
@@ -528,16 +583,56 @@ const MonthlySummary: React.FC = () => {
 
     // If current month is not available in new year, select the first available month
     if (!uniqueMonthsForYear.includes(selectedMonth)) {
-      setSelectedMonth(uniqueMonthsForYear[0]);
+      const firstMonth = uniqueMonthsForYear[0];
+      setSelectedMonth(firstMonth);
+      localStorage.setItem('monthlySummary_month', firstMonth);
     }
   };
 
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedMonth(event.target.value);
+    const newMonth = event.target.value;
+    setSelectedMonth(newMonth);
+    localStorage.setItem('monthlySummary_month', newMonth);
   };
 
   const handleDateRangeModeChange = (mode: DateRangeMode) => {
     setDateRangeMode(mode);
+    localStorage.setItem('monthlySummary_mode', mode);
+
+    // When switching modes, we might want to "reset" the selected month to the smart default for that mode?
+    // User requirement: "if i am on 1-31 show current month" (Calendar Mode).
+    // If I switch to Billing, I should switch to Next Month if > 10th.
+    // If I switch to Calendar, I should switch to Current Month (if today is > 10th, Calendar is physically same month, Billing is next).
+    // Let's re-evaluate the selected month based on the NEW mode.
+
+    const now = new Date();
+    const currentDay = now.getDate();
+
+    let targetYear = now.getFullYear();
+    let targetMonth = now.getMonth() + 1;
+
+    if (mode === 'billing') {
+      if (currentDay > billingStartDay) {
+        targetMonth += 1;
+        if (targetMonth > 12) { targetMonth = 1; targetYear += 1; }
+      }
+    }
+    // Calendar mode defaults to current month (no change needed from now)
+
+    const targetDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+
+    // Check if target is available
+    if (allAvailableDates.includes(targetDate)) {
+      // Only auto-switch if the user hasn't explicitly navigated far away?
+      // User asked: "remember my choice when moving from overvie and summary".
+      // But also said "if i am on 1-31 show current month".
+      // I'll assume that switching modes implies requesting the "Default View" for that mode.
+      setSelectedYear(targetYear.toString());
+      setSelectedMonth(String(targetMonth).padStart(2, '0'));
+      localStorage.setItem('monthlySummary_year', targetYear.toString());
+      localStorage.setItem('monthlySummary_month', String(targetMonth).padStart(2, '0'));
+    }
+
     setDateRangeError('');
 
     if (mode === 'custom') {

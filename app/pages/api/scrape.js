@@ -1,5 +1,6 @@
 import { getDB } from './db';
 import { BANK_VENDORS } from '../../utils/constants';
+import logger from '../../utils/logger.js';
 import {
   RATE_LIMITED_VENDORS,
   loadCategoryCache,
@@ -69,12 +70,12 @@ async function handler(req, res) {
 
     // Get category fetching setting - disabling helps avoid rate limiting
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
-    console.log(`[Scraper] fetchCategories setting: ${fetchCategoriesSetting}`);
+    logger.info({ fetchCategories: fetchCategoriesSetting }, '[Scraper] Fetch categories setting');
 
     // For rate-limited vendors (Isracard/Amex/Max/VisaCal), add a pre-scrape delay to avoid rate limiting
     if (isIsracardAmex) {
       const preDelay = Math.floor(Math.random() * 5000) + 3000;
-      console.log(`[Scraper] Rate-limited vendor detected (${options.companyId}) - adding ${Math.round(preDelay / 1000)}s pre-scrape delay...`);
+      logger.info({ vendor: options.companyId, delaySeconds: Math.round(preDelay / 1000) }, '[Scraper] Rate-limited vendor detected, adding pre-scrape delay');
       await sleep(preDelay);
     }
 
@@ -152,22 +153,23 @@ async function handler(req, res) {
 
     for (const account of result.accounts) {
       // Check card ownership
-      const ownedByOther = await checkCardOwnership(client, options.companyId, account.accountNumber, credentialId);
+      const ownedByOther = await checkCardOwnership(client, account.accountNumber, options.companyId, credentialId);
 
       if (ownedByOther) {
-        console.log(`[Card Ownership] Skipping card ${account.accountNumber} - already owned by credential ${ownedByOther}`);
+        logger.info({ accountNumber: account.accountNumber, ownedBy: ownedByOther }, '[Card Ownership] Skipping card - already owned by another credential');
         skippedCards++;
         continue;
       }
 
       // Claim ownership
-      await claimCardOwnership(client, options.companyId, account.accountNumber, credentialId);
+      await claimCardOwnership(client, account.accountNumber, options.companyId, credentialId);
 
       for (const txn of account.txns) {
         if (isBank) bankTransactions++;
 
         const hadCategory = txn.category && txn.category !== 'N/A';
-        await insertTransaction(txn, client, options.companyId, isBank, account.accountNumber, cache);
+        const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
+        await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency);
         if (!hadCategory && lookupCachedCategory(txn.description, cache)) {
           cachedCategoryCount++;
         }
@@ -175,10 +177,10 @@ async function handler(req, res) {
     }
 
     if (cachedCategoryCount > 0) {
-      console.log(`[Category Cache] Applied cached categories to ${cachedCategoryCount} transactions`);
+      logger.info({ count: cachedCategoryCount }, '[Category Cache] Applied cached categories to transactions');
     }
     if (skippedCards > 0) {
-      console.log(`[Card Ownership] Skipped ${skippedCards} cards owned by other credentials`);
+      logger.info({ skippedCards }, '[Card Ownership] Skipped cards owned by other credentials');
     }
 
     // Update audit as success
@@ -193,7 +195,7 @@ async function handler(req, res) {
       accounts: result.accounts
     });
   } catch (error) {
-    console.error('Scraping failed:', error);
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Scraping failed');
 
     if (auditId) {
       try {

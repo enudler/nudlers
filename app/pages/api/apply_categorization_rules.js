@@ -1,5 +1,6 @@
 import { createApiHandler } from "./utils/apiHandler";
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 const handler = createApiHandler({
   validate: (req) => {
@@ -52,7 +53,7 @@ const handler = createApiHandler({
         transactionsUpdated: totalUpdated
       };
     } catch (error) {
-      console.error('Error applying categorization rules:', error);
+      logger.error({ error: error.message, stack: error.stack }, 'Error applying categorization rules');
       throw error;
     } finally {
       client.release();

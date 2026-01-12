@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { getDB } from '../db';
+import logger from '../../../utils/logger.js';
 
 const execAsync = promisify(exec);
 
@@ -21,11 +22,11 @@ export default async function handler(req, res) {
         // 1. Validate version exists before installing
         if (version !== 'latest' && version !== 'master') {
             try {
-                console.log(`[Update Library] Validating version ${version} exists...`);
+                logger.info({ version }, '[Update Library] Validating version exists');
                 // npm view returns exit code 0 if exists
                 await execAsync(`npm view israeli-bank-scrapers@${version} version`);
             } catch (e) {
-                console.error(`[Update Library] Version ${version} not found in registry`);
+                logger.error({ version }, '[Update Library] Version not found in registry');
                 return res.status(404).json({ error: `Version ${version} not found in npm registry.` });
             }
         }
@@ -37,15 +38,15 @@ export default async function handler(req, res) {
         }
 
         // 3. Trigger the installation
-        console.log(`[Update Library] Triggering install for israeli-bank-scrapers@${version}...`);
+        logger.info({ version }, '[Update Library] Triggering install');
 
         // Using --no-save ensures we don't modify package.json at runtime, which is safer in Docker
         const command = `npm install israeli-bank-scrapers@${version} --no-save`;
 
         try {
             const { stdout, stderr } = await execAsync(command);
-            console.log(`[Update Library] npm install stdout: ${stdout}`);
-            if (stderr) console.error(`[Update Library] npm install stderr: ${stderr}`);
+            logger.info({ stdout }, '[Update Library] npm install stdout');
+            if (stderr) logger.error({ stderr }, '[Update Library] npm install stderr');
 
             // 4. Update the version in the database ONLY after successful install
             await client.query(
@@ -61,10 +62,10 @@ export default async function handler(req, res) {
             });
 
             // 4. No restart needed anymore as we use workers
-            console.log('[Update Library] Success. Library updated without restart.');
+            logger.info('[Update Library] Success. Library updated without restart');
 
         } catch (installError) {
-            console.error('[Update Library] Install failed:', installError);
+            logger.error({ error: installError.message, stack: installError.stack }, '[Update Library] Install failed');
             return res.status(500).json({
                 error: 'Failed to install library version',
                 details: installError.message
@@ -72,7 +73,7 @@ export default async function handler(req, res) {
         }
 
     } catch (error) {
-        console.error('[Update Library] API error:', error);
+        logger.error({ error: error.message, stack: error.stack }, '[Update Library] API error');
         return res.status(error.status || 500).json({
             error: error.message || 'Internal server error',
             success: false

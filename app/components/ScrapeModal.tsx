@@ -51,6 +51,9 @@ interface ProgressState {
   step: string;
   message: string;
   percent: number;
+  phase?: string;
+  success?: boolean | null;
+  completedSteps?: string[];
   details?: any;
 }
 
@@ -74,6 +77,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [retryState, setRetryState] = useState<RetryState | null>(null);
+  const [stepHistory, setStepHistory] = useState<Array<{step: string, message: string, success: boolean | null, phase?: string}>>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { showNotification } = useNotification();
   const todayStr = new Date().toISOString().split('T')[0];
@@ -83,7 +87,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       companyId: 'isracard',
       startDate: new Date(),
       combineInstallments: false,
-      showBrowser: true,
+      showBrowser: false,
       additionalTransactionInformation: true
     },
     credentials: {
@@ -234,12 +238,33 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             const data = JSON.parse(line.slice(6));
             
             if (currentEvent === 'progress') {
-              setProgress({
+              const progressData = {
                 step: data.step,
                 message: data.message,
                 percent: data.percent,
+                phase: data.phase,
+                success: data.success,
+                completedSteps: data.completedSteps,
                 details: data.details
-              });
+              };
+              setProgress(progressData);
+              
+              // Track step history for display
+              if (data.success !== null || data.message.includes('✓') || data.message.includes('✗')) {
+                setStepHistory(prev => {
+                  const newStep = {
+                    step: data.step,
+                    message: data.message,
+                    success: data.success !== null ? data.success : (data.message.includes('✓') ? true : data.message.includes('✗') ? false : null),
+                    phase: data.phase
+                  };
+                  // Avoid duplicates
+                  if (prev.length === 0 || prev[prev.length - 1].step !== newStep.step) {
+                    return [...prev, newStep];
+                  }
+                  return prev;
+                });
+              }
             } else if (currentEvent === 'complete') {
               setProgress({
                 step: 'complete',
@@ -479,11 +504,27 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     </>
   );
 
+  const getPhaseLabel = (phase?: string) => {
+    const phases: Record<string, string> = {
+      'initialization': 'Initialization',
+      'authentication': 'Authentication',
+      'data_fetching': 'Fetching Data',
+      'processing': 'Processing',
+      'saving': 'Saving'
+    };
+    return phases[phase || ''] || 'Processing';
+  };
+
   const renderProgress = () => (
     <Box sx={{ width: '100%', mt: 2 }}>
+      {/* Current Step */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
         {progress?.step === 'complete' ? (
           <CheckCircleIcon sx={{ color: '#22c55e', mr: 1 }} />
+        ) : progress?.success === false ? (
+          <ErrorIcon sx={{ color: '#ef4444', mr: 1 }} />
+        ) : progress?.success === true ? (
+          <CheckCircleIcon sx={{ color: '#22c55e', mr: 1, fontSize: 20 }} />
         ) : error ? (
           <ErrorIcon sx={{ color: '#ef4444', mr: 1 }} />
         ) : (
@@ -503,9 +544,16 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             }}
           />
         )}
-        <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
-          {progress?.message || 'Processing...'}
-        </Typography>
+        <Box sx={{ flex: 1 }}>
+          {progress?.phase && (
+            <Typography variant="caption" sx={{ color: '#6b7280', display: 'block', mb: 0.5 }}>
+              {getPhaseLabel(progress.phase)}
+            </Typography>
+          )}
+          <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
+            {progress?.message || 'Processing...'}
+          </Typography>
+        </Box>
       </Box>
       
       <LinearProgress 
@@ -515,17 +563,56 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           height: 8,
           borderRadius: 4,
           backgroundColor: '#e5e7eb',
+          mb: 1,
           '& .MuiLinearProgress-bar': {
             borderRadius: 4,
-            backgroundColor: progress?.step === 'complete' ? '#22c55e' : '#3b82f6',
+            backgroundColor: progress?.step === 'complete' ? '#22c55e' : progress?.success === false ? '#ef4444' : '#3b82f6',
             transition: 'transform 0.3s ease'
           }
         }}
       />
       
-      <Typography variant="body2" sx={{ color: '#6b7280', mt: 1, textAlign: 'right' }}>
-        {progress?.percent || 0}%
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: stepHistory.length > 0 ? 2 : 0 }}>
+        <Typography variant="body2" sx={{ color: '#6b7280' }}>
+          {progress?.percent || 0}%
+        </Typography>
+        {progress?.phase && (
+          <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+            Step {stepHistory.length + 1}
+          </Typography>
+        )}
+      </Box>
+
+      {/* Step History */}
+      {stepHistory.length > 0 && (
+        <Box sx={{ 
+          mt: 2, 
+          p: 2, 
+          backgroundColor: '#f9fafb', 
+          borderRadius: 2,
+          border: '1px solid #e5e7eb',
+          maxHeight: 200,
+          overflowY: 'auto'
+        }}>
+          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, display: 'block', mb: 1 }}>
+            Completed Steps:
+          </Typography>
+          {stepHistory.map((step, idx) => (
+            <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+              {step.success === true ? (
+                <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 16, mr: 1 }} />
+              ) : step.success === false ? (
+                <ErrorIcon sx={{ color: '#ef4444', fontSize: 16, mr: 1 }} />
+              ) : (
+                <Box sx={{ width: 16, height: 16, mr: 1 }} />
+              )}
+              <Typography variant="body2" sx={{ color: '#374151', fontSize: '0.75rem' }}>
+                {step.message.replace(/^[✓✗⏭]\s*/, '')}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
 
       {scrapeResult && (
         <Box sx={{ 

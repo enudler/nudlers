@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 // Ensure the total_budget table exists
 async function ensureTotalBudgetTable(client) {
@@ -180,7 +181,7 @@ export default async function handler(req, res) {
     });
     
   } catch (error) {
-    console.error("Error in budget_vs_actual API:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error in budget_vs_actual API");
     res.status(500).json({ 
       error: "Internal Server Error", 
       details: error.message 

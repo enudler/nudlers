@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import logger from '../../utils/logger.js';
 
 const pool = new Pool({
   user: process.env.NUDLERS_DB_USER,
@@ -15,7 +16,7 @@ export async function getDB() {
     const client = await pool.connect();
     return client;
   } catch (error) {
-    console.error("Error connecting to the database:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error connecting to the database");
     throw new Error("Database connection failed");
   }
 }

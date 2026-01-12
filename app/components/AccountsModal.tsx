@@ -1060,7 +1060,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
             companyId: selectedAccount.vendor,
             startDate: new Date(),
             combineInstallments: false,
-            showBrowser: true,
+            showBrowser: false,
             additionalTransactionInformation: true
           },
           credentials: {

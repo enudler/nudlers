@@ -1,4 +1,5 @@
 import { getDB } from "../db";
+import logger from '../../../utils/logger.js';
 
 export default async function handler(req, res) {
   const client = await getDB();
@@ -50,7 +51,7 @@ export default async function handler(req, res) {
       res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
   } catch (error) {
-    console.error("Error in budget API:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error in budget API");
     res.status(500).json({ 
       error: "Internal Server Error", 
       details: error.message 

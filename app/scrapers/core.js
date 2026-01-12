@@ -3,7 +3,7 @@
  * Safe to import in standalone scripts/workers.
  */
 
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex'];
+export const RATE_LIMITED_VENDORS = [];
 
 /**
  * Shared sleep helper

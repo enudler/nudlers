@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import SettingsIcon from '@mui/icons-material/Settings';
+import packageJson from '../package.json';
 import SyncIcon from '@mui/icons-material/Sync';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -569,8 +570,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       <DialogActions sx={{
         borderTop: '1px solid rgba(148, 163, 184, 0.1)',
         p: 2,
-        justifyContent: 'flex-end'
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>
+          v{packageJson.version}
+        </Typography>
         <Button
           onClick={handleClose}
           variant="outlined"

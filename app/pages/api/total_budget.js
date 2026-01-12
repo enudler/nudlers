@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 // Ensure the total_budget table exists
 async function ensureTableExists(client) {
@@ -86,7 +87,7 @@ export default async function handler(req, res) {
       res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
   } catch (error) {
-    console.error("Error in total_budget API:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error in total_budget API");
     res.status(500).json({ 
       error: "Internal Server Error", 
       details: error.message 

@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import logger from '../../utils/logger.js';
 
 const SYSTEM_PROMPT = `You are a concise financial assistant for "Clarify" expense tracker.
 
@@ -74,7 +75,7 @@ async function handler(req, res) {
           model: modelName
         });
       } catch (modelError) {
-        console.log(`Model ${modelName} failed:`, modelError.message);
+        logger.warn({ modelName, error: modelError.message }, 'Model failed');
         lastError = modelError;
         // Continue to next model
       }
@@ -84,7 +85,7 @@ async function handler(req, res) {
     throw lastError;
 
   } catch (error) {
-    console.error('Gemini API error:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Gemini API error');
     
     // Handle specific error types
     if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('API key not valid')) {

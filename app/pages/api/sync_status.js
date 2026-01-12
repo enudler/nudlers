@@ -1,4 +1,5 @@
 import { getDB } from './db';
+import logger from '../../utils/logger.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -75,12 +76,12 @@ export default async function handler(req, res) {
       if (!isNaN(date.getTime())) {
         // If we got here, the timestamp might have been interpreted as local time
         // Log a warning so we can investigate
-        console.warn('[sync_status] Timestamp parsed without explicit UTC:', timestamp, typeof timestamp, '->', date.toISOString());
+        logger.warn({ timestamp, timestampType: typeof timestamp, parsed: date.toISOString() }, '[sync_status] Timestamp parsed without explicit UTC');
         return date.toISOString();
       }
       
       // Log error if we couldn't parse it
-      console.error('[sync_status] Could not parse timestamp:', timestamp, typeof timestamp);
+      logger.error({ timestamp, timestampType: typeof timestamp }, '[sync_status] Could not parse timestamp');
       return null;
     };
 
@@ -187,7 +188,7 @@ export default async function handler(req, res) {
       accountSyncStatus
     });
   } catch (error) {
-    console.error('Sync status error:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Sync status error');
     res.status(500).json({ error: error.message });
   } finally {
     client.release();

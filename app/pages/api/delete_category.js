@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -55,7 +56,7 @@ async function handler(req, res) {
       budgetDeleted
     });
   } catch (error) {
-    console.error("Error deleting category:", error);
+    logger.error({ error: error.message, stack: error.stack }, "Error deleting category");
     res.status(500).json({ 
       error: "Internal Server Error",
       details: error.message

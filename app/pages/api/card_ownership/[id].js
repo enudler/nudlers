@@ -1,5 +1,6 @@
 import { createApiHandler } from "../utils/apiHandler";
 import { getDB } from "../db";
+import logger from '../../../utils/logger.js';
 
 const handler = createApiHandler({
   validate: (req) => {
@@ -99,7 +100,7 @@ const handler = createApiHandler({
             bank_account: bankResult.rows[0]
           };
         } catch (error) {
-          console.error('Error fetching bank account:', error);
+          logger.error({ error: error.message, stack: error.stack }, 'Error fetching bank account');
           return {
             ...row,
             bank_account: null

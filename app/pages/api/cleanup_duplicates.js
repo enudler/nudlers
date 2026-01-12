@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 /**
  * Cleanup duplicate transactions API
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
         duplicates: result.rows
       });
     } catch (error) {
-      console.error("Error finding duplicates:", error);
+      logger.error({ error: error.message, stack: error.stack }, "Error finding duplicates");
       res.status(500).json({ error: error.message });
     } finally {
       client.release();
@@ -133,7 +134,7 @@ export default async function handler(req, res) {
       });
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error("Error deleting duplicates:", error);
+      logger.error({ error: error.message, stack: error.stack }, "Error deleting duplicates");
       res.status(500).json({ error: error.message });
     } finally {
       client.release();

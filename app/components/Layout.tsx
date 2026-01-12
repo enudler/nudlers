@@ -82,7 +82,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             currentView={currentView} 
             onViewChange={handleViewChange} 
           />
-          <main>
+          <main
+            style={{
+              marginTop: '48px', // AppBar height
+            }}
+            className="main-content"
+          >
             {renderView()}
           </main>
           <AIAssistant screenContext={screenContext} />

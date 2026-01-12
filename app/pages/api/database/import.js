@@ -8,6 +8,7 @@
  */
 
 import { getDB } from '../db';
+import logger from '../../../utils/logger.js';
 
 // Tables to import (in order to handle foreign key dependencies)
 const TABLES_IMPORT_ORDER = [
@@ -93,7 +94,7 @@ async function handler(req, res) {
           await client.query(`TRUNCATE TABLE ${tableName} CASCADE`);
         } catch (error) {
           // Table might not exist, continue
-          console.log(`Could not truncate ${tableName}: ${error.message}`);
+          logger.warn({ tableName, error: error.message }, 'Could not truncate table');
         }
       }
     }
@@ -145,13 +146,13 @@ async function handler(req, res) {
                      COALESCE((SELECT MAX(id) FROM ${tableName}), 0) + 1, false)
             `);
           } catch (seqError) {
-            console.log(`Could not reset sequence for ${tableName}: ${seqError.message}`);
+            logger.warn({ tableName, error: seqError.message }, 'Could not reset sequence');
           }
         }
 
         results.imported[tableName] = { count: importedCount };
       } catch (error) {
-        console.error(`Error importing ${tableName}:`, error);
+        logger.error({ tableName, error: error.message, stack: error.stack }, 'Error importing table');
         results.errors.push({
           table: tableName,
           error: error.message
@@ -170,7 +171,7 @@ async function handler(req, res) {
   } catch (error) {
     // Rollback on error
     await client.query('ROLLBACK');
-    console.error('Error importing database:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Error importing database');
     res.status(500).json({ 
       error: 'Failed to import database',
       message: error.message 

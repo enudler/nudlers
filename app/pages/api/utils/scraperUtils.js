@@ -7,10 +7,11 @@
  */
 
 import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants';
-import { generateTransactionIdentifier } from './transactionUtils';
+import { generateTransactionIdentifier } from './transactionUtils.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import fs from 'fs';
 
 const require = createRequire(import.meta.url);
 const cp = require('child_process');
@@ -18,8 +19,8 @@ const cp = require('child_process');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Re-export core constants and utilities from our isolated core
-export {
+import logger from '../../../utils/logger.js';
+import {
   RATE_LIMITED_VENDORS,
   getChromePath,
   getScraperOptions,
@@ -27,22 +28,62 @@ export {
   sleep
 } from '../../../scrapers/core.js';
 
+export {
+  RATE_LIMITED_VENDORS,
+  getChromePath,
+  getScraperOptions,
+  getPreparePage,
+  sleep
+};
+
 // Cache for description -> category mappings from our database
 let categoryCache = null;
 
 /**
  * Load category cache from database for known description -> category mappings
+ * Builds cache from existing transactions if transaction_categories table doesn't exist
  */
 export async function loadCategoryCache(client) {
   if (categoryCache !== null) return categoryCache;
 
-  const result = await client.query(
-    `SELECT description, category FROM transaction_categories`
-  );
-
   categoryCache = {};
-  for (const row of result.rows) {
-    categoryCache[row.description.toLowerCase()] = row.category;
+
+  try {
+    // Try to load from transaction_categories table if it exists
+    const result = await client.query(
+      `SELECT description, category FROM transaction_categories`
+    );
+
+    for (const row of result.rows) {
+      if (row.description && row.category) {
+        categoryCache[row.description.toLowerCase()] = row.category;
+      }
+    }
+  } catch (err) {
+    // If table doesn't exist, build cache from transactions table
+    if (err.message && err.message.includes('does not exist')) {
+      logger.info('[Category Cache] transaction_categories table not found, building cache from transactions');
+      try {
+        const result = await client.query(
+          `SELECT DISTINCT name, category FROM transactions WHERE category IS NOT NULL AND category != ''`
+        );
+
+        for (const row of result.rows) {
+          if (row.name && row.category) {
+            categoryCache[row.name.toLowerCase()] = row.category;
+          }
+        }
+        logger.info({ count: Object.keys(categoryCache).length }, '[Category Cache] Built cache from transactions');
+      } catch (fallbackErr) {
+        logger.error({ error: fallbackErr.message }, '[Category Cache] Failed to build cache from transactions');
+        // Return empty cache if both fail
+        return categoryCache;
+      }
+    } else {
+      logger.error({ error: err.message }, '[Category Cache] Error loading category cache');
+      // Return empty cache on error
+      return categoryCache;
+    }
   }
 
   return categoryCache;
@@ -111,7 +152,7 @@ export function validateCredentials(credentials, vendor) {
 /**
  * Insert a transaction into the database
  */
-export async function insertTransaction(client, transaction, cardId, defaultCurrency) {
+export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency) {
   const {
     date,
     processedDate,
@@ -122,14 +163,18 @@ export async function insertTransaction(client, transaction, cardId, defaultCurr
     memo,
     status,
     identifier,
+    type,
+    installmentsNumber,
+    installmentsTotal,
   } = transaction;
 
-  const txId = identifier || generateTransactionIdentifier(transaction, cardId);
+  // Generate identifier if not provided
+  const txId = identifier || generateTransactionIdentifier(transaction, vendor, accountNumber);
 
-  // Check if transaction already exists
+  // Check if transaction already exists (primary key is identifier + vendor)
   const existing = await client.query(
-    'SELECT id FROM transactions WHERE identifier = $1',
-    [txId]
+    'SELECT identifier FROM transactions WHERE identifier = $1 AND vendor = $2',
+    [txId, vendor]
   );
 
   if (existing.rows.length > 0) {
@@ -139,18 +184,55 @@ export async function insertTransaction(client, transaction, cardId, defaultCurr
   // Lookup category
   const category = lookupCachedCategory(description);
 
-  await client.query(
-    `INSERT INTO transactions (
-      card_id, date, processed_date, amount, original_amount, 
-      original_currency, currency, description, memo, status, 
-      category, identifier
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-    [
-      cardId, date, processedDate, chargedAmount, originalAmount,
-      originalCurrency, defaultCurrency, description, memo, status,
-      category, txId
-    ]
+  // Determine transaction type if not provided
+  const transactionType = type || (chargedAmount < 0 ? 'expense' : 'income');
+
+  // Normalize values for business key check
+  const normalizedName = (description || '').trim().toLowerCase();
+  const normalizedPrice = Math.abs(chargedAmount || originalAmount || 0);
+  const normalizedAccountNumber = accountNumber || '';
+
+  // Check business key constraint (vendor, date, name, price, account_number)
+  const businessKeyCheck = await client.query(
+    `SELECT identifier FROM transactions 
+     WHERE vendor = $1 
+       AND date = $2 
+       AND LOWER(TRIM(name)) = $3 
+       AND ABS(price) = $4 
+       AND COALESCE(account_number, '') = $5`,
+    [vendor, date, normalizedName, normalizedPrice, normalizedAccountNumber]
   );
+
+  if (businessKeyCheck.rows.length > 0) {
+    return { success: true, duplicated: true };
+  }
+
+  // Insert transaction matching the actual database schema
+  // Use ON CONFLICT to handle race conditions gracefully
+  try {
+    await client.query(
+      `INSERT INTO transactions (
+        identifier, vendor, date, name, price, category, type,
+        processed_date, original_amount, original_currency, 
+        charged_currency, memo, status, 
+        installments_number, installments_total, account_number
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ON CONFLICT (identifier, vendor) DO NOTHING`,
+      [
+        txId, vendor, date, description || '', normalizedPrice,
+        category, transactionType, processedDate, originalAmount, originalCurrency,
+        defaultCurrency, memo, status || 'completed',
+        installmentsNumber, installmentsTotal, accountNumber
+      ]
+    );
+  } catch (err) {
+    // Handle business key constraint violation
+    if (err.code === '23505' && err.constraint === 'idx_transactions_business_key') {
+      return { success: true, duplicated: true };
+    }
+    // Re-throw other errors
+    throw err;
+  }
 
   return { success: true, duplicated: false };
 }
@@ -158,13 +240,13 @@ export async function insertTransaction(client, transaction, cardId, defaultCurr
 /**
  * Check if a card is already owned by another user/credential
  */
-export async function checkCardOwnership(client, last4Digits, vendor, currentCredentialId) {
+export async function checkCardOwnership(client, accountNumber, vendor, currentCredentialId) {
   const result = await client.query(
-    `SELECT vc.nickname, c.last_4_digits 
-     FROM cards c 
-     JOIN vendor_credentials vc ON c.credential_id = vc.id 
-     WHERE c.last_4_digits = $1 AND vc.vendor = $2 AND vc.id != $3`,
-    [last4Digits, vendor, currentCredentialId]
+    `SELECT co.id, vc.nickname, co.account_number 
+     FROM card_ownership co 
+     JOIN vendor_credentials vc ON co.credential_id = vc.id 
+     WHERE co.account_number = $1 AND co.vendor = $2 AND co.credential_id != $3`,
+    [accountNumber, vendor, currentCredentialId]
   );
   return result.rows[0] || null;
 }
@@ -172,13 +254,14 @@ export async function checkCardOwnership(client, last4Digits, vendor, currentCre
 /**
  * Claim ownership of a card for a specific credential
  */
-export async function claimCardOwnership(client, last4Digits, vendor, credentialId) {
-  // Update the credential_id for any existing cards with this number/vendor
+export async function claimCardOwnership(client, accountNumber, vendor, credentialId) {
+  // Insert or update card ownership
   await client.query(
-    `UPDATE cards SET credential_id = $1 WHERE last_4_digits = $2 AND credential_id IN (
-      SELECT id FROM vendor_credentials WHERE vendor = $3
-    )`,
-    [credentialId, last4Digits, vendor]
+    `INSERT INTO card_ownership (vendor, account_number, credential_id)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (vendor, account_number) 
+     DO UPDATE SET credential_id = $3`,
+    [vendor, accountNumber, credentialId]
   );
 }
 
@@ -216,7 +299,7 @@ export async function retryWithBackoff(fn, maxRetries = 2, baseDelay = 5000, ven
 
       // Exponential backoff: baseDelay * 2^attempt (e.g., 5s, 10s, 20s)
       const delay = baseDelay * Math.pow(2, attempt);
-      console.log(`[Retry] ${vendor} attempt ${attempt + 1}/${maxRetries + 1} failed with: ${errorMessage}. Retrying in ${delay / 1000}s...`);
+      logger.info({ vendor, attempt: attempt + 1, maxRetries: maxRetries + 1, errorMessage, delaySeconds: delay / 1000 }, '[Retry] Retrying after failure');
       await sleep(delay);
     }
   }
@@ -291,8 +374,24 @@ export function runScraperInWorker(scraperOptions, credentials, onProgress) {
     // In standalone build, process.cwd() is the root of the standalone folder
     // We use join with a dynamic element to hide this from the Turbopack optimizer/tracer
     const scrapersDir = 'scrapers';
-    const runnerPath = path.join(process.cwd(), scrapersDir, 'runner.js');
-    console.log(`[Worker] Spawning worker for ${scraperOptions.companyId} using ${runnerPath}`);
+    // Try multiple possible paths for runner.js
+    let runnerPath = path.join(process.cwd(), scrapersDir, 'runner.js');
+    
+    // If running from app directory, adjust path
+    if (!fs.existsSync(runnerPath) && process.cwd().endsWith('app')) {
+      runnerPath = path.join(process.cwd(), '..', scrapersDir, 'runner.js');
+    }
+    // If still not found, try app/scrapers
+    if (!fs.existsSync(runnerPath)) {
+      runnerPath = path.join(process.cwd(), 'app', scrapersDir, 'runner.js');
+    }
+    
+    logger.info({ companyId: scraperOptions.companyId, runnerPath, pathExists: fs.existsSync(runnerPath), cwd: process.cwd() }, '[Worker] Spawning worker');
+    
+    if (!fs.existsSync(runnerPath)) {
+      reject(new Error(`Scraper runner not found at ${runnerPath}. Please ensure runner.js exists in the scrapers directory.`));
+      return;
+    }
 
     // Use eval to hide the call from Turbopack's static analysis
     const forkFn = eval('cp.fork');
@@ -302,34 +401,79 @@ export function runScraperInWorker(scraperOptions, credentials, onProgress) {
     });
 
     let result = null;
+    let workerReady = false;
+    let scrapeStarted = false;
+    const timeout = scraperOptions.timeout || scraperOptions.defaultTimeout || 120000;
+    let timeoutHandle = null;
+
+    // Set up timeout to detect hanging workers
+    timeoutHandle = setTimeout(() => {
+      if (!result && !scrapeStarted) {
+        logger.error({ timeout }, '[Worker] Timeout: Worker did not start scraping');
+        worker.kill('SIGTERM');
+        reject(new Error(`Scraper timeout: Worker did not start scraping within ${timeout / 1000} seconds. The scraper may be hanging or the website may be blocking automation.`));
+      } else if (!result && scrapeStarted) {
+        logger.error({ timeout }, '[Worker] Timeout: Scraper exceeded timeout');
+        worker.kill('SIGTERM');
+        reject(new Error(`Scraper timeout: The scraping process exceeded the timeout of ${timeout / 1000} seconds. This may indicate the website is slow or blocking automation.`));
+      }
+    }, timeout + 10000); // Add 10 seconds buffer
 
     worker.on('message', (message) => {
+      logger.debug({ messageType: message.type }, '[Worker] Received message');
       if (message.type === 'ready') {
+        workerReady = true;
+        logger.info('[Worker] Worker ready, sending scrape command');
         worker.send({ action: 'scrape', scraperOptions, credentials });
       } else if (message.type === 'progress') {
-        if (onProgress) onProgress(message.companyId, message.progress);
+        scrapeStarted = true;
+        if (onProgress) {
+          logger.debug({ progress: message.progress }, '[Worker] Progress update');
+          onProgress(message.companyId, message.progress);
+        }
       } else if (message.type === 'success') {
+        clearTimeout(timeoutHandle);
         result = message.result;
+        logger.info({ accountCount: result.accounts?.length || 0 }, '[Worker] Scrape successful');
+        worker.kill();
+        resolve(result);
       } else if (message.type === 'error') {
+        clearTimeout(timeoutHandle);
         const err = new Error(message.errorMessage || 'Unknown error in scraper worker');
         err.errorType = message.error;
-        reject(err);
+        logger.error({ error: err.message }, '[Worker] Scrape error');
         worker.kill();
+        reject(err);
       }
     });
 
-    worker.on('exit', (code) => {
+    worker.on('exit', (code, signal) => {
+      clearTimeout(timeoutHandle);
+      logger.info({ code, signal }, '[Worker] Worker exited');
       if (code !== 0 && !result) {
-        reject(new Error(`Scraper worker exited with code ${code}`));
-      } else {
+        reject(new Error(`Scraper worker exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`));
+      } else if (result) {
         resolve(result);
+      } else if (code === 0) {
+        // Worker exited cleanly but no result - might have been killed
+        reject(new Error('Scraper worker exited unexpectedly without completing'));
       }
     });
 
     worker.on('error', (err) => {
-      console.error('[Worker] Fatal error:', err);
+      clearTimeout(timeoutHandle);
+      logger.error({ error: err.message, stack: err.stack }, '[Worker] Fatal error');
       reject(err);
     });
+
+    // Handle case where worker doesn't send 'ready' message
+    setTimeout(() => {
+      if (!workerReady) {
+        logger.error('[Worker] Worker did not send ready message within 5 seconds');
+        worker.kill('SIGTERM');
+        reject(new Error('Scraper worker failed to initialize. Check if runner.js exists and is executable.'));
+      }
+    }, 5000);
   });
 }
 

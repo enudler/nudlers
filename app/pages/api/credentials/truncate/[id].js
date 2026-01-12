@@ -1,4 +1,5 @@
 import { getDB } from "../../db";
+import logger from '../../../../utils/logger.js';
 
 /**
  * API endpoint to truncate (delete) all transaction data for a specific account.
@@ -65,7 +66,7 @@ async function handler(req, res) {
       deletedCount: deleteResult.rowCount
     });
   } catch (error) {
-    console.error('Error truncating account data:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Error truncating account data');
     res.status(500).json({ error: 'Failed to truncate account data' });
   } finally {
     client.release();

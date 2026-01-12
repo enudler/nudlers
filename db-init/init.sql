@@ -194,6 +194,19 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- Index for quick key lookup
 CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
 
+-- Transaction categories table: stores description -> category mappings for faster lookups
+CREATE TABLE IF NOT EXISTS transaction_categories (
+    id SERIAL PRIMARY KEY,
+    description VARCHAR(200) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(description)
+);
+
+CREATE INDEX IF NOT EXISTS idx_transaction_categories_description ON transaction_categories(description);
+CREATE INDEX IF NOT EXISTS idx_transaction_categories_category ON transaction_categories(category);
+
 -- Insert default settings
 INSERT INTO app_settings (key, value, description) VALUES
     ('sync_enabled', 'false', 'Enable automatic background sync'),

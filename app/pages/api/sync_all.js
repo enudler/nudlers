@@ -1,5 +1,6 @@
 import { getDB } from './db';
 import { decrypt } from './utils/encryption';
+import logger from '../../utils/logger.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
       accounts: accounts
     });
   } catch (error) {
-    console.error('Sync all error:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Sync all error');
     res.status(500).json({ error: error.message });
   } finally {
     client.release();

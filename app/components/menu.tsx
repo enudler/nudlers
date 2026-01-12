@@ -1,4 +1,5 @@
 import * as React from "react";
+import packageJson from '../package.json';
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -127,6 +128,7 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
+  const [desktopDrawerOpen, setDesktopDrawerOpen] = React.useState(true); // Persistent drawer for desktop
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
   const [isScrapeModalOpen, setIsScrapeModalOpen] = React.useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
@@ -143,6 +145,26 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   const handleDrawerToggle = () => {
     setMobileDrawerOpen(!mobileDrawerOpen);
   };
+
+  const handleDesktopDrawerToggle = () => {
+    setDesktopDrawerOpen(!desktopDrawerOpen);
+  };
+
+  // Update body class based on drawer state for CSS styling
+  React.useEffect(() => {
+    if (!isMobile) {
+      if (desktopDrawerOpen) {
+        document.body.classList.add('drawer-open');
+        document.body.classList.remove('drawer-closed');
+      } else {
+        document.body.classList.add('drawer-closed');
+        document.body.classList.remove('drawer-open');
+      }
+    }
+    return () => {
+      document.body.classList.remove('drawer-open', 'drawer-closed');
+    };
+  }, [desktopDrawerOpen, isMobile]);
 
   // Menu items for mobile drawer
   const viewMenuItems = [
@@ -178,7 +200,7 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   }) => {
     try {
       const formattedDate = transactionData.date.toISOString().split('T')[0];
-      
+
       const response = await fetch("/api/manual_transaction", {
         method: "POST",
         headers: {
@@ -211,41 +233,36 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
     window.dispatchEvent(new CustomEvent('dataRefresh'));
   };
 
-  // Mobile drawer content
-  const mobileDrawer = (
+  // Shared drawer content component
+  const drawerContent = (isMobile: boolean) => (
     <Box
-      sx={{ width: 280 }}
+      sx={{ 
+        width: isMobile ? 280 : 280,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        pb: isMobile ? 8 : 2,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+      }}
       role="presentation"
     >
-      {/* Drawer Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          p: 2,
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AutoAwesomeIcon sx={{ fontSize: '24px', color: '#60a5fa' }} />
-          <Typography
-            sx={{
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              fontSize: '1.2rem',
-            }}
-          >
-            Nudlers
-          </Typography>
-        </Box>
-        <IconButton onClick={handleDrawerToggle} sx={{ color: '#fff' }}>
-          <CloseIcon />
-        </IconButton>
+      {/* Close Button */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
+        {isMobile ? (
+          <IconButton onClick={handleDrawerToggle} sx={{ color: '#64748b' }}>
+            <CloseIcon />
+          </IconButton>
+        ) : (
+          <IconButton onClick={handleDesktopDrawerToggle} sx={{ color: '#64748b' }}>
+            <CloseIcon />
+          </IconButton>
+        )}
       </Box>
 
+      {/* Scrollable Content */}
+      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
       {/* Views Section */}
       <Box sx={{ p: 1 }}>
         <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
@@ -257,7 +274,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               <ListItemButton
                 onClick={() => {
                   onViewChange?.(item.view);
-                  handleDrawerToggle();
+                  if (isMobile) {
+                    handleDrawerToggle();
+                  }
                 }}
                 sx={{
                   borderRadius: '12px',
@@ -300,7 +319,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               <ListItemButton
                 onClick={() => {
                   item.action();
-                  handleDrawerToggle();
+                  if (isMobile) {
+                    handleDrawerToggle();
+                  }
                 }}
                 sx={{
                   borderRadius: '12px',
@@ -334,7 +355,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               <ListItemButton
                 onClick={() => {
                   item.action();
-                  handleDrawerToggle();
+                  if (isMobile) {
+                    handleDrawerToggle();
+                  }
                 }}
                 sx={{
                   borderRadius: '12px',
@@ -355,8 +378,25 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         </List>
       </Box>
 
+      </Box>
+      
+      {/* Version Footer */}
+      <Box sx={{
+        p: 2,
+        textAlign: 'center',
+        borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+        background: '#fff',
+        flexShrink: 0,
+      }}>
+        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px' }}>
+          v{packageJson.version}
+        </Typography>
+      </Box>
     </Box>
   );
+
+  // Mobile drawer content
+  const mobileDrawer = drawerContent(true);
 
   return (
     <>
@@ -390,126 +430,18 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
               Nudlers
             </Logo>
 
-            {/* Desktop Navigation */}
-            <Box sx={{ 
-              flexGrow: 1, 
-              display: { xs: "none", md: "flex" },
-              justifyContent: 'center',
-              gap: '8px'
-            }}>
-              {Object.keys(pages).map((page: string) => (
-                <NavButton
-                  key={page}
-                  onClick={redirectTo(pages[page])}
-                >
-                  {page}
-                </NavButton>
-              ))}
-            </Box>
-
-            {/* Desktop Actions */}
+            {/* Desktop Actions - Only status indicators */}
             <Box sx={{ flexGrow: 0, display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: '8px' }}>
-              <NavButton
-                onClick={() => onViewChange?.('summary')}
-                startIcon={<SummarizeIcon />}
+              <IconButton
+                onClick={handleDesktopDrawerToggle}
                 sx={{
-                  ...(currentView === 'summary' && {
-                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
-                    color: '#fff',
-                  })
+                  color: '#fff',
+                  mr: 1,
                 }}
               >
-                Summary
-              </NavButton>
-              <NavButton
-                onClick={() => onViewChange?.('dashboard')}
-                startIcon={<DashboardIcon />}
-                sx={{
-                  ...(currentView === 'dashboard' && {
-                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
-                    color: '#fff',
-                  })
-                }}
-              >
-                Overview
-              </NavButton>
-              <NavButton
-                onClick={() => onViewChange?.('budget')}
-                startIcon={<SavingsIcon />}
-                sx={{
-                  ...(currentView === 'budget' && {
-                    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-                    color: '#22c55e',
-                  })
-                }}
-              >
-                Budget
-              </NavButton>
-              <NavButton
-                onClick={() => setIsAuditOpen(true)}
-                startIcon={<HistoryIcon />}
-              >
-                Audit
-              </NavButton>
-              <NavButton
-                onClick={() => setIsRecurringOpen(true)}
-                startIcon={<RepeatIcon />}
-              >
-                Recurring
-              </NavButton>
-              <NavButton
-                onClick={() => setIsManualModalOpen(true)}
-                startIcon={<EditIcon />}
-              >
-                Manual
-              </NavButton>
-              <NavButton
-                onClick={() => setIsCategoryManagementOpen(true)}
-                startIcon={<SettingsIcon />}
-              >
-                Categories
-              </NavButton>
-              <NavButton
-                onClick={() => setIsAccountsModalOpen(true)}
-                startIcon={<PersonIcon />}
-              >
-                Accounts
-              </NavButton>
-              <NavButton
-                onClick={() => setIsCardVendorsOpen(true)}
-                startIcon={<CreditCardIcon />}
-              >
-                Cards
-              </NavButton>
-              <NavButton
-                onClick={() => setIsBackupOpen(true)}
-                startIcon={<BackupIcon />}
-              >
-                Backup
-              </NavButton>
-              <NavButton
-                onClick={() => setIsSettingsOpen(true)}
-                startIcon={<TuneIcon />}
-              >
-                Settings
-              </NavButton>
+                <MenuIcon />
+              </IconButton>
               <SyncStatusIndicator onClick={() => setIsSyncStatusOpen(true)} />
-              <Menu
-                sx={{ mt: "45px" }}
-                id="menu-appbar"
-                anchorEl={anchorElUser}
-                anchorOrigin={{
-                  vertical: "top",
-                  horizontal: "right",
-                }}
-                keepMounted
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "right",
-                }}
-                open={Boolean(anchorElUser)}
-                onClose={handleCloseUserMenu}
-              />
               <DatabaseIndicator />
             </Box>
 
@@ -527,6 +459,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         anchor="left"
         open={mobileDrawerOpen}
         onClose={handleDrawerToggle}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile
+        }}
         sx={{
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': {
@@ -537,6 +472,26 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         }}
       >
         {mobileDrawer}
+      </Drawer>
+
+      {/* Desktop Persistent Drawer */}
+      <Drawer
+        variant="persistent"
+        anchor="left"
+        open={desktopDrawerOpen}
+        sx={{
+          display: { xs: 'none', md: 'block' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: 280,
+            background: '#fff',
+            borderRight: '1px solid rgba(148, 163, 184, 0.1)',
+            top: '48px', // Height of AppBar
+            height: 'calc(100vh - 48px)',
+          },
+        }}
+      >
+        {drawerContent(false)}
       </Drawer>
       <ScrapeModal
         isOpen={isScrapeModalOpen}

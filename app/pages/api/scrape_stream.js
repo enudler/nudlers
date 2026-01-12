@@ -1,5 +1,6 @@
 import { getDB } from './db';
 import { BANK_VENDORS } from '../../utils/constants';
+import logger from '../../utils/logger.js';
 import {
   RATE_LIMITED_VENDORS,
   loadCategoryCache,
@@ -71,19 +72,20 @@ async function handler(req, res) {
       return;
     }
 
-    console.log(`[Scrape Stream] Starting scrape for vendor: ${options.companyId}, credentialId: ${credentialId}`);
-    console.log(`[Scrape Stream] Start date: ${options.startDate}, showBrowser: ${options.showBrowser}`);
+    logger.info({ vendor: options.companyId, credentialId, startDate: options.startDate, showBrowser: options.showBrowser }, '[Scrape Stream] Starting scrape');
 
     sendSSE(res, 'progress', {
       step: 'init',
       message: `Initializing scraper for ${options.companyId}...`,
-      percent: 5
+      percent: 0,
+      phase: 'initialization',
+      success: null
     });
 
     const isBank = BANK_VENDORS.includes(options.companyId);
     const isIsracardAmex = RATE_LIMITED_VENDORS.includes(options.companyId);
 
-    console.log(`[Scrape Stream] isBank: ${isBank}, isIsracardAmex: ${isIsracardAmex}`);
+    logger.info({ isBank, isIsracardAmex }, '[Scrape Stream] Vendor type detection');
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
@@ -95,12 +97,12 @@ async function handler(req, res) {
         v ? `${v.substring(0, 2)}***${v.substring(v.length - 2)} (${v.length} chars)` : 'EMPTY'
       ])
     );
-    console.log(`[Scrape Stream] Prepared credentials:`, maskedCreds);
+    logger.info({ credentials: maskedCreds }, '[Scrape Stream] Prepared credentials');
 
     try {
       validateCredentials(scraperCredentials, options.companyId);
     } catch (error) {
-      console.error(`[Scrape Stream] Credential validation failed:`, error.message);
+      logger.error({ error: error.message }, '[Scrape Stream] Credential validation failed');
       sendSSE(res, 'error', { message: error.message });
       res.end();
       return;
@@ -112,15 +114,26 @@ async function handler(req, res) {
       sendSSE(res, 'progress', {
         step: 'rate_limit_delay',
         message: `Adding ${Math.round(preDelay / 1000)}s delay to avoid rate limiting...`,
-        percent: 8
+        percent: 2,
+        phase: 'initialization',
+        success: null
       });
       await sleep(preDelay);
+      sendSSE(res, 'progress', {
+        step: 'rate_limit_delay',
+        message: '✓ Delay completed',
+        percent: 3,
+        phase: 'initialization',
+        success: true
+      });
     }
 
     sendSSE(res, 'progress', {
       step: 'browser',
       message: 'Launching browser...',
-      percent: 10
+      percent: 5,
+      phase: 'initialization',
+      success: null
     });
 
     // Get settings from database (unless explicitly overridden)
@@ -130,7 +143,7 @@ async function handler(req, res) {
 
     // Get category fetching setting - disabling helps avoid rate limiting
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
-    console.log(`[Scrape Stream] fetchCategories setting: ${fetchCategoriesSetting}`);
+    logger.info({ fetchCategories: fetchCategoriesSetting }, '[Scrape Stream] Fetch categories setting');
 
     // Get timeout settings
     const timeoutSetting = isIsracardAmex
@@ -147,32 +160,110 @@ async function handler(req, res) {
       })
     };
 
+    // Track completed steps for better status reporting
+    const completedSteps = new Set();
+    
     const progressHandler = (companyId, payload) => {
       const stepMessages = {
-        'initializing': { message: 'Initializing...', percent: 15 },
-        'startScraping': { message: 'Starting scrape process...', percent: 20 },
-        'loginStarted': { message: 'Navigating to login page...', percent: 25 },
-        'loginWaitingForOTP': { message: 'Waiting for OTP verification...', percent: 30 },
-        'loginSuccess': { message: 'Login successful!', percent: 40 },
-        'loginFailed': { message: 'Login failed', percent: 40 },
-        'changePassword': { message: 'Password change required', percent: 35 },
-        'fetchingTransactions': { message: 'Fetching transactions...', percent: 50 },
-        'gettingAccountDetails': { message: 'Getting account details...', percent: 55 },
-        'accountDetailsReceived': { message: 'Account details received', percent: 60 },
-        'processingAccount': { message: `Processing account ${payload?.accountNumber || ''}...`, percent: 65 },
-        'processingTransactions': { message: 'Processing transactions...', percent: 70 },
-        'endScraping': { message: 'Finishing up...', percent: 85 }
+        'initializing': { 
+          message: 'Initializing scraper...', 
+          percent: 5,
+          phase: 'initialization',
+          success: true
+        },
+        'startScraping': { 
+          message: 'Starting scrape process...', 
+          percent: 10,
+          phase: 'initialization',
+          success: true
+        },
+        'loginStarted': { 
+          message: 'Navigating to login page...', 
+          percent: 20,
+          phase: 'authentication',
+          success: null
+        },
+        'loginWaitingForOTP': { 
+          message: 'Waiting for OTP verification...', 
+          percent: 25,
+          phase: 'authentication',
+          success: null
+        },
+        'loginSuccess': { 
+          message: '✓ Login successful', 
+          percent: 35,
+          phase: 'authentication',
+          success: true
+        },
+        'loginFailed': { 
+          message: '✗ Login failed', 
+          percent: 35,
+          phase: 'authentication',
+          success: false
+        },
+        'changePassword': { 
+          message: 'Password change required', 
+          percent: 30,
+          phase: 'authentication',
+          success: false
+        },
+        'fetchingTransactions': { 
+          message: 'Fetching transactions from website...', 
+          percent: 45,
+          phase: 'data_fetching',
+          success: null
+        },
+        'gettingAccountDetails': { 
+          message: 'Retrieving account details...', 
+          percent: 50,
+          phase: 'data_fetching',
+          success: null
+        },
+        'accountDetailsReceived': { 
+          message: '✓ Account details received', 
+          percent: 55,
+          phase: 'data_fetching',
+          success: true
+        },
+        'processingAccount': { 
+          message: `Processing account ${payload?.accountNumber || ''}...`, 
+          percent: 60,
+          phase: 'processing',
+          success: null
+        },
+        'processingTransactions': { 
+          message: 'Processing transactions...', 
+          percent: 65,
+          phase: 'processing',
+          success: null
+        },
+        'endScraping': { 
+          message: '✓ Scraping completed', 
+          percent: 75,
+          phase: 'processing',
+          success: true
+        }
       };
 
       const stepInfo = stepMessages[payload?.type] || {
         message: `${payload?.type || 'Processing'}...`,
-        percent: 50
+        percent: 50,
+        phase: 'processing',
+        success: null
       };
+
+      // Mark step as completed if it has a success status
+      if (stepInfo.success !== null) {
+        completedSteps.add(payload?.type);
+      }
 
       sendSSE(res, 'progress', {
         step: payload?.type || 'unknown',
         message: stepInfo.message,
         percent: stepInfo.percent,
+        phase: stepInfo.phase,
+        success: stepInfo.success,
+        completedSteps: Array.from(completedSteps),
         details: payload
       });
     };
@@ -184,10 +275,12 @@ async function handler(req, res) {
     sendSSE(res, 'progress', {
       step: 'scraping',
       message: 'Connecting to bank/credit card website...',
-      percent: 20
+      percent: 15,
+      phase: 'initialization',
+      success: null
     });
 
-    console.log(`[Scrape Stream] Starting worker-based scrape...`);
+    logger.info('[Scrape Stream] Starting worker-based scrape');
 
     // Use retry logic for VisaCal
     const isVisaCal = options.companyId === 'visaCal';
@@ -212,14 +305,14 @@ async function handler(req, res) {
         5000,
         options.companyId
       );
-      console.log(`[Scrape Stream] Scraper returned, success: ${result.success}`);
+      logger.info({ success: result.success }, '[Scrape Stream] Scraper returned');
     } catch (scrapeError) {
       const errorDetails = {
         message: scrapeError.message,
         name: scrapeError.name,
         stack: scrapeError.stack?.split('\n').slice(0, 5).join('\n'),
       };
-      console.error(`[Scrape Stream] Scraper threw exception:`, errorDetails);
+      logger.error({ error: errorDetails }, '[Scrape Stream] Scraper threw exception');
       await updateScrapeAudit(client, auditId, 'failed', scrapeError.message || 'Scraper exception');
 
       // Handle JSON parsing errors (common with VisaCal API)
@@ -248,7 +341,7 @@ async function handler(req, res) {
 
     if (!result.success) {
       const errorMsg = result.errorMessage || result.errorType || 'Scraping failed';
-      console.error(`[Scrape Stream] Scraper failed:`, { errorType: result.errorType, errorMessage: result.errorMessage });
+      logger.error({ errorType: result.errorType, errorMessage: result.errorMessage }, '[Scrape Stream] Scraper failed');
       await updateScrapeAudit(client, auditId, 'failed', errorMsg);
 
       // Provide helpful hints for common errors
@@ -283,56 +376,127 @@ async function handler(req, res) {
     sendSSE(res, 'progress', {
       step: 'saving',
       message: 'Saving transactions to database...',
-      percent: 80
+      percent: 80,
+      phase: 'saving',
+      success: null
     });
 
     let bankTransactions = 0;
     let totalTransactions = 0;
+    let savedTransactions = 0;
+    let duplicateTransactions = 0;
+
+    sendSSE(res, 'progress', {
+      step: 'loading_cache',
+      message: 'Loading category cache...',
+      percent: 80,
+      phase: 'saving',
+      success: null
+    });
 
     const cache = await loadCategoryCache(client);
     let cachedCategoryCount = 0;
     let skippedCards = 0;
 
-    for (const account of result.accounts) {
-      const ownedByOther = await checkCardOwnership(client, options.companyId, account.accountNumber, credentialId);
+    sendSSE(res, 'progress', {
+      step: 'loading_cache',
+      message: '✓ Category cache loaded',
+      percent: 82,
+      phase: 'saving',
+      success: true
+    });
+
+    for (let i = 0; i < result.accounts.length; i++) {
+      const account = result.accounts[i];
+      
+      sendSSE(res, 'progress', {
+        step: 'processing_account',
+        message: `Processing account ${i + 1}/${result.accounts.length} (${account.accountNumber || 'unknown'})...`,
+        percent: 82 + (i * 5 / result.accounts.length),
+        phase: 'saving',
+        success: null
+      });
+
+      const ownedByOther = await checkCardOwnership(client, account.accountNumber, options.companyId, credentialId);
 
       if (ownedByOther) {
-        console.log(`[Card Ownership] Skipping card ${account.accountNumber}`);
+        logger.info({ accountNumber: account.accountNumber }, '[Card Ownership] Skipping card');
         sendSSE(res, 'progress', {
           step: 'skipping_card',
-          message: `Skipping card ending in ${account.accountNumber} (already synced by another account)`,
-          percent: 75
+          message: `⏭ Skipping card ${account.accountNumber} (already synced by another account)`,
+          percent: 82 + ((i + 1) * 5 / result.accounts.length),
+          phase: 'saving',
+          success: true
         });
         skippedCards++;
         continue;
       }
 
-      await claimCardOwnership(client, options.companyId, account.accountNumber, credentialId);
+      await claimCardOwnership(client, account.accountNumber, options.companyId, credentialId);
+
+      let accountSaved = 0;
+      let accountDuplicates = 0;
 
       for (const txn of account.txns) {
         totalTransactions++;
         if (isBank) bankTransactions++;
         const hadCategory = txn.category && txn.category !== 'N/A';
-        await insertTransaction(txn, client, options.companyId, isBank, account.accountNumber, cache);
+        const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
+        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency);
+        
+        if (insertResult.duplicated) {
+          duplicateTransactions++;
+          accountDuplicates++;
+        } else {
+          savedTransactions++;
+          accountSaved++;
+        }
+        
         if (!hadCategory && lookupCachedCategory(txn.description, cache)) {
           cachedCategoryCount++;
         }
       }
+
+      sendSSE(res, 'progress', {
+        step: 'account_saved',
+        message: `✓ Account ${i + 1}/${result.accounts.length}: ${accountSaved} saved, ${accountDuplicates} duplicates`,
+        percent: 82 + ((i + 1) * 5 / result.accounts.length),
+        phase: 'saving',
+        success: true
+      });
     }
 
     // Update audit as success
     const accountsCount = Array.isArray(result.accounts) ? result.accounts.length : 0;
-    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${accountsCount}, txns=${totalTransactions}`);
+    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${accountsCount}, txns=${totalTransactions}, saved=${savedTransactions}, duplicates=${duplicateTransactions}`);
 
     // Update last_synced_at
+    sendSSE(res, 'progress', {
+      step: 'updating_timestamp',
+      message: 'Updating last sync timestamp...',
+      percent: 95,
+      phase: 'saving',
+      success: null
+    });
+
     await updateCredentialLastSynced(client, credentialId);
 
+    sendSSE(res, 'progress', {
+      step: 'updating_timestamp',
+      message: '✓ Timestamp updated',
+      percent: 98,
+      phase: 'saving',
+      success: true
+    });
+
     sendSSE(res, 'complete', {
-      message: 'Scraping completed successfully!',
+      message: '✓ Scraping completed successfully!',
       percent: 100,
       summary: {
         accounts: result.accounts.length,
         transactions: totalTransactions,
+        savedTransactions,
+        duplicateTransactions,
         bankTransactions,
         cachedCategories: cachedCategoryCount,
         skippedCards
@@ -341,7 +505,7 @@ async function handler(req, res) {
 
     res.end();
   } catch (error) {
-    console.error('Scraping failed:', error);
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Scraping failed');
     if (auditId) {
       try {
         await updateScrapeAudit(client, auditId, 'failed', error instanceof Error ? error.message : 'Unknown error');

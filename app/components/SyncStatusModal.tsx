@@ -204,6 +204,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
     current: number;
     total: number;
     currentAccount: string | null;
+    currentStep?: string | null;
+    percent?: number;
+    phase?: string;
+    success?: boolean | null;
+    summary?: any;
   } | null>(null);
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
@@ -370,12 +375,15 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
             throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
           }
 
-          // Read SSE stream to completion
+          // Read SSE stream to completion with detailed progress
           const reader = syncResponse.body?.getReader();
           const decoder = new TextDecoder();
 
           if (reader) {
             let buffer = '';
+            let currentStep = '';
+            let lastProgress = null;
+            
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
@@ -390,11 +398,35 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                   currentEvent = line.slice(7);
                 } else if (line.startsWith('data: ')) {
                   const eventData = JSON.parse(line.slice(6));
-                  if (currentEvent === 'error') {
+                  
+                  if (currentEvent === 'progress') {
+                    currentStep = eventData.message || '';
+                    lastProgress = eventData;
+                    // Update sync progress with detailed step info
+                    setSyncProgress({
+                      current: i,
+                      total: accounts.length,
+                      currentAccount: account.nickname || account.vendor,
+                      currentStep: currentStep,
+                      percent: eventData.percent || 0,
+                      phase: eventData.phase || '',
+                      success: eventData.success
+                    });
+                  } else if (currentEvent === 'error') {
                     throw new Error(eventData.message || 'Sync failed');
-                  }
-                  if (currentEvent === 'complete') {
-                    break; // Account synced successfully
+                  } else if (currentEvent === 'complete') {
+                    // Account synced successfully
+                    setSyncProgress({
+                      current: i,
+                      total: accounts.length,
+                      currentAccount: account.nickname || account.vendor,
+                      currentStep: '✓ Completed successfully',
+                      percent: 100,
+                      phase: 'complete',
+                      success: true,
+                      summary: eventData.summary
+                    });
+                    break;
                   }
                 }
               }
@@ -405,7 +437,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
           setSyncProgress({
             current: i + 1,
             total: accounts.length,
-            currentAccount: null
+            currentAccount: null,
+            currentStep: null,
+            percent: 0,
+            phase: '',
+            success: null
           });
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
@@ -565,31 +601,78 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                 borderColor: 'rgba(96, 165, 250, 0.4)'
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                  <SyncIcon sx={{ fontSize: 24, color: '#60a5fa', animation: `${spin} 1.5s linear infinite` }} />
+                  {syncProgress.success === true ? (
+                    <Box sx={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fff' }} />
+                    </Box>
+                  ) : syncProgress.success === false ? (
+                    <ErrorIcon sx={{ fontSize: 24, color: '#ef4444' }} />
+                  ) : (
+                    <SyncIcon sx={{ fontSize: 24, color: '#60a5fa', animation: `${spin} 1.5s linear infinite` }} />
+                  )}
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#60a5fa' }}>
-                      Syncing accounts...
+                      Syncing accounts... ({syncProgress.current} / {syncProgress.total})
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                      {syncProgress.currentAccount ? `Syncing: ${syncProgress.currentAccount}` : 'Preparing...'}
-                    </Typography>
+                    {syncProgress.currentAccount && (
+                      <>
+                        <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500, mt: 0.5 }}>
+                          {syncProgress.currentAccount}
+                        </Typography>
+                        {syncProgress.currentStep && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            {syncProgress.success === null && (
+                              <CircularProgress size={12} sx={{ color: '#60a5fa' }} />
+                            )}
+                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                              {syncProgress.currentStep}
+                            </Typography>
+                            {syncProgress.percent !== undefined && (
+                              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', ml: 'auto' }}>
+                                {syncProgress.percent}%
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
+                        {syncProgress.phase && (
+                          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.5, textTransform: 'capitalize' }}>
+                            {syncProgress.phase.replace('_', ' ')}
+                          </Typography>
+                        )}
+                      </>
+                    )}
                   </Box>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                    {syncProgress.current} / {syncProgress.total}
-                  </Typography>
                 </Box>
                 <LinearProgress
                   variant="determinate"
-                  value={(syncProgress.current / syncProgress.total) * 100}
+                  value={syncProgress.percent !== undefined ? syncProgress.percent : (syncProgress.current / syncProgress.total) * 100}
                   sx={{
                     height: 6,
                     borderRadius: 3,
                     backgroundColor: 'rgba(96, 165, 250, 0.2)',
                     '& .MuiLinearProgress-bar': {
-                      backgroundColor: '#60a5fa'
+                      backgroundColor: syncProgress.success === false ? '#ef4444' : syncProgress.success === true ? '#22c55e' : '#60a5fa'
                     }
                   }}
                 />
+                {syncProgress.summary && (
+                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', display: 'block', mb: 0.5 }}>
+                      Summary:
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {syncProgress.summary.savedTransactions !== undefined && (
+                        <Chip label={`${syncProgress.summary.savedTransactions} saved`} size="small" sx={{ backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', height: 20, fontSize: '0.7rem' }} />
+                      )}
+                      {syncProgress.summary.duplicateTransactions !== undefined && syncProgress.summary.duplicateTransactions > 0 && (
+                        <Chip label={`${syncProgress.summary.duplicateTransactions} duplicates`} size="small" sx={{ backgroundColor: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8', height: 20, fontSize: '0.7rem' }} />
+                      )}
+                      {syncProgress.summary.transactions !== undefined && (
+                        <Chip label={`${syncProgress.summary.transactions} total`} size="small" sx={{ backgroundColor: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', height: 20, fontSize: '0.7rem' }} />
+                      )}
+                    </Box>
+                  </Box>
+                )}
               </StatusCard>
             )}
 

@@ -372,6 +372,29 @@ a:hover {
   }
 }
 
+/* Side drawer layout adjustments - matches Material-UI md breakpoint (900px) */
+@media (min-width: 900px) {
+  body.drawer-open .main-content {
+    margin-left: 280px !important; /* Drawer width */
+  }
+  
+  body.drawer-closed .main-content {
+    margin-left: 0 !important;
+  }
+}
+
+/* Mobile: no drawer margin */
+@media (max-width: 899px) {
+  .main-content {
+    margin-left: 0 !important;
+  }
+}
+
+/* Smooth transition for drawer state changes */
+.main-content {
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
 /* Print styles */
 @media print {
   body {

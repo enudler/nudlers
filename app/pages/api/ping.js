@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import logger from '../../utils/logger.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -11,7 +12,7 @@ export default async function handler(req, res) {
     await client.query('SELECT 1');
     res.status(200).json({ status: 'ok' });
   } catch (error) {
-    console.error('Ping check failed:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Ping check failed');
     res.status(500).json({ status: 'error', error: error.message });
   } finally {
     client.release();

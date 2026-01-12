@@ -2,6 +2,7 @@ import { getDB } from '../db';
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import logger from '../../../utils/logger.js';
 
 const require = createRequire(import.meta.url);
 
@@ -55,7 +56,7 @@ export default async function handler(req, res) {
           settings.current_scrapers_version = 'unknown';
         }
       } catch (e) {
-        console.warn('Could not read scraper version:', e.message);
+        logger.warn({ error: e.message }, 'Could not read scraper version');
         settings.current_scrapers_version = 'unknown';
       }
 
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
-    console.error('Settings API error:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Settings API error');
     return res.status(500).json({ error: error.message });
   } finally {
     client.release();
