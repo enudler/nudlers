@@ -63,38 +63,119 @@ async function run() {
                 }
 
                 logger.info('[Runner] Starting scrape');
-                const result = await scraper.scrape(credentials);
-                logger.info({ success: result.success }, '[Runner] Scrape completed');
-
-                // Validate result structure before sending
-                if (result.success && result.accounts) {
-                    // Ensure all accounts have txns as arrays
-                    for (const account of result.accounts) {
-                        if (account && !Array.isArray(account.txns)) {
-                            logger.warn({ 
-                                accountNumber: account.accountNumber,
-                                txnsType: typeof account.txns,
-                                txnsValue: account.txns,
-                                accountKeys: Object.keys(account || {})
-                            }, '[Runner] Account has invalid txns structure, normalizing to empty array');
-                            account.txns = [];
-                        }
-                    }
+                let result;
+                try {
+                    result = await scraper.scrape(credentials);
+                    logger.info({ success: result?.success }, '[Runner] Scrape completed');
+                } catch (scrapeErr) {
+                    // Catch errors thrown directly by scraper.scrape()
+                    logger.error({ 
+                        error: scrapeErr.message, 
+                        stack: scrapeErr.stack,
+                        name: scrapeErr.name 
+                    }, '[Runner] Scraper threw exception during scrape()');
+                    throw scrapeErr; // Re-throw to be caught by outer catch
                 }
 
-                if (result.success) {
-                    logger.info('[Runner] Sending success result');
-                    process.send({ type: 'success', result });
+                // Validate and sanitize result structure before sending
+                if (result && typeof result === 'object') {
+                    // Deep clone and sanitize result to ensure it's serializable
+                    const sanitizedResult = {
+                        success: result.success || false,
+                        errorType: result.errorType || null,
+                        errorMessage: result.errorMessage || null,
+                        accounts: null
+                    };
+
+                    if (result.success && result.accounts) {
+                        // Ensure accounts is an array
+                        if (!Array.isArray(result.accounts)) {
+                            logger.warn({ 
+                                accountsType: typeof result.accounts,
+                                accountsValue: result.accounts
+                            }, '[Runner] result.accounts is not an array, converting');
+                            sanitizedResult.accounts = [];
+                        } else {
+                            // Sanitize each account
+                            sanitizedResult.accounts = result.accounts.map(account => {
+                                if (!account || typeof account !== 'object') {
+                                    logger.warn({ account }, '[Runner] Invalid account object, skipping');
+                                    return null;
+                                }
+                                
+                                const sanitizedAccount = {
+                                    accountNumber: account.accountNumber || null,
+                                    txns: []
+                                };
+
+                                // Ensure txns is an array
+                                if (Array.isArray(account.txns)) {
+                                    sanitizedAccount.txns = account.txns.map(txn => {
+                                        // Ensure transaction is a plain object
+                                        if (txn && typeof txn === 'object') {
+                                            return {
+                                                date: txn.date || null,
+                                                processedDate: txn.processedDate || null,
+                                                originalAmount: txn.originalAmount || null,
+                                                originalCurrency: txn.originalCurrency || null,
+                                                chargedAmount: txn.chargedAmount || null,
+                                                description: txn.description || null,
+                                                memo: txn.memo || null,
+                                                status: txn.status || null,
+                                                identifier: txn.identifier || null,
+                                                type: txn.type || null,
+                                                installmentsNumber: txn.installmentsNumber || null,
+                                                installmentsTotal: txn.installmentsTotal || null,
+                                                category: txn.category || null
+                                            };
+                                        }
+                                        logger.warn({ txn }, '[Runner] Invalid transaction object, skipping');
+                                        return null;
+                                    }).filter(t => t !== null);
+                                } else {
+                                    logger.warn({ 
+                                        accountNumber: account.accountNumber,
+                                        txnsType: typeof account.txns,
+                                        txnsValue: account.txns
+                                    }, '[Runner] Account txns is not an array, setting to empty array');
+                                }
+
+                                return sanitizedAccount;
+                            }).filter(a => a !== null);
+                        }
+                    }
+
+                    if (sanitizedResult.success) {
+                        logger.info({ accountCount: sanitizedResult.accounts?.length || 0 }, '[Runner] Sending success result');
+                        try {
+                            process.send({ type: 'success', result: sanitizedResult });
+                        } catch (sendErr) {
+                            logger.error({ error: sendErr.message }, '[Runner] Failed to send success result via IPC');
+                            // Fallback: send error instead
+                            process.send({ 
+                                type: 'error', 
+                                error: 'SERIALIZATION_ERROR',
+                                errorMessage: `Failed to serialize result: ${sendErr.message}`
+                            });
+                        }
+                    } else {
+                        logger.error({ errorType: sanitizedResult.errorType, errorMessage: sanitizedResult.errorMessage }, '[Runner] Scrape failed');
+                        process.send({ type: 'error', error: sanitizedResult.errorType || 'UNKNOWN', errorMessage: sanitizedResult.errorMessage || 'Scraping failed' });
+                    }
                 } else {
-                    logger.error({ errorType: result.errorType, errorMessage: result.errorMessage }, '[Runner] Scrape failed');
-                    process.send({ type: 'error', error: result.errorType, errorMessage: result.errorMessage });
+                    logger.error({ resultType: typeof result, result }, '[Runner] Invalid result structure');
+                    process.send({ 
+                        type: 'error', 
+                        error: 'INVALID_RESULT',
+                        errorMessage: 'Scraper returned invalid result structure'
+                    });
                 }
             } catch (err) {
                 // Enhanced error logging for "text is not iterable" and similar issues
                 const errorDetails = {
                     message: err.message || String(err),
                     name: err.name,
-                    stack: err.stack,
+                    stack: err.stack ? err.stack.split('\n').slice(0, 10).join('\n') : undefined, // Limit stack trace length
                     vendor: scraperOptions?.companyId,
                     // Check if error is related to iteration
                     isIterationError: err.message?.includes('not iterable') || err.message?.includes('is not iterable')
@@ -111,15 +192,28 @@ async function run() {
                     errorMessage = `Data format error: ${errorMessage}. This usually means the bank website returned data in an unexpected format.`;
                 }
                 
+                // Ensure error message is serializable (no circular refs, functions, etc.)
+                const sanitizedError = {
+                    type: 'error',
+                    errorMessage: String(errorMessage).substring(0, 500), // Limit length
+                    hint: hint ? String(hint).substring(0, 500) : undefined,
+                    error: 'EXCEPTION'
+                };
+                
                 try {
-                    process.send({ 
-                        type: 'error', 
-                        errorMessage: errorMessage,
-                        hint: hint,
-                        error: 'EXCEPTION' 
-                    });
+                    process.send(sanitizedError);
                 } catch (sendErr) {
-                    logger.error({ error: sendErr.message }, '[Runner] Failed to send error message');
+                    logger.error({ error: sendErr.message }, '[Runner] Failed to send error message via IPC');
+                    // Last resort: try sending minimal error
+                    try {
+                        process.send({ 
+                            type: 'error', 
+                            errorMessage: 'An error occurred during scraping',
+                            error: 'EXCEPTION'
+                        });
+                    } catch (finalErr) {
+                        logger.error({ error: finalErr.message }, '[Runner] Completely failed to send error message');
+                    }
                 }
             } finally {
                 // We don't exit here because the parent might want to keep the process alive 
