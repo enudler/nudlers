@@ -164,6 +164,17 @@ async function handler(req, res) {
       // Claim ownership
       await claimCardOwnership(client, account.accountNumber, options.companyId, credentialId);
 
+      // Defensive check: ensure txns is an array
+      if (!account.txns || !Array.isArray(account.txns)) {
+        logger.warn({ 
+          accountNumber: account.accountNumber, 
+          txnsType: typeof account.txns,
+          txnsValue: account.txns,
+          accountKeys: Object.keys(account || {})
+        }, '[Scrape] Account txns is not an array, skipping transactions');
+        continue;
+      }
+
       for (const txn of account.txns) {
         if (isBank) bankTransactions++;
 

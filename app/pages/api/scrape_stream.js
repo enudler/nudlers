@@ -339,6 +339,19 @@ async function handler(req, res) {
       return;
     }
 
+    // Validate result structure
+    if (!result || typeof result !== 'object') {
+      const errorMsg = 'Invalid scraper result: result is not an object';
+      logger.error({ resultType: typeof result, result }, '[Scrape Stream] Invalid scraper result structure');
+      await updateScrapeAudit(client, auditId, 'failed', errorMsg);
+      sendSSE(res, 'error', { 
+        message: errorMsg,
+        hint: 'The scraper returned an invalid result structure. This may indicate a problem with the scraper library or bank website changes.'
+      });
+      res.end();
+      return;
+    }
+
     if (!result.success) {
       const errorMsg = result.errorMessage || result.errorType || 'Scraping failed';
       logger.error({ errorType: result.errorType, errorMessage: result.errorMessage }, '[Scrape Stream] Scraper failed');
@@ -406,6 +419,23 @@ async function handler(req, res) {
       success: true
     });
 
+    // Validate accounts array exists and is an array
+    if (!result.accounts || !Array.isArray(result.accounts)) {
+      const errorMsg = `Invalid accounts structure: expected array, got ${typeof result.accounts}`;
+      logger.error({ 
+        accountsType: typeof result.accounts,
+        accountsValue: result.accounts,
+        resultKeys: Object.keys(result || {})
+      }, '[Scrape Stream] Invalid accounts structure');
+      await updateScrapeAudit(client, auditId, 'failed', errorMsg);
+      sendSSE(res, 'error', { 
+        message: errorMsg,
+        hint: 'The scraper returned accounts in an unexpected format. This may be due to website changes or temporary issues.'
+      });
+      res.end();
+      return;
+    }
+
     for (let i = 0; i < result.accounts.length; i++) {
       const account = result.accounts[i];
       
@@ -436,6 +466,24 @@ async function handler(req, res) {
 
       let accountSaved = 0;
       let accountDuplicates = 0;
+
+      // Defensive check: ensure txns is an array
+      if (!account.txns || !Array.isArray(account.txns)) {
+        logger.warn({ 
+          accountNumber: account.accountNumber, 
+          txnsType: typeof account.txns,
+          txnsValue: account.txns,
+          accountKeys: Object.keys(account || {})
+        }, '[Scrape Stream] Account txns is not an array, skipping transactions');
+        sendSSE(res, 'progress', {
+          step: 'skipping_account',
+          message: `⚠ Account ${account.accountNumber || 'unknown'} has invalid transaction data (txns is not an array)`,
+          percent: 82 + ((i + 1) * 5 / result.accounts.length),
+          phase: 'saving',
+          success: false
+        });
+        continue;
+      }
 
       for (const txn of account.txns) {
         totalTransactions++;

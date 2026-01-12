@@ -66,6 +66,22 @@ async function run() {
                 const result = await scraper.scrape(credentials);
                 logger.info({ success: result.success }, '[Runner] Scrape completed');
 
+                // Validate result structure before sending
+                if (result.success && result.accounts) {
+                    // Ensure all accounts have txns as arrays
+                    for (const account of result.accounts) {
+                        if (account && !Array.isArray(account.txns)) {
+                            logger.warn({ 
+                                accountNumber: account.accountNumber,
+                                txnsType: typeof account.txns,
+                                txnsValue: account.txns,
+                                accountKeys: Object.keys(account || {})
+                            }, '[Runner] Account has invalid txns structure, normalizing to empty array');
+                            account.txns = [];
+                        }
+                    }
+                }
+
                 if (result.success) {
                     logger.info('[Runner] Sending success result');
                     process.send({ type: 'success', result });
@@ -74,9 +90,34 @@ async function run() {
                     process.send({ type: 'error', error: result.errorType, errorMessage: result.errorMessage });
                 }
             } catch (err) {
-                logger.error({ error: err.message, stack: err.stack }, '[Runner] Fatal error during scrape');
+                // Enhanced error logging for "text is not iterable" and similar issues
+                const errorDetails = {
+                    message: err.message || String(err),
+                    name: err.name,
+                    stack: err.stack,
+                    vendor: scraperOptions?.companyId,
+                    // Check if error is related to iteration
+                    isIterationError: err.message?.includes('not iterable') || err.message?.includes('is not iterable')
+                };
+                
+                logger.error(errorDetails, '[Runner] Fatal error during scrape');
+                
+                // Provide helpful hint for iteration errors
+                let errorMessage = err.message || String(err);
+                let hint = undefined;
+                
+                if (errorDetails.isIterationError) {
+                    hint = 'The scraper library received unexpected data format from the bank. This may be due to website changes or temporary issues. Try again later or enable Debug Mode to see what\'s happening.';
+                    errorMessage = `Data format error: ${errorMessage}. This usually means the bank website returned data in an unexpected format.`;
+                }
+                
                 try {
-                    process.send({ type: 'error', errorMessage: err.message || String(err), error: 'EXCEPTION' });
+                    process.send({ 
+                        type: 'error', 
+                        errorMessage: errorMessage,
+                        hint: hint,
+                        error: 'EXCEPTION' 
+                    });
                 } catch (sendErr) {
                     logger.error({ error: sendErr.message }, '[Runner] Failed to send error message');
                 }
