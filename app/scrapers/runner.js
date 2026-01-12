@@ -63,6 +63,20 @@ async function run() {
                 }
 
                 logger.info('[Runner] Starting scrape');
+                
+                // Log credentials structure (masked) for debugging, especially for Hapoalim
+                const maskedCreds = Object.fromEntries(
+                    Object.entries(credentials || {}).map(([k, v]) => [
+                        k,
+                        v ? `${String(v).substring(0, 2)}***${String(v).substring(String(v).length - 2)} (${String(v).length} chars)` : 'EMPTY'
+                    ])
+                );
+                logger.info({ 
+                    companyId: scraperOptions.companyId,
+                    credentialKeys: Object.keys(credentials || {}),
+                    credentials: maskedCreds
+                }, '[Runner] Credentials being sent to scraper');
+                
                 let result;
                 try {
                     result = await scraper.scrape(credentials);

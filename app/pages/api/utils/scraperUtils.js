@@ -108,12 +108,19 @@ export function prepareCredentials(vendor, rawCredentials) {
     num,
     card6Digits,
     nickname,
+    userCode,
     ...rest
   } = rawCredentials;
 
   const credentials = { ...rest };
 
-  if (vendor === 'hapoalim' || vendor === 'mizrahi' || vendor === 'yahav' || vendor === 'beinleumi' ||
+  // Hapoalim requires userCode (not username)
+  if (vendor === 'hapoalim') {
+    // Use userCode if provided, otherwise fall back to username/id/id_number
+    const hapoalimUserCode = userCode || username || id || rawCredentials.id_number || '';
+    credentials.userCode = String(hapoalimUserCode);
+    credentials.password = String(password || '');
+  } else if (vendor === 'mizrahi' || vendor === 'yahav' || vendor === 'beinleumi' ||
     vendor === 'otsarHahayal' || vendor === 'mercantile' || vendor === 'leumi' || vendor === 'mercantile' ||
     vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
     credentials.username = username;
@@ -134,7 +141,11 @@ export function prepareCredentials(vendor, rawCredentials) {
  * Validate credentials for a specific vendor
  */
 export function validateCredentials(credentials, vendor) {
-  if (vendor === 'isracard' || vendor === 'amex') {
+  if (vendor === 'hapoalim') {
+    if (!credentials.userCode || !credentials.password) {
+      throw new Error(`Invalid credentials for ${vendor}: userCode and password are required.`);
+    }
+  } else if (vendor === 'isracard' || vendor === 'amex') {
     if (!credentials.id || !credentials.card6Digits || !credentials.password) {
       throw new Error(`Invalid credentials for ${vendor}: id, card6Digits, and password are required.`);
     }

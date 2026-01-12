@@ -348,6 +348,21 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             helperText="Your ID number (no account number needed for this bank)"
           />
         </>
+      ) : config.options.companyId === 'hapoalim' ? (
+        <>
+          <TextField
+            label="User Code"
+            value={config.credentials.userCode || config.credentials.username || config.credentials.id || ''}
+            onChange={(e) => {
+              // Store as userCode, but also update username/id for backward compatibility
+              handleConfigChange('credentials.userCode', e.target.value);
+              handleConfigChange('credentials.username', e.target.value);
+            }}
+            fullWidth
+            helperText="Your Bank Hapoalim user code for online banking (found in your online banking profile)"
+            required
+          />
+        </>
       ) : STANDARD_BANK_VENDORS.includes(config.options.companyId) ? (
         <>
           <TextField
@@ -437,7 +452,15 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
         disabled
         fullWidth
       />
-      {config.credentials.username && (
+      {config.options.companyId === 'hapoalim' && (config.credentials.userCode || config.credentials.username || config.credentials.id) && (
+        <TextField
+          label="User Code"
+          value={config.credentials.userCode || config.credentials.username || config.credentials.id || ''}
+          disabled
+          fullWidth
+        />
+      )}
+      {config.options.companyId !== 'hapoalim' && config.credentials.username && (
         <TextField
           label="Username"
           value={config.credentials.username}
@@ -445,7 +468,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           fullWidth
         />
       )}
-      {config.credentials.id && (
+      {config.options.companyId !== 'hapoalim' && config.credentials.id && (
         <TextField
           label="ID"
           value={config.credentials.id}
