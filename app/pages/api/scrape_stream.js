@@ -289,7 +289,6 @@ async function handler(req, res) {
     logger.info('[Scrape Stream] Starting worker-based scrape');
 
     // Use retry logic for VisaCal with more retries and longer delays
-    const isVisaCal = options.companyId === 'visaCal';
     const maxRetries = isVisaCal ? 3 : 0; // Increased from 2 to 3 for better reliability
     const retryBaseDelay = isVisaCal ? 10000 : 5000; // Longer delays for VisaCal (10s base)
     let retryAttempt = 0;
