@@ -294,15 +294,24 @@ export async function retryWithBackoff(fn, maxRetries = 2, baseDelay = 5000, ven
       lastError = error;
       const errorMessage = error.message || '';
 
-      // Only retry for specific errors (JSON parsing, network issues)
+      // Only retry for specific errors (JSON parsing, network issues, VisaCal-specific errors)
       const isRetryableError =
         errorMessage.includes('JSON') ||
         errorMessage.includes('Unexpected end of JSON') ||
         errorMessage.includes('invalid json') ||
         errorMessage.includes('GetFrameStatus') ||
+        errorMessage.includes('frame') ||
         errorMessage.includes('network') ||
         errorMessage.includes('ECONNRESET') ||
-        errorMessage.includes('timeout');
+        errorMessage.includes('ETIMEDOUT') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('ECONNREFUSED') ||
+        (vendor === 'visaCal' && (
+          errorMessage.includes('fetch') ||
+          errorMessage.includes('request') ||
+          errorMessage.includes('response') ||
+          errorMessage.includes('connection')
+        ));
 
       if (!isRetryableError || attempt === maxRetries) {
         throw error;

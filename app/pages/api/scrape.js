@@ -58,6 +58,7 @@ async function handler(req, res) {
 
     const isBank = BANK_VENDORS.includes(options.companyId);
     const isIsracardAmex = RATE_LIMITED_VENDORS.includes(options.companyId);
+    const isVisaCal = options.companyId === 'visaCal';
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
@@ -72,21 +73,25 @@ async function handler(req, res) {
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
     logger.info({ fetchCategories: fetchCategoriesSetting }, '[Scraper] Fetch categories setting');
 
-    // For rate-limited vendors (Isracard/Amex/Max/VisaCal), add a pre-scrape delay to avoid rate limiting
-    if (isIsracardAmex) {
-      const preDelay = Math.floor(Math.random() * 5000) + 3000;
+    // For rate-limited vendors (VisaCal, Isracard/Amex/Max), add a pre-scrape delay to avoid rate limiting
+    if (isIsracardAmex || isVisaCal) {
+      // VisaCal needs longer delays due to API rate limiting
+      const preDelay = isVisaCal 
+        ? Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds for VisaCal
+        : Math.floor(Math.random() * 5000) + 3000;  // 3-8 seconds for others
       logger.info({ vendor: options.companyId, delaySeconds: Math.round(preDelay / 1000) }, '[Scraper] Rate-limited vendor detected, adding pre-scrape delay');
       await sleep(preDelay);
     }
 
-    // Get timeout settings
-    const timeoutSetting = isIsracardAmex
+    // Get timeout settings - VisaCal and other rate-limited vendors need longer timeouts
+    const timeoutSetting = (isIsracardAmex || isVisaCal)
       ? await getRateLimitedTimeoutSetting(client)
       : await getStandardTimeoutSetting(client);
 
     // Build scraper options with anti-detection measures
+    // Pass isIsracardAmex flag (which now includes VisaCal) for proper handling
     const scraperOptions = {
-      ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex, {
+      ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex || isVisaCal, {
         showBrowser: showBrowserSetting,
         fetchCategories: fetchCategoriesSetting,
         timeout: timeoutSetting,
@@ -101,7 +106,8 @@ async function handler(req, res) {
 
     // Execute scraping with retry for VisaCal/Cal (which has intermittent JSON parsing errors)
     const isVisaCal = options.companyId === 'visaCal';
-    const maxRetries = isVisaCal ? 2 : 0;
+    const maxRetries = isVisaCal ? 3 : 0; // Increased from 2 to 3 for better reliability
+    const retryBaseDelay = isVisaCal ? 10000 : 5000; // Longer delays for VisaCal (10s base)
 
     let result;
     try {
@@ -110,7 +116,7 @@ async function handler(req, res) {
           return await runScraperInWorker(scraperOptions, scraperCredentials);
         },
         maxRetries,
-        5000,
+        retryBaseDelay,
         options.companyId
       );
     } catch (scrapeError) {

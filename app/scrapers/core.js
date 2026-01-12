@@ -3,7 +3,8 @@
  * Safe to import in standalone scripts/workers.
  */
 
-export const RATE_LIMITED_VENDORS = [];
+// Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
+export const RATE_LIMITED_VENDORS = ['visaCal'];
 
 /**
  * Shared sleep helper
