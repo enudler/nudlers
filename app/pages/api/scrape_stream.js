@@ -83,10 +83,9 @@ async function handler(req, res) {
     });
 
     const isBank = BANK_VENDORS.includes(options.companyId);
-    const isIsracardAmex = RATE_LIMITED_VENDORS.includes(options.companyId);
-    const isVisaCal = options.companyId === 'visaCal';
+    const isRateLimited = RATE_LIMITED_VENDORS.includes(options.companyId);
 
-    logger.info({ isBank, isIsracardAmex, isVisaCal }, '[Scrape Stream] Vendor type detection');
+    logger.info({ isBank, isRateLimited }, '[Scrape Stream] Vendor type detection');
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
@@ -110,9 +109,9 @@ async function handler(req, res) {
     }
 
     // For rate-limited vendors (VisaCal, Isracard/Amex/Max), add a pre-scrape delay
-    if (isIsracardAmex || isVisaCal) {
-      // VisaCal needs longer delays due to API rate limiting
-      const preDelay = isVisaCal
+    if (isRateLimited) {
+      // These vendors need longer delays due to API rate limiting
+      const preDelay = options.companyId === 'visaCal'
         ? Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds for VisaCal
         : Math.floor(Math.random() * 5000) + 3000;  // 3-8 seconds for others
 
@@ -161,15 +160,14 @@ async function handler(req, res) {
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
     logger.info({ fetchCategories: fetchCategoriesSetting }, '[Scrape Stream] Fetch categories setting');
 
-    // Get timeout settings - VisaCal and other rate-limited vendors need longer timeouts
-    const timeoutSetting = (isIsracardAmex || isVisaCal)
+    // Get timeout settings - rate-limited vendors need longer timeouts
+    const timeoutSetting = isRateLimited
       ? await getRateLimitedTimeoutSetting(client)
       : await getStandardTimeoutSetting(client);
 
     // Build scraper options with progress callback
-    // Pass isIsracardAmex flag (which now includes VisaCal) for proper handling
     const scraperOptions = {
-      ...getScraperOptions(companyId, new Date(options.startDate), isIsracardAmex || isVisaCal, {
+      ...getScraperOptions(companyId, new Date(options.startDate), isRateLimited, {
         timeout: timeoutSetting,
         defaultTimeout: timeoutSetting,
         showBrowser: showBrowserSetting,
@@ -299,9 +297,9 @@ async function handler(req, res) {
 
     logger.info('[Scrape Stream] Starting worker-based scrape');
 
-    // Use retry logic for VisaCal with more retries and longer delays
-    const maxRetries = isVisaCal ? 3 : 0; // Increased from 2 to 3 for better reliability
-    const retryBaseDelay = isVisaCal ? 10000 : 5000; // Longer delays for VisaCal (10s base)
+    // Use retry logic for all rate-limited vendors
+    const maxRetries = isRateLimited ? 3 : 0;
+    const retryBaseDelay = options.companyId === 'visaCal' ? 10000 : 5000;
     let retryAttempt = 0;
 
     let result;
@@ -312,7 +310,7 @@ async function handler(req, res) {
           if (retryAttempt > 1) {
             sendSSE(res, 'progress', {
               step: 'retry',
-              message: `Retrying VisaCal scrape (attempt ${retryAttempt}/${maxRetries + 1})...`,
+              message: `Retrying ${options.companyId} (attempt ${retryAttempt}/${maxRetries + 1})...`,
               percent: 22,
               phase: 'initialization',
               success: null
@@ -339,15 +337,10 @@ async function handler(req, res) {
       let hint = undefined;
 
       if (errorMessage.includes('JSON') || errorMessage.includes('Unexpected end of JSON') || errorMessage.includes('invalid json') || errorMessage.includes('GetFrameStatus') || errorMessage.includes('frame') || errorMessage.includes('timeout')) {
-        if (options.companyId === 'visaCal') {
-          errorMessage = `VisaCal API Error: The Cal website returned an invalid response. This may be due to temporary service issues, rate limiting, or website changes.`;
-          hint = 'VisaCal is rate-limited. Try: 1) Disabling "Fetch Categories from Scrapers" in Settings, 2) Waiting 5-10 minutes between scrapes, 3) Enabling Debug Mode to see what\'s happening.';
-        } else {
-          errorMessage = `API Error: Invalid JSON response from ${options.companyId}. This may be a temporary issue. Please try again later.`;
-          hint = 'Try disabling "Fetch Categories from Scrapers" in Settings to reduce API calls.';
-        }
-      } else if (isIsracardAmex || isVisaCal) {
-        hint = 'Rate-limited vendors (VisaCal, Isracard, Amex) may be blocking automation. Try enabling Debug Mode (Show Browser) or disabling "Fetch Categories from Scrapers" in Settings.';
+        errorMessage = `API Error: Invalid response from ${options.companyId}. This may be a temporary issue. Please try again later. Error: ${errorMessage}`;
+        hint = 'Try disabling "Fetch Categories from Scrapers" in Settings to reduce API calls or waiting 5-10 minutes between scrapes.';
+      } else if (isRateLimited) {
+        hint = 'Rate-limited vendors (VisaCal, Isracard, Amex, Max) may be blocking automation. Try enabling Debug Mode (Show Browser) or disabling "Fetch Categories from Scrapers" in Settings.';
       }
 
       sendSSE(res, 'error', {

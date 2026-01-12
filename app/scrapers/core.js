@@ -4,7 +4,7 @@
  */
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
-export const RATE_LIMITED_VENDORS = ['visaCal'];
+export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
 
 /**
  * Shared sleep helper
@@ -36,7 +36,7 @@ export function getChromePath() {
 /**
  * Get scraper options with anti-detection measures
  */
-export function getScraperOptions(companyId, startDate, isIsracardAmex, options = {}) {
+export function getScraperOptions(companyId, startDate, isRateLimited, options = {}) {
     const showBrowser = options.showBrowser ?? false;
     const fetchCategories = options.fetchCategories ?? true;
 
@@ -83,7 +83,7 @@ export function getScraperOptions(companyId, startDate, isIsracardAmex, options 
 
     let timeout = options.timeout;
     if (!timeout) {
-        timeout = isIsracardAmex ? 120000 : 60000;
+        timeout = isRateLimited ? 120000 : 60000;
     }
 
     return {
@@ -105,8 +105,13 @@ export function getScraperOptions(companyId, startDate, isIsracardAmex, options 
 /**
  * Get preparePage function with anti-detection measures
  */
-export function getPreparePage(isIsracardAmex) {
+export function getPreparePage(isRateLimited) {
     return async (page) => {
+        // Set higher navigation and execution timeouts to avoid defaults
+        const timeout = isRateLimited ? 120000 : 60000;
+        await page.setDefaultNavigationTimeout(timeout);
+        await page.setDefaultTimeout(timeout);
+
         const randomDelay = (min, max) => new Promise(resolve =>
             setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
         );
