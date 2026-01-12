@@ -57,8 +57,6 @@ async function handler(req, res) {
     }
 
     const isBank = BANK_VENDORS.includes(options.companyId);
-    const isIsracardAmex = RATE_LIMITED_VENDORS.includes(options.companyId);
-    const isVisaCal = options.companyId === 'visaCal';
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
@@ -113,7 +111,12 @@ async function handler(req, res) {
     try {
       result = await retryWithBackoff(
         async () => {
-          return await runScraper(scraperOptions, scraperCredentials);
+          const scraperResult = await runScraper(scraperOptions, scraperCredentials);
+          if (!scraperResult.success && scraperResult.errorMessage) {
+            // Throw so retryWithBackoff can catch it and try again
+            throw new Error(scraperResult.errorMessage);
+          }
+          return scraperResult;
         },
         maxRetries,
         retryBaseDelay,

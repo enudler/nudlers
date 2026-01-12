@@ -116,7 +116,7 @@ export function getPreparePage(isRateLimited) {
             setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
         );
 
-        if (isIsracardAmex) {
+        if (isRateLimited) {
             await randomDelay(2000, 5000);
         }
 
@@ -178,7 +178,7 @@ export function getPreparePage(isRateLimited) {
             'Sec-CH-UA-Platform': '"macOS"',
         });
 
-        if (isIsracardAmex) {
+        if (isRateLimited) {
             const originalGoto = page.goto.bind(page);
             page.goto = async (url, options) => {
                 await randomDelay(1500, 4000);

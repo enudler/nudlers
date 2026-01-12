@@ -316,7 +316,12 @@ async function handler(req, res) {
               success: null
             });
           }
-          return await runScraper(scraperOptions, scraperCredentials, progressHandler);
+          const scraperResult = await runScraper(scraperOptions, scraperCredentials, progressHandler);
+          if (!scraperResult.success && scraperResult.errorMessage) {
+            // Throw so retryWithBackoff can catch it and try again
+            throw new Error(scraperResult.errorMessage);
+          }
+          return scraperResult;
         },
         maxRetries,
         retryBaseDelay,
