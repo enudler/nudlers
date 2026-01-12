@@ -86,7 +86,9 @@ export async function register() {
             execSync(`npm install israeli-bank-scrapers@${targetVersion} --no-save`, { stdio: 'inherit' });
           }
         } catch (e) {
-          logger.error({ error: e.message, stack: e.stack }, '[startup] Error checking library version');
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          const errorStack = e instanceof Error ? e.stack : undefined;
+          logger.error({ error: errorMessage, stack: errorStack }, '[startup] Error checking library version');
           execSync(`npm install israeli-bank-scrapers@${targetVersion} --no-save`, { stdio: 'inherit' });
         }
       }

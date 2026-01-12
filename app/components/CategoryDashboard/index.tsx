@@ -75,7 +75,7 @@ const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, bill
 
 // Helper to format date range for display
 const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode): string => {
-  const { startDate, endDate } = getDateRange(year, month, mode);
+  const { startDate, endDate } = getDateRangeBase(year, month, mode);
   const start = new Date(startDate);
   const end = new Date(endDate);
   const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

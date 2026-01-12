@@ -260,8 +260,7 @@ const MonthlySummary: React.FC = () => {
       }
 
       // Fetch available dates and initialize selection
-      // We pass startDay to ensure the default logic uses the correct cutoff
-      await fetchAvailableMonths(startDay);
+      await fetchAvailableMonths();
       fetchCardVendors();
     }
 

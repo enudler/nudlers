@@ -105,7 +105,6 @@ async function handler(req, res) {
     auditId = await insertScrapeAudit(client, triggeredBy, options.companyId, new Date(options.startDate));
 
     // Execute scraping with retry for VisaCal/Cal (which has intermittent JSON parsing errors)
-    const isVisaCal = options.companyId === 'visaCal';
     const maxRetries = isVisaCal ? 3 : 0; // Increased from 2 to 3 for better reliability
     const retryBaseDelay = isVisaCal ? 10000 : 5000; // Longer delays for VisaCal (10s base)
 

@@ -34,6 +34,7 @@ interface ScraperConfig {
     card6Digits?: string;
     password?: string;
     username?: string;
+    userCode?: string;
     bankAccountNumber?: string;
     nickname?: string;
   };
