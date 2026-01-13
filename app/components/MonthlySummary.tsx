@@ -12,6 +12,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import SearchIcon from '@mui/icons-material/Search';
 import Divider from '@mui/material/Divider';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
@@ -209,6 +210,10 @@ const MonthlySummary: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [dateRangeError, setDateRangeError] = useState<string>('');
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   // AI context
   const { setScreenContext } = useScreenContext();
@@ -836,6 +841,45 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
+  const handleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    try {
+      setIsSearching(true);
+
+      let queryParams = `q=${encodeURIComponent(searchQuery)}`;
+
+      if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
+        queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {
+        queryParams += `&billingCycle=${selectedYear}-${selectedMonth}`;
+      } else if (selectedYear && selectedMonth) {
+        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+        queryParams += `&startDate=${startDate}&endDate=${endDate}`;
+      }
+
+      const response = await fetch(`/api/search_transactions?${queryParams}`);
+      if (response.ok) {
+        const results = await response.json();
+        setModalData({
+          type: `Search: "${searchQuery}"`,
+          data: results
+        });
+        setIsModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Search error", error);
+      setSnackbar({
+        open: true,
+        message: 'Search failed',
+        severity: 'error'
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleLast4DigitsClick = async (last4digits: string) => {
     if (dateRangeMode === 'custom') {
       if (!customStartDate || !customEndDate) return;
@@ -1076,6 +1120,54 @@ const MonthlySummary: React.FC = () => {
               flexWrap: 'wrap',
               justifyContent: { xs: 'center', md: 'flex-end' }
             }}>
+              {/* Search Bar */}
+              <Box
+                component="form"
+                onSubmit={handleSearch}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'rgba(255,255,255,0.8)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: '16px',
+                  padding: '4px 8px 4px 16px',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:focus-within': {
+                    borderColor: '#3b82f6',
+                    boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
+                  }
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Search transactions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    fontSize: '14px',
+                    width: '180px',
+                    color: '#1e293b',
+                    fontWeight: 500
+                  }}
+                />
+                <IconButton
+                  type="submit"
+                  size="small"
+                  disabled={isSearching}
+                  sx={{
+                    color: '#64748b',
+                    '&:hover': { color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)' }
+                  }}
+                >
+                  {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
+                </IconButton>
+              </Box>
+
               <IconButton
                 onClick={handleRefresh}
                 style={BUTTON_STYLE}

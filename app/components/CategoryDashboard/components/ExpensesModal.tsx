@@ -124,10 +124,14 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           setTimeSeriesData([]);
           break;
         default:
-          fetch(`/api/category_by_month?category=${data.type}&month=10&groupByYear=false`)
-            .then((response) => response.json())
-            .then((data) => setTimeSeriesData(data))
-            .catch((error) => console.error("Error fetching time series data:", error));
+          if (data.type && data.type.startsWith('Search:')) {
+            setTimeSeriesData([]);
+          } else {
+            fetch(`/api/category_by_month?category=${data.type}&month=10&groupByYear=false`)
+              .then((response) => response.json())
+              .then((data) => setTimeSeriesData(data))
+              .catch((error) => console.error("Error fetching time series data:", error));
+          }
       }
     }
   }, [data.type, data.data]);
@@ -436,7 +440,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     >
       <ModalHeader title={data.type} onClose={onClose} />
       <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
-        {data.type !== "Bank Transactions" && (
+        {data.type !== "Bank Transactions" && !data.type.startsWith('Search:') && (
           <Box sx={{
             mb: 4,
             p: 3,
