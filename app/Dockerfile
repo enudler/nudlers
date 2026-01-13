@@ -69,6 +69,7 @@ COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
 COPY --from=builder --chown=pptruser:pptruser /app/.next/static ./.next/static
 COPY --from=builder --chown=pptruser:pptruser /app/public ./public
 COPY --from=builder --chown=pptruser:pptruser /app/scrapers ./scrapers
+COPY --from=builder --chown=pptruser:pptruser /app/scripts ./scripts
 
 # Create startup script that supports optional VNC
 # We use websockify directly on Alpine as it's cleaner
@@ -83,6 +84,10 @@ if [ "$ENABLE_VNC" = "true" ]; then\n\
     x11vnc -display :99 -forever -shared -nopw -rfbport 5900 &\n\
     websockify --web /usr/share/novnc 6080 localhost:5900 &\n\
 fi\n\
+\n\
+# Start background scheduler\n\
+echo "Starting background scheduler..."\n\
+node scripts/background-scheduler.js &\n\
 \n\
 exec node server.js' > /app/start.sh && \
     chmod +x /app/start.sh && \

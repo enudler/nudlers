@@ -6,7 +6,7 @@
  * - scrape_stream.js
  */
 
-import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants';
+import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants.js';
 import { generateTransactionIdentifier } from './transactionUtils.js';
 import { createScraper } from 'israeli-bank-scrapers';
 
@@ -183,9 +183,6 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     return { success: true, duplicated: true };
   }
 
-  // Lookup category
-  const category = lookupCachedCategory(description);
-
   // Determine transaction type if not provided
   const transactionType = type || (chargedAmount < 0 ? 'expense' : 'income');
 
@@ -194,11 +191,48 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   const normalizedPrice = Math.abs(chargedAmount || originalAmount || 0);
   const normalizedAccountNumber = accountNumber || '';
 
+  // Calculate processed_date if not provided or it's a credit card transaction that defaults to transaction date
+  let finalProcessedDate = processedDate;
+  const isBank = BANK_VENDORS.includes(vendor);
+
+  if (!isBank) {
+    // For credit cards, if processedDate is missing or same as date, we might need to adjust it
+    // based on the billing cycle start day
+    try {
+      const settingsRes = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+      const billingStartDay = settingsRes.rows.length > 0 ? parseInt(settingsRes.rows[0].value) || 10 : 10;
+
+      const txDate = new Date(date);
+      const txDay = txDate.getDate();
+
+      // If processedDate is null, undefined, or same as txDate, and the day is past the cutoff
+      // then we should move it to the "next" cycle (the Start Day of next month)
+      const isDateMissingOrSame = !processedDate || new Date(processedDate).getTime() === txDate.getTime();
+
+      if (isDateMissingOrSame && txDay > billingStartDay) {
+        // Move to next month's billing day
+        const nextMonthDate = new Date(txDate.getFullYear(), txDate.getMonth() + 1, billingStartDay);
+        finalProcessedDate = nextMonthDate.toISOString().split('T')[0];
+        logger.info({ vendor, description, date, originalProcessedDate: processedDate, newProcessedDate: finalProcessedDate }, '[Scraper] Adjusted processed_date based on billing cycle cutoff');
+      } else if (!processedDate) {
+        // Just default to txDate if not setting it to next month
+        finalProcessedDate = date;
+      }
+    } catch (e) {
+      logger.error({ error: e.message }, '[Scraper] Error calculating processed_date, falling back to original');
+      finalProcessedDate = processedDate || date;
+    }
+  }
+
+  // Lookup category
+  const category = lookupCachedCategory(description);
+
   // Check business key constraint (vendor, date, name, price, account_number)
+  // Extended check: also look for ±1 day shift for timezone-related duplicates
   const businessKeyCheck = await client.query(
     `SELECT identifier FROM transactions 
      WHERE vendor = $1 
-       AND date = $2 
+       AND ABS(date - $2) <= 1
        AND LOWER(TRIM(name)) = $3 
        AND ABS(price) = $4 
        AND COALESCE(account_number, '') = $5`,
@@ -207,6 +241,25 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
   if (businessKeyCheck.rows.length > 0) {
     return { success: true, duplicated: true };
+  }
+
+  // Extra check for installments: if this is an installment, check if a "total" transaction 
+  // exists with the same name and date but different price (original_amount instead of price)
+  if (installmentsTotal > 1) {
+    const totalMatchCheck = await client.query(
+      `SELECT identifier FROM transactions 
+       WHERE vendor = $1 
+         AND ABS(date - $2) <= 1
+         AND LOWER(TRIM(name)) = $3 
+         AND (ABS(price) = $4 OR ABS(original_amount) = $4)
+         AND (installments_total IS NULL OR installments_total <= 1)`,
+      [vendor, date, normalizedName, Math.abs(originalAmount || chargedAmount)]
+    );
+
+    if (totalMatchCheck.rows.length > 0) {
+      logger.info({ vendor, description, date }, '[Scraper] Found matching total transaction for installment, skipping as duplicate');
+      return { success: true, duplicated: true };
+    }
   }
 
   // Insert transaction matching the actual database schema
@@ -222,7 +275,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       ON CONFLICT (identifier, vendor) DO NOTHING`,
       [
         txId, vendor, date, description || '', normalizedPrice,
-        category, transactionType, processedDate, originalAmount, originalCurrency,
+        category, transactionType, finalProcessedDate, originalAmount, originalCurrency,
         defaultCurrency, memo, status || 'completed',
         installmentsNumber, installmentsTotal, accountNumber
       ]

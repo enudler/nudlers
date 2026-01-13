@@ -23,7 +23,7 @@ export function generateTransactionIdentifier(txn, companyId, accountNumber) {
   const date = txn.date ? new Date(txn.date).toISOString().split('T')[0] : '';
   const description = normalizeDescription(txn.description || '');
   const amount = txn.chargedAmount ?? txn.originalAmount ?? 0;
-  
+
   // Create a comprehensive unique string
   // Note: We intentionally exclude processedDate to prevent duplicates when
   // the billing date gets assigned after initial scrape
@@ -35,7 +35,7 @@ export function generateTransactionIdentifier(txn, companyId, accountNumber) {
     description,
     amount.toFixed(2)
   ].join('|');
-  
+
   const hash = crypto.createHash('sha256');
   hash.update(uniqueId);
   return hash.digest('hex').substring(0, 40); // 40 chars is enough for uniqueness
@@ -50,6 +50,9 @@ export function normalizeDescription(description) {
   return description
     .toLowerCase()
     .trim()
+    .replace(/[\/\-_,.]/g, ' ')  // Replace common separators with space
+    .replace(/[^\w\s\u0590-\u05FF]/g, '') // Keep only alphanumeric, spaces, and Hebrew
     .replace(/\s+/g, ' ')  // Multiple spaces to single space
-    .replace(/[^\w\s\u0590-\u05FF]/g, ''); // Keep only alphanumeric, spaces, and Hebrew
+    .trim()
+    .replace(/\b0+(\d+)\b/g, '$1'); // Remove leading zeros from numbers
 }
