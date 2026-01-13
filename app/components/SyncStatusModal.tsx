@@ -383,7 +383,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
             let buffer = '';
             let currentStep = '';
             let lastProgress = null;
-            
+
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
@@ -398,7 +398,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                   currentEvent = line.slice(7);
                 } else if (line.startsWith('data: ')) {
                   const eventData = JSON.parse(line.slice(6));
-                  
+
                   if (currentEvent === 'progress') {
                     currentStep = eventData.message || '';
                     lastProgress = eventData;
@@ -522,7 +522,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
       default:
         return {
           icon: <SyncIcon sx={{ fontSize: 48 }} />,
-          label: 'Check Status',
+          label: 'Status Unknown',
           color: '#64748b',
           description: 'Status unavailable'
         };
@@ -676,30 +676,32 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
               </StatusCard>
             )}
 
-            {/* Main Status Display */}
-            <StatusCard sx={{
-              background: `linear-gradient(135deg, ${healthDisplay.color}10 0%, ${healthDisplay.color}05 100%)`,
-              borderColor: `${healthDisplay.color}40`
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                <Box sx={{ color: healthDisplay.color, '& svg': { fontSize: 36 } }}>
-                  {healthDisplay.icon}
+            {/* Main Status Display - Hidden when syncing */}
+            {!isSyncing && (
+              <StatusCard sx={{
+                background: `linear-gradient(135deg, ${healthDisplay.color}10 0%, ${healthDisplay.color}05 100%)`,
+                borderColor: `${healthDisplay.color}40`
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Box sx={{ color: healthDisplay.color, '& svg': { fontSize: 36 } }}>
+                    {healthDisplay.icon}
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: healthDisplay.color }}>
+                      {healthDisplay.label}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                      {healthDisplay.description}
+                    </Typography>
+                  </Box>
                 </Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: healthDisplay.color }}>
-                    {healthDisplay.label}
+                {status?.latestScrape && (
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block' }}>
+                    Last activity: {formatRelativeTime(status.latestScrape.created_at)}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                    {healthDisplay.description}
-                  </Typography>
-                </Box>
-              </Box>
-              {status?.latestScrape && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block' }}>
-                  Last activity: {formatRelativeTime(status.latestScrape.created_at)}
-                </Typography>
-              )}
-            </StatusCard>
+                )}
+              </StatusCard>
+            )}
 
             {/* Quick Stats */}
             <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
