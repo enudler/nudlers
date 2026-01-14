@@ -22,6 +22,7 @@ import {
   retryWithBackoff,
   sleep,
   runScraper,
+  loadCategorizationRules,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -155,6 +156,7 @@ async function handler(req, res) {
 
     // Load category cache and process transactions
     const cache = await loadCategoryCache(client);
+    const categorizationRules = await loadCategorizationRules(client);
 
     let bankTransactions = 0;
     let cachedCategoryCount = 0;
@@ -189,7 +191,7 @@ async function handler(req, res) {
 
         const hadCategory = txn.category && txn.category !== 'N/A';
         const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-        await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency);
+        await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules);
         if (!hadCategory && lookupCachedCategory(txn.description, cache)) {
           cachedCategoryCount++;
         }

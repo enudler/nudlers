@@ -81,6 +81,42 @@ export async function loadCategoryCache(client) {
 }
 
 /**
+ * Load active categorization rules from database
+ */
+export async function loadCategorizationRules(client) {
+  try {
+    const res = await client.query(`
+      SELECT name_pattern, target_category 
+      FROM categorization_rules 
+      WHERE is_active = true 
+      ORDER BY id
+    `);
+    return res.rows;
+  } catch (err) {
+    // Table might not exist yet or other error
+    if (!err.message.includes('does not exist')) {
+      logger.warn({ error: err.message }, '[Categorization Rules] Failed to load rules');
+    }
+    return [];
+  }
+}
+
+/**
+ * Match a description against categorization rules
+ */
+export function matchCategoryRule(description, rules) {
+  if (!rules || !rules.length || !description) return null;
+  const lowerDesc = description.toLowerCase();
+
+  for (const rule of rules) {
+    if (rule.name_pattern && lowerDesc.includes(rule.name_pattern.toLowerCase())) {
+      return rule.target_category;
+    }
+  }
+  return null;
+}
+
+/**
  * Lookup category from cache based on transaction description
  */
 export function lookupCachedCategory(description) {
@@ -154,7 +190,7 @@ export function validateCredentials(credentials, vendor) {
 /**
  * Insert a transaction into the database
  */
-export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency) {
+export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = []) {
   const {
     date,
     processedDate,
@@ -225,7 +261,15 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   }
 
   // Lookup category
-  const category = lookupCachedCategory(description);
+  let category = lookupCachedCategory(description);
+
+  // If not found in cache, try rules
+  if (!category && categorizationRules && categorizationRules.length > 0) {
+    category = matchCategoryRule(description, categorizationRules);
+    if (category) {
+      logger.debug({ description, category }, '[Scraper] Matched category from rules');
+    }
+  }
 
   // Check business key constraint (vendor, date, name, price, account_number)
   // Extended check: also look for ±1 day shift for timezone-related duplicates

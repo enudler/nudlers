@@ -22,6 +22,7 @@ import {
   retryWithBackoff,
   sleep,
   runScraper,
+  loadCategorizationRules,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -429,6 +430,7 @@ async function handler(req, res) {
     });
 
     const cache = await loadCategoryCache(client);
+    const categorizationRules = await loadCategorizationRules(client);
     let cachedCategoryCount = 0;
     let skippedCards = 0;
 
@@ -511,7 +513,7 @@ async function handler(req, res) {
         if (isBank) bankTransactions++;
         const hadCategory = txn.category && txn.category !== 'N/A';
         const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency);
+        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules);
 
         if (insertResult.duplicated) {
           duplicateTransactions++;

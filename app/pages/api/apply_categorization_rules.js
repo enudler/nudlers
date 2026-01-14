@@ -18,7 +18,7 @@ const handler = createApiHandler({
   },
   transform: async (result, req) => {
     const client = await getDB();
-    
+
     try {
       // Get all active rules
       const rulesResult = await client.query(`
@@ -27,10 +27,10 @@ const handler = createApiHandler({
         WHERE is_active = true
         ORDER BY id
       `);
-      
+
       const rules = rulesResult.rows;
       let totalUpdated = 0;
-      
+
       // Apply each rule
       for (const rule of rules) {
         const pattern = `%${rule.name_pattern}%`;
@@ -38,15 +38,16 @@ const handler = createApiHandler({
           UPDATE transactions 
           SET category = $2
           WHERE LOWER(name) LIKE LOWER($1) 
-          AND category != $2
-          AND category IS NOT NULL
-          AND category != 'Bank'
-          AND category != 'Income'
+          AND (category IS NULL OR (
+            category != $2 
+            AND category != 'Bank' 
+            AND category != 'Income'
+          ))
         `, [pattern, rule.target_category]);
-        
+
         totalUpdated += updateResult.rowCount;
       }
-      
+
       return {
         success: true,
         rulesApplied: rules.length,
