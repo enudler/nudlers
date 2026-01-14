@@ -802,7 +802,11 @@ const CategoryDashboard: React.FC = () => {
     setLoadingTransactions(true);
     try {
       const transactionsData = await fetchAllTransactions(startDate, endDate, billingCycle);
-      setTransactions(transactionsData);
+      // Sort transactions by date descending (newest first)
+      const sortedTransactions = transactionsData.sort((a: any, b: any) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setTransactions(sortedTransactions);
     } catch (error) {
       logger.error('Error fetching transactions data', error, {
         year: selectedYear,
@@ -1435,6 +1439,7 @@ const CategoryDashboard: React.FC = () => {
                 isLoading={loadingTransactions}
                 onDelete={handleDeleteTransaction}
                 onUpdate={handleUpdateTransaction}
+                groupByDate={true}
               />
             </Box>
           ) : (
