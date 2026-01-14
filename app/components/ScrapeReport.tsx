@@ -157,6 +157,7 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                                 <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, textAlign: 'left', color: theme.palette.text.secondary }}>
                                     <th style={{ padding: '8px 12px', fontWeight: 600, width: '90px' }}>Date</th>
                                     <th style={{ padding: '8px 12px', fontWeight: 600, width: '120px' }}>Account</th>
+                                    <th style={{ padding: '8px 12px', fontWeight: 600, width: '200px' }}>Description</th>
                                     <th style={{ padding: '8px 12px', fontWeight: 600, textAlign: 'right', width: '100px' }}>Amount</th>
                                     <th style={{ padding: '8px 12px', fontWeight: 600, width: '150px' }}>Category</th>
                                     <th style={{ padding: '8px 12px', fontWeight: 600, width: '100px' }}>Status</th>
@@ -186,6 +187,11 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                                                     </Typography>
                                                 </Box>
                                             ) : '-'}
+                                        </td>
+                                        <td style={{ padding: '6px 12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <Typography variant="caption" sx={{ color: 'text.primary' }} title={tx.description || tx.name || '-'}>
+                                                {tx.description || tx.name || '-'}
+                                            </Typography>
                                         </td>
                                         <td style={{ padding: '6px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                             <Typography variant="body2" sx={{

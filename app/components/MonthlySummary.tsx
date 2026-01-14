@@ -1371,7 +1371,7 @@ const MonthlySummary: React.FC = () => {
                 justifyContent: 'center'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>From:</span>
+                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 500 }}>From:</span>
                   <TextField
                     type="date"
                     value={customStartDate}
@@ -1380,9 +1380,10 @@ const MonthlySummary: React.FC = () => {
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         borderRadius: '12px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.9)',
+                        color: theme.palette.text.primary,
                         '& fieldset': {
-                          borderColor: dateRangeError ? '#ef4444' : 'rgba(148, 163, 184, 0.3)',
+                          borderColor: dateRangeError ? '#ef4444' : theme.palette.divider,
                         },
                         '&:hover fieldset': {
                           borderColor: '#10b981',
@@ -1394,12 +1395,16 @@ const MonthlySummary: React.FC = () => {
                       '& .MuiInputBase-input': {
                         padding: '10px 14px',
                         fontSize: '14px',
+                        colorScheme: theme.palette.mode
+                      },
+                      '& .MuiSvgIcon-root': {
+                        color: theme.palette.text.secondary
                       }
                     }}
                   />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>To:</span>
+                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 500 }}>To:</span>
                   <TextField
                     type="date"
                     value={customEndDate}
@@ -1408,9 +1413,10 @@ const MonthlySummary: React.FC = () => {
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         borderRadius: '12px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.9)',
+                        color: theme.palette.text.primary,
                         '& fieldset': {
-                          borderColor: dateRangeError ? '#ef4444' : 'rgba(148, 163, 184, 0.3)',
+                          borderColor: dateRangeError ? '#ef4444' : theme.palette.divider,
                         },
                         '&:hover fieldset': {
                           borderColor: '#10b981',
@@ -1422,6 +1428,10 @@ const MonthlySummary: React.FC = () => {
                       '& .MuiInputBase-input': {
                         padding: '10px 14px',
                         fontSize: '14px',
+                        colorScheme: theme.palette.mode
+                      },
+                      '& .MuiSvgIcon-root': {
+                        color: theme.palette.text.secondary
                       }
                     }}
                   />
