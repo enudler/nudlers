@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTheme } from '@mui/material/styles';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -29,6 +30,7 @@ import { ModalData } from './CategoryDashboard/types';
 import { useCategories } from './CategoryDashboard/utils/useCategories';
 import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
 import { useScreenContext } from './Layout';
+import { logger } from '../utils/client-logger';
 
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
@@ -153,6 +155,7 @@ const SELECT_STYLE = {
 };
 
 const MonthlySummary: React.FC = () => {
+  const theme = useTheme();
   const [data, setData] = useState<MonthlySummaryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -261,7 +264,7 @@ const MonthlySummary: React.FC = () => {
           setBillingStartDay(startDay);
         }
       } catch (e) {
-        console.error("Error fetching settings, using default start day", e);
+        logger.error('Error fetching settings, using default start day', e);
       }
 
       // Fetch available dates and initialize selection
@@ -291,7 +294,7 @@ const MonthlySummary: React.FC = () => {
         setCardNicknameMap(nicknameMap);
       }
     } catch (error) {
-      console.error('Error fetching card vendors:', error);
+      logger.error('Error fetching card vendors', error);
     }
   };
 
@@ -338,7 +341,10 @@ const MonthlySummary: React.FC = () => {
         window.dispatchEvent(new CustomEvent('cardVendorsUpdated'));
       }
     } catch (error) {
-      console.error('Error saving card vendor:', error);
+      logger.error('Error saving card vendor', error, {
+        card: selectedCardForVendor,
+        vendor: vendorKey
+      });
       setSnackbar({
         open: true,
         message: 'Failed to save card vendor',
@@ -376,7 +382,10 @@ const MonthlySummary: React.FC = () => {
         window.dispatchEvent(new CustomEvent('cardVendorsUpdated'));
       }
     } catch (error) {
-      console.error('Error saving card nickname:', error);
+      logger.error('Error saving card nickname', error, {
+        card: last4digits,
+        nickname
+      });
       setSnackbar({
         open: true,
         message: 'Failed to save card nickname',
@@ -433,7 +442,7 @@ const MonthlySummary: React.FC = () => {
       setUniqueMonths(months);
       setSelectedMonth(defaultMonth);
     } catch (error) {
-      console.error("Error fetching available months:", error);
+      logger.error('Error fetching available months', error);
     }
   };
 
@@ -718,7 +727,7 @@ const MonthlySummary: React.FC = () => {
       });
       setIsModalOpen(true);
     } catch (err) {
-      console.error('Error fetching all transactions:', err);
+      logger.error('Error fetching all transactions', err);
     } finally {
       setLoadingAll(false);
     }
@@ -785,7 +794,7 @@ const MonthlySummary: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Error updating category:', error);
+      logger.error('Error updating category', error, { description });
       setSnackbar({
         open: true,
         message: 'Error updating category',
@@ -869,7 +878,7 @@ const MonthlySummary: React.FC = () => {
         setIsModalOpen(true);
       }
     } catch (error) {
-      console.error("Search error", error);
+      logger.error('Search error', error, { query: searchQuery });
       setSnackbar({
         open: true,
         message: 'Search failed',
@@ -1027,7 +1036,7 @@ const MonthlySummary: React.FC = () => {
     <div style={{
       minHeight: '100vh',
       position: 'relative',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
+      background: 'transparent',
       overflow: 'hidden'
     }}>
       {/* Animated background elements - hidden on mobile for performance */}
@@ -1062,11 +1071,12 @@ const MonthlySummary: React.FC = () => {
         maxWidth: '1440px',
         margin: '0 auto',
         position: 'relative',
-        zIndex: 1
+        zIndex: 1,
+        color: theme.palette.text.primary
       }}>
         {/* Hero Section with Filters */}
         <Box sx={{
-          background: 'rgba(255, 255, 255, 0.95)',
+          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: { xs: '20px', md: '32px' },
           padding: { xs: '16px', sm: '24px', md: '36px' },
@@ -1074,7 +1084,7 @@ const MonthlySummary: React.FC = () => {
           marginTop: { xs: '56px', md: '40px' },
           marginLeft: { xs: '8px', md: '24px' },
           marginRight: { xs: '8px', md: '24px' },
-          border: '1px solid rgba(148, 163, 184, 0.15)',
+          border: `1px solid ${theme.palette.divider}`,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
         }}>
           <Box sx={{
@@ -1089,13 +1099,15 @@ const MonthlySummary: React.FC = () => {
                 fontSize: { xs: '22px', md: '28px' },
                 fontWeight: 700,
                 margin: 0,
-                background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
+                background: theme.palette.mode === 'dark'
+                  ? 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)'
+                  : 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
               }}>Monthly Summary</Box>
               <Box component="p" sx={{
-                color: '#64748b',
+                color: 'text.secondary',
                 marginTop: '8px',
                 marginBottom: 0,
                 fontSize: { xs: '14px', md: '16px' }
@@ -1127,15 +1139,15 @@ const MonthlySummary: React.FC = () => {
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  background: 'rgba(255,255,255,0.8)',
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255,255,255,0.8)',
                   backdropFilter: 'blur(10px)',
                   borderRadius: '16px',
                   padding: '4px 8px 4px 16px',
-                  border: '1px solid rgba(148,163,184,0.2)',
+                  border: `1px solid ${theme.palette.divider}`,
                   boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:focus-within': {
-                    borderColor: '#3b82f6',
+                    borderColor: 'primary.main',
                     boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
                   }
                 }}
@@ -1151,7 +1163,7 @@ const MonthlySummary: React.FC = () => {
                     outline: 'none',
                     fontSize: '14px',
                     width: '180px',
-                    color: '#1e293b',
+                    color: theme.palette.text.primary,
                     fontWeight: 500
                   }}
                 />
@@ -1160,8 +1172,8 @@ const MonthlySummary: React.FC = () => {
                   size="small"
                   disabled={isSearching}
                   sx={{
-                    color: '#64748b',
-                    '&:hover': { color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)' }
+                    color: 'text.secondary',
+                    '&:hover': { color: 'primary.main', background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }
                   }}
                 >
                   {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
@@ -1170,7 +1182,22 @@ const MonthlySummary: React.FC = () => {
 
               <IconButton
                 onClick={handleRefresh}
-                style={BUTTON_STYLE}
+                sx={{
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  color: 'text.secondary',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                  '&:hover': {
+                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
+                    color: 'primary.main',
+                    transform: 'translateY(-2px) scale(1.05)',
+                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)'
+                  }
+                }}
               >
                 <RefreshIcon />
               </IconButton>
@@ -1180,10 +1207,26 @@ const MonthlySummary: React.FC = () => {
                   <select
                     value={selectedYear}
                     onChange={handleYearChange}
-                    style={{ ...SELECT_STYLE, minWidth: '120px' }}
+                    style={{
+                      minWidth: '120px',
+                      padding: '14px 28px',
+                      borderRadius: '16px',
+                      border: `1px solid ${theme.palette.divider}`,
+                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(10px)',
+                      color: theme.palette.text.primary,
+                      fontSize: '15px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      textAlign: 'right',
+                      direction: 'rtl',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
                   >
                     {uniqueYears.map((year) => (
-                      <option key={year} value={year} style={{ background: '#ffffff', color: '#1e293b' }}>
+                      <option key={year} value={year} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
                         {year}
                       </option>
                     ))}
@@ -1192,10 +1235,26 @@ const MonthlySummary: React.FC = () => {
                   <select
                     value={selectedMonth}
                     onChange={handleMonthChange}
-                    style={{ ...SELECT_STYLE, minWidth: '160px' }}
+                    style={{
+                      minWidth: '160px',
+                      padding: '14px 28px',
+                      borderRadius: '16px',
+                      border: `1px solid ${theme.palette.divider}`,
+                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(10px)',
+                      color: theme.palette.text.primary,
+                      fontSize: '15px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      textAlign: 'right',
+                      direction: 'rtl',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
                   >
                     {uniqueMonths.map((month) => (
-                      <option key={month} value={month} style={{ background: '#ffffff', color: '#1e293b' }}>
+                      <option key={month} value={month} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
                         {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
                       </option>
                     ))}
@@ -1206,10 +1265,10 @@ const MonthlySummary: React.FC = () => {
               {/* Date Range Mode Toggle */}
               <div style={{
                 display: 'flex',
-                background: 'rgba(255, 255, 255, 0.8)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
                 backdropFilter: 'blur(10px)',
                 borderRadius: '16px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
+                border: `1px solid ${theme.palette.divider}`,
                 padding: '4px',
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
               }}>
@@ -1428,14 +1487,14 @@ const MonthlySummary: React.FC = () => {
           <>
             {/* Summary Cards Section */}
             <Box sx={{
-              background: 'rgba(255, 255, 255, 0.95)',
+              background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(20px)',
               borderRadius: { xs: '20px', md: '32px' },
               padding: { xs: '16px', sm: '20px', md: '24px 32px' },
               marginLeft: { xs: '8px', md: '24px' },
               marginRight: { xs: '8px', md: '24px' },
               marginBottom: { xs: '16px', md: '32px' },
-              border: '1px solid rgba(148, 163, 184, 0.15)',
+              border: `1px solid ${theme.palette.divider}`,
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
             }}>
               <Box sx={{
@@ -1499,36 +1558,29 @@ const MonthlySummary: React.FC = () => {
                   const cardVendor = cardVendorMap[card.last4digits];
 
                   return (
-                    <div
+                    <Box
                       key={card.last4digits}
-                      style={{
-                        background: 'rgba(248, 250, 252, 0.8)',
+                      sx={{
+                        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
                         borderRadius: '16px',
                         padding: '16px 20px',
                         minWidth: '160px',
                         cursor: 'pointer',
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        border: `1px solid ${theme.palette.divider}`,
                         opacity: isLoading ? 0.7 : 1,
-                        position: 'relative'
+                        position: 'relative',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
+                          borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                          '& .vendor-settings-btn': {
+                            opacity: 1
+                          }
+                        }
                       }}
                       onClick={() => handleLast4DigitsClick(card.last4digits)}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-                        const settingsBtn = e.currentTarget.querySelector('.vendor-settings-btn') as HTMLElement;
-                        if (settingsBtn) settingsBtn.style.opacity = '1';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.background = 'rgba(248, 250, 252, 0.8)';
-                        e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-                        e.currentTarget.style.boxShadow = 'none';
-                        const settingsBtn = e.currentTarget.querySelector('.vendor-settings-btn') as HTMLElement;
-                        if (settingsBtn) settingsBtn.style.opacity = '0';
-                      }}
                     >
                       {/* Settings button for vendor selection */}
                       <IconButton
@@ -1542,10 +1594,10 @@ const MonthlySummary: React.FC = () => {
                           opacity: 0,
                           transition: 'opacity 0.2s',
                           padding: '4px',
-                          color: '#64748b',
+                          color: 'text.secondary',
                           '&:hover': {
                             backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            color: '#3b82f6'
+                            color: 'primary.main'
                           }
                         }}
                       >
@@ -1561,32 +1613,32 @@ const MonthlySummary: React.FC = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
                           {cardNicknameMap[card.last4digits] ? (
                             <>
-                              <span style={{
-                                color: '#1e293b',
+                              <Box component="span" sx={{
+                                color: 'text.primary',
                                 fontSize: '13px',
                                 fontWeight: 700,
                               }}>
                                 {cardNicknameMap[card.last4digits]}
-                              </span>
-                              <span style={{
-                                color: '#94a3b8',
+                              </Box>
+                              <Box component="span" sx={{
+                                color: 'text.secondary',
                                 fontSize: '11px',
                                 fontFamily: 'monospace',
                                 letterSpacing: '1px'
                               }}>
                                 •••• {card.last4digits}
-                              </span>
+                              </Box>
                             </>
                           ) : (
-                            <span style={{
-                              color: '#475569',
+                            <Box component="span" sx={{
+                              color: 'text.secondary',
                               fontSize: '13px',
                               fontWeight: 700,
                               fontFamily: 'monospace',
                               letterSpacing: '1px'
                             }}>
                               •••• {card.last4digits}
-                            </span>
+                            </Box>
                           )}
                           {card.bank_account_nickname && (
                             <span style={{
@@ -1601,12 +1653,12 @@ const MonthlySummary: React.FC = () => {
                           )}
                         </div>
                       </div>
-                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>
+                      <Box sx={{ fontSize: '18px', fontWeight: 700, color: 'primary.main' }}>
                         ₪{formatNumber(card.card_expenses)}
-                      </div>
-                      <div style={{
+                      </Box>
+                      <Box sx={{
                         fontSize: '11px',
-                        color: '#94a3b8',
+                        color: 'text.secondary',
                         marginTop: '4px',
                         display: 'flex',
                         alignItems: 'center',
@@ -1615,7 +1667,7 @@ const MonthlySummary: React.FC = () => {
                         <div style={{
                           flex: 1,
                           height: '4px',
-                          background: 'rgba(148, 163, 184, 0.2)',
+                          background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.2)',
                           borderRadius: '2px',
                           overflow: 'hidden'
                         }}>
@@ -1628,14 +1680,14 @@ const MonthlySummary: React.FC = () => {
                           }} />
                         </div>
                         <span>{percentage}%</span>
-                      </div>
-                    </div>
+                      </Box>
+                    </Box>
                   );
                 })}
 
                 {/* Bank Account Summary Section */}
-                <Box sx={{ width: '100%', pt: 2, borderTop: '1px solid rgba(148, 163, 184, 0.2)', mt: 1 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
+                <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
+                  <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
                     By Bank Account
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
@@ -1648,8 +1700,8 @@ const MonthlySummary: React.FC = () => {
                           gap: 1.5,
                           p: 1.5,
                           borderRadius: '12px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.6)',
-                          border: '1px solid rgba(148, 163, 184, 0.15)',
+                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+                          border: `1px solid ${theme.palette.divider}`,
                           minWidth: '200px',
                           flex: '1 1 auto'
                         }}
@@ -1661,24 +1713,24 @@ const MonthlySummary: React.FC = () => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            backgroundColor: 'rgba(241, 245, 249, 0.8)',
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(241, 245, 249, 0.8)',
                             borderRadius: '10px',
-                            color: '#64748b'
+                            color: 'text.secondary'
                           }}
                         >
                           <AccountBalanceIcon sx={{ fontSize: 20 }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', lineHeight: 1.2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
                             {bank.bank_account_nickname}
                           </Typography>
                           {(bank.bank_account_number || bank.bank_account_vendor) && (
-                            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '10px' }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
                               {bank.bank_account_vendor} {bank.bank_account_number ? `• ${bank.bank_account_number}` : ''}
                             </Typography>
                           )}
                         </Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
                           ₪{formatNumber(bank.total_expenses)}
                         </Typography>
                       </Box>
@@ -1696,13 +1748,16 @@ const MonthlySummary: React.FC = () => {
                       borderRadius: '16px',
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
                       minWidth: '240px',
-                      maxHeight: '500px'
+                      maxHeight: '500px',
+                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : undefined,
+                      backdropFilter: 'blur(10px)',
+                      border: `1px solid ${theme.palette.divider}`
                     }
                   }}
                 >
                   {/* Nickname Field */}
-                  <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                  <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <span style={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
                       Card Nickname
                     </span>
                     <TextField
@@ -1737,14 +1792,15 @@ const MonthlySummary: React.FC = () => {
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           borderRadius: '10px',
-                          backgroundColor: '#f8fafc',
+                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc',
+                          color: 'text.primary'
                         }
                       }}
                     />
                   </Box>
 
-                  <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <span style={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
                       Card Vendor
                     </span>
                   </Box>
@@ -1763,7 +1819,7 @@ const MonthlySummary: React.FC = () => {
                       }}
                     >
                       <CardVendorIcon vendor={key} size={32} />
-                      <span style={{ fontWeight: 500, color: '#1e293b' }}>{config.name}</span>
+                      <span style={{ fontWeight: 500, color: theme.palette.text.primary }}>{config.name}</span>
                       {cardVendorMap[selectedCardForVendor || ''] === key && (
                         <CheckIcon sx={{ fontSize: '18px', color: '#10b981', ml: 'auto' }} />
                       )}
@@ -1775,13 +1831,13 @@ const MonthlySummary: React.FC = () => {
 
             {/* Breakdown Table */}
             <Box sx={{
-              background: 'rgba(255, 255, 255, 0.95)',
+              background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(20px)',
               borderRadius: { xs: '20px', md: '32px' },
               padding: { xs: '16px', md: '32px' },
               marginLeft: { xs: '8px', md: '24px' },
               marginRight: { xs: '8px', md: '24px' },
-              border: '1px solid rgba(148, 163, 184, 0.15)',
+              border: `1px solid ${theme.palette.divider}`,
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
             }}>
               <Box sx={{
@@ -1796,7 +1852,7 @@ const MonthlySummary: React.FC = () => {
                   fontSize: { xs: '16px', md: '20px' },
                   fontWeight: 700,
                   margin: 0,
-                  color: '#1e293b'
+                  color: 'text.primary'
                 }}>
                   {groupBy === 'description'
                     ? 'Breakdown by Description'
@@ -1830,11 +1886,13 @@ const MonthlySummary: React.FC = () => {
                         gap: '3px',
                         padding: '6px 10px',
                         borderRadius: '8px',
-                        border: sortField === field ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(148, 163, 184, 0.2)',
+                        border: sortField === field
+                          ? (theme.palette.mode === 'dark' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(59, 130, 246, 0.4)')
+                          : `1px solid ${theme.palette.divider}`,
                         background: sortField === field
                           ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)'
-                          : 'rgba(255, 255, 255, 0.8)',
-                        color: sortField === field ? '#3b82f6' : '#64748b',
+                          : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
+                        color: sortField === field ? '#3b82f6' : 'text.secondary',
                         fontSize: '12px',
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -1875,12 +1933,12 @@ const MonthlySummary: React.FC = () => {
                   }}>
                     <thead>
                       <tr style={{
-                        borderBottom: '2px solid #e2e8f0'
+                        borderBottom: `2px solid ${theme.palette.divider}`
                       }}>
                         <th style={{
                           padding: '16px 12px',
                           textAlign: 'left',
-                          color: '#64748b',
+                          color: 'text.secondary',
                           fontWeight: 600,
                           fontSize: '13px',
                           textTransform: 'uppercase',
@@ -1896,7 +1954,7 @@ const MonthlySummary: React.FC = () => {
                           <th style={{
                             padding: '16px 12px',
                             textAlign: 'left',
-                            color: '#64748b',
+                            color: 'text.secondary',
                             fontWeight: 600,
                             fontSize: '13px',
                             textTransform: 'uppercase',
@@ -1949,9 +2007,9 @@ const MonthlySummary: React.FC = () => {
                           <tr
                             key={rowKey}
                             style={{
-                              borderBottom: '1px solid #f1f5f9',
+                              borderBottom: `1px solid ${theme.palette.divider}`,
                               transition: 'background 0.2s ease',
-                              background: index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)',
+                              background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.3)' : 'rgba(248, 250, 252, 0.5)'),
                               cursor: isClickable ? 'pointer' : 'default'
                             }}
                             onClick={() => {
@@ -1967,13 +2025,13 @@ const MonthlySummary: React.FC = () => {
                                 : 'rgba(96, 165, 250, 0.08)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)';
+                              e.currentTarget.style.background = index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.3)' : 'rgba(248, 250, 252, 0.5)');
                             }}
                           >
                             <td style={{
                               padding: '16px 12px',
                               fontWeight: 600,
-                              color: isClickable ? '#3b82f6' : '#1e293b',
+                              color: isClickable ? '#3b82f6' : 'text.primary',
                               maxWidth: '300px'
                             }}>
                               <div style={{
@@ -2020,9 +2078,10 @@ const MonthlySummary: React.FC = () => {
                                       sx={{
                                         minWidth: 140,
                                         '& .MuiOutlinedInput-root': {
-                                          backgroundColor: 'white',
+                                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'white',
+                                          color: 'text.primary',
                                           '& fieldset': {
-                                            borderColor: '#e2e8f0',
+                                            borderColor: theme.palette.divider,
                                           },
                                           '&:hover fieldset': {
                                             borderColor: '#3b82f6',
@@ -2126,13 +2185,15 @@ const MonthlySummary: React.FC = () => {
                     {/* Totals row */}
                     <tfoot>
                       <tr style={{
-                        borderTop: '2px solid #e2e8f0',
-                        background: 'rgba(248, 250, 252, 0.8)'
+                        borderTop: `2px solid ${theme.palette.divider}`,
+                        background: theme.palette.mode === 'dark'
+                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.12) 100%)'
+                          : 'rgba(248, 250, 252, 0.8)'
                       }}>
                         <td style={{
                           padding: '16px 12px',
                           fontWeight: 700,
-                          color: '#1e293b',
+                          color: theme.palette.text.primary,
                           fontSize: '15px'
                         }}>TOTAL</td>
                         {groupBy === 'description' && (
@@ -2144,7 +2205,7 @@ const MonthlySummary: React.FC = () => {
                           <td style={{
                             padding: '16px 12px',
                             textAlign: 'center',
-                            color: '#64748b',
+                            color: theme.palette.text.secondary,
                             fontWeight: 700,
                             fontSize: '15px'
                           }}>{sortedData.reduce((sum, row) => sum + Number(row.transaction_count || 0), 0)}</td>

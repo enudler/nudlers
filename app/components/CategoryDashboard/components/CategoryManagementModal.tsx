@@ -24,7 +24,8 @@ import {
   FormControlLabel,
   Card,
   CardContent,
-  Grid
+  Grid,
+  useTheme
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import MergeIcon from '@mui/icons-material/Merge';
@@ -47,6 +48,8 @@ import Paper from '@mui/material/Paper';
 import LinearProgress from '@mui/material/LinearProgress';
 import InputAdornment from '@mui/material/InputAdornment';
 import Badge from '@mui/material/Badge';
+import { useCategories } from '../utils/useCategories';
+import { logger } from '../../../utils/client-logger';
 
 interface Category {
   name: string;
@@ -111,7 +114,8 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
   const [deleteOptions, setDeleteOptions] = useState({ deleteRules: true, deleteBudget: true });
   const categoryColors = useCategoryColors();
-  
+  const theme = useTheme();
+
   // Quick Categorize state
   const [uncategorizedDescriptions, setUncategorizedDescriptions] = useState<UncategorizedDescription[]>([]);
   const [currentQuickIndex, setCurrentQuickIndex] = useState(0);
@@ -148,7 +152,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setCurrentQuickIndex(0);
       setTotalQuickProcessed(0);
     } catch (error) {
-      console.error('Error fetching uncategorized descriptions:', error);
+      logger.error('Error fetching uncategorized descriptions', error);
     } finally {
       setIsLoadingQuick(false);
     }
@@ -168,7 +172,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       const data = await response.json();
       setQuickTransactions(data);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
+      logger.error('Error fetching transactions', error, { description });
       setQuickTransactions([]);
     } finally {
       setIsLoadingQuickTransactions(false);
@@ -212,10 +216,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
 
       // Refresh categories
       await fetchCategories();
-      
+
       setTimeout(() => setSuccess(null), 1500);
     } catch (error) {
-      console.error('Error updating category:', error);
+      logger.error('Error updating category', error, {
+        description: currentDescription.description,
+        newCategory: category
+      });
       setError(error instanceof Error ? error.message : 'Failed to update category');
     } finally {
       setIsSavingQuick(false);
@@ -269,9 +276,9 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
         const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
         throw new Error(errorMessage);
       }
-      
+
       const categoryNames = await response.json();
-      
+
       // Get transaction counts for each category
       const categoriesWithCounts = await Promise.all(
         categoryNames.map(async (name: string) => {
@@ -292,7 +299,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
           }
         })
       );
-      
+
       setCategories(categoriesWithCounts.sort((a, b) => b.count - a.count));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -308,11 +315,11 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoadingRules(true);
       const response = await fetch('/api/categorization_rules');
       if (!response.ok) throw new Error('Failed to fetch rules');
-      
+
       const rulesData = await response.json();
       setRules(rulesData);
     } catch (error) {
-      console.error('Error fetching rules:', error);
+      logger.error('Error fetching rules', error);
       setError('Failed to load rules');
     } finally {
       setIsLoadingRules(false);
@@ -320,7 +327,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   };
 
   const handleCategoryToggle = (categoryName: string) => {
-    setSelectedCategories(prev => 
+    setSelectedCategories(prev =>
       prev.includes(categoryName)
         ? prev.filter(name => name !== categoryName)
         : [...prev, categoryName]
@@ -367,17 +374,20 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setSuccess(`Successfully merged ${selectedCategories.length} categories into "${newCategoryName}"`);
       setSelectedCategories([]);
       setNewCategoryName('');
-      
+
       // Refresh categories list
       await fetchCategories();
-      
+
       // Notify parent component
       onCategoriesUpdated();
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
-      console.error('Error merging categories:', error);
+      logger.error('Error merging categories', error, {
+        categories: selectedCategories,
+        targetName: newCategoryName
+      });
       setError(error instanceof Error ? error.message : 'Failed to merge categories');
     } finally {
       setIsLoading(false);
@@ -389,7 +399,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     if (totalQuickProcessed > 0) {
       onCategoriesUpdated();
     }
-    
+
     setSelectedCategories([]);
     setNewCategoryName('');
     setError(null);
@@ -401,13 +411,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     setRenameNewName('');
     setDeletingCategory(null);
     setDeleteOptions({ deleteRules: true, deleteBudget: true });
-    
+
     // Reset quick categorize state
     setCurrentQuickIndex(0);
     setTotalQuickProcessed(0);
     setNewQuickCategoryInput('');
     setShowNewQuickCategoryInput(false);
-    
+
     onClose();
   };
 
@@ -451,17 +461,20 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setSuccess(`Successfully renamed "${renamingCategory}" to "${renameNewName.trim()}" (${result.transactionsUpdated} transactions updated)`);
       setRenamingCategory(null);
       setRenameNewName('');
-      
+
       // Refresh categories list
       await fetchCategories();
-      
+
       // Notify parent component
       onCategoriesUpdated();
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
-      console.error('Error renaming category:', error);
+      logger.error('Error renaming category', error, {
+        oldName: renamingCategory,
+        newName: renameNewName.trim()
+      });
       setError(error instanceof Error ? error.message : 'Failed to rename category');
     } finally {
       setIsLoading(false);
@@ -514,17 +527,19 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       const result = await response.json();
       setSuccess(`Successfully deleted "${deletingCategory}" (${result.transactionsUncategorized} transactions uncategorized)`);
       setDeletingCategory(null);
-      
+
       // Refresh categories list
       await fetchCategories();
-      
+
       // Notify parent component
       onCategoriesUpdated();
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
-      console.error('Error deleting category:', error);
+      logger.error('Error deleting category', error, {
+        category: deletingCategory
+      });
       setError(error instanceof Error ? error.message : 'Failed to delete category');
     } finally {
       setIsLoading(false);
@@ -562,10 +577,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setSuccess('Rule created successfully');
       setNewRule({ name_pattern: '', target_category: '' });
       await fetchRules();
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
-      console.error('Error creating rule:', error);
+      logger.error('Error creating rule', error, {
+        category: newRule.target_category,
+        pattern: newRule.name_pattern
+      });
       setError(error instanceof Error ? error.message : 'Failed to create rule');
     } finally {
       setIsLoading(false);
@@ -598,10 +616,10 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setSuccess('Rule updated successfully');
       setEditingRule(null);
       await fetchRules();
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
-      console.error('Error updating rule:', error);
+      logger.error('Error updating rule', error, { ruleId: rule.id });
       setError(error instanceof Error ? error.message : 'Failed to update rule');
     } finally {
       setIsLoading(false);
@@ -633,10 +651,10 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
 
       setSuccess('Rule deleted successfully');
       await fetchRules();
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
-      console.error('Error deleting rule:', error);
+      logger.error('Error deleting rule', error, { ruleId });
       setError(error instanceof Error ? error.message : 'Failed to delete rule');
     } finally {
       setIsLoading(false);
@@ -667,14 +685,14 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
 
       const result = await response.json();
       setSuccess(`Successfully applied ${result.rulesApplied} rules to ${result.transactionsUpdated} transactions`);
-      
+
       // Refresh categories and notify parent
       await fetchCategories();
       onCategoriesUpdated();
-      
+
       setTimeout(() => setSuccess(null), 5000);
     } catch (error) {
-      console.error('Error applying rules:', error);
+      logger.error('Error applying rules', error);
       setError(error instanceof Error ? error.message : 'Failed to apply rules');
     } finally {
       setIsApplyingRules(false);
@@ -682,16 +700,19 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={handleClose}
       maxWidth="md"
       fullWidth
       PaperProps={{
         style: {
-          backgroundColor: '#ffffff',
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(135deg, var(--modal-backdrop) 0%, var(--modal-backdrop-alt) 100%)'
+            : 'var(--modal-backdrop)',
           borderRadius: '24px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          border: `1px solid ${theme.palette.divider}`
         }
       }}
     >
@@ -703,24 +724,24 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
             {error}
           </Alert>
         )}
-        
+
         {success && (
           <Alert severity="success" style={{ marginBottom: '16px' }}>
             {success}
           </Alert>
         )}
 
-        <Tabs 
-          value={currentTab} 
+        <Tabs
+          value={currentTab}
           onChange={(e, newValue) => setCurrentTab(newValue)}
           style={{ marginBottom: '24px' }}
         >
           <Tab label="Categories" />
           <Tab label="Rules" />
-          <Tab 
+          <Tab
             label={
-              <Badge 
-                badgeContent={uncategorizedDescriptions.length} 
+              <Badge
+                badgeContent={uncategorizedDescriptions.length}
                 color="warning"
                 max={99}
                 sx={{
@@ -747,11 +768,11 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               <Typography variant="subtitle1" style={{ marginBottom: '12px', fontWeight: 600 }}>
                 Merge Categories
               </Typography>
-              <Typography variant="body2" color="textSecondary" style={{ marginBottom: '16px' }}>
-                Select multiple categories to merge them into a new consolidated category. 
+              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '16px' }}>
+                Select multiple categories to merge them into a new consolidated category.
                 All transactions from the selected categories will be moved to the new category.
               </Typography>
-              
+
               <TextField
                 fullWidth
                 label="New Category Name"
@@ -761,7 +782,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                 style={{ marginBottom: '16px' }}
                 disabled={isLoading}
               />
-              
+
               <Button
                 variant="contained"
                 startIcon={<MergeIcon />}
@@ -786,15 +807,15 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               <Typography variant="subtitle1" style={{ marginBottom: '16px', fontWeight: 600 }}>
                 Available Categories ({categories.length})
               </Typography>
-              
+
               {isLoading ? (
                 <Box display="flex" justifyContent="center" padding="32px">
                   <CircularProgress />
                 </Box>
               ) : (
-                <Box 
-                  style={{ 
-                    maxHeight: '400px', 
+                <Box
+                  style={{
+                    maxHeight: '400px',
                     overflow: 'auto',
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -812,15 +833,15 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                           style={{ color: 'white' }}
                         />}
                         style={{
-                          backgroundColor: selectedCategories.includes(category.name) 
+                          backgroundColor: selectedCategories.includes(category.name)
                             ? categoryColors[category.name] || '#3b82f6'
-                            : '#f8f9fa',
-                          color: selectedCategories.includes(category.name) 
+                            : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8f9fa'),
+                          color: selectedCategories.includes(category.name)
                             ? 'white'
-                            : '#333',
-                          border: selectedCategories.includes(category.name) 
+                            : theme.palette.text.primary,
+                          border: selectedCategories.includes(category.name)
                             ? 'none'
-                            : `1px solid ${categoryColors[category.name] || '#3b82f6'}`,
+                            : `1px solid ${selectedCategories.includes(category.name) ? (categoryColors[category.name] || '#3b82f6') : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : (categoryColors[category.name] || '#3b82f6'))}`,
                           cursor: 'pointer',
                           transition: 'all 0.2s ease-in-out',
                           fontWeight: selectedCategories.includes(category.name) ? '600' : '500',
@@ -829,9 +850,9 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                         }}
                         sx={{
                           '&:hover': {
-                            backgroundColor: selectedCategories.includes(category.name) 
+                            backgroundColor: selectedCategories.includes(category.name)
                               ? categoryColors[category.name] || '#3b82f6'
-                              : 'rgba(59, 130, 246, 0.1)',
+                              : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(59, 130, 246, 0.1)'),
                             transform: 'translateY(-1px)',
                             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
                           }
@@ -840,7 +861,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                       <IconButton
                         size="small"
                         onClick={(e) => openRenameDialog(category.name, e)}
-                        style={{ 
+                        style={{
                           padding: '4px',
                           color: categoryColors[category.name] || '#3b82f6'
                         }}
@@ -851,7 +872,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                       <IconButton
                         size="small"
                         onClick={(e) => openDeleteDialog(category.name, e)}
-                        style={{ 
+                        style={{
                           padding: '4px',
                           color: '#ef4444'
                         }}
@@ -873,11 +894,11 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               <Typography variant="subtitle1" style={{ marginBottom: '12px', fontWeight: 600 }}>
                 Categorization Rules
               </Typography>
-              <Typography variant="body2" color="textSecondary" style={{ marginBottom: '16px' }}>
-                Create rules to automatically categorize transactions based on their names. 
+              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '16px' }}>
+                Create rules to automatically categorize transactions based on their names.
                 Rules will be applied to existing and new transactions.
               </Typography>
-              
+
               <Grid container spacing={2} style={{ marginBottom: '16px' }}>
                 <Grid item xs={6}>
                   <TextField
@@ -945,27 +966,31 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               <Typography variant="subtitle1" style={{ marginBottom: '16px', fontWeight: 600 }}>
                 Active Rules ({rules.length})
               </Typography>
-              
+
               {isLoadingRules ? (
                 <Box display="flex" justifyContent="center" padding="32px">
                   <CircularProgress />
                 </Box>
               ) : rules.length === 0 ? (
-                <Box style={{ textAlign: 'center', padding: '32px', color: '#666' }}>
+                <Box style={{ textAlign: 'center', padding: '32px', color: theme.palette.text.secondary }}>
                   <Typography>No rules created yet. Create your first rule above.</Typography>
                 </Box>
               ) : (
                 <Grid container spacing={2}>
                   {rules.map((rule) => (
                     <Grid item xs={12} key={rule.id}>
-                      <Card style={{ borderRadius: '12px' }}>
+                      <Card style={{
+                        borderRadius: '12px',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#fff',
+                        border: theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : 'none'
+                      }}>
                         <CardContent style={{ padding: '16px' }}>
                           <Box display="flex" alignItems="center" justifyContent="space-between">
                             <Box flex={1}>
                               <Typography variant="body1" style={{ fontWeight: 600, marginBottom: '4px' }}>
                                 IF transaction name contains "{rule.name_pattern}"
                               </Typography>
-                              <Typography variant="body2" color="textSecondary">
+                              <Typography variant="body2" color={theme.palette.text.secondary}>
                                 THEN set category to "{rule.target_category}"
                               </Typography>
                             </Box>
@@ -1005,19 +1030,25 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
             </Box>
 
             {editingRule && (
-              <Box style={{ 
-                position: 'fixed', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
-                bottom: 0, 
-                backgroundColor: 'rgba(0,0,0,0.5)', 
-                display: 'flex', 
-                alignItems: 'center', 
+              <Box style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 zIndex: 9999
               }}>
-                <Card style={{ padding: '24px', maxWidth: '500px', width: '100%', margin: '16px' }}>
+                <Card style={{
+                  padding: '24px',
+                  maxWidth: '500px',
+                  width: '100%',
+                  margin: '16px',
+                  backgroundColor: theme.palette.background.paper,
+                }}>
                   <Typography variant="h6" style={{ marginBottom: '16px' }}>Edit Rule</Typography>
                   <Grid container spacing={2} style={{ marginBottom: '16px' }}>
                     <Grid item xs={6}>
@@ -1042,7 +1073,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                   <Box display="flex" gap="8px" justifyContent="flex-end">
                     <Button
                       onClick={() => setEditingRule(null)}
-                      style={{ color: '#666' }}
+                      style={{ color: theme.palette.text.secondary }}
                     >
                       Cancel
                     </Button>
@@ -1101,11 +1132,11 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                 <Typography variant="h5" sx={{ fontWeight: 600, marginBottom: 1 }}>
                   All Done!
                 </Typography>
-                <Typography color="textSecondary">
+                <Typography color={theme.palette.text.secondary}>
                   All transactions have been categorized.
                 </Typography>
                 {totalQuickProcessed > 0 && (
-                  <Typography color="textSecondary" sx={{ marginTop: 1 }}>
+                  <Typography color={theme.palette.text.secondary} sx={{ marginTop: 1 }}>
                     You categorized {totalQuickProcessed} description(s) in this session.
                   </Typography>
                 )}
@@ -1125,7 +1156,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                 <Typography variant="h5" sx={{ fontWeight: 600, marginBottom: 1 }}>
                   Session Complete!
                 </Typography>
-                <Typography color="textSecondary">
+                <Typography color={theme.palette.text.secondary}>
                   You categorized {totalQuickProcessed} description(s).
                 </Typography>
               </Box>
@@ -1150,11 +1181,11 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                 {/* Current Description Card */}
                 <Box
                   sx={{
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
                     borderRadius: '16px',
                     padding: '20px',
                     marginBottom: '20px',
-                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    border: `1px solid ${theme.palette.divider}`,
                     position: 'relative'
                   }}
                 >
@@ -1166,7 +1197,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.8)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1183,7 +1214,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                       variant="h6"
                       sx={{
                         fontWeight: 600,
-                        color: '#1e293b',
+                        color: theme.palette.text.primary,
                         wordBreak: 'break-word'
                       }}
                     >
@@ -1217,33 +1248,34 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                       <CircularProgress size={24} />
                     </Box>
                   ) : quickTransactions.length > 0 ? (
-                    <TableContainer 
-                      component={Paper} 
-                      sx={{ 
-                        maxHeight: 150, 
+                    <TableContainer
+                      component={Paper}
+                      sx={{
+                        maxHeight: 150,
                         boxShadow: 'none',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        borderRadius: '8px'
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: '8px',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : '#fff'
                       }}
                     >
                       <Table size="small" stickyHeader>
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px' }}>Date</TableCell>
-                            <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px' }}>Amount</TableCell>
-                            <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px' }}>Card</TableCell>
+                            <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '12px' }}>Date</TableCell>
+                            <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '12px' }}>Amount</TableCell>
+                            <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '12px' }}>Card</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {quickTransactions.slice(0, 5).map((tx, idx) => (
                             <TableRow key={idx}>
-                              <TableCell sx={{ color: '#64748b', fontSize: '12px' }}>
+                              <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '12px' }}>
                                 {formatQuickDate(tx.date)}
                               </TableCell>
                               <TableCell sx={{ color: tx.price < 0 ? '#ef4444' : '#22c55e', fontWeight: 600, fontSize: '12px' }}>
                                 {formatQuickCurrency(Math.abs(tx.price))}
                               </TableCell>
-                              <TableCell sx={{ color: '#64748b', fontSize: '12px' }}>
+                              <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '12px' }}>
                                 {tx.vendor_nickname || tx.vendor}
                               </TableCell>
                             </TableRow>
@@ -1261,7 +1293,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                     disabled={isSavingQuick}
                     startIcon={<SkipNextIcon />}
                     sx={{
-                      color: '#64748b',
+                      color: theme.palette.text.secondary,
                       textTransform: 'none',
                       fontWeight: 500
                     }}
@@ -1273,7 +1305,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                 {/* Category Buttons */}
                 <Typography
                   variant="subtitle2"
-                  sx={{ color: '#64748b', marginBottom: 1, fontWeight: 500 }}
+                  sx={{ color: theme.palette.text.secondary, marginBottom: 1, fontWeight: 500 }}
                 >
                   Select a category:
                 </Typography>
@@ -1308,8 +1340,8 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                           transform: 'translateY(-1px)',
                         },
                         '&:disabled': {
-                          backgroundColor: '#e2e8f0',
-                          color: '#94a3b8'
+                          backgroundColor: theme.palette.action.disabledBackground,
+                          color: theme.palette.text.disabled
                         }
                       }}
                     >
@@ -1352,7 +1384,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                         minWidth: '160px',
                         '& .MuiOutlinedInput-root': {
                           borderRadius: '10px',
-                          backgroundColor: '#fff',
+                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#fff',
                           '& fieldset': {
                             borderColor: '#22c55e',
                             borderWidth: '2px'
@@ -1390,26 +1422,33 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
 
         {/* Delete Category Dialog */}
         {deletingCategory && (
-          <Box style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            backgroundColor: 'rgba(0,0,0,0.5)', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <Box style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999
           }}>
-            <Card style={{ padding: '24px', maxWidth: '450px', width: '100%', margin: '16px', borderRadius: '16px' }}>
+            <Card style={{
+              padding: '24px',
+              maxWidth: '450px',
+              width: '100%',
+              margin: '16px',
+              borderRadius: '16px',
+              backgroundColor: theme.palette.background.paper
+            }}>
               <Typography variant="h6" style={{ marginBottom: '8px', fontWeight: 600, color: '#ef4444' }}>
                 Delete Category
               </Typography>
-              <Typography variant="body2" color="textSecondary" style={{ marginBottom: '20px' }}>
+              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '20px' }}>
                 Are you sure you want to delete "{deletingCategory}"? All transactions with this category will become uncategorized.
               </Typography>
-              
+
               <Box style={{ marginBottom: '20px' }}>
                 <FormControlLabel
                   control={
@@ -1439,7 +1478,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                     setDeletingCategory(null);
                     setDeleteOptions({ deleteRules: true, deleteBudget: true });
                   }}
-                  style={{ color: '#666', textTransform: 'none' }}
+                  style={{ color: theme.palette.text.secondary, textTransform: 'none' }}
                   disabled={isLoading}
                 >
                   Cancel
@@ -1465,23 +1504,30 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
 
         {/* Rename Category Dialog */}
         {renamingCategory && (
-          <Box style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            backgroundColor: 'rgba(0,0,0,0.5)', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <Box style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999
           }}>
-            <Card style={{ padding: '24px', maxWidth: '400px', width: '100%', margin: '16px', borderRadius: '16px' }}>
+            <Card style={{
+              padding: '24px',
+              maxWidth: '400px',
+              width: '100%',
+              margin: '16px',
+              borderRadius: '16px',
+              backgroundColor: theme.palette.background.paper
+            }}>
               <Typography variant="h6" style={{ marginBottom: '8px', fontWeight: 600 }}>
                 Rename Category
               </Typography>
-              <Typography variant="body2" color="textSecondary" style={{ marginBottom: '20px' }}>
+              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '20px' }}>
                 Rename "{renamingCategory}" to a new name. All transactions with this category will be updated.
               </Typography>
               <TextField
@@ -1504,7 +1550,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                     setRenamingCategory(null);
                     setRenameNewName('');
                   }}
-                  style={{ color: '#666', textTransform: 'none' }}
+                  style={{ color: theme.palette.text.secondary, textTransform: 'none' }}
                   disabled={isLoading}
                 >
                   Cancel
@@ -1533,7 +1579,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
         <Button
           onClick={handleClose}
           style={{
-            color: '#666',
+            color: theme.palette.text.secondary,
             borderRadius: '12px',
             padding: '8px 16px',
             textTransform: 'none',

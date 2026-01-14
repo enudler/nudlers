@@ -16,6 +16,7 @@ import {
   Button,
   LinearProgress
 } from '@mui/material';
+import { logger } from '../utils/client-logger';
 import { styled, keyframes } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -30,10 +31,13 @@ import CloudOffIcon from '@mui/icons-material/CloudOff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { BEINLEUMI_GROUP_VENDORS, BANK_VENDORS } from '../utils/constants';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import ScrapeReport from './ScrapeReport';
 
 interface SyncStatusModalProps {
   open: boolean;
   onClose: () => void;
+  width: number;
+  onWidthChange: (width: number) => void;
 }
 
 interface SyncStatus {
@@ -72,26 +76,46 @@ const spin = keyframes`
   100% { transform: rotate(360deg); }
 `;
 
-const StyledDrawer = styled(Drawer)(({ theme }) => ({
+// Drawer style with dynamic width
+const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== 'width' })<{ width: number }>(({ theme, width }) => ({
   '& .MuiDrawer-paper': {
-    background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
+    background: theme.palette.mode === 'dark'
+      ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)'
+      : 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(20px)',
-    borderLeft: '1px solid rgba(148, 163, 184, 0.2)',
-    color: '#fff',
-    width: '400px',
+    borderLeft: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
+    width: `${width}px`,
     maxWidth: '90vw',
     boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.3)',
+    transition: 'width 0s', // Disable transition while resizing for smoothness
   },
   '& .MuiBackdrop-root': {
     backgroundColor: 'transparent',
   }
 }));
 
+const ResizeHandle = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  left: 0,
+  top: 0,
+  bottom: 0,
+  width: '6px',
+  cursor: 'ew-resize',
+  zIndex: 1000,
+  '&:hover': {
+    backgroundColor: 'rgba(96, 165, 250, 0.5)',
+  },
+  '&:active': {
+    backgroundColor: 'rgba(96, 165, 250, 0.8)',
+  }
+}));
+
 const StatusCard = styled(Box)(({ theme }) => ({
   padding: '16px',
   borderRadius: '12px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  background: 'rgba(30, 41, 59, 0.5)',
+  border: `1px solid ${theme.palette.divider}`,
+  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(241, 245, 249, 0.6)',
   marginBottom: '12px'
 }));
 
@@ -130,7 +154,7 @@ const parseDate = (dateStr: string | null): Date => {
 
   // Validate the date is valid
   if (isNaN(date.getTime())) {
-    console.warn(`[parseDate] Invalid date string: ${dateStr}`);
+    logger.warn('Invalid date string in parseDate', { dateStr });
     return new Date();
   }
 
@@ -169,21 +193,24 @@ const formatDateTime = (dateStr: string) => {
 };
 
 const getStatusColor = (status: string) => {
+  const root = document.documentElement;
+  const getVar = (name: string) => getComputedStyle(root).getPropertyValue(name).trim();
+
   switch (status) {
     case 'completed':
     case 'healthy':
-      return '#22c55e';
+      return getVar('--status-success');
     case 'started':
     case 'syncing':
-      return '#60a5fa';
+      return getVar('--status-syncing');
     case 'failed':
     case 'error':
-      return '#ef4444';
+      return getVar('--status-error');
     case 'stale':
     case 'outdated':
-      return '#f59e0b';
+      return getVar('--status-warning');
     default:
-      return '#64748b';
+      return getVar('--text-secondary');
   }
 };
 
@@ -196,7 +223,10 @@ const getVendorIcon = (vendor: string) => {
   return <CreditCardIcon />;
 };
 
-const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
+import { useTheme } from '@mui/material/styles';
+
+const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange }) => {
+  const theme = useTheme();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -208,9 +238,72 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
     percent?: number;
     phase?: string;
     success?: boolean | null;
-    summary?: any;
+    summary?: {
+      savedTransactions?: number;
+      duplicateTransactions?: number;
+      transactions?: number;
+      processedTransactions?: Array<{
+        name: string;
+        amount: number;
+        category: string;
+        date: string;
+        accountName?: string;
+      }>;
+    };
   } | null>(null);
+
+  interface ProcessedTransaction {
+    name: string;
+    amount: number;
+    category: string;
+    date: string;
+    accountName?: string;
+  }
+
+  const [sessionReport, setSessionReport] = useState<ProcessedTransaction[]>([]);
+  const [showReport, setShowReport] = useState(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  // Resizing state
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault(); // Prevent text selection
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return;
+
+    // Calculate new width: Window width - mouse X position
+    const newWidth = window.innerWidth - e.clientX;
+    const clampedWidth = Math.max(400, Math.min(newWidth, window.innerWidth - 50));
+
+    onWidthChange(clampedWidth);
+  }, [isResizing, onWidthChange]);
+
+  const handleMouseUp = useCallback(() => {
+    if (isResizing) {
+      setIsResizing(false);
+      localStorage.setItem('syncStatusDrawerWidth', width.toString());
+    }
+  }, [isResizing, width]);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
+
+
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -220,27 +313,22 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
         setStatus(data);
       }
     } catch (error) {
-      console.error('Failed to fetch sync status:', error);
+      logger.error('Failed to fetch sync status', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
+
+
+  // Reset report when opening
+  // Fetch status when opening
   useEffect(() => {
     if (open) {
       setLoading(true);
       fetchStatus();
     }
   }, [open, fetchStatus]);
-
-  useEffect(() => {
-    // Cleanup on unmount
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
@@ -252,7 +340,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch last transaction date:', err);
+      logger.error('Failed to fetch last transaction date', err, { vendor });
     }
     return null;
   };
@@ -280,7 +368,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
       const bankId = account.username || account.id || account.id_number || '';
       const bankNum = account.bank_account_number || '';
       return {
-        id: String(bankId),
+        username: String(bankId),
         password: String(account.password || ''),
         num: String(bankNum)
       };
@@ -345,8 +433,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
           // Get last transaction date to determine start date
           const lastDate = await fetchLastTransactionDate(account.vendor);
           const startDate = lastDate ? new Date(lastDate) : new Date();
-          // Go back 30 days from last transaction, or 30 days from now
-          startDate.setDate(startDate.getDate() - 30);
+          // Go back configured days or default to 30
+          const daysBack = status?.settings?.daysBack || 30;
+          startDate.setDate(startDate.getDate() - daysBack);
 
           const credentials = prepareCredentials(account, account.vendor);
           const config = {
@@ -426,6 +515,13 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                       success: true,
                       summary: eventData.summary
                     });
+
+                    if (eventData.summary && eventData.summary.processedTransactions) {
+                      setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
+                        ...t,
+                        accountName: account.nickname || account.vendor
+                      }))]);
+                    }
                     break;
                   }
                 }
@@ -450,7 +546,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
             setSyncProgress(null);
             return;
           }
-          console.error(`Failed to sync account ${account.nickname || account.vendor}:`, err);
+          logger.error('Failed to sync account', err, {
+            account: account.nickname || account.vendor
+          });
           // Continue with next account even if one fails
         }
       }
@@ -459,10 +557,44 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
       await fetchStatus();
       setSyncProgress(null);
       setIsSyncing(false);
+      setShowReport(true);
     } catch (err) {
-      console.error('Sync all failed:', err);
+      logger.error('Sync all failed', err);
       setSyncProgress(null);
       setIsSyncing(false);
+      // Even on error, show what we got
+      setShowReport(true);
+    }
+  };
+
+  interface SyncEvent {
+    id: number;
+    triggered_by: string;
+    vendor: string;
+    status: string;
+    message: string;
+    created_at: string;
+  }
+
+  const handleHistoryClick = async (event: SyncEvent) => {
+    // if (event.status !== 'completed') return; // Allow viewing partial reports or errors if data exists
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/get_scrape_report?id=${event.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Handle both formats: direct transactions array or nested in processedTransactions
+        const txns = Array.isArray(data) ? data : (data.processedTransactions || []);
+        setSessionReport(txns);
+        setShowReport(true);
+      } else {
+        logger.error('Failed to fetch report for event', undefined, { eventId: event.id });
+      }
+    } catch (err) {
+      logger.error('Failed to fetch report', err, { eventId: event.id });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -520,6 +652,14 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
           description: 'Add accounts to start syncing'
         };
       default:
+        if (status?.latestScrape?.created_at) {
+          return {
+            icon: <AccessTimeIcon sx={{ fontSize: 48 }} />,
+            label: `Last Sync: ${formatRelativeTime(status.latestScrape.created_at)}`,
+            color: '#64748b',
+            description: 'System is idle'
+          };
+        }
         return {
           icon: <SyncIcon sx={{ fontSize: 48 }} />,
           label: 'Status Unknown',
@@ -536,14 +676,17 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
       anchor="right"
       open={open}
       onClose={onClose}
+      width={width}
     >
+      <ResizeHandle onMouseDown={handleMouseDown} />
       {/* Header */}
       <Box sx={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         p: 2,
-        borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        pl: 3 // Extra padding for handle
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <SyncIcon sx={{ color: '#60a5fa' }} />
@@ -576,11 +719,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
             </Tooltip>
           )}
           <Tooltip title="Refresh status">
-            <IconButton onClick={fetchStatus} size="small" sx={{ color: 'rgba(255,255,255,0.6)' }} disabled={isSyncing}>
+            <IconButton onClick={fetchStatus} size="small" sx={{ color: 'text.secondary' }} disabled={isSyncing}>
               <RefreshIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <IconButton onClick={onClose} size="small" sx={{ color: 'rgba(255,255,255,0.6)' }} disabled={isSyncing}>
+          <IconButton onClick={onClose} size="small" sx={{ color: 'text.secondary' }} disabled={isSyncing}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
@@ -588,7 +731,30 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
 
       {/* Content */}
       <Box sx={{ p: 2, overflowY: 'auto', flex: 1 }}>
-        {loading ? (
+        {showReport ? (
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Sync Report</Typography>
+              <Button size="small" onClick={() => setShowReport(false)} sx={{ color: '#aaa' }}>
+                Close Report
+              </Button>
+            </Box>
+
+            {sessionReport.length === 0 ? (
+              <Typography variant="body2" sx={{ color: '#aaa', fontStyle: 'italic', textAlign: 'center', py: 4 }}>
+                No new transactions found during this sync.
+              </Typography>
+            ) : (
+              <ScrapeReport report={sessionReport} />
+            )}
+
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+              <Button variant="outlined" onClick={() => setShowReport(false)}>
+                Back to Status
+              </Button>
+            </Box>
+          </Box>
+        ) : loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress sx={{ color: '#60a5fa' }} />
           </Box>
@@ -612,11 +778,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                   )}
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#60a5fa' }}>
-                      Syncing accounts... ({syncProgress.current} / {syncProgress.total})
+                      Syncing accounts... ({Math.min(syncProgress.current + 1, syncProgress.total)} / {syncProgress.total})
                     </Typography>
                     {syncProgress.currentAccount && (
                       <>
-                        <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500, mt: 0.5 }}>
+                        <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 500, mt: 0.5 }}>
                           {syncProgress.currentAccount}
                         </Typography>
                         {syncProgress.currentStep && (
@@ -624,18 +790,18 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                             {syncProgress.success === null && (
                               <CircularProgress size={12} sx={{ color: '#60a5fa' }} />
                             )}
-                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                               {syncProgress.currentStep}
                             </Typography>
                             {syncProgress.percent !== undefined && (
-                              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', ml: 'auto' }}>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.disabled, ml: 'auto' }}>
                                 {syncProgress.percent}%
                               </Typography>
                             )}
                           </Box>
                         )}
                         {syncProgress.phase && (
-                          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.5, textTransform: 'capitalize' }}>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mt: 0.5, textTransform: 'capitalize' }}>
                             {syncProgress.phase.replace('_', ' ')}
                           </Typography>
                         )}
@@ -656,8 +822,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                   }}
                 />
                 {syncProgress.summary && (
-                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', display: 'block', mb: 0.5 }}>
+                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
                       Summary:
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -690,13 +856,14 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                     <Typography variant="h6" sx={{ fontWeight: 600, color: healthDisplay.color }}>
                       {healthDisplay.label}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                       {healthDisplay.description}
                     </Typography>
+
                   </Box>
                 </Box>
                 {status?.latestScrape && (
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block' }}>
                     Last activity: {formatRelativeTime(status.latestScrape.created_at)}
                   </Typography>
                 )}
@@ -716,7 +883,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#22c55e' }}>
                   {status?.activeAccounts || 0}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '10px' }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '10px' }}>
                   Accounts
                 </Typography>
               </Box>
@@ -731,7 +898,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#60a5fa' }}>
                   {status?.history.filter(h => h.status === 'completed').length || 0}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '10px' }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '10px' }}>
                   Syncs
                 </Typography>
               </Box>
@@ -746,7 +913,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#a78bfa' }}>
                   {status?.settings.daysBack || 30}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '10px' }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '10px' }}>
                   Days
                 </Typography>
               </Box>
@@ -788,7 +955,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                             </Typography>
                           }
                           secondary={
-                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.disabled }}>
                               {account.vendor}
                             </Typography>
                           }
@@ -800,7 +967,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                             size="small"
                             sx={{
                               backgroundColor: isRecent ? 'rgba(34, 197, 94, 0.2)' : isStale ? 'rgba(245, 158, 11, 0.2)' : 'rgba(148, 163, 184, 0.2)',
-                              color: isRecent ? '#22c55e' : isStale ? '#f59e0b' : 'rgba(255,255,255,0.6)',
+                              color: isRecent ? 'var(--status-success)' : isStale ? 'var(--status-warning)' : theme.palette.text.secondary,
                               '& .MuiChip-icon': {
                                 color: 'inherit'
                               }
@@ -826,6 +993,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                 <Box sx={{
                   maxHeight: '200px',
                   overflowY: 'auto',
+                  overflowX: 'hidden',
                   '&::-webkit-scrollbar': {
                     width: '6px',
                   },
@@ -847,8 +1015,17 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                         gap: 2,
                         py: 1.5,
                         borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        borderRadius: '8px',
+                        px: 1,
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          transform: 'translateX(4px)'
+                        },
                         '&:last-child': { borderBottom: 'none' }
                       }}
+                      onClick={() => handleHistoryClick(event)}
                     >
                       <Box
                         sx={{
@@ -880,7 +1057,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                           <Typography
                             variant="caption"
                             sx={{
-                              color: 'rgba(255,255,255,0.5)',
+                              color: theme.palette.text.disabled,
                               display: 'block',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -891,7 +1068,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose }) => {
                           </Typography>
                         )}
                       </Box>
-                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.disabled, flexShrink: 0 }}>
                         {formatRelativeTime(event.created_at)}
                       </Typography>
                     </Box>
