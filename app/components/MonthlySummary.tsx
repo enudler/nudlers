@@ -128,31 +128,9 @@ const formatMonth = (monthStr: string): string => {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };
 
-const BUTTON_STYLE = {
-  background: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  padding: '14px',
-  borderRadius: '16px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  color: '#475569',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-};
 
-const SELECT_STYLE = {
-  padding: '14px 28px',
-  borderRadius: '16px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  background: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  color: '#1e293b',
-  fontSize: '15px',
-  fontWeight: '600',
-  cursor: 'pointer',
-  outline: 'none',
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-};
+
+
 
 const MonthlySummary: React.FC = () => {
   const theme = useTheme();
@@ -245,12 +223,41 @@ const MonthlySummary: React.FC = () => {
     return true;
   };
 
+  // Theme-aware styles
+  const selectStyle = {
+    padding: '14px 28px',
+    borderRadius: '16px',
+    border: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(10px)',
+    color: theme.palette.text.primary,
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    outline: 'none',
+    textAlign: 'right' as const,
+    direction: 'rtl' as const,
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+  };
+
+  const buttonStyle = {
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(10px)',
+    padding: '14px',
+    borderRadius: '16px',
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+  };
+
   useEffect(() => {
     // Initialize state from local storage and settings
     const init = async () => {
       // Load persistence first
       const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
-      if (persistedMode) {
+      if (persistedMode && ['billing', 'calendar'].includes(persistedMode)) {
         setDateRangeMode(persistedMode);
       }
 
@@ -1183,22 +1190,15 @@ const MonthlySummary: React.FC = () => {
               <IconButton
                 onClick={handleRefresh}
                 sx={{
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: `1px solid ${theme.palette.divider}`,
+                  ...buttonStyle,
                   color: 'text.secondary',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
                   '&:hover': {
-                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
-                    color: 'primary.main',
                     transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)'
+                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
+                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
+                    color: 'primary.main'
                   }
-                }}
-              >
+                }}>
                 <RefreshIcon />
               </IconButton>
 
@@ -1207,23 +1207,7 @@ const MonthlySummary: React.FC = () => {
                   <select
                     value={selectedYear}
                     onChange={handleYearChange}
-                    style={{
-                      minWidth: '120px',
-                      padding: '14px 28px',
-                      borderRadius: '16px',
-                      border: `1px solid ${theme.palette.divider}`,
-                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(10px)',
-                      color: theme.palette.text.primary,
-                      fontSize: '15px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      textAlign: 'right',
-                      direction: 'rtl',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                    }}
+                    style={{ ...selectStyle, minWidth: '120px' }}
                   >
                     {uniqueYears.map((year) => (
                       <option key={year} value={year} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
@@ -1235,23 +1219,7 @@ const MonthlySummary: React.FC = () => {
                   <select
                     value={selectedMonth}
                     onChange={handleMonthChange}
-                    style={{
-                      minWidth: '160px',
-                      padding: '14px 28px',
-                      borderRadius: '16px',
-                      border: `1px solid ${theme.palette.divider}`,
-                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(10px)',
-                      color: theme.palette.text.primary,
-                      fontSize: '15px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      textAlign: 'right',
-                      direction: 'rtl',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                    }}
+                    style={{ ...selectStyle, minWidth: '160px' }}
                   >
                     {uniqueMonths.map((month) => (
                       <option key={month} value={month} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>

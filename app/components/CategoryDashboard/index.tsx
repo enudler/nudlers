@@ -88,40 +88,11 @@ const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode
 };
 
 // Common styles
-const BUTTON_STYLE = {
-  background: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  padding: '14px',
-  borderRadius: '16px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  color: '#475569',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-};
 
-const HOVER_BUTTON_STYLE = {
-  transform: 'translateY(-2px) scale(1.05)',
-  boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-  background: 'rgba(96, 165, 250, 0.15)',
-  color: '#3b82f6'
-};
 
-const SELECT_STYLE = {
-  padding: '14px 28px',
-  borderRadius: '16px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  background: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  color: '#1e293b',
-  fontSize: '15px',
-  fontWeight: '600',
-  cursor: 'pointer',
-  outline: 'none',
-  textAlign: 'right' as const,
-  direction: 'rtl' as const,
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-};
+
+
+
 
 // Helper function to fetch all transactions for a date range
 const fetchAllTransactions = async (startDate: string, endDate: string, billingCycle?: string) => {
@@ -295,10 +266,40 @@ const CategoryDashboard: React.FC = () => {
     }
   }, []);
 
+  // Theme-aware styles
+  const selectStyle = {
+    padding: '14px 28px',
+    borderRadius: '16px',
+    border: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(10px)',
+    color: theme.palette.text.primary,
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    outline: 'none',
+    textAlign: 'right' as const,
+    direction: 'rtl' as const,
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+  };
+
+  const buttonStyle = {
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(10px)',
+    padding: '14px',
+    borderRadius: '16px',
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+  };
+
   React.useEffect(() => {
     // Load persisted date range mode from localStorage to sync with MonthlySummary
+    // We only restore 'billing' or 'calendar' to avoid starting in 'custom' with no dates
     const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
-    if (persistedMode && ['billing', 'calendar', 'custom'].includes(persistedMode)) {
+    if (persistedMode && ['billing', 'calendar'].includes(persistedMode)) {
       setDateRangeMode(persistedMode);
     }
 
@@ -1121,7 +1122,7 @@ const CategoryDashboard: React.FC = () => {
                   <select
                     value={selectedYear}
                     onChange={handleYearChange}
-                    style={{ ...SELECT_STYLE, minWidth: '120px' }}
+                    style={{ ...selectStyle, minWidth: '120px' }}
                     onMouseEnter={(e) => Object.assign(e.currentTarget.style, {
                       transform: 'translateY(-2px)',
                       boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
@@ -1145,7 +1146,7 @@ const CategoryDashboard: React.FC = () => {
                   <select
                     value={selectedMonth}
                     onChange={handleMonthChange}
-                    style={{ ...SELECT_STYLE, minWidth: '160px' }}
+                    style={{ ...selectStyle, minWidth: '160px' }}
                     onMouseEnter={(e) => Object.assign(e.currentTarget.style, {
                       transform: 'translateY(-2px)',
                       boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',

@@ -20,7 +20,7 @@ import { logger } from '../utils/client-logger';
 import { styled, keyframes } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import SyncIcon from '@mui/icons-material/Sync';
-import RefreshIcon from '@mui/icons-material/Refresh';
+
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
@@ -718,11 +718,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
               </Button>
             </Tooltip>
           )}
-          <Tooltip title="Refresh status">
-            <IconButton onClick={fetchStatus} size="small" sx={{ color: 'text.secondary' }} disabled={isSyncing}>
-              <RefreshIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+
           <IconButton onClick={onClose} size="small" sx={{ color: 'text.secondary' }} disabled={isSyncing}>
             <CloseIcon fontSize="small" />
           </IconButton>
