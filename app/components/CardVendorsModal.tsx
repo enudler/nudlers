@@ -15,6 +15,8 @@ import {
   IconButton,
   Snackbar,
   Alert,
+  useTheme,
+  alpha
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -101,10 +103,12 @@ interface CardVendorsModalProps {
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
   transition: 'all 0.2s ease-in-out',
   '&:nth-of-type(odd)': {
-    backgroundColor: 'rgba(248, 250, 252, 0.5)',
+    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.05) : 'rgba(248, 250, 252, 0.5)',
   },
   '&:hover': {
-    background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(167, 139, 250, 0.05) 100%)',
+    background: theme.palette.mode === 'dark'
+      ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.secondary.main, 0.15)} 100%)`
+      : 'linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(167, 139, 250, 0.05) 100%)',
     transform: 'scale(1.005)',
   },
 }));
@@ -130,6 +134,7 @@ export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> 
   vendor,
   size = 32
 }) => {
+  const theme = useTheme();
   const vendorConfig = vendor ? CARD_VENDORS[vendor as keyof typeof CARD_VENDORS] : null;
 
   if (!vendorConfig) {
@@ -158,7 +163,7 @@ export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'white',
+        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.9)' : 'white',
         borderRadius: '8px',
         padding: '4px',
         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
@@ -184,6 +189,7 @@ export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> 
 };
 
 export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalProps) {
+  const theme = useTheme();
   const [cards, setCards] = useState<CardData[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -349,11 +355,13 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         fullWidth
         PaperProps={{
           style: {
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
+            background: theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
             backdropFilter: 'blur(20px)',
             borderRadius: '28px',
             boxShadow: '0 24px 64px rgba(0, 0, 0, 0.15)',
-            border: '1px solid rgba(148, 163, 184, 0.2)',
+            border: `1px solid ${theme.palette.divider}`,
             maxWidth: '1200px',
           },
         }}
@@ -365,8 +373,8 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         }}
       >
         <ModalHeader title="Card Vendors" onClose={onClose} />
-        <DialogContent style={{ padding: '0 32px 32px', color: '#1e293b' }}>
-          <Typography variant="body2" sx={{ mb: 3, color: '#64748b' }}>
+        <DialogContent style={{ padding: '0 32px 32px', color: theme.palette.text.primary }}>
+          <Typography variant="body2" sx={{ mb: 3, color: theme.palette.text.secondary }}>
             Assign a card issuer/brand to each card. This will display the card logo throughout the app.
           </Typography>
 
@@ -375,7 +383,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
               Loading cards...
             </Box>
           ) : cards.length === 0 ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', padding: '32px', color: '#64748b' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: theme.palette.text.secondary }}>
               No cards found in the system
             </Box>
           ) : (
@@ -383,9 +391,11 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
               sx={{
                 borderRadius: '20px',
                 overflow: 'hidden',
-                border: '1px solid rgba(148, 163, 184, 0.15)',
+                border: `1px solid ${theme.palette.divider}`,
                 boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
+                background: theme.palette.mode === 'dark'
+                  ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`
+                  : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
                 backdropFilter: 'blur(10px)',
               }}
             >
@@ -394,13 +404,13 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                   <TableRow>
                     <TableCell
                       style={{
-                        color: '#475569',
-                        borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
+                        color: theme.palette.text.secondary,
+                        borderBottom: `2px solid ${theme.palette.divider}`,
                         fontWeight: 600,
                         fontSize: '13px',
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px',
-                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                        background: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                         padding: '16px',
                       }}
                     >
@@ -548,7 +558,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                             onClick={() => handleEdit(card)}
                           >
                             <CardVendorIcon vendor={card.card_vendor} size={24} />
-                            <Typography sx={{ color: card.card_vendor ? '#1e293b' : '#94a3b8' }}>
+                            <Typography sx={{ color: card.card_vendor ? theme.palette.text.primary : theme.palette.text.disabled }}>
                               {card.card_vendor
                                 ? CARD_VENDORS[card.card_vendor as keyof typeof CARD_VENDORS]?.name || card.card_vendor
                                 : 'Click to set vendor'}
@@ -573,7 +583,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                         ) : (
                           <Typography
                             sx={{
-                              color: card.card_nickname ? '#1e293b' : '#94a3b8',
+                              color: card.card_nickname ? theme.palette.text.primary : theme.palette.text.disabled,
                               fontStyle: card.card_nickname ? 'normal' : 'italic',
                             }}
                             onClick={() => handleEdit(card)}
@@ -634,7 +644,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                         ) : (
                           <Typography
                             sx={{
-                              color: card.bank_account_nickname || card.custom_bank_account_nickname ? '#1e293b' : '#94a3b8',
+                              color: card.bank_account_nickname || card.custom_bank_account_nickname ? theme.palette.text.primary : theme.palette.text.disabled,
                               fontStyle: card.bank_account_nickname || card.custom_bank_account_nickname ? 'normal' : 'italic',
                             }}
                             onClick={() => handleEdit(card)}

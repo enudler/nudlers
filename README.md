@@ -8,29 +8,108 @@ Personal finance management application for tracking credit card expenses and ba
 
 ## Features
 
+### 📊 Financial Overview & Tracking
+- **Multi-view Dashboard** with Summary, Overview, and Budget perspectives
+- **Real-time financial snapshots** showing total expenses across all accounts
+- **Bank & credit card transaction tracking** with automatic synchronization
+- **Monthly billing cycle management** with customizable cycle start dates
+- **Expense trend visualization** with interactive charts and graphs
+
+### 💳 Account Management
 - 🏦 **Automatic bank & credit card scraping** (Israeli financial institutions)
-- 📝 **Manual transaction entry** for cash purchases
-- 🔐 **Secure authentication** with encrypted credentials (AES-256-GCM)
+- **Multi-account support** for both bank accounts and credit cards
+- **Account nicknames** for easy identification
+- **Card ownership tracking** to assign cards to specific users
+- **Last sync status** and sync history for each account
+- **Sync interval configuration** (automatic background sync every N hours)
+
+### 📝 Transaction Management
+- **Manual transaction entry** for cash purchases and income
+- **Transaction editing** with category reassignment
+- **Transaction deletion** with confirmation dialogs
+- **Installment tracking** for split payments
+- **Search and filter** transactions by description, amount, category, or date
+- **Transaction source tracking** (scraper vs. manual entry)
+
+### 🎯 Categorization & Rules
 - 📊 **Category-based tracking** and spending analytics
-- 🎯 **Monthly/yearly summaries** with budget comparisons
 - ⚙️ **Customizable categorization rules** for automatic transaction labeling
-- 🔄 **Catch-up sync** to keep transactions up-to-date
-- 💡 **AI-powered insights** using Google Gemini
+- **Pattern-based auto-categorization** using transaction descriptions
+- **Category merging** to consolidate similar categories
+- **Category renaming** to organize your finances
+- **Rule management** to apply categorization to existing transactions
+- **Uncategorized transaction tracking** with indicators
+
+### 💰 Budgeting & Analytics
+- **Monthly budget setting** per category
+- **Budget vs. actual spending** comparison
+- **Total spend budget** across all credit cards
+- **Category budget totals** and remaining amounts
+- **Budget performance tracking** with visual indicators
+
+### 🔄 Sync & Automation
+- **Automatic background sync** at configurable intervals
+- **Catch-up sync** to retrieve transactions from last sync date
+- **Configurable sync history** (days to sync back)
+- **Retry configuration** for failed sync attempts
+- **Update category on re-scrape** option
+- **Real-time sync status** with live updates
+- **Sync history and audit logs** for all scraping operations
+
+### 🔍 Advanced Features
+- 🔐 **Secure authentication** with encrypted credentials (AES-256-GCM)
+- 💡 **AI-powered insights** using Google Gemini (optional)
+- **Recurring payment detection** and tracking
+- **Database backup & restore** with export/import functionality
+- **Scrape audit logs** with detailed sync reports
+- **Dark/light theme** support
+- **Responsive design** for mobile and desktop
+- **Multi-currency support** with configurable default currency
+- **Customizable date formats**
 
 ---
 
 ## Screenshots
 
+### Main Views
+
 <table>
   <tr>
-    <td><img src="app/public/screenshots/dashboard.png" alt="Dashboard" width="400"/><br/><sub>Dashboard</sub></td>
-    <td><img src="app/public/screenshots/category_example.png" alt="Categories" width="400"/><br/><sub>Category View</sub></td>
+    <td><img src="app/public/screenshots/dashboard.png" alt="Dashboard" width="400"/><br/><sub><b>Monthly Summary</b> - Overview of credit card expenses for the month</sub></td>
+    <td><img src="app/public/screenshots/overview.png" alt="Overview" width="400"/><br/><sub><b>Financial Overview</b> - Bank transactions and expense categories</sub></td>
   </tr>
   <tr>
-    <td><img src="app/public/screenshots/account_management.png" alt="Accounts" width="400"/><br/><sub>Account Management</sub></td>
-    <td><img src="app/public/screenshots/category_management.png" alt="Management" width="400"/><br/><sub>Category Management</sub></td>
+    <td><img src="app/public/screenshots/budget.png" alt="Budget" width="400"/><br/><sub><b>Budget Dashboard</b> - Set and track spending limits per category</sub></td>
+    <td><img src="app/public/screenshots/category_example.png" alt="Category Details" width="400"/><br/><sub><b>Category Details</b> - Transaction timeline and detailed expense view</sub></td>
   </tr>
 </table>
+
+### Management & Configuration
+
+<table>
+  <tr>
+    <td><img src="app/public/screenshots/account_management.png" alt="Accounts" width="400"/><br/><sub><b>Account Management</b> - Add and manage bank accounts and credit cards</sub></td>
+    <td><img src="app/public/screenshots/category_management.png" alt="Categories" width="400"/><br/><sub><b>Category Management</b> - Merge, rename, and organize categories</sub></td>
+  </tr>
+  <tr>
+    <td><img src="app/public/screenshots/rules.png" alt="Rules" width="400"/><br/><sub><b>Categorization Rules</b> - Auto-categorize transactions with pattern matching</sub></td>
+    <td><img src="app/public/screenshots/settings.png" alt="Settings" width="400"/><br/><sub><b>App Settings</b> - Configure sync, display preferences, and more</sub></td>
+  </tr>
+</table>
+
+### Sync & Tracking
+
+<table>
+  <tr>
+    <td><img src="app/public/screenshots/sync_status.png" alt="Sync Status" width="400"/><br/><sub><b>Sync Status</b> - Real-time account sync status and recent activity</sub></td>
+    <td><img src="app/public/screenshots/audit.png" alt="Audit" width="400"/><br/><sub><b>Scrape Audit</b> - Detailed logs of all scraping operations</sub></td>
+  </tr>
+  <tr>
+    <td><img src="app/public/screenshots/recurring.png" alt="Recurring" width="400"/><br/><sub><b>Recurring Payments</b> - Track installment and subscription payments</sub></td>
+    <td></td>
+  </tr>
+</table>
+
 
 ---
 

@@ -19,7 +19,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  useTheme,
+  alpha
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
@@ -59,6 +61,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
   onClose,
   onComplete
 }) => {
+  const theme = useTheme();
   const [descriptions, setDescriptions] = useState<UncategorizedDescription[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -218,8 +221,8 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
 
   const currentDescription = descriptions[currentIndex];
   const remaining = descriptions.length - currentIndex;
-  const progress = descriptions.length > 0 
-    ? ((currentIndex) / descriptions.length) * 100 
+  const progress = descriptions.length > 0
+    ? ((currentIndex) / descriptions.length) * 100
     : 0;
 
   const formatCurrency = (amount: number) => {
@@ -248,11 +251,12 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
       fullWidth
       PaperProps={{
         style: {
-          backgroundColor: '#ffffff',
+          backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff',
           borderRadius: '24px',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
           minHeight: '600px',
-          maxHeight: '90vh'
+          maxHeight: '90vh',
+          backgroundImage: theme.palette.mode === 'dark' ? 'linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05))' : 'none',
         }
       }}
     >
@@ -298,8 +302,8 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
         )}
 
         {success && (
-          <Alert 
-            severity="success" 
+          <Alert
+            severity="success"
             icon={<CheckIcon />}
             sx={{ marginBottom: 2 }}
           >
@@ -360,11 +364,11 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
             {/* Current Description Card */}
             <Box
               sx={{
-                backgroundColor: '#f8fafc',
+                backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : '#f8fafc',
                 borderRadius: '16px',
                 padding: '24px',
                 marginBottom: '24px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
+                border: `1px solid ${theme.palette.divider}`,
                 position: 'relative'
               }}
             >
@@ -376,7 +380,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.8)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -393,7 +397,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                   variant="h5"
                   sx={{
                     fontWeight: 600,
-                    color: '#1e293b',
+                    color: theme.palette.text.primary,
                     wordBreak: 'break-word'
                   }}
                 >
@@ -427,38 +431,39 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                   <CircularProgress size={24} />
                 </Box>
               ) : transactions.length > 0 ? (
-                <TableContainer 
-                  component={Paper} 
-                  sx={{ 
-                    maxHeight: 200, 
+                <TableContainer
+                  component={Paper}
+                  sx={{
+                    maxHeight: 200,
                     boxShadow: 'none',
-                    border: '1px solid rgba(148, 163, 184, 0.2)',
-                    borderRadius: '8px'
+                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: '8px',
+                    backgroundColor: theme.palette.mode === 'dark' ? 'transparent' : '#fff'
                   }}
                 >
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569' }}>Date</TableCell>
-                        <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569' }}>Amount</TableCell>
-                        <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569' }}>Card</TableCell>
-                        <TableCell sx={{ fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569' }}>Details</TableCell>
+                        <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#f1f5f9', color: theme.palette.text.secondary }}>Date</TableCell>
+                        <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#f1f5f9', color: theme.palette.text.secondary }}>Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#f1f5f9', color: theme.palette.text.secondary }}>Card</TableCell>
+                        <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#f1f5f9', color: theme.palette.text.secondary }}>Details</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {transactions.map((tx, idx) => (
-                        <TableRow key={idx} sx={{ '&:hover': { backgroundColor: 'rgba(59, 130, 246, 0.05)' } }}>
-                          <TableCell sx={{ color: '#64748b', fontSize: '13px' }}>
+                        <TableRow key={idx} sx={{ '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : 'rgba(59, 130, 246, 0.05)' } }}>
+                          <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '13px' }}>
                             {formatDate(tx.date)}
                           </TableCell>
                           <TableCell sx={{ color: tx.price < 0 ? '#ef4444' : '#22c55e', fontWeight: 600, fontSize: '13px' }}>
                             {formatCurrency(Math.abs(tx.price))}
                           </TableCell>
-                          <TableCell sx={{ color: '#64748b', fontSize: '13px' }}>
+                          <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '13px' }}>
                             {tx.vendor_nickname || tx.vendor}
                             {tx.card6_digits && ` (${tx.card6_digits.slice(-4)})`}
                           </TableCell>
-                          <TableCell sx={{ color: '#64748b', fontSize: '13px' }}>
+                          <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '13px' }}>
                             {tx.installments_total && tx.installments_total > 1 && (
                               <Chip
                                 label={`${tx.installments_number}/${tx.installments_total}`}
@@ -504,7 +509,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                 disabled={isSaving}
                 startIcon={<SkipNextIcon />}
                 sx={{
-                  color: '#64748b',
+                  color: theme.palette.text.secondary,
                   textTransform: 'none',
                   fontWeight: 500,
                   '&:hover': {
@@ -519,7 +524,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
             {/* Category Buttons */}
             <Typography
               variant="subtitle2"
-              sx={{ color: '#64748b', marginBottom: '12px', fontWeight: 500 }}
+              sx={{ color: theme.palette.text.secondary, marginBottom: '12px', fontWeight: 500 }}
             >
               Select a category:
             </Typography>
@@ -559,8 +564,8 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                       transform: 'translateY(0)'
                     },
                     '&:disabled': {
-                      backgroundColor: '#e2e8f0',
-                      color: '#94a3b8'
+                      backgroundColor: theme.palette.action.disabledBackground,
+                      color: theme.palette.text.disabled
                     }
                   }}
                 >
@@ -603,7 +608,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                     minWidth: '200px',
                     '& .MuiOutlinedInput-root': {
                       borderRadius: '12px',
-                      backgroundColor: '#fff',
+                      backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#fff',
                       '& fieldset': {
                         borderColor: '#22c55e',
                         borderWidth: '2px'
@@ -639,8 +644,8 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
                       transform: 'translateY(-2px)'
                     },
                     '&:disabled': {
-                      borderColor: '#e2e8f0',
-                      color: '#94a3b8'
+                      borderColor: theme.palette.action.disabled,
+                      color: theme.palette.text.disabled
                     }
                   }}
                 >

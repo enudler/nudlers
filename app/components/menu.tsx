@@ -45,6 +45,9 @@ import SyncStatusModal from './SyncStatusModal';
 import { useNotification } from './NotificationContext';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import TuneIcon from '@mui/icons-material/Tune';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import { useColorMode } from '../context/ThemeContext';
 
 interface StringDictionary {
   [key: string]: string;
@@ -57,12 +60,15 @@ interface ResponsiveAppBarProps {
 
 const pages: StringDictionary = {};
 
-const StyledAppBar = styled(AppBar)({
-  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
-  backdropFilter: 'blur(20px)',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-});
+const StyledAppBar = styled(AppBar)(({ theme }) => ({
+  background: theme.palette.mode === 'dark'
+    ? 'rgba(15, 23, 42, 0.8)'
+    : 'rgba(255, 255, 255, 0.8)',
+  backdropFilter: 'blur(12px)',
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  boxShadow: 'none',
+  color: theme.palette.text.primary,
+}));
 
 const Logo = styled(Typography)({
   fontFamily: "Assistant, sans-serif",
@@ -120,12 +126,15 @@ const NavButton = styled(Button)({
   },
 });
 
+import { useView } from "./Layout";
+
 const redirectTo = (page: string) => {
   return () => (window.location.href = page);
 };
 
 function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: ResponsiveAppBarProps) {
   const theme = useTheme();
+  const { toggleColorMode, mode } = useColorMode();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
   const [desktopDrawerOpen, setDesktopDrawerOpen] = React.useState(true); // Persistent drawer for desktop
@@ -139,7 +148,10 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   const [isRecurringOpen, setIsRecurringOpen] = React.useState(false);
   const [isBackupOpen, setIsBackupOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
-  const [isSyncStatusOpen, setIsSyncStatusOpen] = React.useState(false);
+
+  // Use global sync drawer state
+  const { syncDrawerOpen, setSyncDrawerOpen, syncDrawerWidth, setSyncDrawerWidth } = useView();
+
   const { showNotification } = useNotification();
 
   const handleDrawerToggle = () => {
@@ -236,15 +248,14 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
   // Shared drawer content component
   const drawerContent = (isMobile: boolean) => (
     <Box
-      sx={{ 
-        width: isMobile ? 280 : 280,
+      sx={{
+        width: isMobile ? 250 : 220,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
         pb: isMobile ? 8 : 2,
-        overflowY: 'auto',
-        overflowX: 'hidden',
+        overflow: 'hidden', // Completely hide scrolling
       }}
       role="presentation"
     >
@@ -261,134 +272,151 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         )}
       </Box>
 
-      {/* Scrollable Content */}
-      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-      {/* Views Section */}
-      <Box sx={{ p: 1 }}>
-        <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
-          Views
-        </Typography>
-        <List disablePadding>
-          {viewMenuItems.map((item) => (
-            <ListItem key={item.label} disablePadding>
-              <ListItemButton
-                onClick={() => {
-                  onViewChange?.(item.view);
-                  if (isMobile) {
-                    handleDrawerToggle();
-                  }
-                }}
-                sx={{
-                  borderRadius: '12px',
-                  mx: 1,
-                  mb: 0.5,
-                  backgroundColor: currentView === item.view ? `${item.color}15` : 'transparent',
-                  '&:hover': {
-                    backgroundColor: `${item.color}20`,
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ color: currentView === item.view ? item.color : '#64748b', minWidth: 40 }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
+      {/* Content */}
+      <Box sx={{
+        flex: 1,
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        // Hide scrollbar
+        '&::-webkit-scrollbar': { display: 'none' },
+        scrollbarWidth: 'none',  /* Firefox */
+        msOverflowStyle: 'none',  /* IE and Edge */
+      }}>
+        {/* Views Section */}
+        <Box sx={{ p: 1, pb: 0 }}>
+          <Typography sx={{ px: 2, py: 0.5, fontSize: '10px', color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Views
+          </Typography>
+          <List disablePadding>
+            {viewMenuItems.map((item) => (
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    onViewChange?.(item.view);
+                    if (isMobile) {
+                      handleDrawerToggle();
+                    }
+                  }}
                   sx={{
-                    '& .MuiTypography-root': {
-                      fontWeight: currentView === item.view ? 600 : 500,
-                      color: currentView === item.view ? item.color : '#1e293b',
+                    borderRadius: '8px',
+                    mx: 1,
+                    mb: 0.25,
+                    py: 0.5,
+                    minHeight: 32,
+                    backgroundColor: currentView === item.view ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
                     },
                   }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+                >
+                  <ListItemIcon sx={{ color: currentView === item.view ? item.color : 'text.secondary', minWidth: 32, '& .MuiSvgIcon-root': { fontSize: 18 } }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    sx={{
+                      m: 0,
+                      '& .MuiTypography-root': {
+                        fontSize: '0.8125rem',
+                        fontWeight: currentView === item.view ? 600 : 500,
+                        color: currentView === item.view ? theme.palette.primary.main : theme.palette.text.secondary,
+                      },
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+
+        <Divider sx={{ my: 0.5 }} />
+
+        {/* Actions Section */}
+        <Box sx={{ p: 1, pb: 0 }}>
+          <Typography sx={{ px: 2, py: 0.5, fontSize: '10px', color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Actions
+          </Typography>
+          <List disablePadding>
+            {actionMenuItems.map((item) => (
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    item.action();
+                    if (isMobile) {
+                      handleDrawerToggle();
+                    }
+                  }}
+                  sx={{
+                    borderRadius: '8px',
+                    mx: 1,
+                    mb: 0.25,
+                    py: 0.5,
+                    minHeight: 32,
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'text.secondary', minWidth: 32, '& .MuiSvgIcon-root': { fontSize: 18 } }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={item.label} sx={{ m: 0, '& .MuiTypography-root': { fontSize: '0.8125rem', fontWeight: 500, color: 'text.secondary' } }} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+
+        <Divider sx={{ my: 0.5 }} />
+
+        {/* Settings Section */}
+        <Box sx={{ p: 1, pb: 0 }}>
+          <Typography sx={{ px: 2, py: 0.5, fontSize: '10px', color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Settings
+          </Typography>
+          <List disablePadding>
+            {settingsMenuItems.map((item) => (
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    item.action();
+                    if (isMobile) {
+                      handleDrawerToggle();
+                    }
+                  }}
+                  sx={{
+                    borderRadius: '8px',
+                    mx: 1,
+                    mb: 0.25,
+                    py: 0.5,
+                    minHeight: 32,
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'text.secondary', minWidth: 32, '& .MuiSvgIcon-root': { fontSize: 18 } }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={item.label} sx={{ m: 0, '& .MuiTypography-root': { fontSize: '0.8125rem', fontWeight: 500, color: 'text.secondary' } }} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+
       </Box>
 
-      <Divider sx={{ my: 1 }} />
-
-      {/* Actions Section */}
-      <Box sx={{ p: 1 }}>
-        <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
-          Actions
-        </Typography>
-        <List disablePadding>
-          {actionMenuItems.map((item) => (
-            <ListItem key={item.label} disablePadding>
-              <ListItemButton
-                onClick={() => {
-                  item.action();
-                  if (isMobile) {
-                    handleDrawerToggle();
-                  }
-                }}
-                sx={{
-                  borderRadius: '12px',
-                  mx: 1,
-                  mb: 0.5,
-                  '&:hover': {
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ color: '#64748b', minWidth: 40 }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText primary={item.label} sx={{ '& .MuiTypography-root': { fontWeight: 500, color: '#1e293b' } }} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-
-      <Divider sx={{ my: 1 }} />
-
-      {/* Settings Section */}
-      <Box sx={{ p: 1 }}>
-        <Typography sx={{ px: 2, py: 1, fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
-          Settings
-        </Typography>
-        <List disablePadding>
-          {settingsMenuItems.map((item) => (
-            <ListItem key={item.label} disablePadding>
-              <ListItemButton
-                onClick={() => {
-                  item.action();
-                  if (isMobile) {
-                    handleDrawerToggle();
-                  }
-                }}
-                sx={{
-                  borderRadius: '12px',
-                  mx: 1,
-                  mb: 0.5,
-                  '&:hover': {
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ color: '#64748b', minWidth: 40 }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText primary={item.label} sx={{ '& .MuiTypography-root': { fontWeight: 500, color: '#1e293b' } }} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-
-      </Box>
-      
       {/* Version Footer */}
       <Box sx={{
         p: 2,
         textAlign: 'center',
-        borderTop: '1px solid rgba(148, 163, 184, 0.1)',
-        background: '#fff',
+        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+        background: 'transparent',
         flexShrink: 0,
       }}>
-        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px' }}>
+        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: '11px' }}>
           v{packageJson.version}
         </Typography>
       </Box>
@@ -426,28 +454,42 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
                 fontSize: { xs: '1.2rem', md: '1.5rem' },
               }}
             >
-              <AutoAwesomeIcon sx={{ fontSize: { xs: '20px', md: '24px' }, color: '#60a5fa' }} />
+              <img
+                src="/nudlers-logo.svg"
+                alt="Nudlers Logo"
+                style={{
+                  width: 'auto',
+                  height: '36px',
+                  objectFit: 'contain'
+                }}
+              />
               Nudlers
             </Logo>
 
             {/* Desktop Actions - Only status indicators */}
             <Box sx={{ flexGrow: 0, display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: '8px' }}>
+              <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
+                {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
               <IconButton
                 onClick={handleDesktopDrawerToggle}
                 sx={{
-                  color: '#fff',
+                  color: 'text.primary',
                   mr: 1,
                 }}
               >
                 <MenuIcon />
               </IconButton>
-              <SyncStatusIndicator onClick={() => setIsSyncStatusOpen(true)} />
+              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <DatabaseIndicator />
             </Box>
 
             {/* Mobile Status Indicators */}
             <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' }, justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
-              <SyncStatusIndicator onClick={() => setIsSyncStatusOpen(true)} />
+              <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
+                {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <DatabaseIndicator />
             </Box>
           </Toolbar>
@@ -466,8 +508,9 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
-            width: 280,
-            background: '#fff',
+            width: 250,
+            background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(12px)',
           },
         }}
       >
@@ -483,9 +526,10 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
           display: { xs: 'none', md: 'block' },
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
-            width: 280,
-            background: '#fff',
-            borderRight: '1px solid rgba(148, 163, 184, 0.1)',
+            width: 220,
+            background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.4)' : 'rgba(255, 255, 255, 0.4)',
+            backdropFilter: 'blur(10px)',
+            borderRight: 'none',
             top: '48px', // Height of AppBar
             height: 'calc(100vh - 48px)',
           },
@@ -533,8 +577,10 @@ function ResponsiveAppBar({ currentView = 'dashboard', onViewChange }: Responsiv
         onClose={() => setIsSettingsOpen(false)}
       />
       <SyncStatusModal
-        open={isSyncStatusOpen}
-        onClose={() => setIsSyncStatusOpen(false)}
+        open={syncDrawerOpen}
+        onClose={() => setSyncDrawerOpen(false)}
+        width={syncDrawerWidth}
+        onWidthChange={setSyncDrawerWidth}
       />
     </>
   );

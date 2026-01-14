@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '@mui/material/styles';
 import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -9,7 +10,7 @@ import { dateUtils } from '../utils/dateUtils';
 import { useCategories } from '../utils/useCategories';
 import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
-import { TABLE_HEADER_CELL_STYLE, TABLE_BODY_CELL_STYLE, TABLE_ROW_HOVER_STYLE, TABLE_ROW_HOVER_BACKGROUND } from '../utils/tableStyles';
+import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from '../utils/tableStyles';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
 interface Transaction {
@@ -37,6 +38,7 @@ interface TransactionsTableProps {
 }
 
 const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, onTransactionsUpdated }) => {
+  const theme = useTheme();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
   const [editCategory, setEditCategory] = React.useState<string>('');
@@ -217,23 +219,23 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
       width: '100%',
       overflow: 'hidden',
       borderRadius: '24px',
-      background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
+      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
       backdropFilter: 'blur(20px)',
       boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-      border: '1px solid rgba(148, 163, 184, 0.2)'
+      border: `1px solid ${theme.palette.divider}`
     }}>
       <Table
         onClick={handleTableClick}
       >
         <TableHead>
           <TableRow>
-            <TableCell style={TABLE_HEADER_CELL_STYLE}>Description</TableCell>
-            <TableCell style={TABLE_HEADER_CELL_STYLE}>Category</TableCell>
-            <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Amount</TableCell>
-            <TableCell style={TABLE_HEADER_CELL_STYLE}>Installment</TableCell>
-            <TableCell style={TABLE_HEADER_CELL_STYLE}>Card</TableCell>
-            <TableCell style={TABLE_HEADER_CELL_STYLE}>Date</TableCell>
-            <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Actions</TableCell>
+            <TableCell style={getTableHeaderCellStyle(theme)}>Description</TableCell>
+            <TableCell style={getTableHeaderCellStyle(theme)}>Category</TableCell>
+            <TableCell align="right" style={getTableHeaderCellStyle(theme)}>Amount</TableCell>
+            <TableCell style={getTableHeaderCellStyle(theme)}>Installment</TableCell>
+            <TableCell style={getTableHeaderCellStyle(theme)}>Card</TableCell>
+            <TableCell style={getTableHeaderCellStyle(theme)}>Date</TableCell>
+            <TableCell align="right" style={getTableHeaderCellStyle(theme)}>Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -243,16 +245,16 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
               onClick={() => handleRowClick(transaction)}
               style={TABLE_ROW_HOVER_STYLE}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = TABLE_ROW_HOVER_BACKGROUND;
+                e.currentTarget.style.background = getTableRowHoverBackground(theme);
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              <TableCell style={TABLE_BODY_CELL_STYLE}>
+              <TableCell style={getTableBodyCellStyle(theme)}>
                 {transaction.name}
               </TableCell>
-              <TableCell style={TABLE_BODY_CELL_STYLE}>
+              <TableCell style={getTableBodyCellStyle(theme)}>
                 {editingTransaction?.identifier === transaction.identifier ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <Autocomplete
@@ -352,7 +354,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
               <TableCell
                 align="right"
                 style={{
-                  ...TABLE_BODY_CELL_STYLE,
+                  ...getTableBodyCellStyle(theme),
                   color: transaction.price < 0 ? '#ef4444' : '#10b981',
                   fontWeight: 600
                 }}
@@ -408,7 +410,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                           <span>₪{formatNumber(displayAmount)}</span>
                           <span style={{
                             fontSize: '11px',
-                            color: '#64748b'
+                            color: theme.palette.text.secondary
                           }}>
                             ({symbol}{formatNumber(originalDisplayAmount)})
                           </span>
@@ -420,7 +422,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                   })()
                 )}
               </TableCell>
-              <TableCell style={{ ...TABLE_BODY_CELL_STYLE, textAlign: 'center' }}>
+              <TableCell style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
                 {transaction.installments_total && transaction.installments_total > 1 ? (
                   <span style={{
                     backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -433,11 +435,11 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                     {transaction.installments_number}/{transaction.installments_total}
                   </span>
                 ) : (
-                  <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                  <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
                 )}
               </TableCell>
-              <TableCell style={{ ...TABLE_BODY_CELL_STYLE, fontSize: '12px' }}>
-                {transaction.vendor_nickname || transaction.vendor || transaction.account_number ? (
+              <TableCell style={{ ...getTableBodyCellStyle(theme), fontSize: '12px' }}>
+                {transaction.account_number ? (
                   <Box sx={{
                     display: 'flex',
                     alignItems: 'center',
@@ -451,22 +453,26 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
                       padding: '4px 8px',
                       borderRadius: '6px'
                     }}>
-                      {getCardNickname(transaction.account_number) || transaction.vendor_nickname || transaction.vendor}
-                      {transaction.account_number && (
-                        <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>
-                          •••• {transaction.account_number.slice(-4)}
-                        </span>
+                      {getCardNickname(transaction.account_number) ? (
+                        <>
+                          {getCardNickname(transaction.account_number)}
+                          <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>
+                            •••• {transaction.account_number.slice(-4)}
+                          </span>
+                        </>
+                      ) : (
+                        `•••• ${transaction.account_number.slice(-4)}`
                       )}
                     </span>
                   </Box>
                 ) : (
-                  <span style={{ color: '#94a3b8' }}>—</span>
+                  <span style={{ color: theme.palette.text.disabled }}>—</span>
                 )}
               </TableCell>
-              <TableCell style={{ ...TABLE_BODY_CELL_STYLE, color: '#64748b' }}>
+              <TableCell style={{ ...getTableBodyCellStyle(theme), color: theme.palette.text.secondary }}>
                 {dateUtils.formatDate(transaction.date)}
               </TableCell>
-              <TableCell align="right" style={TABLE_BODY_CELL_STYLE}>
+              <TableCell align="right" style={getTableBodyCellStyle(theme)}>
                 {editingTransaction?.identifier === transaction.identifier ? (
                   <>
                     <IconButton

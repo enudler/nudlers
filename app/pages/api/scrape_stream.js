@@ -23,6 +23,9 @@ import {
   sleep,
   runScraper,
   loadCategorizationRules,
+  getFallbackCategorySetting,
+  getUpdateCategoryOnRescrapeSetting,
+  getScrapeRetriesSetting,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -166,6 +169,9 @@ async function handler(req, res) {
       ? await getRateLimitedTimeoutSetting(client)
       : await getStandardTimeoutSetting(client);
 
+    // Get update category setting
+    const updateCategoryOnRescrape = await getUpdateCategoryOnRescrapeSetting(client);
+
     // Build scraper options with progress callback
     const scraperOptions = {
       ...getScraperOptions(companyId, new Date(options.startDate), isRateLimited, {
@@ -298,9 +304,14 @@ async function handler(req, res) {
 
     logger.info('[Scrape Stream] Starting worker-based scrape');
 
-    // Use retry logic for all rate-limited vendors
-    const maxRetries = isRateLimited ? 3 : 0;
+    // Use retry logic
+    // Get retries setting (default 3) - apply to all vendors if they have retryable errors
+    const maxRetries = await getScrapeRetriesSetting(client);
     const retryBaseDelay = options.companyId === 'visaCal' ? 10000 : 5000;
+
+    // Check if fallback to no categories is enabled
+    const fallbackNoCategory = await getFallbackCategorySetting(client);
+    let currentScraperOptions = { ...scraperOptions };
     let retryAttempt = 0;
 
     let result;
@@ -309,15 +320,24 @@ async function handler(req, res) {
         async () => {
           retryAttempt++;
           if (retryAttempt > 1) {
+            let retryMsg = `Retrying ${options.companyId} (attempt ${retryAttempt}/${maxRetries + 1})...`;
+
+            // If fallback enabled and previous attempt failed, try disabling categories for this attempt
+            if (fallbackNoCategory && currentScraperOptions.additionalTransactionInformation) {
+              logger.info({ vendor: options.companyId }, '[Scrape Stream] Disabling category fetching for retry');
+              currentScraperOptions.additionalTransactionInformation = false;
+              retryMsg += ' (skipping categories)';
+            }
+
             sendSSE(res, 'progress', {
               step: 'retry',
-              message: `Retrying ${options.companyId} (attempt ${retryAttempt}/${maxRetries + 1})...`,
+              message: retryMsg,
               percent: 22,
               phase: 'initialization',
               success: null
             });
           }
-          const scraperResult = await runScraper(scraperOptions, scraperCredentials, progressHandler);
+          const scraperResult = await runScraper(currentScraperOptions, scraperCredentials, progressHandler);
           if (!scraperResult.success && scraperResult.errorMessage) {
             // Throw so retryWithBackoff can catch it and try again
             throw new Error(scraperResult.errorMessage);
@@ -420,6 +440,7 @@ async function handler(req, res) {
     let totalTransactions = 0;
     let savedTransactions = 0;
     let duplicateTransactions = 0;
+    let updatedTransactions = 0;
 
     sendSSE(res, 'progress', {
       step: 'loading_cache',
@@ -458,6 +479,9 @@ async function handler(req, res) {
       res.end();
       return;
     }
+
+    // Initialize processed transactions list
+    const processedTransactions = [];
 
     for (let i = 0; i < result.accounts.length; i++) {
       const account = result.accounts[i];
@@ -511,35 +535,85 @@ async function handler(req, res) {
       for (const txn of account.txns) {
         totalTransactions++;
         if (isBank) bankTransactions++;
-        const hadCategory = txn.category && txn.category !== 'N/A';
         const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules);
+        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape);
 
-        if (insertResult.duplicated) {
-          duplicateTransactions++;
-          accountDuplicates++;
-        } else {
-          savedTransactions++;
-          accountSaved++;
+        // Common transaction data for report
+        const reportItem = {
+          description: txn.description,
+          amount: txn.chargedAmount || txn.originalAmount,
+          currency: txn.chargedCurrency || txn.originalCurrency || 'ILS',
+          date: txn.date,
+          category: insertResult.newCategory || insertResult.category || (insertResult.duplicated ? (txn.category || 'Uncategorized') : 'Uncategorized'),
+          source: insertResult.categorySource || 'scraper',
+          rule: insertResult.ruleMatched,
+          cardLast4: account.accountNumber,
+          isUpdate: false,
+          isDuplicate: false
+        };
+
+        if (insertResult.updated) {
+          updatedTransactions++;
+          processedTransactions.push({
+            ...reportItem,
+            isUpdate: true,
+            source: 'scraper', // Updates usually come from scraper finding better category
+            category: insertResult.newCategory,
+            oldCategory: insertResult.oldCategory
+          });
         }
 
-        if (!hadCategory && lookupCachedCategory(txn.description, cache)) {
+        if (insertResult.duplicated) {
+          if (!insertResult.updated) {
+            duplicateTransactions++;
+            accountDuplicates++;
+
+            processedTransactions.push({
+              ...reportItem,
+              isDuplicate: true,
+              source: 'duplicate'
+            });
+          }
+        } else {
+          // New transaction
+          savedTransactions++;
+          accountSaved++;
+
+          processedTransactions.push({
+            ...reportItem,
+            source: insertResult.categorySource || 'scraper'
+          });
+        }
+
+        if (insertResult.categorySource === 'cache') {
           cachedCategoryCount++;
         }
       }
 
       sendSSE(res, 'progress', {
         step: 'account_saved',
-        message: `✓ Account ${i + 1}/${result.accounts.length}: ${accountSaved} saved, ${accountDuplicates} duplicates`,
+        message: `✓ Account ${i + 1}/${result.accounts.length}: ${accountSaved} saved, ${accountDuplicates} duplicates, ${updatedTransactions} updated`,
         percent: 82 + ((i + 1) * 5 / result.accounts.length),
         phase: 'saving',
         success: true
       });
     }
 
-    // Update audit as success
+    // Update audit as success with full report
     const accountsCount = Array.isArray(result.accounts) ? result.accounts.length : 0;
-    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${accountsCount}, txns=${totalTransactions}, saved=${savedTransactions}, duplicates=${duplicateTransactions}`);
+    const summary = {
+      accounts: result.accounts.length,
+      transactions: totalTransactions,
+      savedTransactions,
+      duplicateTransactions,
+      updatedTransactions,
+      bankTransactions,
+      cachedCategories: cachedCategoryCount,
+      skippedCards,
+      processedTransactions
+    };
+
+    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${accountsCount}, txns=${totalTransactions}, saved=${savedTransactions}, duplicates=${duplicateTransactions}, updated=${updatedTransactions}`, summary);
 
     // Update last_synced_at
     sendSSE(res, 'progress', {
@@ -568,9 +642,11 @@ async function handler(req, res) {
         transactions: totalTransactions,
         savedTransactions,
         duplicateTransactions,
+        updatedTransactions,
         bankTransactions,
         cachedCategories: cachedCategoryCount,
-        skippedCards
+        skippedCards,
+        processedTransactions
       }
     });
 

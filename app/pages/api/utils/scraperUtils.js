@@ -104,13 +104,16 @@ export async function loadCategorizationRules(client) {
 /**
  * Match a description against categorization rules
  */
+/**
+ * Match a description against categorization rules
+ */
 export function matchCategoryRule(description, rules) {
   if (!rules || !rules.length || !description) return null;
   const lowerDesc = description.toLowerCase();
 
   for (const rule of rules) {
     if (rule.name_pattern && lowerDesc.includes(rule.name_pattern.toLowerCase())) {
-      return rule.target_category;
+      return { category: rule.target_category, match: rule.name_pattern };
     }
   }
   return null;
@@ -190,7 +193,7 @@ export function validateCredentials(credentials, vendor) {
 /**
  * Insert a transaction into the database
  */
-export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = []) {
+export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false) {
   const {
     date,
     processedDate,
@@ -204,23 +207,93 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     type,
     installmentsNumber,
     installmentsTotal,
+    category: scraperCategory
   } = transaction;
+
+  // Determine category
+  // Priority: Cache (Exact previous edit) > Rule (Pattern match) > Scraper (Source)
+  let finalCategory = scraperCategory || null;
+  if (finalCategory === 'N/A') finalCategory = null;
+
+  let categorySource = finalCategory ? 'scraper' : null;
+  let ruleDetails = null;
+
+  // Try Rules
+  if (categorizationRules && categorizationRules.length > 0) {
+    const ruleMatch = matchCategoryRule(description, categorizationRules);
+    if (ruleMatch) {
+      finalCategory = ruleMatch.category;
+      categorySource = 'rule';
+      ruleDetails = ruleMatch.match;
+      logger.debug({ description, category: finalCategory, rule: ruleDetails }, '[Scraper] Matched category from rules');
+    }
+  }
+
+  // Try Cache (Overrides scraper and rules if exact match exists, as this implies user correction)
+  const cachedCategory = lookupCachedCategory(description);
+  if (cachedCategory && cachedCategory !== 'N/A') {
+    finalCategory = cachedCategory;
+    categorySource = 'cache';
+  }
 
   // Generate identifier if not provided
   const txId = identifier || generateTransactionIdentifier(transaction, vendor, accountNumber);
 
   // Check if transaction already exists (primary key is identifier + vendor)
   const existing = await client.query(
-    'SELECT identifier FROM transactions WHERE identifier = $1 AND vendor = $2',
+    'SELECT identifier, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
     [txId, vendor]
   );
 
   if (existing.rows.length > 0) {
-    return { success: true, duplicated: true };
+    // If enabled and we have a new resolved category (from scraper OR rules OR cache)
+    if (updateCategoryOnRescrape && finalCategory && finalCategory !== 'N/A' && finalCategory !== '') {
+      const currentCategory = existing.rows[0].category;
+      const currentSource = existing.rows[0].category_source;
+
+      // Only update if the current category is essentially empty/undefined/N/A/Uncategorized
+      // OR if it's not a manual edit (cache) and we have a better category
+      const isCurrentCategoryEmpty = !currentCategory ||
+        currentCategory === 'N/A' ||
+        currentCategory === '' ||
+        currentCategory.toLowerCase() === 'uncategorized';
+
+      // Allow update if empty, OR if not manual override (cache) and different
+      // Note: We use finalCategory which now includes Rule logic, so this fixes the user's issue
+      const shouldUpdate = isCurrentCategoryEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory);
+
+      if (shouldUpdate && currentCategory !== finalCategory) {
+        logger.info({
+          txId,
+          vendor,
+          oldCategory: currentCategory,
+          newCategory: finalCategory,
+          oldSource: currentSource,
+          newSource: categorySource
+        }, '[Scraper] Updating transaction category based on re-scrape');
+
+        await client.query(
+          'UPDATE transactions SET category = $1, category_source = $2, rule_matched = $3 WHERE identifier = $4 AND vendor = $5',
+          [finalCategory, categorySource, ruleDetails, txId, vendor]
+        );
+        return {
+          success: true,
+          duplicated: true,
+          updated: true,
+          newCategory: finalCategory,
+          oldCategory: currentCategory,
+          categorySource,
+          ruleMatched: ruleDetails
+        };
+      }
+    }
+
+    return { success: true, duplicated: true, updated: false };
   }
 
   // Determine transaction type if not provided
   const transactionType = type || (chargedAmount < 0 ? 'expense' : 'income');
+  // ... (rest of the function)
 
   // Normalize values for business key check
   const normalizedName = (description || '').trim().toLowerCase();
@@ -260,16 +333,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     }
   }
 
-  // Lookup category
-  let category = lookupCachedCategory(description);
-
-  // If not found in cache, try rules
-  if ((!category || category === 'N/A') && categorizationRules && categorizationRules.length > 0) {
-    category = matchCategoryRule(description, categorizationRules);
-    if (category) {
-      logger.debug({ description, category }, '[Scraper] Matched category from rules');
-    }
-  }
+  // (Category logic moved to top)
 
   // Check business key constraint (vendor, date, name, price, account_number)
   // Extended check: also look for ±1 day shift for timezone-related duplicates
@@ -314,14 +378,16 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
         identifier, vendor, date, name, price, category, type,
         processed_date, original_amount, original_currency, 
         charged_currency, memo, status, 
-        installments_number, installments_total, account_number
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        installments_number, installments_total, account_number,
+        category_source, rule_matched
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       ON CONFLICT (identifier, vendor) DO NOTHING`,
       [
         txId, vendor, date, description || '', normalizedPrice,
-        category, transactionType, finalProcessedDate, originalAmount, originalCurrency,
+        finalCategory, transactionType, finalProcessedDate, originalAmount, originalCurrency,
         defaultCurrency, memo, status || 'completed',
-        installmentsNumber, installmentsTotal, accountNumber
+        installmentsNumber, installmentsTotal, accountNumber,
+        categorySource, ruleDetails
       ]
     );
   } catch (err) {
@@ -333,7 +399,13 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     throw err;
   }
 
-  return { success: true, duplicated: false };
+  return {
+    success: true,
+    duplicated: false,
+    category: finalCategory,
+    categorySource,
+    ruleMatched: ruleDetails
+  };
 }
 
 /**
@@ -430,12 +502,19 @@ export async function insertScrapeAudit(client, triggeredBy, vendor, startDate, 
 /**
  * Update a scrape audit row
  */
-export async function updateScrapeAudit(client, auditId, status, message) {
+export async function updateScrapeAudit(client, auditId, status, message, report = null) {
   if (!auditId) return;
-  await client.query(
-    `UPDATE scrape_events SET status = $1, message = $2 WHERE id = $3`,
-    [status, message, auditId]
-  );
+  if (report) {
+    await client.query(
+      `UPDATE scrape_events SET status = $1, message = $2, report_json = $3 WHERE id = $4`,
+      [status, message, report, auditId]
+    );
+  } else {
+    await client.query(
+      `UPDATE scrape_events SET status = $1, message = $2 WHERE id = $3`,
+      [status, message, auditId]
+    );
+  }
 }
 
 /**
@@ -562,7 +641,24 @@ export async function getStandardTimeoutSetting(client) {
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
 }
 
+// ... (existing code)
+
 export async function getRateLimitedTimeoutSetting(client) {
   const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout_rate_limited'");
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 120000 : 120000;
+}
+
+export async function getFallbackCategorySetting(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'fallback_no_category_on_error'");
+  return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
+}
+
+export async function getUpdateCategoryOnRescrapeSetting(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'update_category_on_rescrape'");
+  return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
+}
+
+export async function getScrapeRetriesSetting(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scrape_retries'");
+  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 3 : 3;
 }

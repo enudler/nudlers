@@ -36,7 +36,7 @@ type DateRangeMode = 'calendar' | 'billing';
 const getDateRange = (year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
   const y = parseInt(year);
   const m = parseInt(month);
-  
+
   if (mode === 'calendar') {
     // Full calendar month: 1st to last day of month
     const startDate = `${year}-${month}-01`;
@@ -152,24 +152,24 @@ const BudgetDashboard: React.FC = () => {
   const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
-  
+
   // Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [newBudgetCategory, setNewBudgetCategory] = useState('');
   const [newBudgetLimit, setNewBudgetLimit] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
-  
+
   // Burndown data
   const [burndownData, setBurndownData] = useState<BurndownData | null>(null);
   const [burndownLoading, setBurndownLoading] = useState(false);
-  
+
   // Total spend budget state
   const [totalSpendBudget, setTotalSpendBudget] = useState<TotalSpendBudget | null>(null);
   const [isTotalBudgetModalOpen, setIsTotalBudgetModalOpen] = useState(false);
   const [newTotalBudgetLimit, setNewTotalBudgetLimit] = useState('');
   const [savingTotalBudget, setSavingTotalBudget] = useState(false);
-  
+
   const { showNotification } = useNotification();
 
   const fetchBudgets = useCallback(async () => {
@@ -190,7 +190,7 @@ const BudgetDashboard: React.FC = () => {
     setLoading(true);
     try {
       const url = new URL('/api/budget_vs_actual', window.location.origin);
-      
+
       if (mode === 'billing') {
         url.searchParams.append('billingCycle', `${year}-${month}`);
       } else {
@@ -198,18 +198,18 @@ const BudgetDashboard: React.FC = () => {
         url.searchParams.append('startDate', startDate);
         url.searchParams.append('endDate', endDate);
       }
-      
+
       const response = await fetch(url.toString());
       if (!response.ok) throw new Error('Failed to fetch spending data');
       const data = await response.json();
-      
+
       // Map budgets with their spending data
       const budgetsWithData: BudgetWithSpending[] = budgetList.map(budget => {
         const spendingData = data.categories.find((c: any) => c.category === budget.category);
         const actualSpent = spendingData?.actual_spent || 0;
         const remaining = budget.budget_limit - actualSpent;
         const percentUsed = budget.budget_limit > 0 ? (actualSpent / budget.budget_limit) * 100 : 0;
-        
+
         return {
           ...budget,
           actual_spent: actualSpent,
@@ -218,11 +218,11 @@ const BudgetDashboard: React.FC = () => {
           is_over_budget: actualSpent > budget.budget_limit
         };
       });
-      
+
       // Sort by percent used descending
       budgetsWithData.sort((a, b) => b.percent_used - a.percent_used);
       setBudgetsWithSpending(budgetsWithData);
-      
+
       // Set total spend budget data from API response
       if (data.total_spend_budget) {
         setTotalSpendBudget(data.total_spend_budget);
@@ -239,34 +239,34 @@ const BudgetDashboard: React.FC = () => {
       const response = await fetch('/api/available_months');
       const dates = await response.json();
       setAllAvailableDates(dates);
-      
+
       // Sort dates in descending order
       const sortedDates = dates.sort((a: string, b: string) => b.localeCompare(a));
-      
+
       // Default to current month/year (the current billing cycle)
       const now = new Date();
       const currentYear = now.getFullYear().toString();
       const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
       const currentYearMonth = `${currentYear}-${currentMonth}`;
-      
+
       // Use current month if available, otherwise fall back to most recent
       const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
       const defaultYear = defaultDate.substring(0, 4);
       const defaultMonth = defaultDate.substring(5, 7);
-      
+
       const years = Array.from(new Set(dates.map((d: string) => d.substring(0, 4)))) as string[];
-      
+
       setUniqueYears(years);
       setSelectedYear(defaultYear);
-      
+
       const monthsForYear = dates
         .filter((d: string) => d.startsWith(defaultYear))
         .map((d: string) => d.substring(5, 7));
       const months = Array.from(new Set(monthsForYear)) as string[];
-      
+
       setUniqueMonths(months);
       setSelectedMonth(defaultMonth);
-      
+
       return { year: defaultYear, month: defaultMonth };
     } catch (error) {
       console.error('Error fetching available months:', error);
@@ -288,7 +288,7 @@ const BudgetDashboard: React.FC = () => {
     setBurndownLoading(true);
     try {
       const url = new URL('/api/daily_spending', window.location.origin);
-      
+
       if (mode === 'billing') {
         url.searchParams.append('cycle', `${year}-${month}`);
       } else {
@@ -296,7 +296,7 @@ const BudgetDashboard: React.FC = () => {
         url.searchParams.append('startDate', startDate);
         url.searchParams.append('endDate', endDate);
       }
-      
+
       const response = await fetch(url.toString());
       if (!response.ok) throw new Error('Failed to fetch burndown data');
       const data = await response.json();
@@ -332,18 +332,18 @@ const BudgetDashboard: React.FC = () => {
   const handleYearChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newYear = event.target.value;
     setSelectedYear(newYear);
-    
+
     const monthsForYear = allAvailableDates
       .filter((d: string) => d.startsWith(newYear))
       .map((d: string) => d.substring(5, 7));
     const months = Array.from(new Set(monthsForYear)) as string[];
     setUniqueMonths(months);
-    
+
     const monthToUse = months.includes(selectedMonth) ? selectedMonth : months[0];
     if (!months.includes(selectedMonth)) {
       setSelectedMonth(monthToUse);
     }
-    
+
     fetchSpendingData(newYear, monthToUse, dateRangeMode, budgets);
     fetchBurndownData(newYear, monthToUse, dateRangeMode);
   };
@@ -376,13 +376,13 @@ const BudgetDashboard: React.FC = () => {
       showNotification('Please enter a valid budget limit', 'error');
       return;
     }
-    
+
     const category = editingBudget?.category || newBudgetCategory;
     if (!category) {
       showNotification('Please select a category', 'error');
       return;
     }
-    
+
     setSavingBudget(true);
     try {
       const response = await fetch('/api/budgets', {
@@ -393,15 +393,15 @@ const BudgetDashboard: React.FC = () => {
           budget_limit: parseFloat(newBudgetLimit)
         })
       });
-      
+
       if (!response.ok) throw new Error('Failed to save budget');
-      
+
       showNotification(editingBudget ? 'Budget updated successfully' : 'Budget created successfully', 'success');
       setIsAddModalOpen(false);
       setEditingBudget(null);
       setNewBudgetCategory('');
       setNewBudgetLimit('');
-      
+
       // Refresh data
       const budgetList = await fetchBudgets();
       if (selectedYear && selectedMonth) {
@@ -417,14 +417,14 @@ const BudgetDashboard: React.FC = () => {
 
   const handleDeleteBudget = async (budgetId: number) => {
     if (!confirm('Are you sure you want to delete this budget?')) return;
-    
+
     try {
       const response = await fetch(`/api/budgets/${budgetId}`, {
         method: 'DELETE'
       });
-      
+
       if (!response.ok) throw new Error('Failed to delete budget');
-      
+
       showNotification('Budget deleted successfully', 'success');
       const budgetList = await fetchBudgets();
       if (selectedYear && selectedMonth) {
@@ -459,7 +459,7 @@ const BudgetDashboard: React.FC = () => {
       showNotification('Please enter a valid budget limit', 'error');
       return;
     }
-    
+
     setSavingTotalBudget(true);
     try {
       const response = await fetch('/api/total_budget', {
@@ -469,13 +469,13 @@ const BudgetDashboard: React.FC = () => {
           budget_limit: parseFloat(newTotalBudgetLimit)
         })
       });
-      
+
       if (!response.ok) throw new Error('Failed to save total budget');
-      
+
       showNotification('Total spend budget saved successfully', 'success');
       setIsTotalBudgetModalOpen(false);
       setNewTotalBudgetLimit('');
-      
+
       // Refresh data
       if (selectedYear && selectedMonth) {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgets);
@@ -490,17 +490,17 @@ const BudgetDashboard: React.FC = () => {
 
   const handleDeleteTotalBudget = async () => {
     if (!confirm('Are you sure you want to remove the total spend budget?')) return;
-    
+
     try {
       const response = await fetch('/api/total_budget', {
         method: 'DELETE'
       });
-      
+
       if (!response.ok) throw new Error('Failed to delete total budget');
-      
+
       showNotification('Total spend budget removed', 'success');
       setTotalSpendBudget(null);
-      
+
       // Refresh data
       if (selectedYear && selectedMonth) {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgets);
@@ -528,10 +528,10 @@ const BudgetDashboard: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       minHeight: '100vh',
       position: 'relative',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
+      background: 'transparent',
       overflow: 'hidden'
     }}>
       {/* Animated background elements - hidden on mobile */}
@@ -559,8 +559,8 @@ const BudgetDashboard: React.FC = () => {
           zIndex: 0
         }} />
       </Box>
-      
-      <Box sx={{ 
+
+      <Box sx={{
         padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
         maxWidth: '1440px',
         margin: '0 auto',
@@ -569,7 +569,7 @@ const BudgetDashboard: React.FC = () => {
       }}>
         {/* Hero Section */}
         <Box sx={{
-          background: 'rgba(255, 255, 255, 0.95)',
+          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: { xs: '20px', md: '32px' },
           padding: { xs: '16px', sm: '24px', md: '36px' },
@@ -577,7 +577,7 @@ const BudgetDashboard: React.FC = () => {
           marginTop: { xs: '56px', md: '40px' },
           marginLeft: { xs: '8px', md: '24px' },
           marginRight: { xs: '8px', md: '24px' },
-          border: '1px solid rgba(148, 163, 184, 0.15)',
+          border: `1px solid ${theme.palette.divider}`,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
           position: 'relative',
           overflow: 'hidden'
@@ -614,7 +614,7 @@ const BudgetDashboard: React.FC = () => {
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
                 }}>Monthly Budgets</Box>
-                <Box component="p" sx={{ margin: '4px 0 0', color: '#64748b', fontSize: { xs: '12px', md: '14px' } }}>
+                <Box component="p" sx={{ margin: '4px 0 0', color: 'text.secondary', fontSize: { xs: '12px', md: '14px' } }}>
                   Set general budget limits for each category
                 </Box>
               </div>
@@ -628,48 +628,93 @@ const BudgetDashboard: React.FC = () => {
             }}>
               <IconButton
                 onClick={handleRefresh}
-                style={BUTTON_STYLE}
-                onMouseEnter={(e) => Object.assign(e.currentTarget.style, HOVER_BUTTON_STYLE)}
-                onMouseLeave={(e) => Object.assign(e.currentTarget.style, BUTTON_STYLE)}
+                sx={{
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  color: 'text.secondary',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                  '&:hover': {
+                    transform: 'translateY(-2px) scale(1.05)',
+                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
+                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
+                    color: 'primary.main'
+                  }
+                }}
               >
                 <RefreshIcon />
               </IconButton>
               <IconButton
                 onClick={handleOpenAddModal}
-                style={{
-                  ...BUTTON_STYLE,
+                sx={{
                   background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: 'none',
                   color: '#fff',
-                  border: 'none'
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                  '&:hover': {
+                    transform: 'translateY(-2px) scale(1.05)',
+                    boxShadow: '0 8px 24px rgba(34, 197, 94, 0.4)'
+                  }
                 }}
-                onMouseEnter={(e) => Object.assign(e.currentTarget.style, {
-                  transform: 'translateY(-2px) scale(1.05)',
-                  boxShadow: '0 8px 24px rgba(34, 197, 94, 0.4)'
-                })}
-                onMouseLeave={(e) => Object.assign(e.currentTarget.style, {
-                  transform: 'translateY(0) scale(1)',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-                })}
               >
                 <AddIcon />
               </IconButton>
               {/* Month selector to view spending comparison */}
-              <select 
+              <select
                 value={selectedYear}
                 onChange={handleYearChange}
-                style={{ ...SELECT_STYLE, minWidth: '120px' }}
+                style={{
+                  minWidth: '120px',
+                  padding: '14px 28px',
+                  borderRadius: '16px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  color: theme.palette.text.primary,
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  textAlign: 'right',
+                  direction: 'rtl',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
               >
                 {uniqueYears.map((year) => (
-                  <option key={year} value={year}>{year}</option>
+                  <option key={year} value={year} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>{year}</option>
                 ))}
               </select>
-              <select 
+              <select
                 value={selectedMonth}
                 onChange={handleMonthChange}
-                style={{ ...SELECT_STYLE, minWidth: '160px' }}
+                style={{
+                  minWidth: '160px',
+                  padding: '14px 28px',
+                  borderRadius: '16px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  color: theme.palette.text.primary,
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  textAlign: 'right',
+                  direction: 'rtl',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
               >
                 {uniqueMonths.map((month) => (
-                  <option key={month} value={month}>
+                  <option key={month} value={month} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
                     {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
                   </option>
                 ))}
@@ -677,10 +722,10 @@ const BudgetDashboard: React.FC = () => {
               {/* Date Range Mode Toggle */}
               <div style={{
                 display: 'flex',
-                background: 'rgba(255, 255, 255, 0.8)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
                 backdropFilter: 'blur(10px)',
                 borderRadius: '16px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
+                border: `1px solid ${theme.palette.divider}`,
                 padding: '4px',
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
               }}>
@@ -694,16 +739,16 @@ const BudgetDashboard: React.FC = () => {
                     padding: '10px 14px',
                     borderRadius: '12px',
                     border: 'none',
-                    background: dateRangeMode === 'calendar' 
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' 
+                    background: dateRangeMode === 'calendar'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
                       : 'transparent',
                     color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'calendar' 
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)' 
+                    boxShadow: dateRangeMode === 'calendar'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -720,16 +765,16 @@ const BudgetDashboard: React.FC = () => {
                     padding: '10px 14px',
                     borderRadius: '12px',
                     border: 'none',
-                    background: dateRangeMode === 'billing' 
-                      ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' 
+                    background: dateRangeMode === 'billing'
+                      ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
                       : 'transparent',
                     color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'billing' 
-                      ? '0 4px 12px rgba(34, 197, 94, 0.3)' 
+                    boxShadow: dateRangeMode === 'billing'
+                      ? '0 4px 12px rgba(34, 197, 94, 0.3)'
                       : 'none'
                   }}
                 >
@@ -744,14 +789,14 @@ const BudgetDashboard: React.FC = () => {
             <div style={{
               marginTop: '16px',
               textAlign: 'center',
-              color: '#64748b',
+              color: 'text.secondary',
               fontSize: '14px',
               fontWeight: 500
             }}>
               {dateRangeMode === 'billing' ? (
-                <span style={{ 
-                  background: 'rgba(34, 197, 94, 0.1)', 
-                  padding: '6px 12px', 
+                <span style={{
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  padding: '6px 12px',
                   borderRadius: '8px',
                   border: '1px solid rgba(34, 197, 94, 0.2)',
                   color: '#16a34a'
@@ -759,9 +804,9 @@ const BudgetDashboard: React.FC = () => {
                   💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
               ) : (
-                <span style={{ 
-                  background: 'rgba(59, 130, 246, 0.1)', 
-                  padding: '6px 12px', 
+                <span style={{
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  padding: '6px 12px',
                   borderRadius: '8px',
                   border: '1px solid rgba(59, 130, 246, 0.2)',
                   color: '#3b82f6'
@@ -786,14 +831,14 @@ const BudgetDashboard: React.FC = () => {
           <>
             {/* Total Spend Budget - Prominent Feature Card */}
             <div style={{
-              background: totalSpendBudget?.is_over_budget 
-                ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)'
-                : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)',
+              background: totalSpendBudget?.is_over_budget
+                ? (theme.palette.mode === 'dark' ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)')
+                : (theme.palette.mode === 'dark' ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)'),
               backdropFilter: 'blur(20px)',
               borderRadius: '24px',
               padding: '28px',
               margin: '0 24px 24px',
-              border: totalSpendBudget?.is_over_budget 
+              border: totalSpendBudget?.is_over_budget
                 ? '2px solid rgba(239, 68, 68, 0.3)'
                 : '2px solid rgba(139, 92, 246, 0.2)',
               boxShadow: '0 8px 32px rgba(139, 92, 246, 0.15)',
@@ -806,7 +851,7 @@ const BudgetDashboard: React.FC = () => {
                 right: '-50px',
                 width: '200px',
                 height: '200px',
-                background: totalSpendBudget?.is_over_budget 
+                background: totalSpendBudget?.is_over_budget
                   ? 'radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%)'
                   : 'radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)',
                 borderRadius: '50%',
@@ -819,7 +864,7 @@ const BudgetDashboard: React.FC = () => {
                       width: '48px',
                       height: '48px',
                       borderRadius: '16px',
-                      background: totalSpendBudget?.is_over_budget 
+                      background: totalSpendBudget?.is_over_budget
                         ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
                         : 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
                       display: 'flex',
@@ -834,11 +879,11 @@ const BudgetDashboard: React.FC = () => {
                         margin: 0,
                         fontSize: '20px',
                         fontWeight: 700,
-                        color: '#1e293b'
+                        color: theme.palette.text.primary
                       }}>
                         Total Spend Budget
                       </h2>
-                      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13px' }}>
+                      <p style={{ margin: '4px 0 0', color: theme.palette.text.secondary, fontSize: '13px' }}>
                         Overall spending limit across all credit cards
                       </p>
                     </div>
@@ -847,7 +892,7 @@ const BudgetDashboard: React.FC = () => {
                     <IconButton
                       size="small"
                       onClick={handleOpenTotalBudgetModal}
-                      style={{ 
+                      style={{
                         color: '#8b5cf6',
                         background: 'rgba(139, 92, 246, 0.1)',
                         borderRadius: '12px'
@@ -859,7 +904,7 @@ const BudgetDashboard: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={handleDeleteTotalBudget}
-                        style={{ 
+                        style={{
                           color: '#ef4444',
                           background: 'rgba(239, 68, 68, 0.1)',
                           borderRadius: '12px'
@@ -870,7 +915,7 @@ const BudgetDashboard: React.FC = () => {
                     )}
                   </div>
                 </div>
-                
+
                 {totalSpendBudget?.is_set ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', marginBottom: '16px' }}>
@@ -901,8 +946,8 @@ const BudgetDashboard: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <LinearProgress 
-                      variant="determinate" 
+                    <LinearProgress
+                      variant="determinate"
                       value={Math.min(totalSpendBudget.percent_used || 0, 100)}
                       sx={{
                         height: 12,
@@ -910,35 +955,35 @@ const BudgetDashboard: React.FC = () => {
                         backgroundColor: 'rgba(148, 163, 184, 0.2)',
                         '& .MuiLinearProgress-bar': {
                           borderRadius: 6,
-                          background: totalSpendBudget.is_over_budget 
+                          background: totalSpendBudget.is_over_budget
                             ? 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)'
                             : totalSpendBudget.percent_used! >= 80
-                            ? 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)'
-                            : 'linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%)'
+                              ? 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)'
+                              : 'linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%)'
                         }
                       }}
                     />
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
                       marginTop: '12px',
                       fontSize: '14px'
                     }}>
-                      <span style={{ 
+                      <span style={{
                         color: (totalSpendBudget.remaining ?? 0) >= 0 ? '#22c55e' : '#ef4444',
                         fontWeight: 600
                       }}>
-                        {(totalSpendBudget.remaining ?? 0) >= 0 
+                        {(totalSpendBudget.remaining ?? 0) >= 0
                           ? `${formatCurrency(totalSpendBudget.remaining ?? 0)} remaining`
                           : `${formatCurrency(Math.abs(totalSpendBudget.remaining ?? 0))} over`
                         }
                       </span>
-                      <span style={{ 
-                        color: totalSpendBudget.is_over_budget 
-                          ? '#ef4444' 
-                          : (totalSpendBudget.percent_used ?? 0) >= 80 
-                          ? '#f59e0b' 
-                          : '#8b5cf6',
+                      <span style={{
+                        color: totalSpendBudget.is_over_budget
+                          ? '#ef4444'
+                          : (totalSpendBudget.percent_used ?? 0) >= 80
+                            ? '#f59e0b'
+                            : '#8b5cf6',
                         fontWeight: 600
                       }}>
                         {totalSpendBudget.percent_used?.toFixed(1)}% used
@@ -985,11 +1030,11 @@ const BudgetDashboard: React.FC = () => {
             }}>
               {/* Category Budget Total Card */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(20px)',
                 borderRadius: '24px',
                 padding: '28px',
-                border: '1px solid rgba(148, 163, 184, 0.15)',
+                border: `1px solid ${theme.palette.divider}`,
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -1001,8 +1046,8 @@ const BudgetDashboard: React.FC = () => {
                 </div>
                 {budgetsWithSpending.length > 0 && (
                   <div style={{ marginTop: '16px' }}>
-                    <LinearProgress 
-                      variant="determinate" 
+                    <LinearProgress
+                      variant="determinate"
                       value={Math.min(totalPercentUsed, 100)}
                       sx={{
                         height: 8,
@@ -1014,9 +1059,9 @@ const BudgetDashboard: React.FC = () => {
                         }
                       }}
                     />
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
                       marginTop: '8px',
                       fontSize: '12px',
                       color: '#64748b'
@@ -1030,11 +1075,11 @@ const BudgetDashboard: React.FC = () => {
 
               {/* Remaining Budget Card */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(20px)',
                 borderRadius: '24px',
                 padding: '28px',
-                border: '1px solid rgba(148, 163, 184, 0.15)',
+                border: `1px solid ${theme.palette.divider}`,
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -1045,9 +1090,9 @@ const BudgetDashboard: React.FC = () => {
                   )}
                   <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 600 }}>Remaining This Month</span>
                 </div>
-                <div style={{ 
-                  fontSize: '32px', 
-                  fontWeight: 700, 
+                <div style={{
+                  fontSize: '32px',
+                  fontWeight: 700,
                   color: totalRemaining >= 0 ? '#22c55e' : '#ef4444'
                 }}>
                   {formatCurrency(Math.abs(totalRemaining))}
@@ -1059,11 +1104,11 @@ const BudgetDashboard: React.FC = () => {
 
               {/* Status Card */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(20px)',
                 borderRadius: '24px',
                 padding: '28px',
-                border: '1px solid rgba(148, 163, 184, 0.15)',
+                border: `1px solid ${theme.palette.divider}`,
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -1094,20 +1139,20 @@ const BudgetDashboard: React.FC = () => {
             {/* Burndown Chart */}
             {burndownData && burndownData.total_budget > 0 && burndownData.daily_data.length > 0 && (
               <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(20px)',
                 borderRadius: '24px',
                 padding: '24px',
                 margin: '0 24px 32px',
-                border: '1px solid rgba(148, 163, 184, 0.15)',
+                border: `1px solid ${theme.palette.divider}`,
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                   <ShowChartIcon style={{ color: '#8b5cf6', fontSize: '24px' }} />
                   <span style={{ color: '#1e293b', fontSize: '16px', fontWeight: 700 }}>Budget Burndown</span>
-                  <span style={{ 
-                    color: '#64748b', 
-                    fontSize: '13px', 
+                  <span style={{
+                    color: '#64748b',
+                    fontSize: '13px',
                     marginLeft: 'auto',
                     background: 'rgba(139, 92, 246, 0.1)',
                     padding: '4px 12px',
@@ -1147,8 +1192,8 @@ const BudgetDashboard: React.FC = () => {
                         {
                           data: burndownData.daily_data.map(d => d.actual_remaining),
                           label: 'Actual',
-                          color: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0 
-                            ? '#22c55e' 
+                          color: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0
+                            ? '#22c55e'
                             : '#ef4444',
                           showMark: false,
                           curve: 'monotoneX'
@@ -1187,33 +1232,33 @@ const BudgetDashboard: React.FC = () => {
                     />
                   </div>
                 )}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  gap: '24px', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: '24px',
                   marginTop: '12px',
                   fontSize: '12px',
                   color: '#64748b'
                 }}>
                   <span>
-                    <span style={{ 
-                      display: 'inline-block', 
-                      width: '12px', 
-                      height: '3px', 
-                      background: '#94a3b8', 
+                    <span style={{
+                      display: 'inline-block',
+                      width: '12px',
+                      height: '3px',
+                      background: '#94a3b8',
                       marginRight: '6px',
                       verticalAlign: 'middle'
                     }}></span>
                     Ideal pace
                   </span>
                   <span>
-                    <span style={{ 
-                      display: 'inline-block', 
-                      width: '12px', 
-                      height: '3px', 
-                      background: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0 
-                        ? '#22c55e' 
-                        : '#ef4444', 
+                    <span style={{
+                      display: 'inline-block',
+                      width: '12px',
+                      height: '3px',
+                      background: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0
+                        ? '#22c55e'
+                        : '#ef4444',
                       marginRight: '6px',
                       verticalAlign: 'middle'
                     }}></span>
@@ -1247,30 +1292,30 @@ const BudgetDashboard: React.FC = () => {
                     <div
                       key={budget.id}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.95)',
+                        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
                         backdropFilter: 'blur(20px)',
                         borderRadius: '20px',
                         padding: '24px',
-                        border: `2px solid ${budget.is_over_budget ? 'rgba(239, 68, 68, 0.3)' : 'rgba(148, 163, 184, 0.15)'}`,
-                        boxShadow: budget.is_over_budget 
-                          ? '0 4px 16px rgba(239, 68, 68, 0.1)' 
+                        border: `2px solid ${budget.is_over_budget ? (theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)') : theme.palette.divider}`,
+                        boxShadow: budget.is_over_budget
+                          ? '0 4px 16px rgba(239, 68, 68, 0.1)'
                           : '0 4px 16px rgba(0, 0, 0, 0.04)',
                         transition: 'all 0.3s ease'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                         <div>
-                          <h3 style={{ 
-                            margin: 0, 
-                            fontSize: '18px', 
-                            fontWeight: 600, 
-                            color: '#1e293b' 
+                          <h3 style={{
+                            margin: 0,
+                            fontSize: '18px',
+                            fontWeight: 600,
+                            color: '#1e293b'
                           }}>
                             {budget.category}
                           </h3>
-                          <div style={{ 
-                            fontSize: '24px', 
-                            fontWeight: 700, 
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 700,
                             color: getProgressColor(budget.percent_used),
                             marginTop: '4px'
                           }}>
@@ -1297,8 +1342,8 @@ const BudgetDashboard: React.FC = () => {
                           </IconButton>
                         </div>
                       </div>
-                      <LinearProgress 
-                        variant="determinate" 
+                      <LinearProgress
+                        variant="determinate"
                         value={Math.min(budget.percent_used, 100)}
                         sx={{
                           height: 10,
@@ -1310,22 +1355,22 @@ const BudgetDashboard: React.FC = () => {
                           }
                         }}
                       />
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
                         marginTop: '12px',
                         fontSize: '13px'
                       }}>
-                        <span style={{ 
+                        <span style={{
                           color: budget.remaining >= 0 ? '#22c55e' : '#ef4444',
                           fontWeight: 600
                         }}>
-                          {budget.remaining >= 0 
+                          {budget.remaining >= 0
                             ? `${formatCurrency(budget.remaining)} left`
                             : `${formatCurrency(Math.abs(budget.remaining))} over`
                           }
                         </span>
-                        <span style={{ 
+                        <span style={{
                           color: getProgressColor(budget.percent_used),
                           fontWeight: 600
                         }}>
@@ -1337,8 +1382,8 @@ const BudgetDashboard: React.FC = () => {
                 </Box>
               </Box>
             ) : (
-              <div style={{ 
-                padding: '60px 24px', 
+              <div style={{
+                padding: '60px 24px',
                 textAlign: 'center',
                 background: 'rgba(255, 255, 255, 0.7)',
                 borderRadius: '24px',
@@ -1357,8 +1402,8 @@ const BudgetDashboard: React.FC = () => {
       </Box>
 
       {/* Add/Edit Budget Modal */}
-      <Dialog 
-        open={isAddModalOpen} 
+      <Dialog
+        open={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         PaperProps={{
           style: {
@@ -1368,9 +1413,9 @@ const BudgetDashboard: React.FC = () => {
           }
         }}
       >
-        <DialogTitle style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <DialogTitle style={{
+          display: 'flex',
+          alignItems: 'center',
           gap: '12px',
           fontWeight: 700
         }}>
@@ -1458,9 +1503,9 @@ const BudgetDashboard: React.FC = () => {
                 startAdornment: <span style={{ color: '#64748b', marginRight: '8px' }}>₪</span>
               }}
             />
-            <div style={{ 
-              background: 'rgba(34, 197, 94, 0.1)', 
-              padding: '12px 16px', 
+            <div style={{
+              background: 'rgba(34, 197, 94, 0.1)',
+              padding: '12px 16px',
               borderRadius: '12px',
               fontSize: '14px',
               color: '#16a34a'
@@ -1470,13 +1515,13 @@ const BudgetDashboard: React.FC = () => {
           </div>
         </DialogContent>
         <DialogActions style={{ padding: '16px 24px' }}>
-          <Button 
+          <Button
             onClick={() => setIsAddModalOpen(false)}
             startIcon={<CloseIcon />}
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleSaveBudget}
             variant="contained"
             disabled={savingBudget}
@@ -1494,8 +1539,8 @@ const BudgetDashboard: React.FC = () => {
       </Dialog>
 
       {/* Total Spend Budget Modal */}
-      <Dialog 
-        open={isTotalBudgetModalOpen} 
+      <Dialog
+        open={isTotalBudgetModalOpen}
         onClose={() => setIsTotalBudgetModalOpen(false)}
         PaperProps={{
           style: {
@@ -1505,9 +1550,9 @@ const BudgetDashboard: React.FC = () => {
           }
         }}
       >
-        <DialogTitle style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <DialogTitle style={{
+          display: 'flex',
+          alignItems: 'center',
           gap: '12px',
           fontWeight: 700
         }}>
@@ -1538,9 +1583,9 @@ const BudgetDashboard: React.FC = () => {
               }}
               helperText="Maximum amount you want to spend across all credit cards this month"
             />
-            <div style={{ 
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)', 
-              padding: '16px', 
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)',
+              padding: '16px',
               borderRadius: '12px',
               border: '1px solid rgba(139, 92, 246, 0.2)'
             }}>
@@ -1548,10 +1593,10 @@ const BudgetDashboard: React.FC = () => {
                 <SavingsIcon style={{ color: '#8b5cf6', fontSize: '20px' }} />
                 <span style={{ fontWeight: 600, color: '#7c3aed' }}>How it works</span>
               </div>
-              <ul style={{ 
-                margin: 0, 
-                paddingLeft: '20px', 
-                color: '#64748b', 
+              <ul style={{
+                margin: 0,
+                paddingLeft: '20px',
+                color: '#64748b',
                 fontSize: '13px',
                 lineHeight: '1.6'
               }}>
@@ -1563,13 +1608,13 @@ const BudgetDashboard: React.FC = () => {
           </div>
         </DialogContent>
         <DialogActions style={{ padding: '16px 24px' }}>
-          <Button 
+          <Button
             onClick={() => setIsTotalBudgetModalOpen(false)}
             startIcon={<CloseIcon />}
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleSaveTotalBudget}
             variant="contained"
             disabled={savingTotalBudget}

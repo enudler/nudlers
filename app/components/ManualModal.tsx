@@ -14,6 +14,7 @@ import {
   Autocomplete,
   createFilterOptions,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -60,6 +61,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
+  const theme = useTheme();
   const [tabValue, setTabValue] = useState(0);
   const [transactionName, setTransactionName] = useState('');
   const [amount, setAmount] = useState('');
@@ -117,14 +119,14 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
 
   const handleSubmit = () => {
     let valid = true;
-    
+
     if (!transactionName.trim()) {
       setNameError(true);
       valid = false;
     } else {
       setNameError(false);
     }
-    
+
     if (amount === '' || isNaN(Number(amount)) || Number(amount) <= 0) {
       setAmountError(true);
       valid = false;
@@ -139,11 +141,11 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
     } else {
       setCategoryError(false);
     }
-    
+
     if (valid) {
       const transactionType = tabValue === 0 ? 'income' : 'expense';
       const transactionAmount = Number(amount); // Always positive amount
-      
+
       onSave({
         name: transactionName,
         amount: transactionAmount,
@@ -174,18 +176,20 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
       PaperProps={{
         style: {
-          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
           backdropFilter: 'blur(20px)',
           borderRadius: '28px',
           boxShadow: '0 24px 64px rgba(0, 0, 0, 0.15)',
-          border: '1px solid rgba(148, 163, 184, 0.2)'
+          border: `1px solid ${theme.palette.divider}`
         }
       }}
       BackdropProps={{
@@ -199,8 +203,8 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
 
       <DialogContent style={{ padding: '0 24px 24px' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 2 }}>
-          <Tabs 
-            value={tabValue} 
+          <Tabs
+            value={tabValue}
             onChange={handleTabChange}
             aria-label="manual transaction tabs"
             sx={{
@@ -209,7 +213,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                 fontWeight: 500,
                 fontSize: '14px',
                 minHeight: '48px',
-                color: '#666',
+                color: theme.palette.text.secondary,
                 '&.Mui-selected': {
                   color: '#3b82f6',
                 },
@@ -219,14 +223,14 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               },
             }}
           >
-            <Tab 
-              icon={<TrendingUpIcon />} 
-              label="Income" 
+            <Tab
+              icon={<TrendingUpIcon />}
+              label="Income"
               iconPosition="start"
             />
-            <Tab 
-              icon={<TrendingDownIcon />} 
-              label="Expense" 
+            <Tab
+              icon={<TrendingDownIcon />}
+              label="Expense"
               iconPosition="start"
             />
           </Tabs>
@@ -240,9 +244,11 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               gap: 1.5,
               p: 2.5,
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%)',
-              border: '1px solid rgba(96, 165, 250, 0.3)',
-              color: '#1e293b',
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(29, 78, 216, 0.2) 100%)'
+                : 'linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%)',
+              border: theme.palette.mode === 'dark' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(96, 165, 250, 0.3)',
+              color: theme.palette.text.primary,
               boxShadow: '0 8px 24px rgba(59, 130, 246, 0.3)',
               position: 'relative',
               overflow: 'hidden',
@@ -260,13 +266,13 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
             }}>
               <LightbulbOutlinedIcon sx={{ color: '#0284c7' }} />
               <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>Manual Income</div>
-                <div style={{ fontSize: '13px', color: '#475569' }}>
+                <div style={{ fontWeight: 600, fontSize: '14px', color: theme.palette.text.primary }}>Manual Income</div>
+                <div style={{ fontSize: '13px', color: theme.palette.text.secondary }}>
                   Add income that will appear in your bank transactions
                 </div>
               </div>
             </Box>
-            
+
             <TextField
               label="Income Name"
               value={transactionName}
@@ -275,10 +281,10 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               error={nameError}
               helperText={nameError ? "Income name is required" : ""}
               InputLabelProps={{
-                style: { color: '#666' },
+                style: { color: theme.palette.text.secondary },
               }}
               InputProps={{
-                style: { color: '#333' },
+                style: { color: theme.palette.text.primary },
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -297,7 +303,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                 },
               }}
             />
-            
+
             <TextField
               label="Amount"
               type="number"
@@ -307,10 +313,10 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               error={amountError}
               helperText={amountError ? "Valid amount is required" : ""}
               InputLabelProps={{
-                style: { color: '#666' },
+                style: { color: theme.palette.text.secondary },
               }}
               InputProps={{
-                style: { color: '#333' },
+                style: { color: theme.palette.text.primary },
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -329,7 +335,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                 },
               }}
             />
-            
+
             <TextField
               label="Date"
               type="date"
@@ -337,11 +343,11 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               onChange={(e) => setDate(e.target.value)}
               fullWidth
               InputLabelProps={{
-                style: { color: '#666' },
+                style: { color: theme.palette.text.secondary },
                 shrink: true
               }}
               InputProps={{
-                style: { color: '#333' },
+                style: { color: theme.palette.text.primary },
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -368,9 +374,11 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               gap: 1.5,
               p: 2.5,
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#1e293b',
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(135deg, rgba(127, 29, 29, 0.3) 0%, rgba(153, 27, 27, 0.2) 100%)'
+                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%)',
+              border: theme.palette.mode === 'dark' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+              color: theme.palette.text.primary,
               boxShadow: '0 8px 24px rgba(239, 68, 68, 0.3)',
               position: 'relative',
               overflow: 'hidden',
@@ -388,13 +396,13 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
             }}>
               <LightbulbOutlinedIcon sx={{ color: '#dc2626' }} />
               <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>Manual Expense</div>
-                <div style={{ fontSize: '13px', color: '#475569' }}>
+                <div style={{ fontWeight: 600, fontSize: '14px', color: theme.palette.text.primary }}>Manual Expense</div>
+                <div style={{ fontSize: '13px', color: theme.palette.text.secondary }}>
                   Add expenses to categorize and track in reports
                 </div>
               </div>
             </Box>
-            
+
             <TextField
               label="Expense Name"
               value={transactionName}
@@ -403,10 +411,10 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               error={nameError}
               helperText={nameError ? "Expense name is required" : ""}
               InputLabelProps={{
-                style: { color: '#666' },
+                style: { color: theme.palette.text.secondary },
               }}
               InputProps={{
-                style: { color: '#333' },
+                style: { color: theme.palette.text.primary },
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -425,7 +433,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                 },
               }}
             />
-            
+
             <TextField
               label="Amount"
               type="number"
@@ -435,10 +443,10 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               error={amountError}
               helperText={amountError ? "Valid amount is required" : ""}
               InputLabelProps={{
-                style: { color: '#666' },
+                style: { color: theme.palette.text.secondary },
               }}
               InputProps={{
-                style: { color: '#333' },
+                style: { color: theme.palette.text.primary },
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -523,15 +531,15 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                     placeholder="Select or type a new category"
                     error={categoryError}
                     InputLabelProps={{
-                      style: { color: '#666' },
+                      style: { color: theme.palette.text.secondary },
                     }}
                     sx={{
                       '& .MuiOutlinedInput-root': {
-                        background: 'rgba(255, 255, 255, 0.8)',
+                        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.8)',
                         backdropFilter: 'blur(10px)',
                         borderRadius: '12px',
                         '& fieldset': {
-                          borderColor: 'rgba(148, 163, 184, 0.2)',
+                          borderColor: theme.palette.divider,
                         },
                         '&:hover fieldset': {
                           borderColor: 'rgba(96, 165, 250, 0.5)',
@@ -541,7 +549,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                         },
                       },
                       '& .MuiInputBase-input': {
-                        color: '#333',
+                        color: theme.palette.text.primary,
                       },
                     }}
                   />
@@ -567,7 +575,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
                 </Typography>
               )}
             </FormControl>
-            
+
             <TextField
               label="Date"
               type="date"
@@ -575,19 +583,19 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
               onChange={(e) => setDate(e.target.value)}
               fullWidth
               InputLabelProps={{
-                style: { color: '#666' },
+                style: { color: theme.palette.text.secondary },
                 shrink: true
               }}
               InputProps={{
-                style: { color: '#333' },
+                style: { color: theme.palette.text.primary },
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   '& fieldset': {
-                    borderColor: '#e2e8f0',
+                    borderColor: theme.palette.divider,
                   },
                   '&:hover fieldset': {
-                    borderColor: '#cbd5e1',
+                    borderColor: theme.palette.divider,
                   },
                   '&.Mui-focused fieldset': {
                     borderColor: '#ef4444',
@@ -600,19 +608,19 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
       </DialogContent>
 
       <DialogActions style={{ padding: '0 24px 24px' }}>
-        <Button 
+        <Button
           onClick={handleClose}
           sx={{
-            color: '#475569',
-            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            color: theme.palette.text.secondary,
+            background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
             borderRadius: '14px',
             padding: '10px 24px',
-            border: '1px solid rgba(148, 163, 184, 0.2)',
+            border: `1px solid ${theme.palette.divider}`,
             fontWeight: 600,
             textTransform: 'none',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
-              background: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
+              background: theme.palette.mode === 'dark' ? 'rgba(51, 65, 85, 0.5)' : 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
               transform: 'translateY(-2px)',
               boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
             },
@@ -628,24 +636,24 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
           onClick={handleSubmit}
           disabled={loadingCategories && tabValue === 1}
           sx={{
-            background: tabValue === 0 
-              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+            background: tabValue === 0
+              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
               : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
             borderRadius: '14px',
             padding: '10px 24px',
             fontWeight: 600,
             textTransform: 'none',
-            boxShadow: tabValue === 0 
-              ? '0 8px 24px rgba(16, 185, 129, 0.4)' 
+            boxShadow: tabValue === 0
+              ? '0 8px 24px rgba(16, 185, 129, 0.4)'
               : '0 8px 24px rgba(239, 68, 68, 0.4)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
-              background: tabValue === 0 
-                ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' 
+              background: tabValue === 0
+                ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
                 : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
               transform: 'translateY(-2px)',
-              boxShadow: tabValue === 0 
-                ? '0 12px 32px rgba(16, 185, 129, 0.5)' 
+              boxShadow: tabValue === 0
+                ? '0 12px 32px rgba(16, 185, 129, 0.5)'
                 : '0 12px 32px rgba(239, 68, 68, 0.5)',
             },
             '&:active': {

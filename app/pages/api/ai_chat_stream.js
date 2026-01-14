@@ -18,7 +18,7 @@ function verifyAuth(req) {
   return true;
 }
 
-const SYSTEM_PROMPT = `You are a smart financial analyst for "Clarify" expense tracker. You have direct access to the user's transaction database through function calls.
+const SYSTEM_PROMPT = `You are a smart financial analyst for "Nudlers" expense tracker. You have direct access to the user's transaction database through function calls.
 
 CRITICAL RULES:
 1. ALWAYS call functions to get real data before answering questions about spending, transactions, or finances
@@ -134,7 +134,7 @@ async function getTransactions({ startDate, endDate, category, searchTerm, limit
     const start = startDate || defaults.startDate;
     const end = endDate || defaults.endDate;
     limit = Math.min(limit, 500);
-    
+
     let sql = `
       SELECT 
         name, 
@@ -151,27 +151,27 @@ async function getTransactions({ startDate, endDate, category, searchTerm, limit
     `;
     const params = [start, end];
     let paramIdx = 3;
-    
+
     if (category) {
       sql += ` AND LOWER(category) = LOWER($${paramIdx})`;
       params.push(category);
       paramIdx++;
     }
-    
+
     if (searchTerm) {
       sql += ` AND LOWER(name) LIKE LOWER($${paramIdx})`;
       params.push(`%${searchTerm}%`);
       paramIdx++;
     }
-    
-    sql += sortBy === 'amount' 
-      ? ` ORDER BY ABS(price) DESC` 
+
+    sql += sortBy === 'amount'
+      ? ` ORDER BY ABS(price) DESC`
       : ` ORDER BY date DESC`;
     sql += ` LIMIT $${paramIdx}`;
     params.push(limit);
-    
+
     const result = await db.query(sql, params);
-    
+
     const transactions = result.rows.map(r => ({
       name: r.name,
       amount: Math.abs(parseFloat(r.price)),
@@ -180,9 +180,9 @@ async function getTransactions({ startDate, endDate, category, searchTerm, limit
       vendor: r.vendor,
       installment: r.installments_total > 1 ? `${r.installments_number}/${r.installments_total}` : null
     }));
-    
+
     const total = transactions.reduce((sum, t) => sum + t.amount, 0);
-    
+
     return {
       transactions,
       count: transactions.length,
@@ -201,7 +201,7 @@ async function getSpendingByCategory({ startDate, endDate }) {
     const defaults = getDefaultDates();
     const start = startDate || defaults.startDate;
     const end = endDate || defaults.endDate;
-    
+
     const result = await db.query(`
       SELECT 
         category,
@@ -217,16 +217,16 @@ async function getSpendingByCategory({ startDate, endDate }) {
       GROUP BY category
       ORDER BY ABS(SUM(price)) DESC
     `, [start, end]);
-    
+
     const categories = result.rows.map(r => ({
       category: r.category,
       transactionCount: parseInt(r.count),
       totalSpent: parseFloat(r.total),
       averageTransaction: parseFloat(r.average)
     }));
-    
+
     const grandTotal = categories.reduce((sum, c) => sum + c.totalSpent, 0);
-    
+
     return {
       categories: categories.map(c => ({
         ...c,
@@ -248,10 +248,10 @@ async function getMonthlyComparison({ month1, month2 }) {
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const previousMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const m1 = month1 || currentMonth;
     const m2 = month2 || previousMonth;
-    
+
     const result = await db.query(`
       SELECT 
         TO_CHAR(date, 'YYYY-MM') as month,
@@ -266,10 +266,10 @@ async function getMonthlyComparison({ month1, month2 }) {
       GROUP BY TO_CHAR(date, 'YYYY-MM'), category
       ORDER BY month, ABS(SUM(price)) DESC
     `, [m1, m2]);
-    
+
     const month1Data = { total: 0, categories: {} };
     const month2Data = { total: 0, categories: {} };
-    
+
     for (const row of result.rows) {
       const amount = parseFloat(row.total);
       if (row.month === m1) {
@@ -280,7 +280,7 @@ async function getMonthlyComparison({ month1, month2 }) {
         month2Data.categories[row.category] = amount;
       }
     }
-    
+
     const allCategories = [...new Set([...Object.keys(month1Data.categories), ...Object.keys(month2Data.categories)])];
     const categoryComparison = allCategories.map(cat => ({
       category: cat,
@@ -288,13 +288,13 @@ async function getMonthlyComparison({ month1, month2 }) {
       month2Amount: month2Data.categories[cat] || 0,
       difference: (month1Data.categories[cat] || 0) - (month2Data.categories[cat] || 0)
     })).sort((a, b) => Math.abs(b.difference) - Math.abs(a.difference));
-    
+
     return {
       month1: { month: m1, totalSpending: Math.round(month1Data.total) },
       month2: { month: m2, totalSpending: Math.round(month2Data.total) },
       difference: Math.round(month1Data.total - month2Data.total),
-      percentChange: month2Data.total > 0 
-        ? Math.round(((month1Data.total - month2Data.total) / month2Data.total) * 100) 
+      percentChange: month2Data.total > 0
+        ? Math.round(((month1Data.total - month2Data.total) / month2Data.total) * 100)
         : 0,
       categoryComparison: categoryComparison.slice(0, 10)
     };
@@ -323,7 +323,7 @@ async function getRecurringPayments() {
       SELECT * FROM latest WHERE rn = 1
       ORDER BY ABS(price) DESC
     `);
-    
+
     // Recurring (same amount, multiple months)
     const recurringResult = await db.query(`
       SELECT 
@@ -341,7 +341,7 @@ async function getRecurringPayments() {
       ORDER BY ABS(price) DESC
       LIMIT 30
     `);
-    
+
     const installments = installmentsResult.rows
       .filter(r => r.installments_number < r.installments_total)
       .map(r => ({
@@ -352,7 +352,7 @@ async function getRecurringPayments() {
         remainingPayments: r.installments_total - r.installments_number,
         remainingTotal: Math.abs(parseFloat(r.price)) * (r.installments_total - r.installments_number)
       }));
-    
+
     const subscriptions = recurringResult.rows.map(r => ({
       name: r.name,
       monthlyAmount: parseFloat(r.amount),
@@ -360,10 +360,10 @@ async function getRecurringPayments() {
       frequency: r.month_count >= 6 ? 'Monthly' : 'Recurring',
       lastCharge: r.last_date
     }));
-    
+
     const totalMonthlyInstallments = installments.reduce((sum, i) => sum + i.monthlyAmount, 0);
     const totalMonthlySubscriptions = subscriptions.reduce((sum, s) => sum + s.monthlyAmount, 0);
-    
+
     return {
       installments,
       subscriptions,
@@ -382,7 +382,7 @@ async function getTopMerchants({ startDate, endDate, limit = 20 }) {
     const defaults = getDefaultDates();
     const start = startDate || defaults.startDate;
     const end = endDate || defaults.endDate;
-    
+
     const result = await db.query(`
       SELECT 
         name as merchant,
@@ -399,7 +399,7 @@ async function getTopMerchants({ startDate, endDate, limit = 20 }) {
       ORDER BY ABS(SUM(price)) DESC
       LIMIT $3
     `, [start, end, limit]);
-    
+
     return {
       merchants: result.rows.map(r => ({
         merchant: r.merchant,
@@ -422,7 +422,7 @@ async function searchTransactions({ searchTerm, startDate, endDate }) {
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
     const start = startDate || sixMonthsAgo.toISOString().split('T')[0];
     const end = endDate || now.toISOString().split('T')[0];
-    
+
     const result = await db.query(`
       SELECT 
         name, price, date, category, vendor
@@ -432,14 +432,14 @@ async function searchTransactions({ searchTerm, startDate, endDate }) {
       ORDER BY date DESC
       LIMIT 50
     `, [start, end, `%${searchTerm}%`]);
-    
+
     const transactions = result.rows.map(r => ({
       name: r.name,
       amount: Math.abs(parseFloat(r.price)),
       date: r.date,
       category: r.category
     }));
-    
+
     return {
       searchTerm,
       matches: transactions,
@@ -497,15 +497,15 @@ export default async function handler(req, res) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    
+
     // Try capable models with function calling
     const modelNames = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
     let model = null;
     let workingModel = null;
-    
+
     for (const modelName of modelNames) {
       try {
-        model = genAI.getGenerativeModel({ 
+        model = genAI.getGenerativeModel({
           model: modelName,
           tools,
           generationConfig: { temperature: 0.2, maxOutputTokens: 2000 }
@@ -546,18 +546,18 @@ export default async function handler(req, res) {
     // Send message
     let result = await chat.sendMessage(message);
     let response = result.response;
-    
+
     // Handle function calls (loop up to 5 times)
     for (let i = 0; i < 5; i++) {
       const functionCalls = response.functionCalls();
       if (!functionCalls?.length) break;
-      
-      sendEvent({ 
-        status: 'fetching_data', 
+
+      sendEvent({
+        status: 'fetching_data',
         functions: functionCalls.map(f => f.name),
         message: `Querying: ${functionCalls.map(f => f.name.replace(/_/g, ' ')).join(', ')}...`
       });
-      
+
       const functionResponses = [];
       for (const call of functionCalls) {
         try {
@@ -572,7 +572,7 @@ export default async function handler(req, res) {
           });
         }
       }
-      
+
       result = await chat.sendMessage(functionResponses);
       response = result.response;
     }
@@ -581,13 +581,13 @@ export default async function handler(req, res) {
     const text = response.text();
     const words = text.split(' ');
     let accumulated = '';
-    
+
     for (let i = 0; i < words.length; i++) {
       accumulated += (i > 0 ? ' ' : '') + words[i];
       sendEvent({ status: 'streaming', text: accumulated, done: false });
       await new Promise(r => setTimeout(r, 15));
     }
-    
+
     sendEvent({ status: 'complete', text: accumulated, done: true, model: workingModel });
 
   } catch (error) {

@@ -15,6 +15,7 @@ import PendingIcon from '@mui/icons-material/Pending';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ModalHeader from './ModalHeader';
+import { useTheme } from '@mui/material/styles';
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
 import { CardVendorIcon } from './CardVendorsModal';
 
@@ -59,8 +60,8 @@ const formatNumber = (num: number): string => {
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
     day: 'numeric',
     year: 'numeric'
   });
@@ -78,6 +79,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const theme = useTheme();
   const { getCardVendor, getCardNickname } = useCardVendors();
 
   useEffect(() => {
@@ -124,17 +126,20 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       PaperProps={{
         sx: {
           borderRadius: '24px',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)'
+            : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
           minHeight: '80vh',
-          maxHeight: '90vh'
+          maxHeight: '90vh',
+          border: theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : 'none'
         }
       }}
     >
-      <ModalHeader 
+      <ModalHeader
         title="Recurring Payments"
         onClose={onClose}
       />
-      
+
       <DialogContent sx={{ p: 0 }}>
         {loading ? (
           <div style={{
@@ -252,16 +257,16 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
             </div>
 
             {/* Tabs */}
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
-              <Tabs 
-                value={activeTab} 
+            <Box sx={{ borderBottom: 1, borderColor: theme.palette.divider, px: 3 }}>
+              <Tabs
+                value={activeTab}
                 onChange={handleTabChange}
                 sx={{
                   '& .MuiTab-root': {
                     textTransform: 'none',
                     fontWeight: 600,
                     fontSize: '15px',
-                    color: '#64748b',
+                    color: theme.palette.text.secondary,
                     '&.Mui-selected': {
                       color: '#8b5cf6'
                     }
@@ -273,12 +278,12 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                   }
                 }}
               >
-                <Tab 
+                <Tab
                   label={`Installments (${installments.length})`}
                   icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />}
                   iconPosition="start"
                 />
-                <Tab 
+                <Tab
                   label={`Recurring (${recurring.length})`}
                   icon={<RepeatIcon sx={{ fontSize: '18px' }} />}
                   iconPosition="start"
@@ -294,7 +299,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                   <div style={{
                     textAlign: 'center',
                     padding: '64px',
-                    color: '#64748b'
+                    color: theme.palette.text.secondary
                   }}>
                     <CreditScoreIcon sx={{ fontSize: '48px', opacity: 0.5, mb: 2 }} />
                     <div>No installment payments found</div>
@@ -307,41 +312,41 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                       fontSize: '14px'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                          <th style={headerCellStyle}>Description</th>
-                          <th style={headerCellStyle}>Card</th>
-                          <th style={headerCellStyle}>Category</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'center' }}>Progress</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'right' }}>Monthly Amount</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'right' }}>Original Amount</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'center' }}>Next Payment</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'center' }}>Last Payment</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'center' }}>Status</th>
+                        <tr style={{ borderBottom: `2px solid ${theme.palette.divider}` }}>
+                          <th style={getHeaderCellStyle(theme)}>Description</th>
+                          <th style={getHeaderCellStyle(theme)}>Card</th>
+                          <th style={getHeaderCellStyle(theme)}>Category</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Progress</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Monthly Amount</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Original Amount</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Next Payment</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Last Payment</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {installments.map((item, index) => {
                           const progressPercent = Math.round((item.current_installment / item.total_installments) * 100);
                           const remaining = item.total_installments - item.current_installment;
-                          
+
                           return (
-                            <tr 
+                            <tr
                               key={`${item.name}-${item.price}-${index}`}
                               style={{
-                                borderBottom: '1px solid #f1f5f9',
-                                background: index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)'
+                                borderBottom: `1px solid ${theme.palette.divider}`,
+                                background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)')
                               }}
                             >
                               <td style={{
                                 padding: '16px 12px',
                                 fontWeight: 600,
-                                color: '#1e293b',
+                                color: theme.palette.text.primary,
                                 maxWidth: '250px'
                               }}>
-                                <div style={{ 
-                                  overflow: 'hidden', 
-                                  textOverflow: 'ellipsis', 
-                                  whiteSpace: 'nowrap' 
+                                <div style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
                                 }}>
                                   {item.name}
                                 </div>
@@ -374,7 +379,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>
                                 )}
                               </td>
-                              <td style={{ padding: '16px 12px', color: '#64748b' }}>
+                              <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
                                 <span style={{
                                   background: 'rgba(59, 130, 246, 0.1)',
                                   padding: '4px 10px',
@@ -395,8 +400,8 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                       gap: '8px',
                                       justifyContent: 'center'
                                     }}>
-                                      <span style={{ 
-                                        fontWeight: 600, 
+                                      <span style={{
+                                        fontWeight: 600,
                                         color: item.status === 'completed' ? '#10b981' : '#8b5cf6',
                                         fontSize: '13px'
                                       }}>
@@ -415,7 +420,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                       <div style={{
                                         width: `${progressPercent}%`,
                                         height: '100%',
-                                        background: item.status === 'completed' 
+                                        background: item.status === 'completed'
                                           ? 'linear-gradient(90deg, #10b981 0%, #34d399 100%)'
                                           : 'linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%)',
                                         borderRadius: '3px',
@@ -423,10 +428,10 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                       }} />
                                     </div>
                                     {remaining > 0 && (
-                                      <div style={{ 
-                                        fontSize: '11px', 
-                                        color: '#94a3b8', 
-                                        marginTop: '4px' 
+                                      <div style={{
+                                        fontSize: '11px',
+                                        color: theme.palette.text.secondary,
+                                        marginTop: '4px'
                                       }}>
                                         {remaining} left
                                       </div>
@@ -434,23 +439,23 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   </div>
                                 </Tooltip>
                               </td>
-                              <td style={{ 
-                                padding: '16px 12px', 
+                              <td style={{
+                                padding: '16px 12px',
                                 textAlign: 'right',
                                 fontWeight: 600,
                                 color: '#8b5cf6'
                               }}>
                                 ₪{formatNumber(item.price)}
                               </td>
-                              <td style={{ 
-                                padding: '16px 12px', 
+                              <td style={{
+                                padding: '16px 12px',
                                 textAlign: 'right',
-                                color: '#64748b'
+                                color: theme.palette.text.secondary
                               }}>
                                 {item.original_amount ? (
                                   <span>
-                                    {item.original_currency !== 'ILS' && item.original_currency 
-                                      ? `${item.original_currency} ` 
+                                    {item.original_currency !== 'ILS' && item.original_currency
+                                      ? `${item.original_currency} `
                                       : '₪'}
                                     {formatNumber(item.original_amount)}
                                   </span>
@@ -458,8 +463,8 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   <span style={{ opacity: 0.5 }}>-</span>
                                 )}
                               </td>
-                              <td style={{ 
-                                padding: '16px 12px', 
+                              <td style={{
+                                padding: '16px 12px',
                                 textAlign: 'center',
                                 fontSize: '13px'
                               }}>
@@ -479,12 +484,12 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                       </span>
                                     );
                                   }
-                                  
+
                                   // Compare dates using ISO string format to avoid timezone issues
                                   const nextDateStr = item.next_payment_date.split('T')[0]; // Get YYYY-MM-DD
                                   const todayStr = new Date().toISOString().split('T')[0];
                                   const isPast = nextDateStr < todayStr;
-                                  
+
                                   // Only show completed if the date has actually passed
                                   if (isPast) {
                                     return (
@@ -500,7 +505,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                       </span>
                                     );
                                   }
-                                  
+
                                   // Date hasn't passed yet - show the upcoming date
                                   return (
                                     <span style={{
@@ -516,8 +521,8 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   );
                                 })()}
                               </td>
-                              <td style={{ 
-                                padding: '16px 12px', 
+                              <td style={{
+                                padding: '16px 12px',
                                 textAlign: 'center',
                                 fontSize: '13px'
                               }}>
@@ -580,7 +585,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                   <div style={{
                     textAlign: 'center',
                     padding: '64px',
-                    color: '#64748b'
+                    color: theme.palette.text.secondary
                   }}>
                     <RepeatIcon sx={{ fontSize: '48px', opacity: 0.5, mb: 2 }} />
                     <div>No recurring transactions detected</div>
@@ -596,41 +601,41 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                       fontSize: '14px'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                          <th style={headerCellStyle}>Description</th>
-                          <th style={headerCellStyle}>Card</th>
-                          <th style={headerCellStyle}>Category</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'center' }}>Frequency</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'right' }}>Amount</th>
-                          <th style={{ ...headerCellStyle, textAlign: 'center' }}>Last Charge</th>
-                          <th style={headerCellStyle}>Months Active</th>
+                        <tr style={{ borderBottom: `2px solid ${theme.palette.divider}` }}>
+                          <th style={getHeaderCellStyle(theme)}>Description</th>
+                          <th style={getHeaderCellStyle(theme)}>Card</th>
+                          <th style={getHeaderCellStyle(theme)}>Category</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Frequency</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Amount</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Last Charge</th>
+                          <th style={getHeaderCellStyle(theme)}>Months Active</th>
                         </tr>
                       </thead>
                       <tbody>
                         {recurring.map((item, index) => (
-                          <tr 
+                          <tr
                             key={`${item.name}-${item.price}-${index}`}
                             style={{
-                              borderBottom: '1px solid #f1f5f9',
-                              background: index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)'
+                              borderBottom: `1px solid ${theme.palette.divider}`,
+                              background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)')
                             }}
                           >
                             <td style={{
                               padding: '16px 12px',
                               fontWeight: 600,
-                              color: '#1e293b',
+                              color: theme.palette.text.primary,
                               maxWidth: '250px'
                             }}>
-                              <div style={{ 
+                              <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '8px'
                               }}>
                                 <RepeatIcon sx={{ fontSize: '16px', color: '#3b82f6', opacity: 0.7 }} />
-                                <span style={{ 
-                                  overflow: 'hidden', 
-                                  textOverflow: 'ellipsis', 
-                                  whiteSpace: 'nowrap' 
+                                <span style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
                                 }}>
                                   {item.name}
                                 </span>
@@ -664,7 +669,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>
                               )}
                             </td>
-                            <td style={{ padding: '16px 12px', color: '#64748b' }}>
+                            <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
                               <span style={{
                                 background: 'rgba(59, 130, 246, 0.1)',
                                 padding: '4px 10px',
@@ -676,8 +681,8 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 {item.category || 'Uncategorized'}
                               </span>
                             </td>
-                            <td style={{ 
-                              padding: '16px 12px', 
+                            <td style={{
+                              padding: '16px 12px',
                               textAlign: 'center'
                             }}>
                               <span style={{
@@ -691,18 +696,18 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 {item.month_count} months
                               </span>
                             </td>
-                            <td style={{ 
-                              padding: '16px 12px', 
+                            <td style={{
+                              padding: '16px 12px',
                               textAlign: 'right',
                               fontWeight: 600,
                               color: '#3b82f6'
                             }}>
                               ₪{formatNumber(item.price)}
                             </td>
-                            <td style={{ 
-                              padding: '16px 12px', 
+                            <td style={{
+                              padding: '16px 12px',
                               textAlign: 'center',
-                              color: '#64748b',
+                              color: theme.palette.text.secondary,
                               fontSize: '13px'
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
@@ -710,9 +715,9 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 {formatDate(item.last_charge_date)}
                               </div>
                             </td>
-                            <td style={{ 
+                            <td style={{
                               padding: '16px 12px',
-                              color: '#64748b'
+                              color: theme.palette.text.secondary
                             }}>
                               <div style={{
                                 display: 'flex',
@@ -720,13 +725,13 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 flexWrap: 'wrap'
                               }}>
                                 {item.months?.slice(0, 6).map((month, idx) => (
-                                  <span 
+                                  <span
                                     key={month}
                                     style={{
-                                      background: idx === 0 
-                                        ? 'rgba(59, 130, 246, 0.15)' 
-                                        : 'rgba(148, 163, 184, 0.15)',
-                                      color: idx === 0 ? '#3b82f6' : '#64748b',
+                                      background: idx === 0
+                                        ? 'rgba(59, 130, 246, 0.15)'
+                                        : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.15)'),
+                                      color: idx === 0 ? '#3b82f6' : theme.palette.text.secondary,
                                       padding: '2px 6px',
                                       borderRadius: '4px',
                                       fontSize: '11px',
@@ -738,7 +743,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 ))}
                                 {item.months && item.months.length > 6 && (
                                   <span style={{
-                                    color: '#94a3b8',
+                                    color: theme.palette.text.disabled,
                                     fontSize: '11px',
                                     fontWeight: 500
                                   }}>
@@ -762,14 +767,14 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   );
 };
 
-const headerCellStyle: React.CSSProperties = {
+const getHeaderCellStyle = (theme: any): React.CSSProperties => ({
   padding: '16px 12px',
   textAlign: 'left',
-  color: '#64748b',
+  color: theme.palette.text.secondary,
   fontWeight: 600,
   fontSize: '13px',
   textTransform: 'uppercase',
   letterSpacing: '0.5px'
-};
+});
 
 export default RecurringPaymentsModal;

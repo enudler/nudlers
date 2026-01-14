@@ -19,6 +19,8 @@ import {
   Tooltip,
   Switch,
   Chip,
+  useTheme,
+  alpha
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -29,7 +31,9 @@ import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CloseIcon from '@mui/icons-material/Close';
+import HistoryIcon from '@mui/icons-material/History';
 import ScrapeModal from './ScrapeModal';
+import SyncHistoryModal from './SyncHistoryModal';
 import { CREDIT_CARD_VENDORS, BANK_VENDORS, BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
 import { dateUtils } from './CategoryDashboard/utils/dateUtils';
 import { useNotification } from './NotificationContext';
@@ -102,10 +106,12 @@ interface AccountsModalProps {
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
   transition: 'all 0.2s ease-in-out',
   '&:nth-of-type(odd)': {
-    backgroundColor: 'rgba(248, 250, 252, 0.5)',
+    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.05) : 'rgba(248, 250, 252, 0.5)',
   },
   '&:hover': {
-    background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(167, 139, 250, 0.05) 100%)',
+    background: theme.palette.mode === 'dark'
+      ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.secondary.main, 0.15)} 100%)`
+      : 'linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(167, 139, 250, 0.05) 100%)',
     transform: 'scale(1.005)',
   },
 }));
@@ -116,8 +122,10 @@ const SectionHeader = styled(Box)(({ theme }) => ({
   gap: '12px',
   padding: '20px 0',
   marginBottom: '20px',
-  borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-  background: 'linear-gradient(90deg, rgba(96, 165, 250, 0.05) 0%, transparent 100%)',
+  borderBottom: `2px solid ${theme.palette.divider}`,
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, transparent 100%)`
+    : 'linear-gradient(90deg, rgba(96, 165, 250, 0.05) 0%, transparent 100%)',
   borderRadius: '8px',
   paddingLeft: '12px',
   '& .MuiTypography-root': {
@@ -145,7 +153,9 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const [isScrapeModalOpen, setIsScrapeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<AccountWithPassword | null>(null);
   const [editingCardBankAccount, setEditingCardBankAccount] = useState<number | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const { showNotification } = useNotification();
+  const theme = useTheme();
   const [formAccount, setFormAccount] = useState({
     vendor: 'isracard',
     username: '',
@@ -178,7 +188,6 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         throw new Error('Failed to fetch accounts');
       }
       const data = await response.json();
-      // SECURITY: Removed console.log to prevent sensitive data logging
       setAccounts(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -490,7 +499,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
           display: 'flex',
           justifyContent: 'center',
           padding: '32px',
-          color: '#666',
+          color: theme.palette.text.secondary,
           fontStyle: 'italic'
         }}>
           No {type === 'bank' ? 'bank' : 'credit card'} accounts found
@@ -498,101 +507,43 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
       );
     }
 
+    // Shared header cell style for theme consistency
+    const headerCellStyle = {
+      color: theme.palette.text.secondary,
+      borderBottom: `2px solid ${theme.palette.divider}`,
+      fontWeight: 600,
+      fontSize: '13px',
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.5px',
+      background: 'var(--table-header-bg)',
+      padding: '16px'
+    };
+
     return (
       <Box sx={{
         borderRadius: '20px',
         overflow: 'hidden',
-        border: '1px solid rgba(148, 163, 184, 0.15)',
+        border: `1px solid ${theme.palette.divider}`,
         boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
+        background: theme.palette.mode === 'dark'
+          ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`
+          : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
         backdropFilter: 'blur(10px)'
       }}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell style={{
-                color: '#475569',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                fontWeight: 600,
-                fontSize: '13px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                padding: '16px'
-              }}>Nickname</TableCell>
-              <TableCell style={{
-                color: '#475569',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                fontWeight: 600,
-                fontSize: '13px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                padding: '16px'
-              }}>Vendor</TableCell>
-              <TableCell style={{
-                color: '#475569',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                fontWeight: 600,
-                fontSize: '13px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                padding: '16px'
-              }}>{type === 'bank' ? 'Username' : 'ID Number'}</TableCell>
+              <TableCell style={headerCellStyle}>Nickname</TableCell>
+              <TableCell style={headerCellStyle}>Vendor</TableCell>
+              <TableCell style={headerCellStyle}>{type === 'bank' ? 'Username' : 'ID Number'}</TableCell>
               {type === 'bank' ? (
-                <TableCell style={{
-                  color: '#475569',
-                  borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                  padding: '16px'
-                }}>Account Number</TableCell>
+                <TableCell style={headerCellStyle}>Account Number</TableCell>
               ) : (
-                <TableCell style={{
-                  color: '#475569',
-                  borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                  padding: '16px'
-                }}>Card Last Digits</TableCell>
+                <TableCell style={headerCellStyle}>Card Last Digits</TableCell>
               )}
-              <TableCell style={{
-                color: '#475569',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                fontWeight: 600,
-                fontSize: '13px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                padding: '16px'
-              }}>Last Synced</TableCell>
-              <TableCell align="center" style={{
-                color: '#475569',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                fontWeight: 600,
-                fontSize: '13px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                padding: '16px'
-              }}>Active</TableCell>
-              <TableCell align="right" style={{
-                color: '#475569',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.2)',
-                fontWeight: 600,
-                fontSize: '13px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                padding: '16px'
-              }}>Actions</TableCell>
+              <TableCell style={headerCellStyle}>Last Synced</TableCell>
+              <TableCell align="center" style={headerCellStyle}>Active</TableCell>
+              <TableCell align="right" style={headerCellStyle}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -603,7 +554,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                   opacity: account.is_active ? 1 : 0.6,
                 }}
               >
-                <TableCell style={{ color: account.is_active ? '#1e293b' : '#94a3b8' }}>
+                <TableCell style={{ color: account.is_active ? theme.palette.text.primary : theme.palette.text.disabled }}>
                   <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       {account.nickname}
@@ -721,10 +672,10 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                     )}
                   </Box>
                 </TableCell>
-                <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.vendor}</TableCell>
-                <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{account.username || account.id_number}</TableCell>
-                <TableCell style={{ color: account.is_active ? '#475569' : '#94a3b8' }}>{type === 'bank' ? account.bank_account_number : (account.card6_digits || '-')}</TableCell>
-                <TableCell style={{ color: account.is_active ? '#64748b' : '#94a3b8' }}>
+                <TableCell style={{ color: account.is_active ? theme.palette.text.primary : theme.palette.text.disabled }}>{account.vendor}</TableCell>
+                <TableCell style={{ color: account.is_active ? theme.palette.text.primary : theme.palette.text.disabled }}>{account.username || account.id_number}</TableCell>
+                <TableCell style={{ color: account.is_active ? theme.palette.text.primary : theme.palette.text.disabled }}>{type === 'bank' ? account.bank_account_number : (account.card6_digits || '-')}</TableCell>
+                <TableCell style={{ color: account.is_active ? theme.palette.text.secondary : theme.palette.text.disabled }}>
                   {account.last_synced_at ? (
                     <Tooltip title={dateUtils.formatDate(account.last_synced_at)}>
                       <span>{formatRelativeTime(account.last_synced_at)}</span>
@@ -830,11 +781,13 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         fullWidth
         PaperProps={{
           style: {
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
+            background: theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
             backdropFilter: 'blur(20px)',
             borderRadius: '28px',
             boxShadow: '0 24px 64px rgba(0, 0, 0, 0.15)',
-            border: '1px solid rgba(148, 163, 184, 0.2)'
+            border: `1px solid ${theme.palette.divider}`
           }
         }}
         BackdropProps={{
@@ -853,6 +806,29 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
               onClose();
             }
           }}
+          startAction={
+            !isAdding && !isEditing && (
+              <Button
+                startIcon={<HistoryIcon />}
+                onClick={() => setIsHistoryOpen(true)}
+                variant="outlined"
+                size="small"
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  borderColor: '#cbd5e1',
+                  color: '#64748b',
+                  mr: 2,
+                  '&:hover': {
+                    borderColor: '#94a3b8',
+                    bgcolor: '#f8fafc'
+                  }
+                }}
+              >
+                Sync History
+              </Button>
+            )
+          }
           actions={
             !isAdding && !isEditing && (
               <Button
@@ -871,12 +847,12 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
             )
           }
         />
-        <DialogContent style={{ padding: '0 32px 32px', color: '#1e293b' }}>
+        <DialogContent style={{ padding: '0 32px 32px', color: theme.palette.text.primary }}>
           {error && (
             <div style={{
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%)',
+              background: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#1e293b',
+              color: theme.palette.mode === 'dark' ? '#fca5a5' : '#1e293b',
               padding: '16px',
               borderRadius: '16px',
               marginBottom: '16px',
@@ -1073,6 +1049,11 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
           },
           credentialId: selectedAccount.id
         } : undefined}
+      />
+
+      <SyncHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
       />
 
       {/* Truncate Confirmation Dialog */}

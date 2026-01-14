@@ -1,4 +1,65 @@
-/* Global Styles for Clarify - Modern Finance App */
+:root {
+  --bg-gradient-dark: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+  --bg-gradient-light: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+}
+
+/* Light theme variables */
+[data-theme='light'] {
+  --status-success: #16a34a;
+  --status-error: #dc2626;
+  --status-warning: #f59e0b;
+  --status-info: #3b82f6;
+  --status-syncing: #60a5fa;
+
+  /* Component-specific */
+  --modal-backdrop: rgba(255, 255, 255, 0.98);
+  --modal-backdrop-alt: rgba(248, 250, 252, 0.98);
+  --table-header-bg: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  --table-header-text: #475569;
+  --chip-background: rgba(96, 165, 250, 0.1);
+  --chip-border: rgba(96, 165, 250, 0.2);
+  --card-bg: rgba(255, 255, 255, 0.95);
+  --card-bg-alt: rgba(248, 250, 252, 0.95);
+  --action-card-bg: rgba(248, 250, 252, 0.6);
+  --action-card-border: rgba(148, 163, 184, 0.2);
+  --action-card-hover-border: rgba(96, 165, 250, 0.4);
+  --action-card-hover-bg: rgba(248, 250, 252, 0.9);
+  --error-bg: #fee2e2;
+  --error-border: #fecaca;
+  --error-text: #dc2626;
+  --info-bg: #dbeafe;
+  --info-border: #93c5fd;
+  --info-text: #1e40af;
+}
+
+/* Dark theme variables */
+[data-theme='dark'] {
+  --status-success: #22c55e;
+  --status-error: #ef4444;
+  --status-warning: #f59e0b;
+  --status-info: #3b82f6;
+  --status-syncing: #60a5fa;
+
+  /* Component-specific */
+  --modal-backdrop: rgba(15, 23, 42, 0.98);
+  --modal-backdrop-alt: rgba(30, 41, 59, 0.98);
+  --table-header-bg: rgba(15, 23, 42, 0.5);
+  --table-header-text: var(--text-secondary);
+  --chip-background: rgba(96, 165, 250, 0.2);
+  --chip-border: rgba(96, 165, 250, 0.3);
+  --card-bg: rgba(30, 41, 59, 0.95);
+  --card-bg-alt: rgba(15, 23, 42, 0.95);
+  --action-card-bg: rgba(30, 41, 59, 0.5);
+  --action-card-border: rgba(148, 163, 184, 0.2);
+  --action-card-hover-border: rgba(96, 165, 250, 0.4);
+  --action-card-hover-bg: rgba(30, 41, 59, 0.8);
+  --error-bg: rgba(127, 29, 29, 0.2);
+  --error-border: rgba(239, 68, 68, 0.3);
+  --error-text: #fca5a5;
+  --info-bg: rgba(59, 130, 246, 0.15);
+  --info-border: rgba(59, 130, 246, 0.3);
+  --info-text: #93c5fd;
+}
 
 * {
   box-sizing: border-box;
@@ -13,10 +74,21 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-  background-attachment: fixed;
-  color: #1e293b;
+  background: var(--bg-default);
+  color: var(--text-primary);
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Theme specific overrides */
+[data-theme='dark'] body {
+  background: var(--bg-gradient-dark);
+  background-attachment: fixed;
+}
+
+[data-theme='light'] body {
+  background: var(--bg-gradient-light);
+  background-attachment: fixed;
 }
 
 body {
@@ -29,29 +101,30 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: var(--bg-paper);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  background: var(--border-color);
   border-radius: 10px;
-  border: 2px solid #f8fafc;
+  border: 2px solid var(--bg-paper);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  background: var(--text-secondary);
 }
 
 /* Selection styling */
 ::selection {
-  background: rgba(96, 165, 250, 0.3);
-  color: #1e293b;
+  background: rgba(59, 130, 246, 0.3);
+  /* blue-500 optimized */
+  color: var(--text-primary);
 }
 
 ::-moz-selection {
-  background: rgba(96, 165, 250, 0.3);
-  color: #1e293b;
+  background: rgba(59, 130, 246, 0.3);
+  color: var(--text-primary);
 }
 
 /* Focus styles */
@@ -59,7 +132,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
 
@@ -88,6 +161,7 @@ a:hover {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -99,6 +173,7 @@ a:hover {
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -109,18 +184,23 @@ a:hover {
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0) scale(1);
   }
+
   33% {
     transform: translate(30px, -30px) scale(1.1);
   }
+
   66% {
     transform: translate(-20px, 20px) scale(0.9);
   }
@@ -136,21 +216,32 @@ a:hover {
 
 /* Loading state */
 .loading-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(248, 250, 252, 0.5) 0%,
-    rgba(241, 245, 249, 0.8) 50%,
-    rgba(248, 250, 252, 0.5) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.05) 100%);
   background-size: 1000px 100%;
   animation: shimmer 2s infinite;
 }
 
 /* Glassmorphism utility */
 .glass {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-paper);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-color);
+}
+
+/* Specialized glass for Dark mode */
+[data-theme='dark'] .glass {
+  background: rgba(30, 41, 59, 0.7);
+  /* slate-800 with opacity */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Specialized glass for Light mode */
+[data-theme='light'] .glass {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 /* Shadow utilities */
@@ -181,7 +272,7 @@ a:hover {
 
 .card-hover:hover {
   transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 16px 48px rgba(96, 165, 250, 0.25);
+  box-shadow: 0 16px 48px rgba(59, 130, 246, 0.25);
 }
 
 /* ===== MOBILE RESPONSIVE STYLES ===== */
@@ -200,7 +291,7 @@ a:hover {
   body {
     font-size: 14px;
   }
-  
+
   /* Reduce scrollbar width on mobile */
   ::-webkit-scrollbar {
     width: 6px;
@@ -259,7 +350,7 @@ a:hover {
   .show-mobile {
     display: block !important;
   }
-  
+
   .show-mobile-flex {
     display: flex !important;
   }
@@ -267,7 +358,8 @@ a:hover {
 
 /* Mobile-friendly touch targets */
 @media (max-width: 768px) {
-  button, 
+
+  button,
   .touchable {
     min-height: 44px;
     min-width: 44px;
@@ -281,7 +373,7 @@ a:hover {
     margin: 8px !important;
     border-radius: 20px !important;
   }
-  
+
   .hero-section h1 {
     font-size: 22px !important;
   }
@@ -294,7 +386,7 @@ a:hover {
     align-items: stretch !important;
     gap: 12px !important;
   }
-  
+
   .controls-row select,
   .controls-row button {
     width: 100% !important;
@@ -308,7 +400,7 @@ a:hover {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   .responsive-table {
     min-width: 600px;
   }
@@ -331,7 +423,7 @@ a:hover {
   .date-toggle-group {
     flex-wrap: wrap !important;
   }
-  
+
   .date-toggle-group button {
     flex: 1 1 auto !important;
     min-width: 80px !important;
@@ -344,7 +436,7 @@ a:hover {
     flex-direction: column !important;
     gap: 12px !important;
   }
-  
+
   .summary-card {
     width: 100% !important;
     min-width: unset !important;
@@ -357,7 +449,7 @@ a:hover {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
-  
+
   .mobile-margin {
     margin-left: 8px !important;
     margin-right: 8px !important;
@@ -375,9 +467,10 @@ a:hover {
 /* Side drawer layout adjustments - matches Material-UI md breakpoint (900px) */
 @media (min-width: 900px) {
   body.drawer-open .main-content {
-    margin-left: 280px !important; /* Drawer width */
+    margin-left: 220px !important;
+    /* Drawer width */
   }
-  
+
   body.drawer-closed .main-content {
     margin-left: 0 !important;
   }
@@ -400,9 +493,8 @@ a:hover {
   body {
     background: white;
   }
-  
+
   .no-print {
     display: none !important;
   }
 }
-

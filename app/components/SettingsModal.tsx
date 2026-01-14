@@ -11,9 +11,11 @@ import {
   Switch,
   Alert,
   CircularProgress,
-  Chip
+  Chip,
+  Select,
+  MenuItem
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled, useTheme } from '@mui/material/styles';
 import SettingsIcon from '@mui/icons-material/Settings';
 import packageJson from '../package.json';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -37,15 +39,20 @@ interface Settings {
   fetch_categories_from_scrapers: boolean;
   scraper_timeout_standard: number;
   scraper_timeout_rate_limited: number;
+  fallback_no_category_on_error: boolean;
+  update_category_on_rescrape: boolean;
+  scrape_retries: number;
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
   '& .MuiDialog-paper': {
-    background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
+    background: theme.palette.mode === 'dark'
+      ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)'
+      : 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(20px)',
-    border: '1px solid rgba(148, 163, 184, 0.1)',
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: '16px',
-    color: '#fff',
+    color: theme.palette.text.primary,
     minWidth: '500px',
     maxHeight: '90vh'
   }
@@ -54,8 +61,8 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
 const SettingSection = styled(Box)(({ theme }) => ({
   padding: '20px',
   borderRadius: '12px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  background: 'rgba(30, 41, 59, 0.5)',
+  border: `1px solid ${theme.palette.divider}`,
+  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(241, 245, 249, 0.6)',
   marginBottom: '16px'
 }));
 
@@ -69,28 +76,29 @@ const SettingRow = styled(Box)(({ theme }) => ({
   }
 }));
 
-const StyledTextField = styled(TextField)({
+const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
-    color: '#fff',
+    color: theme.palette.text.primary,
     '& fieldset': {
-      borderColor: 'rgba(148, 163, 184, 0.3)',
+      borderColor: theme.palette.divider,
     },
     '&:hover fieldset': {
-      borderColor: 'rgba(96, 165, 250, 0.5)',
+      borderColor: theme.palette.primary.main,
     },
     '&.Mui-focused fieldset': {
-      borderColor: '#60a5fa',
+      borderColor: theme.palette.primary.main,
     },
   },
   '& .MuiInputLabel-root': {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: theme.palette.text.secondary,
   },
   '& .MuiInputLabel-root.Mui-focused': {
-    color: '#60a5fa',
+    color: theme.palette.primary.main,
   },
-});
+}));
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
+  const theme = useTheme();
   const [settings, setSettings] = useState<Settings>({
     sync_enabled: false,
     sync_interval_hours: 24,
@@ -101,7 +109,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     show_browser: false,
     fetch_categories_from_scrapers: true,
     scraper_timeout_standard: 60000,
-    scraper_timeout_rate_limited: 120000
+    scraper_timeout_rate_limited: 120000,
+    fallback_no_category_on_error: false,
+    update_category_on_rescrape: false,
+    scrape_retries: 3
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -126,7 +137,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             ? true  // Default to true if not set
             : parseBool(data.settings.fetch_categories_from_scrapers),
           scraper_timeout_standard: parseInt(data.settings.scraper_timeout_standard) || 60000,
-          scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000
+          scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000,
+          fallback_no_category_on_error: parseBool(data.settings.fallback_no_category_on_error),
+          update_category_on_rescrape: parseBool(data.settings.update_category_on_rescrape),
+          scrape_retries: parseInt(data.settings.scrape_retries) || 3
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -193,7 +207,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+        borderBottom: `1px solid ${theme.palette.divider}`,
         pb: 2
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -202,7 +216,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             App Settings
           </Typography>
           {saving && (
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, fontStyle: 'italic' }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, ml: 1, fontStyle: 'italic' }}>
               Saving...
             </Typography>
           )}
@@ -243,7 +257,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Enable Auto Sync</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Automatically sync transactions in the background
                   </Typography>
                 </Box>
@@ -264,7 +278,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Sync Interval (hours)</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     How often to check for new transactions
                   </Typography>
                 </Box>
@@ -281,7 +295,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Days to Sync Back</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Number of days to fetch when syncing
                   </Typography>
                 </Box>
@@ -308,7 +322,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Default Currency</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Currency symbol for transactions
                   </Typography>
                 </Box>
@@ -324,7 +338,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Date Format</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     How dates are displayed
                   </Typography>
                 </Box>
@@ -339,7 +353,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Billing Cycle Start Day</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Day of month when credit card billing cycle starts
                   </Typography>
                 </Box>
@@ -366,7 +380,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Show Browser Window</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Display browser window during scraping (useful for debugging or entering 2FA codes). Only works when running locally, not in Docker.
                   </Typography>
                 </Box>
@@ -386,14 +400,51 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box>
-                  <Typography variant="body1">Fetch Categories from Scrapers</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-                    Fetch transaction categories from card providers (Isracard, Cal, Max). Disable this if you're experiencing rate limiting or API errors. Your local category cache will still be used.
+                  <Typography variant="body1">Category Fetching Mode</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Control how the scraper handles transaction categories.
+                  </Typography>
+                </Box>
+                <Select
+                  value={
+                    !settings.fetch_categories_from_scrapers ? 'never' :
+                      settings.fallback_no_category_on_error ? 'smart' : 'always'
+                  }
+                  onChange={(e) => {
+                    const mode = e.target.value;
+                    const newSettings = { ...settings };
+                    if (mode === 'never') {
+                      newSettings.fetch_categories_from_scrapers = false;
+                      newSettings.fallback_no_category_on_error = false;
+                    } else if (mode === 'smart') {
+                      newSettings.fetch_categories_from_scrapers = true;
+                      newSettings.fallback_no_category_on_error = true;
+                    } else { // always
+                      newSettings.fetch_categories_from_scrapers = true;
+                      newSettings.fallback_no_category_on_error = false;
+                    }
+                    setSettings(newSettings);
+                  }}
+                  size="small"
+                  sx={{ width: 200, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                >
+                  <MenuItem value="always">Always Fetch</MenuItem>
+                  <MenuItem value="smart">Smart Fetch (Fallback on Error)</MenuItem>
+                  <MenuItem value="never">Never Fetch</MenuItem>
+                </Select>
+              </SettingRow>
+
+              {/* Added: Update Categories on Re-Scrape Setting */}
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Update Categories on Re-Scrape</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    If an existing transaction has a new category from the bank, update it.
                   </Typography>
                 </Box>
                 <Switch
-                  checked={settings.fetch_categories_from_scrapers}
-                  onChange={(e) => setSettings({ ...settings, fetch_categories_from_scrapers: e.target.checked })}
+                  checked={settings.update_category_on_rescrape}
+                  onChange={(e) => setSettings({ ...settings, update_category_on_rescrape: e.target.checked })}
                   sx={{
                     '& .MuiSwitch-switchBase.Mui-checked': {
                       color: '#60a5fa',
@@ -407,8 +458,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box>
+                  <Typography variant="body1">Scrape Failure Retries</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Number of times to retry if scraping fails (default: 3)
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="number"
+                  value={settings.scrape_retries}
+                  onChange={(e) => setSettings({ ...settings, scrape_retries: parseInt(e.target.value) || 0 })}
+                  size="small"
+                  sx={{ width: '100px' }}
+                  inputProps={{ min: 0, max: 10 }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box>
                   <Typography variant="body1">Standard Timeout (ms)</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Timeout for standard vendors (default: 60000ms)
                   </Typography>
                 </Box>
@@ -425,7 +493,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Rate-Limited Timeout (ms)</Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Timeout for rate-limited vendors (Isracard, Amex) (default: 120000ms)
                   </Typography>
                 </Box>
@@ -444,18 +512,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       </DialogContent>
 
       <DialogActions sx={{
-        borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+        borderTop: `1px solid ${theme.palette.divider}`,
         p: 2,
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>
+        <Typography variant="caption" sx={{ color: theme.palette.text.disabled, fontSize: '11px' }}>
           v{packageJson.version}
         </Typography>
         <Button
           onClick={handleClose}
           variant="outlined"
-          sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}
+          sx={{ borderColor: theme.palette.divider, color: theme.palette.text.secondary }}
         >
           Close
         </Button>

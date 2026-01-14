@@ -34,23 +34,21 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useCategories } from '../utils/useCategories';
 import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
-import { TABLE_HEADER_CELL_STYLE, TABLE_BODY_CELL_STYLE, TABLE_ROW_HOVER_STYLE, TABLE_ROW_HOVER_BACKGROUND } from '../utils/tableStyles';
+import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from '../utils/tableStyles';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
 type SortField = 'date' | 'amount' | 'installments';
 type SortDirection = 'asc' | 'desc';
 
-interface CategoryOverTimeData {
-  year_month: string;
+interface ChartDataPoint {
+  date: Date;
   amount: number;
-  year: string;
-  year_sort?: string;
 }
 
 const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, color, setModalData, currentMonth }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [timeSeriesData, setTimeSeriesData] = React.useState<CategoryOverTimeData[]>([]);
+  const [chartData, setChartData] = React.useState<ChartDataPoint[]>([]);
   const [editingExpense, setEditingExpense] = React.useState<Expense | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
   const [editCategory, setEditCategory] = React.useState<string>('');
@@ -105,45 +103,100 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
   const sortedExpenses = React.useMemo(() => getSortedData(data.data), [data.data, getSortedData]);
 
   React.useEffect(() => {
-    if (data.type) {
-      switch (data.type) {
-        case "Total Expenses":
-          fetch(`/api/expenses_by_month?month=10&groupByYear=false`)
-            .then((response) => response.json())
-            .then((data) => setTimeSeriesData(data))
-            .catch((error) => console.error("Error fetching expense time series data:", error));
-          break;
-        case "Credit Card Expenses":
-          fetch(`/api/expenses_by_month?month=10&groupByYear=false`)
-            .then((response) => response.json())
-            .then((data) => setTimeSeriesData(data))
-            .catch((error) => console.error("Error fetching credit card expense time series data:", error));
-          break;
-        case "Bank Transactions":
-          // Don't fetch time series data for Bank Transactions - no graph needed
-          setTimeSeriesData([]);
-          break;
-        default:
-          if (data.type && data.type.startsWith('Search:')) {
-            setTimeSeriesData([]);
-          } else {
-            fetch(`/api/category_by_month?category=${data.type}&month=10&groupByYear=false`)
-              .then((response) => response.json())
-              .then((data) => setTimeSeriesData(data))
-              .catch((error) => console.error("Error fetching time series data:", error));
-          }
-      }
+    if (data.type === "Bank Transactions" || (data.type && data.type.startsWith('Search:'))) {
+      setChartData([]);
+      return;
     }
-  }, [data.type, data.data]);
 
-  const getFormattedMonths = () =>
-    timeSeriesData.map((data) => {
-      if (!data.year_month) return new Date(parseInt(data.year), 0);
-      const [month, year] = data.year_month.split("-");
-      return new Date(parseInt(year), parseInt(month) - 1);
+    if (!data.data || data.data.length === 0) {
+      setChartData([]);
+      return;
+    }
+
+    const timestamps = data.data.map(e => new Date(e.date).getTime()).filter(t => !isNaN(t));
+    if (timestamps.length === 0) {
+      setChartData([]);
+      return;
+    }
+
+    const minTime = Math.min(...timestamps);
+    const maxTime = Math.max(...timestamps);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const diffDays = Math.ceil((maxTime - minTime) / msPerDay);
+
+    // If range is up to 31 days (inclusive of end date implies we might technically span simple checks, 
+    // but diffDays is usually accurate enough). Data point per day.
+    // If multiple months (implied by > 31 days), per month.
+    const isDaily = diffDays <= 31;
+
+    const aggregated = new Map<string, number>();
+
+    const getKey = (date: Date) => {
+      if (isDaily) {
+        return date.toISOString().split('T')[0]; // YYYY-MM-DD
+      } else {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+      }
+    };
+
+    // Fill gaps
+    const startDate = new Date(minTime);
+    const endDate = new Date(maxTime);
+
+    if (isDaily) {
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+    } else {
+      startDate.setDate(1); startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(1); endDate.setHours(0, 0, 0, 0);
+    }
+
+    // Create a range of keys initialized to 0
+    const current = new Date(startDate);
+    // Add a safety limit to loop to prevent infinite loop if something is wrong with dates
+    let safety = 0;
+    while (current <= endDate && safety < 1000) {
+      aggregated.set(getKey(current), 0);
+      if (isDaily) {
+        current.setDate(current.getDate() + 1);
+      } else {
+        current.setMonth(current.getMonth() + 1);
+      }
+      safety++;
+    }
+
+    // Sum data
+    data.data.forEach(expense => {
+      const d = new Date(expense.date);
+      if (isNaN(d.getTime())) return;
+      const key = getKey(d);
+      // Expenses are usually summed by absolute value for these charts
+      if (aggregated.has(key)) {
+        aggregated.set(key, (aggregated.get(key) || 0) + Math.abs(expense.price));
+      } else {
+        // If data point falls outside the generated range (e.g. late month data vs 1st of month logic), 
+        // for monthly we keyed by YYYY-MM so it should match.
+        // For daily, strict YYYY-MM-DD match.
+        // Just in case, set it.
+        aggregated.set(key, (aggregated.get(key) || 0) + Math.abs(expense.price));
+      }
     });
 
-  const getAmounts = () => timeSeriesData.map((data) => data.amount);
+    // Convert to sorted array
+    const result = Array.from(aggregated.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, amount]) => {
+        const parts = key.split('-').map(Number);
+        // Daily: YYYY-MM-DD, Monthly: YYYY-MM
+        const date = isDaily
+          ? new Date(parts[0], parts[1] - 1, parts[2])
+          : new Date(parts[0], parts[1] - 1);
+        return { date, amount };
+      });
+
+    setChartData(result);
+
+  }, [data.data, data.type]);
 
   const handleEditClick = (expense: Expense) => {
     setEditingExpense(expense);
@@ -423,11 +476,13 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       fullScreen={isMobile}
       PaperProps={{
         sx: {
-          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
+          background: theme.palette.mode === 'dark'
+            ? 'rgba(15, 23, 42, 0.95)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%)',
           backdropFilter: 'blur(20px)',
           borderRadius: isMobile ? 0 : '28px',
           boxShadow: '0 24px 64px rgba(0, 0, 0, 0.15)',
-          border: isMobile ? 'none' : '1px solid rgba(148, 163, 184, 0.2)',
+          border: isMobile ? 'none' : `1px solid ${theme.palette.divider}`,
           margin: isMobile ? 0 : undefined,
         }
       }}
@@ -445,8 +500,8 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             mb: 4,
             p: 3,
             borderRadius: '20px',
-            background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%)',
-            border: '1px solid rgba(148, 163, 184, 0.15)',
+            background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%)',
+            border: `1px solid ${theme.palette.divider}`,
             boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
             backdropFilter: 'blur(10px)'
           }}>
@@ -454,26 +509,28 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
               <LineChart
                 xAxis={[
                   {
-                    data: getFormattedMonths(),
+                    data: chartData.map(d => d.date),
                     valueFormatter: (value) => {
+                      if (!value) return "";
                       return new Intl.DateTimeFormat("en-US", {
-                        year: "numeric",
+                        day: "numeric",
                         month: "short",
+                        year: chartData.length > 31 ? "2-digit" : undefined
                       }).format(value);
                     },
-                    tickLabelStyle: { fill: '#666' },
+                    tickLabelStyle: { fill: theme.palette.text.secondary },
                     scaleType: 'time',
                   },
                 ]}
                 yAxis={[
                   {
-                    tickLabelStyle: { fill: '#666' },
+                    tickLabelStyle: { fill: theme.palette.text.secondary },
                     valueFormatter: (value) => `₪${formatNumber(value)}`,
                   },
                 ]}
                 series={[
                   {
-                    data: getAmounts(),
+                    data: chartData.map(d => d.amount),
                     color: color,
                     area: true,
                     showMark: true,
@@ -519,7 +576,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           mb: 2,
           flexWrap: 'wrap'
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '14px', fontWeight: 600 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>
             <SortIcon sx={{ fontSize: '18px' }} />
             Sort by:
           </Box>
@@ -540,8 +597,8 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                 border: sortField === field ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(148, 163, 184, 0.2)',
                 background: sortField === field
                   ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)'
-                  : 'rgba(255, 255, 255, 0.8)',
-                color: sortField === field ? '#3b82f6' : '#64748b',
+                  : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
+                color: sortField === field ? '#3b82f6' : theme.palette.text.secondary,
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -561,9 +618,9 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         <Box sx={{
           borderRadius: '20px',
           overflow: 'hidden',
-          border: '1px solid rgba(148, 163, 184, 0.15)',
+          border: `1px solid ${theme.palette.divider}`,
           boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
+          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
           backdropFilter: 'blur(10px)'
         }}>
           <Table
@@ -571,13 +628,13 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           >
             <TableHead>
               <TableRow>
-                <TableCell style={{ ...TABLE_HEADER_CELL_STYLE, width: '200px', maxWidth: '200px' }}>Description</TableCell>
-                <TableCell style={TABLE_HEADER_CELL_STYLE}>Category</TableCell>
-                <TableCell align="right" style={TABLE_HEADER_CELL_STYLE}>Amount</TableCell>
-                <TableCell style={TABLE_HEADER_CELL_STYLE}>Installment</TableCell>
-                <TableCell style={TABLE_HEADER_CELL_STYLE}>Card</TableCell>
-                <TableCell style={TABLE_HEADER_CELL_STYLE}>Date</TableCell>
-                <TableCell align="center" style={{ ...TABLE_HEADER_CELL_STYLE, width: '120px' }}>Actions</TableCell>
+                <TableCell style={{ ...getTableHeaderCellStyle(theme), width: '200px', maxWidth: '200px' }}>Description</TableCell>
+                <TableCell style={getTableHeaderCellStyle(theme)}>Category</TableCell>
+                <TableCell align="right" style={getTableHeaderCellStyle(theme)}>Amount</TableCell>
+                <TableCell style={getTableHeaderCellStyle(theme)}>Installment</TableCell>
+                <TableCell style={getTableHeaderCellStyle(theme)}>Card</TableCell>
+                <TableCell style={getTableHeaderCellStyle(theme)}>Date</TableCell>
+                <TableCell align="center" style={{ ...getTableHeaderCellStyle(theme), width: '120px' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -587,16 +644,16 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   onClick={() => handleRowClick(expense)}
                   style={TABLE_ROW_HOVER_STYLE}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = TABLE_ROW_HOVER_BACKGROUND;
+                    e.currentTarget.style.background = getTableRowHoverBackground(theme);
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  <TableCell style={TABLE_BODY_CELL_STYLE}>
+                  <TableCell style={getTableBodyCellStyle(theme)}>
                     {expense.name}
                   </TableCell>
-                  <TableCell style={TABLE_BODY_CELL_STYLE}>
+                  <TableCell style={getTableBodyCellStyle(theme)}>
                     {editingExpense?.identifier === expense.identifier &&
                       editingExpense?.vendor === expense.vendor ? (
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -695,7 +752,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                     )}
                   </TableCell>
                   <TableCell align="right" style={{
-                    ...TABLE_BODY_CELL_STYLE,
+                    ...getTableBodyCellStyle(theme),
                     color: data.type === "Bank Transactions"
                       ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
                       : color,
@@ -773,7 +830,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                       })()
                     )}
                   </TableCell>
-                  <TableCell style={{ ...TABLE_BODY_CELL_STYLE, textAlign: 'center' }}>
+                  <TableCell style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
                     {expense.installments_total && expense.installments_total > 1 ? (
                       <span style={{
                         backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -789,7 +846,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                       <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
                     )}
                   </TableCell>
-                  <TableCell style={{ ...TABLE_BODY_CELL_STYLE, fontSize: '12px' }}>
+                  <TableCell style={{ ...getTableBodyCellStyle(theme), fontSize: '12px' }}>
                     {expense.vendor_nickname || expense.vendor || expense.card6_digits || expense.account_number ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <CardVendorIcon vendor={getCardVendor(expense.account_number)} size={24} />
@@ -821,10 +878,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                       <span style={{ color: '#94a3b8' }}>—</span>
                     )}
                   </TableCell>
-                  <TableCell style={TABLE_BODY_CELL_STYLE}>
+                  <TableCell style={{ ...getTableBodyCellStyle(theme), color: theme.palette.text.secondary }}>
                     {dateUtils.formatDate(expense.date)}
                   </TableCell>
-                  <TableCell align="center" style={TABLE_BODY_CELL_STYLE}>
+                  <TableCell align="center" style={getTableBodyCellStyle(theme)}>
                     {editingExpense?.identifier === expense.identifier &&
                       editingExpense?.vendor === expense.vendor ? (
                       <>

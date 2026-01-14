@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import logger from '../../utils/logger.js';
 
-const SYSTEM_PROMPT = `You are a concise financial assistant for "Clarify" expense tracker.
+const SYSTEM_PROMPT = `You are a concise financial assistant for "Nudlers" expense tracker.
 
 Use the provided screen context to give specific insights. Format amounts with ₪ symbol.
 
@@ -17,10 +17,10 @@ async function handler(req, res) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  
+
   if (!apiKey) {
-    return res.status(500).json({ 
-      error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.' 
+    return res.status(500).json({
+      error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.'
     });
   }
 
@@ -32,16 +32,16 @@ async function handler(req, res) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    
+
     // Build the prompt with context
     let fullPrompt = SYSTEM_PROMPT + "\n\n";
-    
+
     if (context) {
       fullPrompt += "Current screen context:\n";
       fullPrompt += JSON.stringify(context, null, 2);
       fullPrompt += "\n\n";
     }
-    
+
     fullPrompt += "User question: " + message;
 
     // Try fastest models first (flash/lite variants are optimized for speed)
@@ -53,12 +53,12 @@ async function handler(req, res) {
       "gemini-1.5-flash",       // Legacy fast model
       "gemini-pro",             // Legacy fallback
     ];
-    
+
     let lastError = null;
-    
+
     for (const modelName of modelNames) {
       try {
-        const model = genAI.getGenerativeModel({ 
+        const model = genAI.getGenerativeModel({
           model: modelName,
           generationConfig: {
             maxOutputTokens: 500,  // Keep responses concise
@@ -69,7 +69,7 @@ async function handler(req, res) {
         const response = await result.response;
         const text = response.text();
 
-        return res.status(200).json({ 
+        return res.status(200).json({
           response: text,
           success: true,
           model: modelName
@@ -80,34 +80,34 @@ async function handler(req, res) {
         // Continue to next model
       }
     }
-    
+
     // If all models failed, throw the last error
     throw lastError;
 
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Gemini API error');
-    
+
     // Handle specific error types
     if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('API key not valid')) {
-      return res.status(401).json({ 
-        error: 'Invalid Gemini API key. Please check your GEMINI_API_KEY environment variable.' 
-      });
-    }
-    
-    if (error.message?.includes('QUOTA_EXCEEDED')) {
-      return res.status(429).json({ 
-        error: 'API quota exceeded. Please try again later.' 
-      });
-    }
-    
-    if (error.message?.includes('404') || error.message?.includes('not found')) {
-      return res.status(500).json({ 
-        error: 'Model not available. Please check your API key has access to Gemini models.' 
+      return res.status(401).json({
+        error: 'Invalid Gemini API key. Please check your GEMINI_API_KEY environment variable.'
       });
     }
 
-    return res.status(500).json({ 
-      error: `AI service error: ${error.message || 'Unknown error'}. Please try again.` 
+    if (error.message?.includes('QUOTA_EXCEEDED')) {
+      return res.status(429).json({
+        error: 'API quota exceeded. Please try again later.'
+      });
+    }
+
+    if (error.message?.includes('404') || error.message?.includes('not found')) {
+      return res.status(500).json({
+        error: 'Model not available. Please check your API key has access to Gemini models.'
+      });
+    }
+
+    return res.status(500).json({
+      error: `AI service error: ${error.message || 'Unknown error'}. Please try again.`
     });
   }
 }

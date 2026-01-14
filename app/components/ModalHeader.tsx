@@ -5,29 +5,33 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import Box from '@mui/material/Box';
 
+import { useTheme } from '@mui/material/styles';
+
 interface ModalHeaderProps {
   title: React.ReactNode;
   onClose: () => void;
   actions?: React.ReactNode;
+  startAction?: React.ReactNode;
 }
 
-export default function ModalHeader({ title, onClose, actions }: ModalHeaderProps) {
+export default function ModalHeader({ title, onClose, actions, startAction }: ModalHeaderProps) {
+  const theme = useTheme();
   return (
-    <DialogTitle 
-      sx={{ 
-        color: '#1e293b',
+    <DialogTitle
+      sx={{
+        color: theme.palette.text.primary,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: { xs: '16px', sm: '24px 24px 16px', md: '32px 32px 24px' },
-        background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%)',
-        borderBottom: '1px solid rgba(148, 163, 184, 0.15)'
+        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%)',
+        borderBottom: `1px solid ${theme.palette.divider}`
       }}
     >
-      <Typography 
-        variant="h6" 
-        sx={{ 
-          fontWeight: 700, 
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: 700,
           fontSize: { xs: '18px', sm: '20px', md: '24px' },
           letterSpacing: '-0.01em',
           overflow: 'hidden',
@@ -40,12 +44,13 @@ export default function ModalHeader({ title, onClose, actions }: ModalHeaderProp
         {title}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        {startAction}
         {actions}
-        <IconButton 
-          onClick={onClose} 
-          sx={{ 
-            color: '#64748b',
-            background: 'rgba(148, 163, 184, 0.1)',
+        <IconButton
+          onClick={onClose}
+          sx={{
+            color: 'text.secondary',
+            background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.1)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             minWidth: { xs: 40, md: 'auto' },
             minHeight: { xs: 40, md: 'auto' },

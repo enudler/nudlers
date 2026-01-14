@@ -35,7 +35,7 @@ interface CardProps {
 const BurndownChart: React.FC<{ percentUsed: number; isOverBudget: boolean }> = ({ percentUsed, isOverBudget }) => {
   const clampedPercent = Math.min(percentUsed, 100);
   const chartColor = isOverBudget ? '#ef4444' : percentUsed >= 80 ? '#f59e0b' : '#22c55e';
-  
+
   return (
     <div style={{
       width: '100%',
@@ -68,12 +68,12 @@ const BurndownChart: React.FC<{ percentUsed: number; isOverBudget: boolean }> = 
   );
 };
 
-const Card: React.FC<CardProps> = ({ 
-  title, 
-  value, 
-  color, 
-  icon: Icon, 
-  onClick, 
+const Card: React.FC<CardProps> = ({
+  title,
+  value,
+  color,
+  icon: Icon,
+  onClick,
   isLoading = false,
   size = 'medium',
   secondaryValue,
@@ -85,7 +85,7 @@ const Card: React.FC<CardProps> = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   // Responsive sizing
   const padding = isMobile ? '16px' : (size === 'large' ? '32px' : '20px');
   const titleSize = isMobile ? '14px' : (size === 'large' ? '16px' : '20px');
@@ -105,14 +105,25 @@ const Card: React.FC<CardProps> = ({
 
   // Determine background gradient based on budget status  
   const getBackgroundGradient = () => {
-    if (!budget) return 'rgba(255, 255, 255, 0.95)';
+    const isDark = theme.palette.mode === 'dark';
+    if (!budget) {
+      return isDark
+        ? 'linear-gradient(135deg, var(--card-bg) 0%, var(--card-bg-alt) 100%)'
+        : 'rgba(255, 255, 255, 0.95)';
+    }
     if (budget.is_over_budget) {
-      return 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 226, 226, 0.4) 100%)';
+      return isDark
+        ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(127, 29, 29, 0.4) 100%)'
+        : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 226, 226, 0.4) 100%)';
     }
     if (budget.percent_used >= 80) {
-      return 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.3) 100%)';
+      return isDark
+        ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(180, 83, 9, 0.3) 100%)'
+        : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.3) 100%)';
     }
-    return 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(220, 252, 231, 0.3) 100%)';
+    return isDark
+      ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(21, 128, 61, 0.3) 100%)'
+      : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(220, 252, 231, 0.3) 100%)';
   };
 
   const formatCurrency = (amount: number): string => {
@@ -127,13 +138,13 @@ const Card: React.FC<CardProps> = ({
   return (
     <div
       style={{
-        background: budget ? getBackgroundGradient() : 'rgba(255, 255, 255, 0.95)',
+        background: getBackgroundGradient(),
         backdropFilter: 'blur(20px)',
         borderRadius: '28px',
         padding: padding,
         width: '100%',
-        boxShadow: budget?.is_over_budget 
-          ? '0 4px 20px rgba(239, 68, 68, 0.15)' 
+        boxShadow: budget?.is_over_budget
+          ? '0 4px 20px rgba(239, 68, 68, 0.15)'
           : '0 2px 12px rgba(0, 0, 0, 0.04)',
         display: 'flex',
         flexDirection: 'column',
@@ -154,8 +165,8 @@ const Card: React.FC<CardProps> = ({
       onMouseLeave={(e) => {
         if (!isLoading) {
           (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0) scale(1)';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = budget?.is_over_budget 
-            ? '0 4px 20px rgba(239, 68, 68, 0.15)' 
+          (e.currentTarget as HTMLDivElement).style.boxShadow = budget?.is_over_budget
+            ? '0 4px 20px rgba(239, 68, 68, 0.15)'
             : '0 2px 12px rgba(0, 0, 0, 0.04)';
           (e.currentTarget as HTMLDivElement).style.borderColor = getBorderColor();
         }
@@ -168,7 +179,7 @@ const Card: React.FC<CardProps> = ({
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -205,9 +216,9 @@ const Card: React.FC<CardProps> = ({
         gap: '16px'
       }}>
         <div style={{ flex: 1 }}>
-          <h3 style={{ 
+          <h3 style={{
             margin: '0 0 12px 0',
-            color: '#64748b',
+            color: theme.palette.text.secondary,
             fontSize: titleSize,
             fontWeight: size === 'large' ? '600' : '700',
             letterSpacing: size === 'large' ? 'normal' : '-0.01em',
@@ -215,9 +226,9 @@ const Card: React.FC<CardProps> = ({
             textShadow: 'none'
           }}>{title}</h3>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px' }}>
-            <span style={{ 
-              fontSize: valueSize, 
-              fontWeight: size === 'large' ? '800' : '700', 
+            <span style={{
+              fontSize: valueSize,
+              fontWeight: size === 'large' ? '800' : '700',
               color: budget ? (budget.is_over_budget ? '#ef4444' : color) : color,
               letterSpacing: '-0.02em',
               fontFamily: 'Assistant, sans-serif',
@@ -227,18 +238,18 @@ const Card: React.FC<CardProps> = ({
             </span>
             {secondaryValue !== undefined && (
               <>
-                <span style={{ 
-                  fontSize: valueSize, 
-                  fontWeight: size === 'large' ? '700' : '600', 
+                <span style={{
+                  fontSize: valueSize,
+                  fontWeight: size === 'large' ? '700' : '600',
                   color: '#E5E7EB',
                   letterSpacing: '-0.02em',
                   fontFamily: 'Assistant, sans-serif'
                 }}>
                   |
                 </span>
-                <span style={{ 
-                  fontSize: valueSize, 
-                  fontWeight: size === 'large' ? '700' : '600', 
+                <span style={{
+                  fontSize: valueSize,
+                  fontWeight: size === 'large' ? '700' : '600',
                   color: secondaryColor || '#666',
                   letterSpacing: '-0.02em',
                   fontFamily: 'Assistant, sans-serif'
@@ -270,31 +281,31 @@ const Card: React.FC<CardProps> = ({
         <div style={{ marginTop: '16px', position: 'relative', zIndex: 1 }}>
           {/* Burndown Chart */}
           <BurndownChart percentUsed={budget.percent_used} isOverBudget={budget.is_over_budget} />
-          
+
           {/* Budget Info Row */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
             marginTop: '10px',
             fontSize: '12px'
           }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
               gap: '6px'
             }}>
               {/* Budget remaining badge */}
               <span style={{
-                background: budget.is_over_budget 
-                  ? 'rgba(239, 68, 68, 0.15)' 
-                  : budget.percent_used >= 80 
-                    ? 'rgba(245, 158, 11, 0.15)' 
+                background: budget.is_over_budget
+                  ? 'rgba(239, 68, 68, 0.15)'
+                  : budget.percent_used >= 80
+                    ? 'rgba(245, 158, 11, 0.15)'
                     : 'rgba(34, 197, 94, 0.15)',
-                color: budget.is_over_budget 
-                  ? '#dc2626' 
-                  : budget.percent_used >= 80 
-                    ? '#d97706' 
+                color: budget.is_over_budget
+                  ? '#dc2626'
+                  : budget.percent_used >= 80
+                    ? '#d97706'
                     : '#16a34a',
                 padding: '4px 10px',
                 borderRadius: '12px',
@@ -317,11 +328,11 @@ const Card: React.FC<CardProps> = ({
                 )}
               </span>
             </div>
-            
+
             {/* Budget limit with edit button */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ 
-                color: '#94a3b8', 
+              <span style={{
+                color: '#94a3b8',
                 fontSize: '11px',
                 fontWeight: 500
               }}>

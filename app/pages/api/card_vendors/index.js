@@ -1,5 +1,6 @@
 import { getDB } from "../db";
 import logger from '../../../utils/logger.js';
+import fs from 'fs';
 
 export default async function handler(req, res) {
   const client = await getDB();
@@ -83,6 +84,11 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, "Error in card_vendors API");
+    try {
+      fs.writeFileSync('/Users/elinudler/Git/nudlers/app/debug_error.log', JSON.stringify({ error: error.message, stack: error.stack }, null, 2));
+    } catch (e) {
+      console.error("Failed to write log", e);
+    }
     res.status(500).json({ error: "Internal Server Error", details: error.message });
   } finally {
     client.release();

@@ -20,7 +20,7 @@ import {
   ListItemText,
   Chip
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled, useTheme } from '@mui/material/styles';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -42,11 +42,13 @@ interface ImportResult {
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
   '& .MuiDialog-paper': {
-    background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
+    background: theme.palette.mode === 'dark'
+      ? 'linear-gradient(135deg, var(--modal-backdrop) 0%, var(--modal-backdrop-alt) 100%)'
+      : 'linear-gradient(135deg, var(--modal-backdrop) 0%, var(--modal-backdrop-alt) 100%)',
     backdropFilter: 'blur(20px)',
-    border: '1px solid rgba(148, 163, 184, 0.1)',
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: '16px',
-    color: '#fff',
+    color: theme.palette.text.primary,
     minWidth: '500px'
   }
 }));
@@ -54,12 +56,12 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
 const ActionCard = styled(Box)(({ theme }) => ({
   padding: '24px',
   borderRadius: '12px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  background: 'rgba(30, 41, 59, 0.5)',
+  border: '1px solid var(--action-card-border)',
+  background: 'var(--action-card-bg)',
   transition: 'all 0.3s ease',
   '&:hover': {
-    borderColor: 'rgba(96, 165, 250, 0.4)',
-    background: 'rgba(30, 41, 59, 0.8)',
+    borderColor: 'var(--action-card-hover-border)',
+    background: 'var(--action-card-hover-bg)',
   }
 }));
 
@@ -68,6 +70,7 @@ const HiddenInput = styled('input')({
 });
 
 const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose }) => {
+  const theme = useTheme();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importMode, setImportMode] = useState<'replace' | 'merge'>('replace');
@@ -82,19 +85,19 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
 
     try {
       const response = await fetch('/api/database/export');
-      
+
       if (!response.ok) {
         throw new Error('Export failed');
       }
 
       const data = await response.json();
-      
+
       // Create and download the file
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `clarify-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -102,7 +105,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
 
       // Count total rows
       const totalRows = Object.values(data.tables).reduce(
-        (sum: number, table: any) => sum + (table.rowCount || 0), 
+        (sum: number, table: any) => sum + (table.rowCount || 0),
         0
       );
 
@@ -164,7 +167,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
 
       if (importRes.success) {
         const totalImported = Object.values(importRes.imported).reduce(
-          (sum, t) => sum + (t.count || 0), 
+          (sum, t) => sum + (t.count || 0),
           0
         );
         setResult({
@@ -202,27 +205,27 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
 
   return (
     <StyledDialog open={open} onClose={handleClose} maxWidth="md">
-      <DialogTitle sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+      <DialogTitle sx={{
+        display: 'flex',
+        alignItems: 'center',
         gap: 2,
-        borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+        borderBottom: `1px solid ${theme.palette.divider}`,
         pb: 2
       }}>
-        <StorageIcon sx={{ color: '#60a5fa' }} />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+        <StorageIcon sx={{ color: 'var(--status-info)' }} />
+        <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
           Database Backup & Restore
         </Typography>
       </DialogTitle>
 
       <DialogContent sx={{ pt: 3 }}>
         {result && (
-          <Alert 
+          <Alert
             severity={result.type === 'warning' ? 'warning' : result.type}
             sx={{ mb: 3 }}
             icon={
               result.type === 'success' ? <CheckCircleIcon /> :
-              result.type === 'warning' ? <WarningIcon /> : <ErrorIcon />
+                result.type === 'warning' ? <WarningIcon /> : <ErrorIcon />
             }
           >
             {result.message}
@@ -233,12 +236,12 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
           {/* Export Section */}
           <ActionCard>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-              <CloudDownloadIcon sx={{ color: '#22c55e', fontSize: 32 }} />
+              <CloudDownloadIcon sx={{ color: 'var(--status-success)', fontSize: 32 }} />
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>
                   Export Database
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                   Download a complete backup of all your data as a JSON file
                 </Typography>
               </Box>
@@ -249,7 +252,8 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
               onClick={handleExport}
               disabled={exporting || importing}
               sx={{
-                background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                background: 'linear-gradient(135deg, var(--status-success) 0%, #16a34a 100%)',
+                color: '#fff',
                 '&:hover': {
                   background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
                 }
@@ -260,24 +264,24 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
             {exporting && <LinearProgress sx={{ mt: 2 }} />}
           </ActionCard>
 
-          <Divider sx={{ borderColor: 'rgba(148, 163, 184, 0.2)' }} />
+          <Divider sx={{ borderColor: theme.palette.divider }} />
 
           {/* Import Section */}
           <ActionCard>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-              <CloudUploadIcon sx={{ color: '#60a5fa', fontSize: 32 }} />
+              <CloudUploadIcon sx={{ color: 'var(--status-info)', fontSize: 32 }} />
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>
                   Import Database
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                   Restore your data from a previously exported backup file
                 </Typography>
               </Box>
             </Box>
 
             <FormControl component="fieldset" sx={{ mb: 2 }}>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', mb: 1 }}>
+              <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 1 }}>
                 Import Mode:
               </Typography>
               <RadioGroup
@@ -287,11 +291,11 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
               >
                 <FormControlLabel
                   value="replace"
-                  control={<Radio size="small" sx={{ color: 'rgba(255,255,255,0.5)' }} />}
+                  control={<Radio size="small" />}
                   label={
                     <Box>
-                      <Typography variant="body2">Replace All</Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                      <Typography variant="body2" sx={{ color: theme.palette.text.primary }}>Replace All</Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                         Clear existing data and import backup
                       </Typography>
                     </Box>
@@ -300,11 +304,11 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
                 />
                 <FormControlLabel
                   value="merge"
-                  control={<Radio size="small" sx={{ color: 'rgba(255,255,255,0.5)' }} />}
+                  control={<Radio size="small" />}
                   label={
                     <Box>
-                      <Typography variant="body2">Merge</Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                      <Typography variant="body2" sx={{ color: theme.palette.text.primary }}>Merge</Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                         Add new records, keep existing
                       </Typography>
                     </Box>
@@ -331,11 +335,11 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importing}
                 sx={{
-                  borderColor: 'rgba(96, 165, 250, 0.5)',
-                  color: '#60a5fa',
+                  borderColor: 'var(--status-info)',
+                  color: 'var(--status-info)',
                   '&:hover': {
-                    borderColor: '#60a5fa',
-                    backgroundColor: 'rgba(96, 165, 250, 0.1)'
+                    borderColor: 'var(--status-info)',
+                    backgroundColor: 'var(--chip-background)'
                   }
                 }}
               >
@@ -348,9 +352,10 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
                     setSelectedFile(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
-                  sx={{ 
-                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
-                    color: '#60a5fa'
+                  sx={{
+                    backgroundColor: 'var(--chip-background)',
+                    color: 'var(--status-info)',
+                    border: `1px solid var(--chip-border)`
                   }}
                 />
               )}
@@ -363,13 +368,10 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
               disabled={!selectedFile || importing || exporting}
               sx={{
                 mt: 2,
-                background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                background: 'linear-gradient(135deg, var(--status-info) 0%, #3b82f6 100%)',
+                color: '#fff',
                 '&:hover': {
                   background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                },
-                '&:disabled': {
-                  background: 'rgba(96, 165, 250, 0.3)',
-                  color: 'rgba(255,255,255,0.3)'
                 }
               }}
             >
@@ -380,13 +382,13 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
 
           {/* Import Results */}
           {importResult && (
-            <Box sx={{ 
-              p: 2, 
-              borderRadius: '12px', 
-              backgroundColor: 'rgba(30, 41, 59, 0.5)',
-              border: '1px solid rgba(148, 163, 184, 0.2)'
+            <Box sx={{
+              p: 2,
+              borderRadius: '12px',
+              backgroundColor: 'var(--action-card-bg)',
+              border: `1px solid var(--action-card-border)`
             }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1, color: theme.palette.text.primary }}>
                 <TableChartIcon fontSize="small" />
                 Import Results:
               </Typography>
@@ -395,19 +397,19 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
                   <ListItem key={table} sx={{ py: 0.5 }}>
                     <ListItemIcon sx={{ minWidth: 32 }}>
                       {info.skipped ? (
-                        <WarningIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: 18 }} />
+                        <WarningIcon sx={{ color: theme.palette.text.disabled, fontSize: 18 }} />
                       ) : (
-                        <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 18 }} />
+                        <CheckCircleIcon sx={{ color: 'var(--status-success)', fontSize: 18 }} />
                       )}
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                        <Typography variant="body2" sx={{ color: theme.palette.text.primary }}>
                           {table}
                         </Typography>
                       }
                       secondary={
-                        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                           {info.skipped ? 'No data' : `${info.count} records`}
                         </Typography>
                       }
@@ -417,11 +419,11 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
               </List>
               {importResult.errors.length > 0 && (
                 <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#ef4444', mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ color: 'var(--status-error)', mb: 1 }}>
                     Errors:
                   </Typography>
                   {importResult.errors.map((err, idx) => (
-                    <Typography key={idx} variant="caption" sx={{ color: 'rgba(239, 68, 68, 0.8)', display: 'block' }}>
+                    <Typography key={idx} variant="caption" sx={{ color: 'var(--error-text)', display: 'block' }}>
                       {err.table}: {err.error}
                     </Typography>
                   ))}
@@ -432,13 +434,13 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ 
-        borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+      <DialogActions sx={{
+        borderTop: `1px solid ${theme.palette.divider}`,
         p: 2
       }}>
-        <Button 
+        <Button
           onClick={handleClose}
-          sx={{ color: 'rgba(255,255,255,0.7)' }}
+          sx={{ color: theme.palette.text.secondary }}
         >
           Close
         </Button>

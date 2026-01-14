@@ -315,6 +315,47 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_transaction_categories_description ON transaction_categories(description);
       CREATE INDEX IF NOT EXISTS idx_transaction_categories_category ON transaction_categories(category);
     `
+  },
+  {
+    name: 'add_update_categories_on_rescrape_setting',
+    sql: `
+      INSERT INTO app_settings (key, value, description)
+      VALUES ('update_category_on_rescrape', 'false', 'Update transaction categories if bank provides new ones during re-scrape')
+      ON CONFLICT (key) DO NOTHING;
+    `
+  },
+  {
+    name: 'add_scrape_retries_setting',
+    sql: `
+      INSERT INTO app_settings (key, value, description)
+      VALUES ('scrape_retries', '3', 'Number of times to retry scraping on failure')
+      ON CONFLICT (key) DO NOTHING;
+    `
+  },
+  {
+    name: 'add_report_json_to_scrape_events',
+    sql: `
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                       WHERE table_name = 'scrape_events' AND column_name = 'report_json') THEN
+          ALTER TABLE scrape_events ADD COLUMN report_json JSONB;
+        END IF;
+      END $$;
+    `
+  },
+  {
+    name: 'add_source_columns_to_transactions',
+    sql: `
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                       WHERE table_name = 'transactions' AND column_name = 'category_source') THEN
+          ALTER TABLE transactions ADD COLUMN category_source VARCHAR(50);
+          ALTER TABLE transactions ADD COLUMN rule_matched VARCHAR(255);
+        END IF;
+      END $$;
+    `
   }
 ];
 

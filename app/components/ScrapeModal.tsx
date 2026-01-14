@@ -14,12 +14,15 @@ import Box from '@mui/material/Box';
 import LinearProgress from '@mui/material/LinearProgress';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
+import Fade from '@mui/material/Fade';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
+import { useTheme } from '@mui/material/styles';
 import { BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
+import ScrapeReport from './ScrapeReport';
 
 interface ScraperConfig {
   options: {
@@ -70,9 +73,14 @@ interface ScrapeResult {
   bankTransactions: number;
   rulesApplied: number;
   transactionsCategorized: number;
+  savedTransactions?: number;
+  duplicateTransactions?: number;
+  updatedTransactions?: number;
+  cachedCategories?: number;
 }
 
 export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig }: ScrapeModalProps) {
+  const theme = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
@@ -101,6 +109,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     }
   };
   const [config, setConfig] = useState<ScraperConfig>(initialConfig || defaultConfig);
+  const [sessionReport, setSessionReport] = useState<any[]>([]);
 
   useEffect(() => {
     if (initialConfig) {
@@ -116,6 +125,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       setProgress(null);
       setScrapeResult(null);
       setRetryState(null);
+      setSessionReport([]);
       // Abort any ongoing scrape when modal closes
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -192,6 +202,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     setError(null);
     setProgress({ step: 'init', message: 'Starting...', percent: 0 });
     setScrapeResult(null);
+    setSessionReport([]);
+    setStepHistory([]);
 
     // Create abort controller for this scrape
     abortControllerRef.current = new AbortController();
@@ -273,6 +285,11 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                 percent: 100
               });
               setScrapeResult(data.summary);
+              if (data.summary && data.summary.processedTransactions) {
+                setSessionReport(data.summary.processedTransactions);
+              } else {
+                setSessionReport([]);
+              }
               showNotification('Scraping completed successfully!', 'success');
             } else if (currentEvent === 'error') {
               const errorWithHint = data.hint ? `${data.message}\n\n💡 Hint: ${data.hint}` : data.message;
@@ -539,134 +556,119 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     return phases[phase || ''] || 'Processing';
   };
 
-  const renderProgress = () => (
-    <Box sx={{ width: '100%', mt: 2 }}>
-      {/* Current Step */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        {progress?.step === 'complete' ? (
-          <CheckCircleIcon sx={{ color: '#22c55e', mr: 1 }} />
-        ) : progress?.success === false ? (
-          <ErrorIcon sx={{ color: '#ef4444', mr: 1 }} />
-        ) : progress?.success === true ? (
-          <CheckCircleIcon sx={{ color: '#22c55e', mr: 1, fontSize: 20 }} />
-        ) : error ? (
-          <ErrorIcon sx={{ color: '#ef4444', mr: 1 }} />
-        ) : (
-          <Box
-            sx={{
-              width: 20,
-              height: 20,
-              mr: 1,
-              border: '2px solid #3b82f6',
-              borderTopColor: 'transparent',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              '@keyframes spin': {
-                '0%': { transform: 'rotate(0deg)' },
-                '100%': { transform: 'rotate(360deg)' }
-              }
-            }}
-          />
-        )}
-        <Box sx={{ flex: 1 }}>
-          {progress?.phase && (
-            <Typography variant="caption" sx={{ color: '#6b7280', display: 'block', mb: 0.5 }}>
-              {getPhaseLabel(progress.phase)}
-            </Typography>
+  const renderProgress = () => {
+    return (
+      <Box sx={{ width: '100%', mt: 2 }}>
+        {/* Current Step */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          {progress?.step === 'complete' ? (
+            <CheckCircleIcon sx={{ color: '#22c55e', mr: 1 }} />
+          ) : progress?.success === false ? (
+            <ErrorIcon sx={{ color: '#ef4444', mr: 1 }} />
+          ) : progress?.success === true ? (
+            <CheckCircleIcon sx={{ color: '#22c55e', mr: 1, fontSize: 20 }} />
+          ) : error ? (
+            <ErrorIcon sx={{ color: '#ef4444', mr: 1 }} />
+          ) : (
+            <Box
+              sx={{
+                width: 20,
+                height: 20,
+                mr: 1,
+                border: '2px solid #3b82f6',
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
+              }}
+            />
           )}
-          <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
-            {progress?.message || 'Processing...'}
-          </Typography>
-        </Box>
-      </Box>
-
-      <LinearProgress
-        variant="determinate"
-        value={progress?.percent || 0}
-        sx={{
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: '#e5e7eb',
-          mb: 1,
-          '& .MuiLinearProgress-bar': {
-            borderRadius: 4,
-            backgroundColor: progress?.step === 'complete' ? '#22c55e' : progress?.success === false ? '#ef4444' : '#3b82f6',
-            transition: 'transform 0.3s ease'
-          }
-        }}
-      />
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: stepHistory.length > 0 ? 2 : 0 }}>
-        <Typography variant="body2" sx={{ color: '#6b7280' }}>
-          {progress?.percent || 0}%
-        </Typography>
-        {progress?.phase && (
-          <Typography variant="caption" sx={{ color: '#9ca3af' }}>
-            Step {stepHistory.length + 1}
-          </Typography>
-        )}
-      </Box>
-
-      {/* Step History */}
-      {stepHistory.length > 0 && (
-        <Box sx={{
-          mt: 2,
-          p: 2,
-          backgroundColor: '#f9fafb',
-          borderRadius: 2,
-          border: '1px solid #e5e7eb',
-          maxHeight: 200,
-          overflowY: 'auto'
-        }}>
-          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, display: 'block', mb: 1 }}>
-            Completed Steps:
-          </Typography>
-          {stepHistory.map((step, idx) => (
-            <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-              {step.success === true ? (
-                <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 16, mr: 1 }} />
-              ) : step.success === false ? (
-                <ErrorIcon sx={{ color: '#ef4444', fontSize: 16, mr: 1 }} />
-              ) : (
-                <Box sx={{ width: 16, height: 16, mr: 1 }} />
-              )}
-              <Typography variant="body2" sx={{ color: '#374151', fontSize: '0.75rem' }}>
-                {step.message.replace(/^[✓✗⏭]\s*/, '')}
+          <Box sx={{ flex: 1 }}>
+            {progress?.phase && (
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
+                {getPhaseLabel(progress.phase)}
               </Typography>
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {scrapeResult && (
-        <Box sx={{
-          mt: 3,
-          p: 2,
-          backgroundColor: '#f0fdf4',
-          borderRadius: 2,
-          border: '1px solid #bbf7d0'
-        }}>
-          <Typography variant="subtitle2" sx={{ color: '#15803d', fontWeight: 600, mb: 1 }}>
-            Scrape Summary
-          </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-            <Typography variant="body2" sx={{ color: '#166534' }}>
-              Accounts: <strong>{scrapeResult.accounts}</strong>
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#166534' }}>
-              Transactions: <strong>{scrapeResult.transactions}</strong>
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#166534' }}>
-              Rules Applied: <strong>{scrapeResult.rulesApplied}</strong>
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#166534' }}>
-              Auto-categorized: <strong>{scrapeResult.transactionsCategorized}</strong>
+            )}
+            <Typography variant="body1" sx={{ fontWeight: 500, color: theme.palette.text.primary }}>
+              {progress?.message || 'Processing...'}
             </Typography>
           </Box>
         </Box>
-      )}
-    </Box>
-  );
+
+        <LinearProgress
+          variant="determinate"
+          value={progress?.percent || 0}
+          sx={{
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e5e7eb',
+            mb: 1,
+            '& .MuiLinearProgress-bar': {
+              borderRadius: 4,
+              backgroundColor: progress?.step === 'complete' ? '#22c55e' : progress?.success === false ? '#ef4444' : '#3b82f6',
+              transition: 'transform 0.3s ease'
+            }
+          }}
+        />
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: stepHistory.length > 0 ? 2 : 0 }}>
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+            {Math.round(progress?.percent || 0)}%
+          </Typography>
+          {progress?.phase && (
+            <Typography variant="caption" sx={{ color: theme.palette.text.disabled }}>
+              Step {stepHistory.length + 1}
+            </Typography>
+          )}
+        </Box>
+
+        {/* Step History (Collapsible or scrollable) */}
+        {stepHistory.length > 0 && !scrapeResult && (
+          <Box sx={{
+            mt: 2,
+            p: 2,
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : '#f9fafb',
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            maxHeight: 150,
+            overflowY: 'auto'
+          }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600, display: 'block', mb: 1 }}>
+              Running Log:
+            </Typography>
+            {stepHistory.slice().reverse().map((step, idx) => (
+              <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                {step.success === true ? (
+                  <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 16, mr: 1 }} />
+                ) : step.success === false ? (
+                  <ErrorIcon sx={{ color: '#ef4444', fontSize: 16, mr: 1 }} />
+                ) : (
+                  <Box sx={{ width: 16, height: 16, mr: 1 }} />
+                )}
+                <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontSize: '0.75rem' }}>
+                  {step.message.replace(/^[✓✗⏭]\s*/, '')}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {scrapeResult && (
+          <Fade in={true}>
+            <Box sx={{ mt: 3 }}>
+              <ScrapeReport
+                report={sessionReport}
+                summary={scrapeResult}
+              />
+            </Box>
+          </Fade>
+        )}
+      </Box>
+    );
+  };
 
   return (
     <Dialog
@@ -676,9 +678,11 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       fullWidth
       PaperProps={{
         style: {
-          backgroundColor: '#ffffff',
+          background: 'var(--modal-backdrop)',
+          backdropFilter: 'blur(20px)',
           borderRadius: '24px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          border: `1px solid ${theme.palette.divider}`
         }
       }}
     >
@@ -686,9 +690,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       <DialogContent style={{ padding: '0 24px 24px' }}>
         {error && (
           <div style={{
-            backgroundColor: '#fee2e2',
-            border: '1px solid #fecaca',
-            color: '#dc2626',
+            backgroundColor: 'var(--error-bg)',
+            border: `1px solid var(--error-border)`,
+            color: 'var(--error-text)',
             padding: '16px',
             borderRadius: '8px',
             marginBottom: '16px'
@@ -699,7 +703,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
 
             {retryState?.canRetry && (
               <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="body2" sx={{ color: '#991b1b', mb: 1 }}>
+                <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#b91c1c' : '#991b1b', mb: 1 }}>
                   Would you like to retry?
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -708,10 +712,10 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                     variant="outlined"
                     onClick={() => handleRetry(false)}
                     sx={{
-                      borderColor: '#dc2626',
-                      color: '#dc2626',
+                      borderColor: 'var(--status-error)',
+                      color: 'var(--status-error)',
                       '&:hover': {
-                        borderColor: '#b91c1c',
+                        borderColor: 'var(--status-error)',
                         backgroundColor: 'rgba(220, 38, 38, 0.05)'
                       }
                     }}
@@ -725,7 +729,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                       variant="contained"
                       onClick={() => handleRetry(true)}
                       sx={{
-                        backgroundColor: '#22c55e',
+                        backgroundColor: 'var(--status-success)',
                         '&:hover': {
                           backgroundColor: '#16a34a'
                         }
@@ -748,7 +752,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
         {isLoading || scrapeResult ? (
           // Show progress view when scraping or after completion
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <Typography variant="body2" sx={{ color: '#6b7280' }}>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
               Scraping <strong>{config.options.companyId}</strong>
               {config.credentials.nickname && ` (${config.credentials.nickname})`}
             </Typography>
@@ -756,23 +760,23 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             {config.options.showBrowser && isLoading && (
               <Box sx={{
                 p: 2,
-                backgroundColor: '#dbeafe',
+                backgroundColor: 'var(--info-bg)',
                 borderRadius: 2,
-                border: '1px solid #93c5fd',
+                border: `1px solid var(--info-border)`,
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: 1.5
               }}>
-                <BugReportIcon sx={{ color: '#2563eb', mt: 0.3 }} />
+                <BugReportIcon sx={{ color: 'var(--status-info)', mt: 0.3 }} />
                 <Box>
-                  <Typography variant="subtitle2" sx={{ color: '#1e40af', fontWeight: 600 }}>
+                  <Typography variant="subtitle2" sx={{ color: 'var(--info-text)', fontWeight: 600 }}>
                     Debug Mode Active
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#1d4ed8', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: 'var(--info-text)', mt: 0.5 }}>
                     A browser window should have opened. You can interact with it to complete 2FA or debug issues.
                   </Typography>
                   <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <Typography variant="caption" sx={{ color: '#3b82f6' }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#3b82f6' }}>
                       <strong>🖥️ Local:</strong> Look for a Chrome window on your desktop
                     </Typography>
                     <Typography variant="caption" sx={{ color: '#3b82f6' }}>
@@ -823,12 +827,12 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           </Button>
         ) : retryState?.canRetry ? (
           // Show only close button when in retry mode (retry options are in the error box)
-          <Button onClick={handleClose} style={{ color: '#666' }}>
+          <Button onClick={handleClose} style={{ color: theme.palette.text.secondary }}>
             Close
           </Button>
         ) : (
           <>
-            <Button onClick={handleClose} style={{ color: '#666' }}>
+            <Button onClick={handleClose} style={{ color: theme.palette.text.secondary }}>
               {isLoading ? 'Cancel Scrape' : 'Cancel'}
             </Button>
             {!isLoading && (
@@ -853,4 +857,4 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       </DialogActions>
     </Dialog>
   );
-} 
+}
