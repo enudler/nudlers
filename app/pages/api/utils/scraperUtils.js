@@ -264,7 +264,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   let category = lookupCachedCategory(description);
 
   // If not found in cache, try rules
-  if (!category && categorizationRules && categorizationRules.length > 0) {
+  if ((!category || category === 'N/A') && categorizationRules && categorizationRules.length > 0) {
     category = matchCategoryRule(description, categorizationRules);
     if (category) {
       logger.debug({ description, category }, '[Scraper] Matched category from rules');
