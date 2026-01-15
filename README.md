@@ -293,9 +293,7 @@ Open http://localhost:3000
 
 ### Option 2: NAS / Server Deployment (Pre-built Image)
 
-For NAS or server deployment, use the pre-built Docker image. Available from two registries:
-
-#### Using GitHub Container Registry (GHCR)
+For NAS or server deployment, use the pre-built Docker image from GitHub Container Registry:
 
 ```bash
 # Create a directory for the deployment
@@ -313,33 +311,10 @@ cp .env_example .env
 docker-compose -f docker-compose.prod.yaml up -d
 ```
 
-#### Using DockerHub
-
-```bash
-# Create a directory for the deployment
-mkdir nudlers && cd nudlers
-
-# Download the DockerHub docker-compose and env template
-curl -O https://raw.githubusercontent.com/enudler/nudlers/main/docker-compose.dockerhub.yaml
-curl -O https://raw.githubusercontent.com/enudler/nudlers/main/.env_example
-
-# Configure environment variables
-cp .env_example .env
-# Edit .env with your values (REQUIRED: NUDLERS_DB_PASSWORD, NUDLERS_ENCRYPTION_KEY)
-
-# Start the application
-docker-compose -f docker-compose.dockerhub.yaml up -d
-```
-
 **To update to the latest version:**
 ```bash
-# For GHCR
 docker-compose -f docker-compose.prod.yaml pull
 docker-compose -f docker-compose.prod.yaml up -d
-
-# For DockerHub
-docker-compose -f docker-compose.dockerhub.yaml pull
-docker-compose -f docker-compose.dockerhub.yaml up -d
 ```
 
 The database schema is automatically created and migrated on app startup - no manual initialization required!
