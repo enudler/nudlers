@@ -44,6 +44,13 @@ interface Settings {
   update_category_on_rescrape: boolean;
   scrape_retries: number;
   gemini_api_key: string;
+  gemini_model: string;
+  whatsapp_enabled: boolean;
+  whatsapp_hour: number;
+  whatsapp_twilio_sid: string;
+  whatsapp_twilio_auth_token: string;
+  whatsapp_twilio_from: string;
+  whatsapp_to: string;
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -115,7 +122,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     fallback_no_category_on_error: false,
     update_category_on_rescrape: false,
     scrape_retries: 3,
-    gemini_api_key: ''
+    gemini_api_key: '',
+    gemini_model: 'gemini-2.5-flash',
+    whatsapp_enabled: false,
+    whatsapp_hour: 8,
+    whatsapp_twilio_sid: '',
+    whatsapp_twilio_auth_token: '',
+    whatsapp_twilio_from: '',
+    whatsapp_to: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -144,7 +158,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           fallback_no_category_on_error: parseBool(data.settings.fallback_no_category_on_error),
           update_category_on_rescrape: parseBool(data.settings.update_category_on_rescrape),
           scrape_retries: parseInt(data.settings.scrape_retries) || 3,
-          gemini_api_key: (data.settings.gemini_api_key || '').replace(/"/g, '')
+          gemini_api_key: (data.settings.gemini_api_key || '').replace(/"/g, ''),
+          gemini_model: (data.settings.gemini_model || 'gemini-2.5-flash').replace(/"/g, ''),
+          whatsapp_enabled: parseBool(data.settings.whatsapp_enabled),
+          whatsapp_hour: parseInt(data.settings.whatsapp_hour) || 8,
+          whatsapp_twilio_sid: (data.settings.whatsapp_twilio_sid || '').replace(/"/g, ''),
+          whatsapp_twilio_auth_token: (data.settings.whatsapp_twilio_auth_token || '').replace(/"/g, ''),
+          whatsapp_twilio_from: (data.settings.whatsapp_twilio_from || '').replace(/"/g, ''),
+          whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, '')
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -533,6 +554,139 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   value={settings.gemini_api_key}
                   onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value })}
                   placeholder={settings.gemini_api_key ? '••••••••••••••••' : 'Enter API Key'}
+                  size="small"
+                  sx={{ width: '250px' }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1">Gemini Model</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    AI model to use for chat and summaries
+                  </Typography>
+                </Box>
+                <Select
+                  value={settings.gemini_model}
+                  onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value })}
+                  size="small"
+                  sx={{ width: 250, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                >
+                  <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</MenuItem>
+                  <MenuItem value="gemini-3-flash-preview">Gemini 3 Flash (Limited)</MenuItem>
+                  <MenuItem value="gemini-3-pro-preview">Gemini 3 Pro (Limited)</MenuItem>
+                </Select>
+              </SettingRow>
+            </SettingSection>
+
+            {/* WhatsApp Daily Summary */}
+            <SettingSection>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <AutoAwesomeIcon sx={{ color: '#10b981' }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  WhatsApp Daily Summary
+                </Typography>
+              </Box>
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Enable Daily Summary</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Send a daily financial summary via WhatsApp
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.whatsapp_enabled}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_enabled: e.target.checked })}
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#10b981',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#10b981',
+                    },
+                  }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Send at Hour</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Hour of the day to send summary (0-23)
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="number"
+                  value={settings.whatsapp_hour}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_hour: parseInt(e.target.value) || 8 })}
+                  size="small"
+                  sx={{ width: '100px' }}
+                  inputProps={{ min: 0, max: 23 }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1">Twilio Account SID</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Your Twilio Account SID
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="password"
+                  value={settings.whatsapp_twilio_sid}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_sid: e.target.value })}
+                  placeholder={settings.whatsapp_twilio_sid ? '••••••••••••••••' : 'Enter SID'}
+                  size="small"
+                  sx={{ width: '250px' }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1">Twilio Auth Token</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Your Twilio Auth Token
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="password"
+                  value={settings.whatsapp_twilio_auth_token}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_auth_token: e.target.value })}
+                  placeholder={settings.whatsapp_twilio_auth_token ? '••••••••••••••••' : 'Enter Token'}
+                  size="small"
+                  sx={{ width: '250px' }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1">From Number</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Twilio WhatsApp number (e.g., whatsapp:+14155238886)
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  value={settings.whatsapp_twilio_from}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_from: e.target.value })}
+                  placeholder="whatsapp:+14155238886"
+                  size="small"
+                  sx={{ width: '250px' }}
+                />
+              </SettingRow>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1">To Number</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Your WhatsApp number (e.g., whatsapp:+972501234567)
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  value={settings.whatsapp_to}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_to: e.target.value })}
+                  placeholder="whatsapp:+972501234567"
                   size="small"
                   sx={{ width: '250px' }}
                 />

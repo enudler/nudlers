@@ -1,9 +1,8 @@
 
-import logger from './utils/logger.js';
-
 export async function register() {
   // Only run migrations on server startup (not during build or in edge runtime)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const logger = (await import('./utils/logger.js')).default;
     // Intercept Next.js request logs and redirect through our JSON logger
     const originalStdoutWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = (chunk: any, encoding?: any, callback?: any) => {
@@ -95,6 +94,121 @@ export async function register() {
       }
     } catch (error: any) {
       logger.warn({ error: error.message }, '[startup] Scraper version enforcement skipped (DB might not be ready or error)');
+    }
+
+    // Initialize WhatsApp daily summary cron job
+    try {
+      logger.info('[startup] Initializing WhatsApp daily summary cron job');
+      const cron = await import('node-cron');
+
+      // Run every minute to check if we should send the daily summary
+      cron.default.schedule('* * * * *', async () => {
+        try {
+          const { getDB } = await import('./pages/api/db');
+          const client = await getDB();
+
+          try {
+            // Get WhatsApp settings
+            const settingsResult = await client.query(
+              `SELECT key, value FROM app_settings 
+               WHERE key IN ('whatsapp_enabled', 'whatsapp_hour', 'whatsapp_last_sent_date',
+                             'whatsapp_twilio_sid', 'whatsapp_twilio_auth_token', 
+                             'whatsapp_twilio_from', 'whatsapp_to')`
+            );
+
+            const settings: Record<string, any> = {};
+            for (const row of settingsResult.rows) {
+              settings[row.key] = row.value;
+            }
+
+            // Check if enabled
+            if (settings.whatsapp_enabled !== true && settings.whatsapp_enabled !== 'true') {
+              return;
+            }
+
+            // Check if we're at the right hour
+            const now = new Date();
+            const currentHour = now.getHours();
+            const targetHour = parseInt(settings.whatsapp_hour || '8', 10);
+
+            if (currentHour !== targetHour) {
+              return;
+            }
+
+            // Check if we already sent today
+            const today = now.toISOString().split('T')[0];
+            const lastSentDate = typeof settings.whatsapp_last_sent_date === 'string'
+              ? settings.whatsapp_last_sent_date.replace(/"/g, '')
+              : '';
+
+            if (lastSentDate === today) {
+              return;
+            }
+
+            logger.info('[whatsapp-cron] Sending daily summary');
+
+            // Generate summary
+            const { generateDailySummary } = await import('./utils/summary.js');
+            const summary = await generateDailySummary();
+
+            // Send WhatsApp message
+            const { sendWhatsAppMessage } = await import('./utils/whatsapp.js');
+            const sid = typeof settings.whatsapp_twilio_sid === 'string'
+              ? settings.whatsapp_twilio_sid.replace(/"/g, '')
+              : settings.whatsapp_twilio_sid;
+            const authToken = typeof settings.whatsapp_twilio_auth_token === 'string'
+              ? settings.whatsapp_twilio_auth_token.replace(/"/g, '')
+              : settings.whatsapp_twilio_auth_token;
+            const from = typeof settings.whatsapp_twilio_from === 'string'
+              ? settings.whatsapp_twilio_from.replace(/"/g, '')
+              : settings.whatsapp_twilio_from;
+            const to = typeof settings.whatsapp_to === 'string'
+              ? settings.whatsapp_to.replace(/"/g, '')
+              : settings.whatsapp_to;
+
+            await sendWhatsAppMessage({
+              sid,
+              authToken,
+              from,
+              to,
+              body: summary
+            });
+
+            // Update last sent date
+            await client.query(
+              `UPDATE app_settings SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = 'whatsapp_last_sent_date'`,
+              [JSON.stringify(today)]
+            );
+
+            // Log to audit (scrape_events table)
+            await client.query(
+              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
+               VALUES ($1, $2, $3, $4, $5)`,
+              ['whatsapp_cron', 'whatsapp_summary', today, 'success', 'Daily WhatsApp summary sent']
+            );
+
+            logger.info('[whatsapp-cron] Daily summary sent successfully');
+          } catch (error: any) {
+            logger.error({ error: error.message, stack: error.stack }, '[whatsapp-cron] Error sending daily summary');
+
+            // Log failure to audit
+            const today = new Date().toISOString().split('T')[0];
+            await client.query(
+              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
+               VALUES ($1, $2, $3, $4, $5)`,
+              ['whatsapp_cron', 'whatsapp_summary', today, 'failed', error.message]
+            ).catch(() => { }); // Ignore if this fails
+          } finally {
+            client.release();
+          }
+        } catch (error: any) {
+          logger.error({ error: error.message }, '[whatsapp-cron] Failed to execute cron job');
+        }
+      });
+
+      logger.info('[startup] WhatsApp cron job initialized');
+    } catch (error: any) {
+      logger.warn({ error: error.message }, '[startup] WhatsApp cron job initialization failed');
     }
   }
 }

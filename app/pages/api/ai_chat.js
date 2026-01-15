@@ -18,29 +18,27 @@ async function handler(req, res) {
   }
 
   const client = await getDB();
-  let apiKey = '';
 
   try {
+    // Get Gemini settings
     const settingsResult = await client.query(
-      'SELECT value FROM app_settings WHERE key = $1',
-      ['gemini_api_key']
+      'SELECT key, value FROM app_settings WHERE key IN ($1, $2)',
+      ['gemini_api_key', 'gemini_model']
     );
 
-    if (settingsResult.rows.length > 0) {
-      const rawValue = settingsResult.rows[0].value;
-      // JSONB values are already parsed by the pg driver
-      apiKey = typeof rawValue === 'string' ? rawValue : rawValue;
+    const settings = {};
+    for (const row of settingsResult.rows) {
+      settings[row.key] = typeof row.value === 'string' ? row.value.replace(/"/g, '') : row.value;
     }
 
-    if (!apiKey) {
-      apiKey = process.env.GEMINI_API_KEY;
-    }
-
+    let apiKey = settings.gemini_api_key || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({
         error: 'Gemini API key not configured. Please add it in App Settings.'
       });
     }
+
+    const modelName = settings.gemini_model || 'gemini-2.5-flash';
 
     const { message, context } = req.body;
 
@@ -61,50 +59,34 @@ async function handler(req, res) {
 
     fullPrompt += "User question: " + message;
 
-    // AI Models to try (ordered by preference)
-    const modelNames = [
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-flash",
-      "gemini-1.5-pro"
-    ];
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          maxOutputTokens: 500,
+          temperature: 0.7,
+        }
+      });
+      const result = await model.generateContent(fullPrompt);
+      const response = await result.response;
+      const text = response.text();
 
-    let lastError = null;
-
-    for (const modelName of modelNames) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: {
-            maxOutputTokens: 500,  // Keep responses concise
-            temperature: 0.7,      // Balance creativity and consistency
-          }
-        });
-        const result = await model.generateContent(fullPrompt);
-        const response = await result.response;
-        const text = response.text();
-
-        return res.status(200).json({
-          response: text,
-          success: true,
-          model: modelName
-        });
-      } catch (modelError) {
-        logger.warn({ modelName, error: modelError.message }, 'Model failed');
-        lastError = modelError;
-        // Continue to next model
-      }
+      return res.status(200).json({
+        response: text,
+        success: true,
+        model: modelName
+      });
+    } catch (modelError) {
+      logger.error({ modelName, error: modelError.message }, 'Model failed');
+      throw modelError;
     }
-
-    // If all models failed, throw the last error
-    throw lastError;
 
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Gemini API error');
 
-    // Handle specific error types
     if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('API key not valid')) {
       return res.status(401).json({
-        error: 'Invalid Gemini API key. Please check your GEMINI_API_KEY environment variable.'
+        error: 'Invalid Gemini API key. Please check your settings.'
       });
     }
 
@@ -123,6 +105,8 @@ async function handler(req, res) {
     return res.status(500).json({
       error: `AI service error: ${error.message || 'Unknown error'}. Please try again.`
     });
+  } finally {
+    client.release();
   }
 }
 

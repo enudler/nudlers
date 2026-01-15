@@ -391,6 +391,28 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
       CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
     `
+  },
+  {
+    name: 'add_whatsapp_settings',
+    sql: `
+      INSERT INTO app_settings (key, value, description) VALUES
+        ('whatsapp_enabled', 'false', 'Enable daily WhatsApp summary'),
+        ('whatsapp_hour', '8', 'Hour of the day to send WhatsApp summary (0-23)'),
+        ('whatsapp_twilio_sid', '""', 'Twilio Account SID'),
+        ('whatsapp_twilio_auth_token', '""', 'Twilio Auth Token'),
+        ('whatsapp_twilio_from', '""', 'Twilio WhatsApp "From" number'),
+        ('whatsapp_to', '""', 'Destination WhatsApp number'),
+        ('whatsapp_last_sent_date', '""', 'Date of last sent WhatsApp summary')
+      ON CONFLICT (key) DO NOTHING;
+    `
+  },
+  {
+    name: 'add_gemini_model_setting',
+    sql: `
+      INSERT INTO app_settings (key, value, description)
+      VALUES ('gemini_model', '"gemini-2.5-flash"', 'Gemini AI model to use (e.g., gemini-2.5-flash)')
+      ON CONFLICT (key) DO NOTHING;
+    `
   }
 ];
 

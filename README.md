@@ -58,7 +58,8 @@ Personal finance management application for tracking credit card expenses and ba
 
 ### 🔍 Advanced Features
 - 🔐 **Secure authentication** with encrypted credentials (AES-256-GCM)
-- 💡 **AI-powered insights** using Google Gemini (optional)
+- 🤖 **AI Chat Assistant** - Ask questions about your finances using natural language (Google Gemini)
+- 📱 **WhatsApp Daily Summary** - Automated daily financial summaries sent via WhatsApp
 - **Recurring payment detection** and tracking
 - **Database backup & restore** with export/import functionality
 - **Scrape audit logs** with detailed sync reports
@@ -66,6 +67,30 @@ Personal finance management application for tracking credit card expenses and ba
 - **Responsive design** for mobile and desktop
 - **Multi-currency support** with configurable default currency
 - **Customizable date formats**
+
+### 🤖 AI Features
+
+#### AI Chat Assistant
+- **Natural language queries** about your financial data
+- **Context-aware responses** based on current screen
+- **Configurable AI model** (Gemini 2.5 Flash, Gemini 3 Flash, Gemini 3 Pro)
+- **Floating chat interface** accessible from any screen
+- Ask questions like:
+  - "How much did I spend on groceries this month?"
+  - "What's my budget status?"
+  - "Show me my largest expenses"
+
+#### WhatsApp Daily Summary
+- **Automated daily summaries** sent to your WhatsApp
+- **Configurable schedule** - choose the hour to receive your summary
+- **Comprehensive financial overview** including:
+  - Total spending for the last 7 days
+  - Budget status (overall and by category)
+  - Last 10 transactions with details
+  - Spending insights and recommendations
+- **Hebrew language support** with emoji formatting
+- **Twilio integration** for reliable message delivery
+- **Audit logging** of all sent messages
 
 ### 🤖 MCP Integration (Claude/Cursor)
 - **Model Context Protocol** server for AI assistant integration
@@ -268,7 +293,9 @@ Open http://localhost:3000
 
 ### Option 2: NAS / Server Deployment (Pre-built Image)
 
-For NAS or server deployment, use the pre-built Docker image from GitHub Container Registry:
+For NAS or server deployment, use the pre-built Docker image. Available from two registries:
+
+#### Using GitHub Container Registry (GHCR)
 
 ```bash
 # Create a directory for the deployment
@@ -286,15 +313,39 @@ cp .env_example .env
 docker-compose -f docker-compose.prod.yaml up -d
 ```
 
+#### Using DockerHub
+
+```bash
+# Create a directory for the deployment
+mkdir nudlers && cd nudlers
+
+# Download the DockerHub docker-compose and env template
+curl -O https://raw.githubusercontent.com/enudler/nudlers/main/docker-compose.dockerhub.yaml
+curl -O https://raw.githubusercontent.com/enudler/nudlers/main/.env_example
+
+# Configure environment variables
+cp .env_example .env
+# Edit .env with your values (REQUIRED: NUDLERS_DB_PASSWORD, NUDLERS_ENCRYPTION_KEY)
+
+# Start the application
+docker-compose -f docker-compose.dockerhub.yaml up -d
+```
+
 **To update to the latest version:**
 ```bash
+# For GHCR
 docker-compose -f docker-compose.prod.yaml pull
 docker-compose -f docker-compose.prod.yaml up -d
+
+# For DockerHub
+docker-compose -f docker-compose.dockerhub.yaml pull
+docker-compose -f docker-compose.dockerhub.yaml up -d
 ```
 
 The database schema is automatically created and migrated on app startup - no manual initialization required!
 
 The image supports both `linux/amd64` and `linux/arm64` architectures.
+
 
 ### Option 3: Manual Setup
 
@@ -348,7 +399,9 @@ The image supports both `linux/amd64` and `linux/arm64` architectures.
 | `NUDLERS_DB_PORT` | Database port (default: 5432) |
 | `NUDLERS_ENCRYPTION_KEY` | 64-character hex key for credential encryption |
 | `NUDLERS_AUTH_PASSWORD` | Application login password |
-| `GEMINI_API_KEY` | (Optional) Google Gemini API key for AI features |
+| `GEMINI_API_KEY` | (Optional) Google Gemini API key for AI Chat and WhatsApp summaries |
+
+> **Note:** The Gemini API key can also be configured in the application settings UI.
 
 ---
 
