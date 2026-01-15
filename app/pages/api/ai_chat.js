@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getDB } from './db';
 import logger from '../../utils/logger.js';
 
 const SYSTEM_PROMPT = `You are a concise financial assistant for "Nudlers" expense tracker.
@@ -16,15 +17,31 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({
-      error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.'
-    });
-  }
+  const client = await getDB();
+  let apiKey = '';
 
   try {
+    const settingsResult = await client.query(
+      'SELECT value FROM app_settings WHERE key = $1',
+      ['gemini_api_key']
+    );
+
+    if (settingsResult.rows.length > 0) {
+      const rawValue = settingsResult.rows[0].value;
+      // JSONB values are already parsed by the pg driver
+      apiKey = typeof rawValue === 'string' ? rawValue : rawValue;
+    }
+
+    if (!apiKey) {
+      apiKey = process.env.GEMINI_API_KEY;
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({
+        error: 'Gemini API key not configured. Please add it in App Settings.'
+      });
+    }
+
     const { message, context } = req.body;
 
     if (!message) {
@@ -44,14 +61,11 @@ async function handler(req, res) {
 
     fullPrompt += "User question: " + message;
 
-    // Try fastest models first (flash/lite variants are optimized for speed)
+    // AI Models to try (ordered by preference)
     const modelNames = [
-      "gemini-2.5-flash-lite",  // Fastest, lowest latency
-      "gemini-2.5-flash",       // Fast with good quality
-      "gemini-2.0-flash-lite",  // Fallback fast model
-      "gemini-2.0-flash",       // Fallback
-      "gemini-1.5-flash",       // Legacy fast model
-      "gemini-pro",             // Legacy fallback
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro"
     ];
 
     let lastError = null;

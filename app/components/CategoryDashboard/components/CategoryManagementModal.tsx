@@ -36,6 +36,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
 import CheckIcon from '@mui/icons-material/Check';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useCategoryColors } from '../utils/categoryUtils';
 import ModalHeader from '../../ModalHeader';
 import Table from '@mui/material/Table';
@@ -63,6 +65,13 @@ interface CategorizationRule {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface CategoryMapping {
+  id: number;
+  source_category: string;
+  target_category: string;
+  created_at: string;
 }
 
 interface UncategorizedDescription {
@@ -113,6 +122,12 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const [renameNewName, setRenameNewName] = useState('');
   const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
   const [deleteOptions, setDeleteOptions] = useState({ deleteRules: true, deleteBudget: true });
+  const [mappings, setMappings] = useState<CategoryMapping[]>([]);
+  const [isLoadingMappings, setIsLoadingMappings] = useState(false);
+  const [editingMapping, setEditingMapping] = useState<CategoryMapping | null>(null);
+  const [editMappingTarget, setEditMappingTarget] = useState('');
+  const [newMappingSource, setNewMappingSource] = useState('');
+  const [newMappingTarget, setNewMappingTarget] = useState('');
   const categoryColors = useCategoryColors();
   const theme = useTheme();
 
@@ -132,12 +147,13 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       fetchCategories();
       fetchRules();
       fetchUncategorizedDescriptions();
+      fetchMappings();
     }
   }, [open]);
 
   // Reset quick categorize state when switching tabs
   useEffect(() => {
-    if (currentTab === 2 && uncategorizedDescriptions.length > 0) {
+    if (currentTab === 3 && uncategorizedDescriptions.length > 0) {
       fetchQuickTransactions(uncategorizedDescriptions[currentQuickIndex]?.description);
     }
   }, [currentTab, currentQuickIndex, uncategorizedDescriptions]);
@@ -326,6 +342,121 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     }
   };
 
+  const fetchMappings = async () => {
+    try {
+      setIsLoadingMappings(true);
+      const response = await fetch('/api/category_mappings');
+      if (!response.ok) throw new Error('Failed to fetch mappings');
+
+      const data = await response.json();
+      setMappings(data);
+    } catch (error) {
+      logger.error('Error fetching mappings', error);
+      setError('Failed to load category mappings');
+    } finally {
+      setIsLoadingMappings(false);
+    }
+  };
+
+  const handleDeleteMapping = async (mappingId: number) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/category_mappings', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: mappingId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete mapping');
+      }
+
+      setSuccess('Mapping removed successfully');
+      await fetchMappings();
+
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to delete mapping');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditMapping = async (mapping: CategoryMapping) => {
+    if (!editMappingTarget.trim()) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/category_mappings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source_category: mapping.source_category,
+          target_category: editMappingTarget.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update mapping');
+      }
+
+      setSuccess('Mapping updated successfully');
+      setEditingMapping(null);
+      setEditMappingTarget('');
+      await fetchMappings();
+
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to update mapping');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddMapping = async () => {
+    if (!newMappingSource.trim() || !newMappingTarget.trim()) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/category_mappings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source_category: newMappingSource.trim(),
+          target_category: newMappingTarget.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create mapping');
+      }
+
+      setSuccess('Mapping created successfully');
+      setNewMappingSource('');
+      setNewMappingTarget('');
+      await fetchMappings();
+
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      logger.error('Error creating mapping', error);
+      setError(error instanceof Error ? error.message : 'Failed to create mapping');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCategoryToggle = (categoryName: string) => {
     setSelectedCategories(prev =>
       prev.includes(categoryName)
@@ -375,8 +506,9 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setSelectedCategories([]);
       setNewCategoryName('');
 
-      // Refresh categories list
+      // Refresh categories and mappings list
       await fetchCategories();
+      await fetchMappings();
 
       // Notify parent component
       onCategoriesUpdated();
@@ -411,6 +543,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     setRenameNewName('');
     setDeletingCategory(null);
     setDeleteOptions({ deleteRules: true, deleteBudget: true });
+    setMappings([]);
 
     // Reset quick categorize state
     setCurrentQuickIndex(0);
@@ -738,6 +871,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
         >
           <Tab label="Categories" />
           <Tab label="Rules" />
+          <Tab label="Mappings" />
           <Tab
             label={
               <Badge
@@ -1095,7 +1229,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
           </>
         )}
 
-        {currentTab === 2 && (
+        {currentTab === 3 && (
           <>
             {uncategorizedDescriptions.length > 0 && (
               <LinearProgress
@@ -1420,7 +1554,205 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
           </>
         )}
 
-        {/* Delete Category Dialog */}
+        {currentTab === 2 && (
+          <>
+            <Box style={{ marginBottom: '24px' }}>
+              <Typography variant="subtitle1" style={{ marginBottom: '12px', fontWeight: 600 }}>
+                Category Mappings
+              </Typography>
+              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '16px' }}>
+                When you merge categories, a mapping is created.
+                Any new transactions scraped from a source category will automatically be moved to the target category.
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)', padding: '12px', borderRadius: '12px', marginBottom: '20px' }}>
+                <HelpOutlineIcon sx={{ color: '#3b82f6', fontSize: 20 }} />
+                <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#93c5fd' : '#1e40af' }}>
+                  Mappings are created automatically during the Merge process.
+                </Typography>
+              </Box>
+
+              <Box sx={{
+                mb: 4,
+                p: 2.5,
+                borderRadius: '16px',
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc',
+                border: `1px dashed ${theme.palette.divider}`
+              }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: theme.palette.text.primary }}>
+                  Create Manual Mapping
+                </Typography>
+                <Grid container spacing={2} alignItems="flex-end">
+                  <Grid item xs={12} sm={5}>
+                    <TextField
+                      size="small"
+                      label="Source Category"
+                      placeholder="e.g. Scraper Category"
+                      value={newMappingSource}
+                      onChange={(e) => setNewMappingSource(e.target.value)}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={1} sx={{ display: 'flex', justifyContent: 'center', pb: 1.5 }}>
+                    <ArrowForwardIcon sx={{ opacity: 0.3 }} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      size="small"
+                      label="Target Mapping"
+                      placeholder="e.g. Your Category"
+                      value={newMappingTarget}
+                      onChange={(e) => setNewMappingTarget(e.target.value)}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={2}>
+                    <Button
+                      variant="contained"
+                      onClick={handleAddMapping}
+                      disabled={!newMappingSource.trim() || !newMappingTarget.trim() || isLoading}
+                      fullWidth
+                      sx={{
+                        height: '40px',
+                        borderRadius: '10px',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        boxShadow: 'none',
+                        '&:hover': { boxShadow: 'none' }
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Box>
+
+            <Divider style={{ margin: '24px 0' }} />
+
+            <Box>
+              <Typography variant="subtitle1" style={{ marginBottom: '16px', fontWeight: 600 }}>
+                Active Mappings ({mappings.length})
+              </Typography>
+
+              {isLoadingMappings ? (
+                <Box display="flex" justifyContent="center" padding="32px">
+                  <CircularProgress />
+                </Box>
+              ) : mappings.length === 0 ? (
+                <Box style={{ textAlign: 'center', padding: '32px', color: theme.palette.text.secondary }}>
+                  <Typography>No mappings found. Merge categories to create them.</Typography>
+                </Box>
+              ) : (
+                <Grid container spacing={2}>
+                  {mappings.map((mapping) => (
+                    <Grid item xs={12} key={mapping.id}>
+                      <Card style={{
+                        borderRadius: '12px',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#fff',
+                        border: theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : 'none'
+                      }}>
+                        <CardContent style={{ padding: '16px' }}>
+                          <Box display="flex" alignItems="center" justifyContent="space-between">
+                            <Box display="flex" alignItems="center" gap={2} flex={1}>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="caption" color="textSecondary" display="block">Source</Typography>
+                                <Chip
+                                  label={mapping.source_category}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: categoryColors[mapping.source_category] || '#64748b',
+                                    color: '#fff',
+                                    fontWeight: 600
+                                  }}
+                                />
+                              </Box>
+                              <ArrowForwardIcon sx={{ color: theme.palette.text.secondary, opacity: 0.5 }} />
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="caption" color="textSecondary" display="block">Target</Typography>
+                                {editingMapping?.id === mapping.id ? (
+                                  <TextField
+                                    size="small"
+                                    value={editMappingTarget}
+                                    onChange={(e) => setEditMappingTarget(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleEditMapping(mapping);
+                                      if (e.key === 'Escape') setEditingMapping(null);
+                                    }}
+                                    sx={{
+                                      '& .MuiOutlinedInput-root': {
+                                        borderRadius: '8px',
+                                        height: '32px'
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <Chip
+                                    label={mapping.target_category}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: categoryColors[mapping.target_category] || '#3b82f6',
+                                      color: '#fff',
+                                      fontWeight: 600
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </Box>
+                            <Box>
+                              {editingMapping?.id === mapping.id ? (
+                                <>
+                                  <IconButton
+                                    onClick={() => handleEditMapping(mapping)}
+                                    size="small"
+                                    sx={{ color: '#22c55e' }}
+                                  >
+                                    <CheckIcon />
+                                  </IconButton>
+                                  <IconButton
+                                    onClick={() => setEditingMapping(null)}
+                                    size="small"
+                                    sx={{ color: theme.palette.text.secondary }}
+                                  >
+                                    <CloseIcon />
+                                  </IconButton>
+                                </>
+                              ) : (
+                                <>
+                                  <IconButton
+                                    onClick={() => {
+                                      setEditingMapping(mapping);
+                                      setEditMappingTarget(mapping.target_category);
+                                    }}
+                                    size="small"
+                                    sx={{ color: '#3b82f6', mr: 1 }}
+                                    title="Edit target category"
+                                  >
+                                    <EditIcon />
+                                  </IconButton>
+                                  <IconButton
+                                    onClick={() => handleDeleteMapping(mapping.id)}
+                                    size="small"
+                                    style={{ color: '#ef4444' }}
+                                    title="Remove mapping"
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </>
+                              )}
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </Box>
+          </>
+        )}
         {deletingCategory && (
           <Box style={{
             position: 'fixed',

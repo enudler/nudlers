@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const settingsResult = await client.query(
       `SELECT key, value FROM app_settings WHERE key IN ('sync_enabled', 'sync_interval_hours', 'sync_days_back')`
     );
-    
+
     const settings = {};
     for (const row of settingsResult.rows) {
       settings[row.key] = row.value;
@@ -31,12 +31,12 @@ export default async function handler(req, res) {
     // We need to extract the original timestamp string and treat it as UTC
     const toISOString = (timestamp) => {
       if (!timestamp) return null;
-      
+
       // If it's already an ISO string with timezone, return as-is
       if (typeof timestamp === 'string' && (timestamp.includes('Z') || timestamp.match(/[+-]\d{2}:?\d{2}$/))) {
         return timestamp;
       }
-      
+
       // CRITICAL FIX: If it's a Date object from node-postgres, we need to be careful
       // The Date object was created from a TIMESTAMP WITHOUT TIME ZONE, which node-postgres
       // interprets in the server's local timezone. We need to get the UTC representation.
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         // Use toISOString() which always returns UTC
         return timestamp.toISOString();
       }
-      
+
       // PostgreSQL TIMESTAMP format: "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DD HH:mm:ss.sss"
       // node-postgres might return these as strings without timezone
       // We MUST treat them as UTC by appending 'Z' before parsing
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
           }
         }
       }
-      
+
       // Fallback: try parsing as-is and converting to ISO
       // This might interpret as local time, which is why we prefer the explicit UTC conversion above
       const date = new Date(timestamp);
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         logger.warn({ timestamp, timestampType: typeof timestamp, parsed: date.toISOString() }, '[sync_status] Timestamp parsed without explicit UTC');
         return date.toISOString();
       }
-      
+
       // Log error if we couldn't parse it
       logger.error({ timestamp, timestampType: typeof timestamp }, '[sync_status] Could not parse timestamp');
       return null;
@@ -150,12 +150,12 @@ export default async function handler(req, res) {
     const now = new Date();
     const intervalHours = parseInt(settings.sync_interval_hours) || 24;
     let syncHealth = 'unknown';
-    
+
     if (latestScrape && latestScrape.created_at) {
       // Parse the ISO string (which is in UTC) and compare with current time
       const lastSyncTime = new Date(latestScrape.created_at);
       const hoursSinceSync = (now.getTime() - lastSyncTime.getTime()) / (1000 * 60 * 60);
-      
+
       if (latestScrape.status === 'completed') {
         if (hoursSinceSync < intervalHours) {
           syncHealth = 'healthy';
@@ -165,7 +165,14 @@ export default async function handler(req, res) {
           syncHealth = 'outdated';
         }
       } else if (latestScrape.status === 'started') {
-        syncHealth = 'syncing';
+        // If sync has been "started" for more than 20 minutes, consider it stale/failed
+        if (hoursSinceSync > 0.33) {
+          syncHealth = 'error';
+          // Optionally update the message for the UI
+          latestScrape.message = 'Sync timed out or process crashed';
+        } else {
+          syncHealth = 'syncing';
+        }
       } else if (latestScrape.status === 'failed') {
         syncHealth = 'error';
       }

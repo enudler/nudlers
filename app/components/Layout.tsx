@@ -4,9 +4,12 @@ import { NotificationProvider } from "./NotificationContext";
 import MonthlySummary from "./MonthlySummary";
 import BudgetDashboard from "./BudgetDashboard";
 import AIAssistant from "./AIAssistant";
+import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
+import Footer from "./Footer";
+import { Box } from "@mui/material";
 
-type ViewType = 'dashboard' | 'summary' | 'budget';
+type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat';
 
 // Screen context for AI Assistant
 interface ScreenContext {
@@ -119,6 +122,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         return <MonthlySummary />;
       case 'budget':
         return <BudgetDashboard />;
+      case 'chat':
+        return <ChatView />;
       default:
         return children;
     }
@@ -147,7 +152,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         syncDrawerWidth,
         setSyncDrawerWidth
       }}>
-        <div>
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
           <ResponsiveAppBar
             currentView={currentView}
             onViewChange={handleViewChange}
@@ -160,8 +165,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             {renderView()}
           </main>
+          {currentView !== 'chat' && <Footer />}
           <AIAssistant screenContext={screenContext} />
-        </div>
+        </Box>
       </ViewContext.Provider>
     </NotificationProvider>
   );

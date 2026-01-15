@@ -701,7 +701,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                 onClick={handleSyncAll}
                 variant="contained"
                 size="small"
-                startIcon={isSyncing ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <PlayArrowIcon />}
+                startIcon={isSyncing ? <CircularProgress size={16} sx={{ color: 'inherit' }} variant="determinate" value={100} /> : <PlayArrowIcon />}
                 sx={{
                   backgroundColor: isSyncing ? '#ef4444' : '#22c55e',
                   color: '#fff',
@@ -719,9 +719,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             </Tooltip>
           )}
 
-          <IconButton onClick={onClose} size="small" sx={{ color: 'text.secondary' }} disabled={isSyncing}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
         </Box>
       </Box>
 
@@ -796,18 +793,13 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                             )}
                           </Box>
                         )}
-                        {syncProgress.phase && (
-                          <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mt: 0.5, textTransform: 'capitalize' }}>
-                            {syncProgress.phase.replace('_', ' ')}
-                          </Typography>
-                        )}
                       </>
                     )}
                   </Box>
                 </Box>
                 <LinearProgress
                   variant="determinate"
-                  value={syncProgress.percent !== undefined ? syncProgress.percent : (syncProgress.current / syncProgress.total) * 100}
+                  value={((syncProgress.current / syncProgress.total) * 100) + ((syncProgress.percent || 0) / syncProgress.total)}
                   sx={{
                     height: 6,
                     borderRadius: 3,

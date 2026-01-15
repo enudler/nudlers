@@ -116,9 +116,6 @@ export function getPreparePage(isRateLimited) {
             setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
         );
 
-        if (isRateLimited) {
-            await randomDelay(2000, 5000);
-        }
 
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -181,7 +178,9 @@ export function getPreparePage(isRateLimited) {
         if (isRateLimited) {
             const originalGoto = page.goto.bind(page);
             page.goto = async (url, options) => {
-                await randomDelay(1500, 4000);
+                // Cap delay at 5 seconds, and only if rate limited
+                const delayMs = Math.min(Math.floor(Math.random() * 3000) + 1000, 5000);
+                await randomDelay(delayMs / 2, delayMs);
                 return originalGoto(url, options);
             };
         }

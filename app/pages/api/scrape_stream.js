@@ -23,6 +23,7 @@ import {
   sleep,
   runScraper,
   loadCategorizationRules,
+  loadCategoryMappings,
   getFallbackCategorySetting,
   getUpdateCategoryOnRescrapeSetting,
   getScrapeRetriesSetting,
@@ -112,29 +113,6 @@ async function handler(req, res) {
       return;
     }
 
-    // For rate-limited vendors (VisaCal, Isracard/Amex/Max), add a pre-scrape delay
-    if (isRateLimited) {
-      // These vendors need longer delays due to API rate limiting
-      const preDelay = options.companyId === 'visaCal'
-        ? Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds for VisaCal
-        : Math.floor(Math.random() * 5000) + 3000;  // 3-8 seconds for others
-
-      sendSSE(res, 'progress', {
-        step: 'rate_limit_delay',
-        message: `Adding ${Math.round(preDelay / 1000)}s delay to avoid rate limiting...`,
-        percent: 2,
-        phase: 'initialization',
-        success: null
-      });
-      await sleep(preDelay);
-      sendSSE(res, 'progress', {
-        step: 'rate_limit_delay',
-        message: '✓ Delay completed',
-        percent: 3,
-        phase: 'initialization',
-        success: true
-      });
-    }
 
     // Show date range being scraped
     const startDateStr = new Date(options.startDate).toLocaleDateString('en-GB');
@@ -307,7 +285,7 @@ async function handler(req, res) {
     // Use retry logic
     // Get retries setting (default 3) - apply to all vendors if they have retryable errors
     const maxRetries = await getScrapeRetriesSetting(client);
-    const retryBaseDelay = options.companyId === 'visaCal' ? 10000 : 5000;
+    const retryBaseDelay = 5000;
 
     // Check if fallback to no categories is enabled
     const fallbackNoCategory = await getFallbackCategorySetting(client);
@@ -452,6 +430,7 @@ async function handler(req, res) {
 
     const cache = await loadCategoryCache(client);
     const categorizationRules = await loadCategorizationRules(client);
+    const categoryMappings = await loadCategoryMappings(client);
     let cachedCategoryCount = 0;
     let skippedCards = 0;
 
@@ -536,7 +515,7 @@ async function handler(req, res) {
         totalTransactions++;
         if (isBank) bankTransactions++;
         const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape);
+        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings);
 
         // Common transaction data for report
         const reportItem = {

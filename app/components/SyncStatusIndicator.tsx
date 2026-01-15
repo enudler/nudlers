@@ -216,7 +216,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
       default:
         return {
           icon: <SyncIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-          label: 'Check Status',
+          label: 'Sync Status',
           color: '#64748b',
           tooltip: 'Status unavailable'
         };

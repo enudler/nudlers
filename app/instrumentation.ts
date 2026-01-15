@@ -8,10 +8,10 @@ export async function register() {
     const originalStdoutWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = (chunk: any, encoding?: any, callback?: any) => {
       const message = chunk?.toString() || '';
-      
+
       // Check if this is a Next.js request log (format: "GET /api/ping 304 in 17ms (compile: 1469µs, render: 16ms)")
       const requestLogMatch = message.match(/^\s*(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+(\S+)\s+(\d+)\s+in\s+(\d+)ms(?:\s*\(compile:\s*(\d+)µs,\s*render:\s*(\d+)ms\))?/);
-      
+
       if (requestLogMatch) {
         const [, method, path, statusCode, duration, compileTime, renderTime] = requestLogMatch;
         // Log through our JSON logger instead
@@ -26,7 +26,7 @@ export async function register() {
         }, 'HTTP request');
         return true; // Suppress the original log
       }
-      
+
       // Allow other logs through normally
       return originalStdoutWrite(chunk, encoding, callback);
     };
@@ -71,7 +71,8 @@ export async function register() {
         try {
           const fs = await import('fs');
           const path = await import('path');
-          const pkgPath = path.join(process.cwd(), 'node_modules', 'israeli-bank-scrapers', 'package.json');
+          const cwd = process.cwd() || __dirname || '.';
+          const pkgPath = path.join(cwd, 'node_modules', 'israeli-bank-scrapers', 'package.json');
 
           if (fs.existsSync(pkgPath)) {
             const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));

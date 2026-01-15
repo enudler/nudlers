@@ -356,6 +356,41 @@ const migrations = [
         END IF;
       END $$;
     `
+  },
+  {
+    name: 'create_category_mappings_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS category_mappings (
+        id SERIAL PRIMARY KEY,
+        source_category VARCHAR(50) NOT NULL,
+        target_category VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_category)
+      );
+      CREATE INDEX IF NOT EXISTS idx_category_mappings_source ON category_mappings(source_category);
+    `
+  },
+  {
+    name: 'create_chat_tables',
+    sql: `
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
+        role VARCHAR(20) NOT NULL,
+        content TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+      CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
+    `
   }
 ];
 

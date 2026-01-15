@@ -22,6 +22,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 interface SettingsModalProps {
   open: boolean;
@@ -42,6 +43,7 @@ interface Settings {
   fallback_no_category_on_error: boolean;
   update_category_on_rescrape: boolean;
   scrape_retries: number;
+  gemini_api_key: string;
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -112,7 +114,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     scraper_timeout_rate_limited: 120000,
     fallback_no_category_on_error: false,
     update_category_on_rescrape: false,
-    scrape_retries: 3
+    scrape_retries: 3,
+    gemini_api_key: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -140,7 +143,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000,
           fallback_no_category_on_error: parseBool(data.settings.fallback_no_category_on_error),
           update_category_on_rescrape: parseBool(data.settings.update_category_on_rescrape),
-          scrape_retries: parseInt(data.settings.scrape_retries) || 3
+          scrape_retries: parseInt(data.settings.scrape_retries) || 3,
+          gemini_api_key: (data.settings.gemini_api_key || '').replace(/"/g, '')
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -504,6 +508,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   size="small"
                   sx={{ width: '120px' }}
                   inputProps={{ min: 1000, step: 1000 }}
+                />
+              </SettingRow>
+            </SettingSection>
+
+            {/* AI Configuration */}
+            <SettingSection>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <AutoAwesomeIcon sx={{ color: '#ec4899' }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  AI Configuration
+                </Typography>
+              </Box>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1">Gemini API Key</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Used for AI Assistant and smart transaction analysis.
+                  </Typography>
+                </Box>
+                <StyledTextField
+                  type="password"
+                  value={settings.gemini_api_key}
+                  onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value })}
+                  placeholder={settings.gemini_api_key ? '••••••••••••••••' : 'Enter API Key'}
+                  size="small"
+                  sx={{ width: '250px' }}
                 />
               </SettingRow>
             </SettingSection>

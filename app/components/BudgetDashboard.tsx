@@ -97,40 +97,7 @@ interface BurndownData {
   daily_data: DailyData[];
 }
 
-const BUTTON_STYLE = {
-  background: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  padding: '14px',
-  borderRadius: '16px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  color: '#475569',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-};
 
-const HOVER_BUTTON_STYLE = {
-  transform: 'translateY(-2px) scale(1.05)',
-  boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-  background: 'rgba(96, 165, 250, 0.15)',
-  color: '#3b82f6'
-};
-
-const SELECT_STYLE = {
-  padding: '14px 28px',
-  borderRadius: '16px',
-  border: '1px solid rgba(148, 163, 184, 0.2)',
-  background: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  color: '#1e293b',
-  fontSize: '15px',
-  fontWeight: '600',
-  cursor: 'pointer',
-  outline: 'none',
-  textAlign: 'right' as const,
-  direction: 'rtl' as const,
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-};
 
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('he-IL', {
@@ -142,6 +109,41 @@ const formatCurrency = (amount: number): string => {
 };
 
 const BudgetDashboard: React.FC = () => {
+  const theme = useTheme();
+  const BUTTON_STYLE = {
+    background: theme.palette.background.paper,
+    backdropFilter: 'blur(10px)',
+    padding: '14px',
+    borderRadius: '16px',
+    border: '1px solid rgba(148, 163, 184, 0.2)',
+    color: theme.palette.text.secondary,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+  };
+
+  const HOVER_BUTTON_STYLE = {
+    transform: 'translateY(-2px) scale(1.05)',
+    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
+    background: theme.palette.action.hover,
+    color: theme.palette.primary.main
+  };
+
+  const SELECT_STYLE = {
+    padding: '14px 28px',
+    borderRadius: '16px',
+    border: '1px solid rgba(148, 163, 184, 0.2)',
+    background: theme.palette.background.paper,
+    backdropFilter: 'blur(10px)',
+    color: theme.palette.text.primary,
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    outline: 'none',
+    textAlign: 'right' as const,
+    direction: 'rtl' as const,
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+  };
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [budgetsWithSpending, setBudgetsWithSpending] = useState<BudgetWithSpending[]>([]);
   const [loading, setLoading] = useState(true);
@@ -512,10 +514,10 @@ const BudgetDashboard: React.FC = () => {
   };
 
   const getProgressColor = (percentUsed: number): string => {
-    if (percentUsed >= 100) return '#ef4444';
-    if (percentUsed >= 80) return '#f59e0b';
-    if (percentUsed >= 60) return '#fbbf24';
-    return '#22c55e';
+    if (percentUsed >= 100) return theme.palette.error.main;
+    if (percentUsed >= 80) return theme.palette.warning.main;
+    if (percentUsed >= 60) return theme.palette.warning.light;
+    return theme.palette.success.main;
   };
 
   const overBudgetCount = budgetsWithSpending.filter(b => b.is_over_budget).length;
@@ -524,7 +526,7 @@ const BudgetDashboard: React.FC = () => {
   const totalRemaining = totalBudget - totalSpent;
   const totalPercentUsed = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
-  const theme = useTheme();
+
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
@@ -603,13 +605,13 @@ const BudgetDashboard: React.FC = () => {
             gap: { xs: '16px', md: '24px' }
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: '12px', md: '16px' } }}>
-              <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: '#22c55e' }} />
+              <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: theme.palette.success.main }} />
               <div>
                 <Box component="h1" sx={{
                   fontSize: { xs: '22px', md: '28px' },
                   fontWeight: 700,
                   margin: 0,
-                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
@@ -629,7 +631,7 @@ const BudgetDashboard: React.FC = () => {
               <IconButton
                 onClick={handleRefresh}
                 sx={{
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  background: theme.palette.background.default,
                   backdropFilter: 'blur(10px)',
                   padding: '14px',
                   borderRadius: '16px',
@@ -650,12 +652,12 @@ const BudgetDashboard: React.FC = () => {
               <IconButton
                 onClick={handleOpenAddModal}
                 sx={{
-                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
                   backdropFilter: 'blur(10px)',
                   padding: '14px',
                   borderRadius: '16px',
                   border: 'none',
-                  color: '#fff',
+                  color: theme.palette.common.white,
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
                   '&:hover': {
@@ -675,7 +677,7 @@ const BudgetDashboard: React.FC = () => {
                   padding: '14px 28px',
                   borderRadius: '16px',
                   border: `1px solid ${theme.palette.divider}`,
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  background: theme.palette.background.default,
                   backdropFilter: 'blur(10px)',
                   color: theme.palette.text.primary,
                   fontSize: '15px',
@@ -700,7 +702,7 @@ const BudgetDashboard: React.FC = () => {
                   padding: '14px 28px',
                   borderRadius: '16px',
                   border: `1px solid ${theme.palette.divider}`,
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  background: theme.palette.background.default,
                   backdropFilter: 'blur(10px)',
                   color: theme.palette.text.primary,
                   fontSize: '15px',
@@ -722,7 +724,7 @@ const BudgetDashboard: React.FC = () => {
               {/* Date Range Mode Toggle */}
               <div style={{
                 display: 'flex',
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                background: theme.palette.background.default,
                 backdropFilter: 'blur(10px)',
                 borderRadius: '16px',
                 border: `1px solid ${theme.palette.divider}`,
@@ -740,9 +742,9 @@ const BudgetDashboard: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'calendar'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
+                      ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`
                       : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'calendar' ? theme.palette.common.white : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -766,9 +768,9 @@ const BudgetDashboard: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                      ? `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`
                       : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'billing' ? theme.palette.common.white : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -795,21 +797,21 @@ const BudgetDashboard: React.FC = () => {
             }}>
               {dateRangeMode === 'billing' ? (
                 <span style={{
-                  background: 'rgba(34, 197, 94, 0.1)',
+                  background: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
                   padding: '6px 12px',
                   borderRadius: '8px',
-                  border: '1px solid rgba(34, 197, 94, 0.2)',
-                  color: '#16a34a'
+                  border: `1px solid ${theme.palette.success.main}`,
+                  color: theme.palette.success.main
                 }}>
                   💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
               ) : (
                 <span style={{
-                  background: 'rgba(59, 130, 246, 0.1)',
+                  background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
                   padding: '6px 12px',
                   borderRadius: '8px',
-                  border: '1px solid rgba(59, 130, 246, 0.2)',
-                  color: '#3b82f6'
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  color: theme.palette.primary.main
                 }}>
                   📅 Full Month: {(() => {
                     const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, 'calendar');
@@ -825,7 +827,7 @@ const BudgetDashboard: React.FC = () => {
 
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
-            <CircularProgress style={{ color: '#22c55e' }} />
+            <CircularProgress style={{ color: theme.palette.success.main }} />
           </div>
         ) : (
           <>
@@ -865,14 +867,14 @@ const BudgetDashboard: React.FC = () => {
                       height: '48px',
                       borderRadius: '16px',
                       background: totalSpendBudget?.is_over_budget
-                        ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                        : 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+                        ? `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`
+                        : `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
                     }}>
-                      <SavingsIcon style={{ color: '#fff', fontSize: '28px' }} />
+                      <SavingsIcon style={{ color: theme.palette.common.white, fontSize: '28px' }} />
                     </div>
                     <div>
                       <h2 style={{
@@ -893,7 +895,7 @@ const BudgetDashboard: React.FC = () => {
                       size="small"
                       onClick={handleOpenTotalBudgetModal}
                       style={{
-                        color: '#8b5cf6',
+                        color: theme.palette.secondary.main,
                         background: 'rgba(139, 92, 246, 0.1)',
                         borderRadius: '12px'
                       }}
@@ -905,7 +907,7 @@ const BudgetDashboard: React.FC = () => {
                         size="small"
                         onClick={handleDeleteTotalBudget}
                         style={{
-                          color: '#ef4444',
+                          color: theme.palette.error.main,
                           background: 'rgba(239, 68, 68, 0.1)',
                           borderRadius: '12px'
                         }}
@@ -922,11 +924,11 @@ const BudgetDashboard: React.FC = () => {
                       <div style={{
                         fontSize: '36px',
                         fontWeight: 700,
-                        color: totalSpendBudget.is_over_budget ? '#ef4444' : '#1e293b'
+                        color: totalSpendBudget.is_over_budget ? theme.palette.error.main : theme.palette.text.primary
                       }}>
                         {formatCurrency(totalSpendBudget.actual_spent || 0)}
                       </div>
-                      <div style={{ fontSize: '18px', color: '#64748b', fontWeight: 500 }}>
+                      <div style={{ fontSize: '18px', color: theme.palette.text.secondary, fontWeight: 500 }}>
                         / {formatCurrency(totalSpendBudget.budget_limit || 0)}
                       </div>
                       {totalSpendBudget.is_over_budget && (
@@ -935,7 +937,7 @@ const BudgetDashboard: React.FC = () => {
                           alignItems: 'center',
                           gap: '4px',
                           background: 'rgba(239, 68, 68, 0.15)',
-                          color: '#ef4444',
+                          color: theme.palette.error.main,
                           padding: '6px 12px',
                           borderRadius: '20px',
                           fontSize: '13px',
@@ -956,10 +958,10 @@ const BudgetDashboard: React.FC = () => {
                         '& .MuiLinearProgress-bar': {
                           borderRadius: 6,
                           background: totalSpendBudget.is_over_budget
-                            ? 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)'
-                            : totalSpendBudget.percent_used! >= 80
-                              ? 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)'
-                              : 'linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%)'
+                            ? `linear-gradient(90deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`
+                            : (totalSpendBudget.percent_used ?? 0) >= 80
+                              ? `linear-gradient(90deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`
+                              : `linear-gradient(90deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
                         }
                       }}
                     />
@@ -970,7 +972,7 @@ const BudgetDashboard: React.FC = () => {
                       fontSize: '14px'
                     }}>
                       <span style={{
-                        color: (totalSpendBudget.remaining ?? 0) >= 0 ? '#22c55e' : '#ef4444',
+                        color: (totalSpendBudget.remaining ?? 0) > 0 ? theme.palette.success.main : theme.palette.error.main,
                         fontWeight: 600
                       }}>
                         {(totalSpendBudget.remaining ?? 0) >= 0
@@ -980,10 +982,10 @@ const BudgetDashboard: React.FC = () => {
                       </span>
                       <span style={{
                         color: totalSpendBudget.is_over_budget
-                          ? '#ef4444'
-                          : (totalSpendBudget.percent_used ?? 0) >= 80
-                            ? '#f59e0b'
-                            : '#8b5cf6',
+                          ? theme.palette.error.main
+                          : ((totalSpendBudget.percent_used ?? 0) >= 80
+                            ? theme.palette.warning.main
+                            : theme.palette.secondary.main),
                         fontWeight: 600
                       }}>
                         {totalSpendBudget.percent_used?.toFixed(1)}% used
@@ -995,7 +997,7 @@ const BudgetDashboard: React.FC = () => {
                     textAlign: 'center',
                     padding: '20px 0'
                   }}>
-                    <p style={{ color: '#64748b', margin: '0 0 16px' }}>
+                    <p style={{ color: theme.palette.text.secondary, margin: '0 0 16px' }}>
                       Set a total spending limit to track your overall credit card usage
                     </p>
                     <Button
@@ -1003,13 +1005,13 @@ const BudgetDashboard: React.FC = () => {
                       variant="contained"
                       startIcon={<AddIcon />}
                       sx={{
-                        background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+                        background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
                         borderRadius: '12px',
                         padding: '10px 24px',
                         fontWeight: 600,
                         textTransform: 'none',
                         '&:hover': {
-                          background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)'
+                          background: `linear-gradient(135deg, ${theme.palette.secondary.dark} 0%, ${theme.palette.secondary.main} 100%)`
                         }
                       }}
                     >
@@ -1038,10 +1040,10 @@ const BudgetDashboard: React.FC = () => {
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  <SavingsIcon style={{ color: '#3b82f6', fontSize: '24px' }} />
-                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 600 }}>Category Budgets Total</span>
+                  <SavingsIcon style={{ color: theme.palette.primary.main, fontSize: '24px' }} />
+                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>Category Budgets Total</span>
                 </div>
-                <div style={{ fontSize: '32px', fontWeight: 700, color: '#1e293b' }}>
+                <div style={{ fontSize: '32px', fontWeight: 700, color: theme.palette.text.primary }}>
                   {formatCurrency(totalBudget)}
                 </div>
                 {budgetsWithSpending.length > 0 && (
@@ -1064,7 +1066,7 @@ const BudgetDashboard: React.FC = () => {
                       justifyContent: 'space-between',
                       marginTop: '8px',
                       fontSize: '12px',
-                      color: '#64748b'
+                      color: theme.palette.text.secondary
                     }}>
                       <span>Spent: {formatCurrency(totalSpent)}</span>
                       <span>{Math.round(totalPercentUsed)}%</span>
@@ -1084,16 +1086,16 @@ const BudgetDashboard: React.FC = () => {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                   {totalRemaining >= 0 ? (
-                    <TrendingUpIcon style={{ color: '#22c55e', fontSize: '24px' }} />
+                    <TrendingUpIcon style={{ color: theme.palette.success.main, fontSize: '24px' }} />
                   ) : (
-                    <TrendingDownIcon style={{ color: '#ef4444', fontSize: '24px' }} />
+                    <TrendingDownIcon style={{ color: theme.palette.error.main, fontSize: '24px' }} />
                   )}
-                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 600 }}>Remaining This Month</span>
+                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>Remaining This Month</span>
                 </div>
                 <div style={{
                   fontSize: '32px',
                   fontWeight: 700,
-                  color: totalRemaining >= 0 ? '#22c55e' : '#ef4444'
+                  color: totalRemaining >= 0 ? theme.palette.success.main : theme.palette.error.main
                 }}>
                   {formatCurrency(Math.abs(totalRemaining))}
                   {totalRemaining < 0 && (
@@ -1113,24 +1115,24 @@ const BudgetDashboard: React.FC = () => {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                   {overBudgetCount > 0 ? (
-                    <WarningIcon style={{ color: '#f59e0b', fontSize: '24px' }} />
+                    <WarningIcon style={{ color: theme.palette.warning.main, fontSize: '24px' }} />
                   ) : (
-                    <CheckCircleIcon style={{ color: '#22c55e', fontSize: '24px' }} />
+                    <CheckCircleIcon style={{ color: theme.palette.success.main, fontSize: '24px' }} />
                   )}
-                  <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 600 }}>Status</span>
+                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>Status</span>
                 </div>
-                <div style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b' }}>
+                <div style={{ fontSize: '18px', fontWeight: 600, color: theme.palette.text.primary }}>
                   {overBudgetCount > 0 ? (
-                    <span style={{ color: '#f59e0b' }}>
+                    <span style={{ color: theme.palette.warning.main }}>
                       {overBudgetCount} {overBudgetCount === 1 ? 'category' : 'categories'} over budget
                     </span>
                   ) : budgets.length > 0 ? (
-                    <span style={{ color: '#22c55e' }}>All categories on track</span>
+                    <span style={{ color: theme.palette.success.main }}>All categories on track</span>
                   ) : (
-                    <span style={{ color: '#64748b' }}>No budgets set yet</span>
+                    <span style={{ color: theme.palette.text.secondary }}>No budgets set yet</span>
                   )}
                 </div>
-                <div style={{ marginTop: '8px', fontSize: '14px', color: '#64748b' }}>
+                <div style={{ marginTop: '8px', fontSize: '14px', color: theme.palette.text.secondary }}>
                   {budgets.length} budget{budgets.length !== 1 ? 's' : ''} configured
                 </div>
               </div>
@@ -1148,13 +1150,13 @@ const BudgetDashboard: React.FC = () => {
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  <ShowChartIcon style={{ color: '#8b5cf6', fontSize: '24px' }} />
-                  <span style={{ color: '#1e293b', fontSize: '16px', fontWeight: 700 }}>Budget Burndown</span>
+                  <ShowChartIcon style={{ color: theme.palette.secondary.main, fontSize: '24px' }} />
+                  <span style={{ color: theme.palette.text.primary, fontSize: '16px', fontWeight: 700 }}>Budget Burndown</span>
                   <span style={{
-                    color: '#64748b',
+                    color: theme.palette.text.secondary,
                     fontSize: '13px',
                     marginLeft: 'auto',
-                    background: 'rgba(139, 92, 246, 0.1)',
+                    background: theme.palette.mode === 'dark' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.1)',
                     padding: '4px 12px',
                     borderRadius: '8px'
                   }}>
@@ -1163,7 +1165,7 @@ const BudgetDashboard: React.FC = () => {
                 </div>
                 {burndownLoading ? (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-                    <CircularProgress size={32} style={{ color: '#8b5cf6' }} />
+                    <CircularProgress size={32} style={{ color: theme.palette.secondary.main }} />
                   </div>
                 ) : (
                   <div style={{ height: '200px', width: '100%' }}>
@@ -1185,7 +1187,7 @@ const BudgetDashboard: React.FC = () => {
                         {
                           data: burndownData.daily_data.map(d => d.ideal_remaining),
                           label: 'Ideal',
-                          color: '#94a3b8',
+                          color: theme.palette.text.secondary,
                           showMark: false,
                           curve: 'linear'
                         },
@@ -1193,8 +1195,8 @@ const BudgetDashboard: React.FC = () => {
                           data: burndownData.daily_data.map(d => d.actual_remaining),
                           label: 'Actual',
                           color: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0
-                            ? '#22c55e'
-                            : '#ef4444',
+                            ? theme.palette.success.main
+                            : theme.palette.error.main,
                           showMark: false,
                           curve: 'monotoneX'
                         }
@@ -1217,15 +1219,15 @@ const BudgetDashboard: React.FC = () => {
                           strokeWidth: 2.5
                         },
                         '.MuiChartsAxis-tickLabel': {
-                          fill: '#64748b',
+                          fill: theme.palette.text.secondary,
                           fontSize: '11px'
                         },
                         '.MuiChartsAxis-label': {
-                          fill: '#475569',
+                          fill: theme.palette.text.disabled,
                           fontSize: '12px'
                         },
                         '.MuiChartsLegend-label': {
-                          fill: '#475569',
+                          fill: theme.palette.text.disabled,
                           fontSize: '12px'
                         }
                       }}
@@ -1238,14 +1240,14 @@ const BudgetDashboard: React.FC = () => {
                   gap: '24px',
                   marginTop: '12px',
                   fontSize: '12px',
-                  color: '#64748b'
+                  color: theme.palette.text.secondary
                 }}>
                   <span>
                     <span style={{
                       display: 'inline-block',
                       width: '12px',
                       height: '3px',
-                      background: '#94a3b8',
+                      background: theme.palette.text.secondary,
                       marginRight: '6px',
                       verticalAlign: 'middle'
                     }}></span>
@@ -1257,8 +1259,8 @@ const BudgetDashboard: React.FC = () => {
                       width: '12px',
                       height: '3px',
                       background: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0
-                        ? '#22c55e'
-                        : '#ef4444',
+                        ? theme.palette.success.main
+                        : theme.palette.error.main,
                       marginRight: '6px',
                       verticalAlign: 'middle'
                     }}></span>
@@ -1274,7 +1276,7 @@ const BudgetDashboard: React.FC = () => {
                 <Box component="h2" sx={{
                   fontSize: { xs: '16px', md: '18px' },
                   fontWeight: 700,
-                  color: '#475569',
+                  color: theme.palette.text.secondary,
                   marginBottom: { xs: '12px', md: '20px' },
                   display: 'flex',
                   alignItems: 'center',
@@ -1309,7 +1311,7 @@ const BudgetDashboard: React.FC = () => {
                             margin: 0,
                             fontSize: '18px',
                             fontWeight: 600,
-                            color: '#1e293b'
+                            color: theme.palette.text.primary
                           }}>
                             {budget.category}
                           </h3>
@@ -1320,7 +1322,7 @@ const BudgetDashboard: React.FC = () => {
                             marginTop: '4px'
                           }}>
                             {formatCurrency(budget.actual_spent)}
-                            <span style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>
+                            <span style={{ fontSize: '14px', color: theme.palette.text.secondary, fontWeight: 500 }}>
                               {' '}/ {formatCurrency(budget.budget_limit)}
                             </span>
                           </div>
@@ -1329,14 +1331,14 @@ const BudgetDashboard: React.FC = () => {
                           <IconButton
                             size="small"
                             onClick={() => handleEditBudget(budget)}
-                            style={{ color: '#64748b' }}
+                            style={{ color: theme.palette.text.secondary }}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
                           <IconButton
                             size="small"
                             onClick={() => handleDeleteBudget(budget.id)}
-                            style={{ color: '#ef4444' }}
+                            style={{ color: theme.palette.error.main }}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -1362,7 +1364,7 @@ const BudgetDashboard: React.FC = () => {
                         fontSize: '13px'
                       }}>
                         <span style={{
-                          color: budget.remaining >= 0 ? '#22c55e' : '#ef4444',
+                          color: budget.remaining >= 0 ? theme.palette.success.main : theme.palette.error.main,
                           fontWeight: 600
                         }}>
                           {budget.remaining >= 0
@@ -1385,15 +1387,15 @@ const BudgetDashboard: React.FC = () => {
               <div style={{
                 padding: '60px 24px',
                 textAlign: 'center',
-                background: 'rgba(255, 255, 255, 0.7)',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.7)',
                 borderRadius: '24px',
                 margin: '0 24px',
-                border: '2px dashed rgba(148, 163, 184, 0.3)'
+                border: `2px dashed ${theme.palette.divider}`
               }}>
-                <SavingsIcon style={{ fontSize: '64px', color: '#94a3b8', marginBottom: '16px' }} />
-                <h3 style={{ color: '#475569', margin: '0 0 8px' }}>No Budgets Set</h3>
-                <p style={{ color: '#64748b', margin: 0 }}>
-                  Click the + button to add your first budget
+                <SavingsIcon style={{ fontSize: '64px', color: theme.palette.text.disabled, marginBottom: '16px' }} />
+                <h3 style={{ color: theme.palette.text.secondary, margin: '0 0 8px' }}>No Budgets Set</h3>
+                <p style={{ color: theme.palette.text.secondary, margin: 0 }}>
+                  Start tracking your spending by adding a monthly budget for your categories
                 </p>
               </div>
             )}
@@ -1419,7 +1421,7 @@ const BudgetDashboard: React.FC = () => {
           gap: '12px',
           fontWeight: 700
         }}>
-          <SavingsIcon style={{ color: '#22c55e' }} />
+          <SavingsIcon style={{ color: theme.palette.success.main }} />
           {editingBudget ? 'Edit Budget' : 'Add Budget'}
         </DialogTitle>
         <DialogContent>
@@ -1466,7 +1468,7 @@ const BudgetDashboard: React.FC = () => {
                   return (
                     <li {...props}>
                       {isNewOption ? (
-                        <span style={{ color: '#22c55e', fontWeight: 600 }}>
+                        <span style={{ color: theme.palette.success.main, fontWeight: 600 }}>
                           + Add "{option}"
                         </span>
                       ) : (
@@ -1500,15 +1502,15 @@ const BudgetDashboard: React.FC = () => {
               onChange={(e) => setNewBudgetLimit(e.target.value)}
               fullWidth
               InputProps={{
-                startAdornment: <span style={{ color: '#64748b', marginRight: '8px' }}>₪</span>
+                startAdornment: <span style={{ color: theme.palette.text.secondary, marginRight: '8px' }}>₪</span>
               }}
             />
             <div style={{
-              background: 'rgba(34, 197, 94, 0.1)',
+              background: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
               padding: '12px 16px',
               borderRadius: '12px',
               fontSize: '14px',
-              color: '#16a34a'
+              color: theme.palette.success.main
             }}>
               💡 This budget applies to every month - no need to set it up monthly!
             </div>
@@ -1527,9 +1529,9 @@ const BudgetDashboard: React.FC = () => {
             disabled={savingBudget}
             startIcon={savingBudget ? <CircularProgress size={16} /> : <SaveIcon />}
             sx={{
-              background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+              background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
               '&:hover': {
-                background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)'
+                background: `linear-gradient(135deg, ${theme.palette.success.dark} 0%, ${theme.palette.success.main} 100%)`
               }
             }}
           >
@@ -1560,12 +1562,12 @@ const BudgetDashboard: React.FC = () => {
             width: '40px',
             height: '40px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+            background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <SavingsIcon style={{ color: '#fff', fontSize: '24px' }} />
+            <SavingsIcon style={{ color: theme.palette.common.white, fontSize: '24px' }} />
           </div>
           {totalSpendBudget?.is_set ? 'Edit Total Spend Budget' : 'Set Total Spend Budget'}
         </DialogTitle>
@@ -1579,7 +1581,7 @@ const BudgetDashboard: React.FC = () => {
               fullWidth
               autoFocus
               InputProps={{
-                startAdornment: <span style={{ color: '#64748b', marginRight: '8px' }}>₪</span>
+                startAdornment: <span style={{ color: theme.palette.text.secondary, marginRight: '8px' }}>₪</span>
               }}
               helperText="Maximum amount you want to spend across all credit cards this month"
             />
@@ -1590,13 +1592,13 @@ const BudgetDashboard: React.FC = () => {
               border: '1px solid rgba(139, 92, 246, 0.2)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <SavingsIcon style={{ color: '#8b5cf6', fontSize: '20px' }} />
-                <span style={{ fontWeight: 600, color: '#7c3aed' }}>How it works</span>
+                <SavingsIcon style={{ color: theme.palette.secondary.main, fontSize: '20px' }} />
+                <span style={{ fontWeight: 600, color: theme.palette.secondary.main }}>How it works</span>
               </div>
               <ul style={{
                 margin: 0,
                 paddingLeft: '20px',
-                color: '#64748b',
+                color: theme.palette.text.secondary,
                 fontSize: '13px',
                 lineHeight: '1.6'
               }}>
@@ -1620,9 +1622,9 @@ const BudgetDashboard: React.FC = () => {
             disabled={savingTotalBudget}
             startIcon={savingTotalBudget ? <CircularProgress size={16} /> : <SaveIcon />}
             sx={{
-              background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+              background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
               '&:hover': {
-                background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)'
+                background: `linear-gradient(135deg, ${theme.palette.secondary.dark} 0%, ${theme.palette.secondary.main} 100%)`
               }
             }}
           >

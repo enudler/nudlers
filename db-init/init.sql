@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS transactions (
 	installments_number INTEGER,
 	installments_total INTEGER,
 	account_number VARCHAR(50),
+	category_source VARCHAR(50),
+	rule_matched VARCHAR(255),
 	PRIMARY KEY (identifier, vendor)
 );
 
@@ -76,6 +78,7 @@ CREATE TABLE IF NOT EXISTS scrape_events (
     start_date DATE NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'started',
     message TEXT,
+    report_json JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_scrape_events_created_at ON scrape_events(created_at DESC);
@@ -98,6 +101,8 @@ CREATE TABLE IF NOT EXISTS card_ownership (
     account_number VARCHAR(50) NOT NULL,
     credential_id INTEGER NOT NULL REFERENCES vendor_credentials(id) ON DELETE CASCADE,
     linked_bank_account_id INTEGER REFERENCES vendor_credentials(id) ON DELETE SET NULL,
+    custom_bank_account_number VARCHAR(100),
+    custom_bank_account_nickname VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(vendor, account_number)
 );
@@ -207,6 +212,35 @@ CREATE TABLE IF NOT EXISTS transaction_categories (
 CREATE INDEX IF NOT EXISTS idx_transaction_categories_description ON transaction_categories(description);
 CREATE INDEX IF NOT EXISTS idx_transaction_categories_category ON transaction_categories(category);
 
+-- Category mappings table
+CREATE TABLE IF NOT EXISTS category_mappings (
+    id SERIAL PRIMARY KEY,
+    source_category VARCHAR(50) NOT NULL,
+    target_category VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_category)
+);
+CREATE INDEX IF NOT EXISTS idx_category_mappings_source ON category_mappings(source_category);
+
+-- Chat tables
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
+
 -- Insert default settings
 INSERT INTO app_settings (key, value, description) VALUES
     ('sync_enabled', 'false', 'Enable automatic background sync'),
@@ -216,5 +250,8 @@ INSERT INTO app_settings (key, value, description) VALUES
     ('date_format', '"DD/MM/YYYY"', 'Date display format'),
     ('billing_cycle_start_day', '10', 'Day of month when billing cycle starts'),
     ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)'),
-    ('fetch_categories_from_scrapers', 'true', 'Fetch categories from card providers during scraping. Disable to reduce rate limiting on Isracard/Amex/Cal.')
+    ('fetch_categories_from_scrapers', 'true', 'Fetch categories from card providers during scraping. Disable to reduce rate limiting on Isracard/Amex/Cal.'),
+    ('update_category_on_rescrape', 'false', 'Update transaction categories if bank provides new ones during re-scrape'),
+    ('scrape_retries', '3', 'Number of times to retry scraping on failure'),
+    ('israeli_bank_scrapers_version', '"latest"', 'Specific version or branch of the scraper library (e.g. "latest", "master", "6.6.0")')
 ON CONFLICT (key) DO NOTHING;

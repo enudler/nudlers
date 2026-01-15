@@ -67,7 +67,135 @@ Personal finance management application for tracking credit card expenses and ba
 - **Multi-currency support** with configurable default currency
 - **Customizable date formats**
 
+### 🤖 MCP Integration (Claude/Cursor)
+- **Model Context Protocol** server for AI assistant integration
+- Query transactions, budgets, and expenses via natural language
+- Add manual transactions through AI assistants
+- Check sync status and account information
+- Works with Claude Desktop, Cursor, and other MCP-compatible clients
+
 ---
+
+## MCP Integration (Claude Desktop / Cursor)
+
+Nudlers includes an MCP (Model Context Protocol) server that allows AI assistants like Claude Desktop or Cursor to interact with your financial data.
+
+### Prerequisites
+
+- Nudlers app must be running (`npm run dev` in the `app` directory)
+- Node.js 18+ installed
+
+### Setup
+
+1. **Build the MCP server**
+   ```bash
+   cd mcp
+   npm install
+   npm run build
+   ```
+
+2. **Find your absolute path**
+   ```bash
+   # Run this in the nudlers directory to get your path
+   echo "$(pwd)/mcp/build/index.js"
+   ```
+
+### Claude Desktop Configuration
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "node",
+      "args": ["/Users/YOUR_USERNAME/path/to/nudlers/mcp/build/index.js"],
+      "env": {
+        "NUDLERS_API_URL": "http://localhost:6969"
+      }
+    }
+  }
+}
+```
+
+> **Important:** Replace `/Users/YOUR_USERNAME/path/to/nudlers` with the actual absolute path to your nudlers directory.
+
+### Cursor Configuration
+
+Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global settings):
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "node",
+      "args": ["/Users/YOUR_USERNAME/path/to/nudlers/mcp/build/index.js"],
+      "env": {
+        "NUDLERS_API_URL": "http://localhost:6969"
+      }
+    }
+  }
+}
+```
+
+### Remote Server (Optional)
+
+If your Nudlers app is running on a different machine or port, use `mcp-remote`:
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://YOUR_SERVER_IP:6969/api/mcp"
+      ]
+    }
+  }
+}
+```
+
+> **Note:** Remote mode requires exposing the Nudlers API. For local development, use the standard configuration above.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_monthly_summary` | Get monthly financial summary with expenses by vendor/card |
+| `get_category_expenses` | Get all transactions for a specific category |
+| `get_all_categories` | List all spending categories |
+| `search_transactions` | Search transactions by description, vendor, or category |
+| `get_budgets` | Get budget vs actual spending comparison |
+| `get_sync_status` | Get sync status for all accounts |
+| `add_manual_transaction` | Add a manual expense or income transaction |
+| `get_recurring_payments` | Get recurring payments and installments |
+| `list_accounts` | List all configured accounts |
+| `get_all_transactions` | Get all transactions for a date range |
+
+### Example Prompts
+
+Once configured, you can ask Claude or Cursor:
+- "What are my expenses for January 2026?"
+- "Search for all grocery transactions"
+- "How much did I spend on dining this month?"
+- "Show me my budget vs actual spending"
+- "Add a manual expense: Coffee at Aroma, 25 shekels"
+- "What's the sync status of my accounts?"
+
+### Troubleshooting
+
+**MCP server not connecting:**
+1. Verify the Nudlers app is running on port 6969
+2. Check the path in your configuration is absolute and correct
+3. Restart Claude Desktop/Cursor after changing configuration
+
+**No data returned:**
+1. Ensure you have transactions in the database
+2. Check that the billing cycle parameter matches your data
+
+
 
 ## Screenshots
 

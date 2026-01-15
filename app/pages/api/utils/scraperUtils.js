@@ -120,6 +120,44 @@ export function matchCategoryRule(description, rules) {
 }
 
 /**
+ * Load category mappings from database
+ */
+export async function loadCategoryMappings(client) {
+  try {
+    const result = await client.query(
+      `SELECT source_category, target_category FROM category_mappings`
+    );
+    const mappings = {};
+    for (const row of result.rows) {
+      mappings[row.source_category] = row.target_category;
+    }
+    return mappings;
+  } catch (err) {
+    if (!err.message.includes('does not exist')) {
+      logger.error({ error: err.message }, '[Category Mappings] Error loading category mappings');
+    }
+    return {};
+  }
+}
+
+/**
+ * Apply category mappings recursively to find the final target category
+ */
+export function applyCategoryMappings(category, mappings) {
+  if (!category || !mappings || Object.keys(mappings).length === 0) return category;
+
+  let currentCategory = category;
+  let seen = new Set(); // Prevent infinite loops
+
+  while (mappings[currentCategory] && !seen.has(currentCategory)) {
+    seen.add(currentCategory);
+    currentCategory = mappings[currentCategory];
+  }
+
+  return currentCategory;
+}
+
+/**
  * Lookup category from cache based on transaction description
  */
 export function lookupCachedCategory(description) {
@@ -193,7 +231,7 @@ export function validateCredentials(credentials, vendor) {
 /**
  * Insert a transaction into the database
  */
-export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false) {
+export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false, categoryMappings = {}) {
   const {
     date,
     processedDate,
@@ -234,6 +272,21 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   if (cachedCategory && cachedCategory !== 'N/A') {
     finalCategory = cachedCategory;
     categorySource = 'cache';
+  }
+
+  // Apply Persistent Mappings (If previous categories were merged into a new one)
+  if (finalCategory && categoryMappings && Object.keys(categoryMappings).length > 0) {
+    const mappedCategory = applyCategoryMappings(finalCategory, categoryMappings);
+    if (mappedCategory !== finalCategory) {
+      logger.debug({
+        description,
+        originalCategory: finalCategory,
+        mappedCategory,
+        source: categorySource
+      }, '[Scraper] Applied persistent category mapping');
+      finalCategory = mappedCategory;
+      // We keep the original source (rule/cache/scraper) but the category is now mapped
+    }
   }
 
   // Generate identifier if not provided
@@ -290,10 +343,6 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
     return { success: true, duplicated: true, updated: false };
   }
-
-  // Determine transaction type if not provided
-  const transactionType = type || (chargedAmount < 0 ? 'expense' : 'income');
-  // ... (rest of the function)
 
   // Normalize values for business key check
   const normalizedName = (description || '').trim().toLowerCase();
@@ -636,16 +685,14 @@ export async function getFetchCategoriesSetting(client) {
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
-export async function getStandardTimeoutSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout_standard'");
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
-}
-
-// ... (existing code)
-
 export async function getRateLimitedTimeoutSetting(client) {
   const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout_rate_limited'");
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 120000 : 120000;
+}
+
+export async function getStandardTimeoutSetting(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout_standard'");
+  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
 }
 
 export async function getFallbackCategorySetting(client) {
