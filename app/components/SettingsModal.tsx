@@ -33,7 +33,7 @@ interface SettingsModalProps {
 
 interface Settings {
   sync_enabled: boolean;
-  sync_interval_hours: number;
+  sync_hour: number;
   sync_days_back: number;
   default_currency: string;
   date_format: string;
@@ -112,7 +112,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const theme = useTheme();
   const [settings, setSettings] = useState<Settings>({
     sync_enabled: false,
-    sync_interval_hours: 24,
+    sync_hour: 3,
     sync_days_back: 30,
     default_currency: 'ILS',
     date_format: 'DD/MM/YYYY',
@@ -154,7 +154,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         const parseBool = (val: unknown) => val === true || val === 'true' || val === '"true"';
         const newSettings = {
           sync_enabled: parseBool(data.settings.sync_enabled),
-          sync_interval_hours: parseInt(data.settings.sync_interval_hours) || 24,
+          sync_hour: parseInt(data.settings.sync_hour) || 3,
           sync_days_back: parseInt(data.settings.sync_days_back) || 30,
           default_currency: (data.settings.default_currency || 'ILS').replace(/"/g, ''),
           date_format: (data.settings.date_format || 'DD/MM/YYYY').replace(/"/g, ''),
@@ -339,18 +339,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box>
-                  <Typography variant="body1">Sync Interval (hours)</Typography>
+                  <Typography variant="body1">Sync at Hour</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    How often to check for new transactions
+                    Hour of the day to trigger background sync (0-23)
                   </Typography>
                 </Box>
                 <StyledTextField
                   type="number"
-                  value={settings.sync_interval_hours}
-                  onChange={(e) => setSettings({ ...settings, sync_interval_hours: parseInt(e.target.value) || 24 })}
+                  value={settings.sync_hour}
+                  onChange={(e) => setSettings({ ...settings, sync_hour: parseInt(e.target.value) || 0 })}
                   size="small"
                   sx={{ width: '100px' }}
-                  inputProps={{ min: 1, max: 168 }}
+                  inputProps={{ min: 0, max: 23 }}
                 />
               </SettingRow>
 

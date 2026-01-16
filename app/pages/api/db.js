@@ -10,7 +10,6 @@ const pool = new Pool({
   ssl: false,
 });
 
-
 export async function getDB() {
   try {
     const client = await pool.connect();

@@ -46,7 +46,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0"
 
-# Install runtime dependencies and create user in a single layer to minimize size
+# Install runtime dependencies and tini for process management
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -56,30 +56,22 @@ RUN apk add --no-cache \
     ttf-freefont \
     xvfb \
     bash \
+    tini \
     && addgroup -S pptruser && adduser -S -G pptruser pptruser \
     && mkdir -p /home/pptruser/Downloads \
-    && chown -R pptruser:pptruser /home/pptruser
+    && chown -R pptruser:pptruser /home/pptruser /app
 
-# Copy standalone build output with proper ownership
+# Copy standalone build output and scripts with proper ownership
 COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
 COPY --from=builder --chown=pptruser:pptruser /app/.next/static ./.next/static
 COPY --from=builder --chown=pptruser:pptruser /app/public ./public
 COPY --from=builder --chown=pptruser:pptruser /app/scrapers ./scrapers
 COPY --from=builder --chown=pptruser:pptruser /app/scripts ./scripts
+COPY --from=builder --chown=pptruser:pptruser /app/utils ./utils
+COPY --from=builder --chown=pptruser:pptruser /app/pages ./pages
 
-# Create startup script
-RUN printf '#!/bin/bash\n\
-export DISPLAY=:99\n\
-Xvfb :99 -screen 0 1920x1080x24 &\n\
-sleep 1\n\
-\n\
-# Start background scheduler\n\
-echo "Starting background scheduler..."\n\
-node scripts/background-scheduler.js &\n\
-\n\
-exec node server.js' > /app/start.sh && \
-    chmod +x /app/start.sh && \
-    chown pptruser:pptruser /app/start.sh
+# Ensure startup script is executable
+RUN chmod +x /app/scripts/start.sh
 
 # Switch to non-root user
 USER pptruser
@@ -87,4 +79,7 @@ USER pptruser
 # Expose app port
 EXPOSE 3000
 
-CMD ["/app/start.sh"]
+# Use tini as the entrypoint to handle signals and zombie processes
+ENTRYPOINT ["/sbin/tini", "--"]
+
+CMD ["/app/scripts/start.sh"]

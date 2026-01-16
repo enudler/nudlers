@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   try {
     // Get sync settings
     const settingsResult = await client.query(
-      `SELECT key, value FROM app_settings WHERE key IN ('sync_enabled', 'sync_interval_hours', 'sync_days_back')`
+      `SELECT key, value FROM app_settings WHERE key IN ('sync_enabled', 'sync_hour', 'sync_days_back')`
     );
 
     const settings = {};
@@ -148,7 +148,8 @@ export default async function handler(req, res) {
 
     // Calculate overall sync health
     const now = new Date();
-    const intervalHours = parseInt(settings.sync_interval_hours) || 24;
+    const syncHour = parseInt(settings.sync_hour) || 3;
+    const intervalHours = 24; // Implicit daily interval
     let syncHealth = 'unknown';
 
     if (latestScrape && latestScrape.created_at) {
@@ -186,7 +187,7 @@ export default async function handler(req, res) {
       syncHealth,
       settings: {
         enabled: settings.sync_enabled === true || settings.sync_enabled === 'true',
-        intervalHours: parseInt(settings.sync_interval_hours) || 24,
+        syncHour: parseInt(settings.sync_hour) || 3,
         daysBack: parseInt(settings.sync_days_back) || 30
       },
       activeAccounts,

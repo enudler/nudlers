@@ -413,6 +413,22 @@ const migrations = [
       VALUES ('gemini_model', '"gemini-2.5-flash"', 'Gemini AI model to use (e.g., gemini-2.5-flash)')
       ON CONFLICT (key) DO NOTHING;
     `
+  },
+  {
+    name: 'add_sync_last_run_at_setting',
+    sql: `
+      INSERT INTO app_settings (key, value, description)
+      VALUES ('sync_last_run_at', '"1970-01-01T00:00:00.000Z"', 'Timestamp of the last background sync run')
+      ON CONFLICT (key) DO NOTHING;
+    `
+  },
+  {
+    name: 'add_sync_hour_setting',
+    sql: `
+      INSERT INTO app_settings (key, value, description)
+      VALUES ('sync_hour', '3', 'Hour of the day to trigger background sync (0-23)')
+      ON CONFLICT (key) DO NOTHING;
+    `
   }
 ];
 
@@ -440,6 +456,7 @@ export async function runMigrations() {
     // Run all required migrations
     for (const migration of migrations) {
       try {
+
         await client.query(migration.sql);
         results.push({ name: migration.name, status: 'success' });
         logger.info({ migration: migration.name }, '[migrate] Migration completed');
