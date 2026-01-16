@@ -1,19 +1,40 @@
-name: Build and Push Docker Image
+name: Branch CI
 
 on:
   push:
+    branches-ignore:
+      - main
+  pull_request:
     branches:
       - main
-    tags:
-      - 'v*'
-  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'app/package.json'
+          cache: 'npm'
+          cache-dependency-path: 'app/package-lock.json'
+
+      - name: Install dependencies
+        run: cd app && npm ci
+
+      - name: Run unit tests
+        run: cd app && npm test
+
+  build-branch-image:
+    if: github.event_name == 'push'
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,32 +57,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Extract branch name
+        id: branch_name
+        run: echo "branch=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./app
-          # Build only for amd64 to significantly reduce build time
-          # ARM64 builds via QEMU emulation are extremely slow (30+ minutes)
-          # If you need ARM64, consider using native ARM runners or separate workflow
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Use GitHub Actions cache for Docker layers
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.branch_name.outputs.branch }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Build arguments to optimize caching
           build-args: |
             BUILDKIT_INLINE_CACHE=1
