@@ -776,21 +776,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                   <Typography variant="body2" sx={{ color: 'var(--info-text)', mt: 0.5 }}>
                     A browser window should have opened. You can interact with it to complete 2FA or debug issues.
                   </Typography>
-                  <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Box sx={{ mt: 1.5 }}>
                     <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#3b82f6' }}>
-                      <strong>🖥️ Local:</strong> Look for a Chrome window on your desktop
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: '#3b82f6' }}>
-                      <strong>🐳 Docker:</strong>{' '}
-                      <a
-                        href="/vnc"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: '#2563eb', textDecoration: 'underline' }}
-                      >
-                        Open Browser Viewer
-                      </a>
-                      {' '}(requires ENABLE_VNC=true)
+                      <strong>🖥️ Debug Tip:</strong> Look for a Chrome window on your desktop. This mode is best used when running the app locally.
                     </Typography>
                   </Box>
                 </Box>

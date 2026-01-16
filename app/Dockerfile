@@ -55,10 +55,6 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     xvfb \
-    x11vnc \
-    novnc \
-    websockify \
-    openbox \
     bash \
     && addgroup -S pptruser && adduser -S -G pptruser pptruser \
     && mkdir -p /home/pptruser/Downloads \
@@ -71,19 +67,11 @@ COPY --from=builder --chown=pptruser:pptruser /app/public ./public
 COPY --from=builder --chown=pptruser:pptruser /app/scrapers ./scrapers
 COPY --from=builder --chown=pptruser:pptruser /app/scripts ./scripts
 
-# Create startup script that supports optional VNC
-# We use websockify directly on Alpine as it's cleaner
+# Create startup script
 RUN printf '#!/bin/bash\n\
 export DISPLAY=:99\n\
 Xvfb :99 -screen 0 1920x1080x24 &\n\
 sleep 1\n\
-\n\
-if [ "$ENABLE_VNC" = "true" ]; then\n\
-    echo "Starting VNC debugging flow (port 6080)..."\n\
-    openbox &\n\
-    x11vnc -display :99 -forever -shared -nopw -rfbport 5900 &\n\
-    websockify --web /usr/share/novnc 6080 localhost:5900 &\n\
-fi\n\
 \n\
 # Start background scheduler\n\
 echo "Starting background scheduler..."\n\
@@ -96,7 +84,7 @@ exec node server.js' > /app/start.sh && \
 # Switch to non-root user
 USER pptruser
 
-# Expose app port and optional VNC tunnel
-EXPOSE 3000 6080
+# Expose app port
+EXPOSE 3000
 
 CMD ["/app/start.sh"]
