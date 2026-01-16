@@ -13,7 +13,7 @@ interface SyncStatus {
   syncHealth: string;
   settings: {
     enabled: boolean;
-    intervalHours: number;
+    syncHour: number;
     daysBack: number;
   };
   activeAccounts: number;

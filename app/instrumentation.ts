@@ -139,8 +139,8 @@ export async function register() {
       logger.info('[startup] Initializing WhatsApp daily summary cron job');
       const cron = await import('node-cron');
 
-      // Run every minute to check if we should send the daily summary
-      cron.default.schedule('* * * * *', async () => {
+      // Run every hour to check if we should send the daily summary
+      cron.default.schedule('0 * * * *', async () => {
         try {
           const { getDB } = await import('./pages/api/db');
           const client = await getDB();
@@ -247,6 +247,85 @@ export async function register() {
       logger.info('[startup] WhatsApp cron job initialized');
     } catch (error: any) {
       logger.warn({ error: error.message }, '[startup] WhatsApp cron job initialization failed');
+    }
+
+    // Initialize Background Sync cron job
+    try {
+      logger.info('[startup] Initializing Background Sync cron job');
+      const cron = await import('node-cron');
+
+      // Run every hour to check if we should trigger a sync
+      // The exact hour is controlled by the 'sync_hour' setting in the database
+      cron.default.schedule('0 * * * *', async () => {
+        // If we run exactly at 00 minutes, we might be a few ms early or late.
+        // The currentHour check below handles the logic correctly.
+        try {
+          const { getDB } = await import('./pages/api/db');
+          const client = await getDB();
+
+          try {
+            const settingsResult = await client.query(
+              `SELECT key, value FROM app_settings 
+               WHERE key IN ('sync_enabled', 'sync_hour', 'sync_last_run_at')`
+            );
+
+            const settings: Record<string, any> = {};
+            for (const row of settingsResult.rows) {
+              settings[row.key] = row.value;
+            }
+
+            // Check if enabled
+            if (settings.sync_enabled !== true && settings.sync_enabled !== 'true') {
+              return;
+            }
+
+            // Check if we're at the right hour
+            const now = new Date();
+            const currentHour = now.getHours();
+            const targetHour = parseInt(settings.sync_hour || '3', 10);
+
+            if (currentHour !== targetHour) {
+              return;
+            }
+
+            // Check if we already ran today
+            const today = now.toISOString().split('T')[0];
+            const lastRunStr = typeof settings.sync_last_run_at === 'string'
+              ? settings.sync_last_run_at.replace(/"/g, '')
+              : '';
+            const lastRunDate = lastRunStr.split('T')[0];
+
+            if (lastRunDate === today) {
+              return;
+            }
+
+            logger.info({ currentHour, today }, '[sync-cron] Triggering daily background sync');
+
+            // Import and run the background sync
+            const { runBackgroundSync } = await import('./scripts/background-sync.js');
+            await runBackgroundSync();
+
+            // Update last run time
+            const nowIso = new Date().toISOString();
+            await client.query(
+              `UPDATE app_settings SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = 'sync_last_run_at'`,
+              [JSON.stringify(nowIso)]
+            );
+
+            logger.info('[sync-cron] Background sync completed and last run time updated');
+          } catch (error: any) {
+            logger.error({ error: error.message, stack: error.stack }, '[sync-cron] Error during background sync');
+          } finally {
+            client.release();
+          }
+        } catch (error: any) {
+          logger.error({ error: error.message }, '[sync-cron] Failed to execute sync cron job');
+        }
+      });
+
+      logger.info('[startup] Background Sync cron job initialized');
+    } catch (error: any) {
+      logger.warn({ error: error.message }, '[startup] Background Sync cron job initialization failed');
     }
   }
 }
