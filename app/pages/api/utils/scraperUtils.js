@@ -433,7 +433,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       ON CONFLICT (identifier, vendor) DO NOTHING`,
       [
         txId, vendor, date, description || '', normalizedPrice,
-        finalCategory, transactionType, finalProcessedDate, originalAmount, originalCurrency,
+        finalCategory, type, finalProcessedDate, originalAmount, originalCurrency,
         defaultCurrency, memo, status || 'completed',
         installmentsNumber, installmentsTotal, accountNumber,
         categorySource, ruleDetails
