@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SvgIconComponent } from '@mui/icons-material';
+import { logger } from '../../../utils/client-logger';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import FastfoodIcon from '@mui/icons-material/Fastfood';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
@@ -67,53 +68,53 @@ const defaultColorMap: { [key: string]: string } = {
 
 // Extended icon mapping with semantic categories for better matching
 const extendedIconMap: { [key: string]: { icon: SvgIconComponent, keywords: string[] } } = {
-  fitness: { 
-    icon: FitnessCenterIcon, 
+  fitness: {
+    icon: FitnessCenterIcon,
     keywords: ['כושר', 'חדר כושר', 'אימון', 'ספורט', 'התעמלות']
   },
-  food: { 
-    icon: FastfoodIcon, 
+  food: {
+    icon: FastfoodIcon,
     keywords: ['אוכל', 'מזון', 'ארוחות', 'משלוח', 'פוד']
   },
-  clothing: { 
-    icon: ShoppingBagIcon, 
-    keywords: ['ביגוד', 'אופנה', 'בגדים', 'לבוש'] 
+  clothing: {
+    icon: ShoppingBagIcon,
+    keywords: ['ביגוד', 'אופנה', 'בגדים', 'לבוש']
   },
-  leisure: { 
-    icon: SportsSoccerIcon, 
-    keywords: ['פנאי', 'תחביב', 'בידור', 'בילוי', 'נופש'] 
+  leisure: {
+    icon: SportsSoccerIcon,
+    keywords: ['פנאי', 'תחביב', 'בידור', 'בילוי', 'נופש']
   },
-  transportation: { 
-    icon: CommuteIcon, 
-    keywords: ['תחבורה', 'נסיעה', 'נסיעות', 'הסעות', 'תחבורה ציבורית'] 
+  transportation: {
+    icon: CommuteIcon,
+    keywords: ['תחבורה', 'נסיעה', 'נסיעות', 'הסעות', 'תחבורה ציבורית']
   },
-  health: { 
-    icon: LocalHospitalIcon, 
-    keywords: ['בריאות', 'רפואה', 'רופא', 'בית חולים', 'קופת חולים'] 
+  health: {
+    icon: LocalHospitalIcon,
+    keywords: ['בריאות', 'רפואה', 'רופא', 'בית חולים', 'קופת חולים']
   },
-  banking: { 
-    icon: AccountBalanceIcon, 
-    keywords: ['פנסיה', 'בנק', 'השקעות', 'חיסכון', 'פיננסים'] 
+  banking: {
+    icon: AccountBalanceIcon,
+    keywords: ['פנסיה', 'בנק', 'השקעות', 'חיסכון', 'פיננסים']
   },
-  restaurants: { 
-    icon: RestaurantIcon, 
-    keywords: ['מסעדות', 'מסעדה', 'אוכל בחוץ', 'בית קפה', 'דיינינג'] 
+  restaurants: {
+    icon: RestaurantIcon,
+    keywords: ['מסעדות', 'מסעדה', 'אוכל בחוץ', 'בית קפה', 'דיינינג']
   },
-  shopping: { 
-    icon: ShoppingCartIcon, 
-    keywords: ['קניות', 'רכישה', 'קנייה', 'צרכנות', 'שופינג'] 
+  shopping: {
+    icon: ShoppingCartIcon,
+    keywords: ['קניות', 'רכישה', 'קנייה', 'צרכנות', 'שופינג']
   },
-  housing: { 
-    icon: ApartmentIcon, 
-    keywords: ['דירה', 'מגורים', 'בית', 'נכס', 'שכירות', 'דיור'] 
+  housing: {
+    icon: ApartmentIcon,
+    keywords: ['דירה', 'מגורים', 'בית', 'נכס', 'שכירות', 'דיור']
   },
-  communication: { 
-    icon: Phone, 
-    keywords: ['תקשורת', 'טלפון', 'סלולרי', 'נייד', 'מובייל'] 
+  communication: {
+    icon: Phone,
+    keywords: ['תקשורת', 'טלפון', 'סלולרי', 'נייד', 'מובייל']
   },
-  transfers: { 
-    icon: TransferWithinAStation, 
-    keywords: ['העברות', 'העברה', 'עסקה', 'תשלום', 'עסקאות'] 
+  transfers: {
+    icon: TransferWithinAStation,
+    keywords: ['העברות', 'העברה', 'עסקה', 'תשלום', 'עסקאות']
   },
   money: {
     icon: AttachMoneyIcon,
@@ -202,18 +203,18 @@ export const findBestMatchingIcon = (categoryName: string): SvgIconComponent => 
   if (defaultIconMap[categoryName]) {
     return defaultIconMap[categoryName];
   }
-  
+
   // Try to find the best match by comparing the category name with keywords
   const lowerCategoryName = categoryName.toLowerCase();
-  let bestMatch: { icon: SvgIconComponent, score: number } = { 
-    icon: MonetizationOnIcon, 
-    score: 0 
+  let bestMatch: { icon: SvgIconComponent, score: number } = {
+    icon: MonetizationOnIcon,
+    score: 0
   };
-  
+
   // Go through all categories in extendedIconMap
   Object.entries(extendedIconMap).forEach(([, categoryData]) => {
     const { icon, keywords } = categoryData;
-    
+
     // Calculate score based on keyword matches
     const score = keywords.reduce((acc, keyword) => {
       // Check if category name includes the keyword
@@ -221,22 +222,22 @@ export const findBestMatchingIcon = (categoryName: string): SvgIconComponent => 
         // Higher score for more exact matches (e.g., if keyword length is closer to category name length)
         return acc + (keyword.length / lowerCategoryName.length);
       }
-      
+
       // Check for partial matches (e.g., "trans" matches "transfer")
-      if (keyword.toLowerCase().includes(lowerCategoryName) || 
-          lowerCategoryName.includes(keyword.toLowerCase().substring(0, 3))) {
+      if (keyword.toLowerCase().includes(lowerCategoryName) ||
+        lowerCategoryName.includes(keyword.toLowerCase().substring(0, 3))) {
         return acc + 0.5;
       }
-      
+
       return acc;
     }, 0);
-    
+
     // Update best match if current score is higher
     if (score > bestMatch.score) {
       bestMatch = { icon, score };
     }
   });
-  
+
   // Return best match or default to MonetizationOnIcon if no good matches
   return bestMatch.score > 0 ? bestMatch.icon : MonetizationOnIcon;
 };
@@ -248,13 +249,13 @@ export const fetchCategories = async (): Promise<string[]> => {
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
       const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
-      console.error(errorMessage);
+      logger.error(errorMessage);
       throw new Error(errorMessage);
     }
     return await response.json();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Error fetching categories:', errorMessage);
+    logger.error('Error fetching categories', undefined, { errorMessage });
     // Return default categories as fallback
     return Object.keys(defaultIconMap);
   }
@@ -267,22 +268,22 @@ export const useCategoryIcons = (): { [key: string]: SvgIconComponent } => {
   useEffect(() => {
     const loadCategories = async () => {
       const categories = await fetchCategories();
-      
+
       // Create a new map with fetched categories
       const newIconMap: { [key: string]: SvgIconComponent } = {};
-      
+
       // Assign icons to each category
       categories.forEach(category => {
         // Use the findBestMatchingIcon function for dynamic icon assignment
         newIconMap[category] = defaultIconMap[category] || findBestMatchingIcon(category);
       });
-      
+
       setCategoryIcons(newIconMap);
     };
-    
+
     loadCategories();
   }, []);
-  
+
   return categoryIcons;
 };
 
@@ -293,39 +294,39 @@ export const generateColorFromString = (str: string): string => {
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   // Convert the hash to a color with good saturation and lightness
   // Using HSL to ensure vibrant but not too bright/dark colors
   const h = Math.abs(hash) % 360;  // Hue: 0-359 degrees on the color wheel
   const s = 65 + (hash % 20);      // Saturation: 65-85%
   const l = 55 + (hash % 10);      // Lightness: 55-65%
-  
+
   return `hsl(${h}, ${s}%, ${l}%)`;
 };
 
 // Hook to get category colors
 export const useCategoryColors = (): { [key: string]: string } => {
   const [categoryColors, setCategoryColors] = useState<{ [key: string]: string }>(defaultColorMap);
-  
+
   useEffect(() => {
     const loadCategories = async () => {
       const categories = await fetchCategories();
-      
+
       // Create a new map with fetched categories
       const newColorMap: { [key: string]: string } = {};
-      
+
       // Assign colors to each category
       categories.forEach(category => {
         // Use the default color if available, otherwise generate a color based on category name
         newColorMap[category] = defaultColorMap[category] || generateColorFromString(category);
       });
-      
+
       setCategoryColors(newColorMap);
     };
-    
+
     loadCategories();
   }, []);
-  
+
   return categoryColors;
 };
 

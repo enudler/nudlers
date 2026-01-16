@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { logger } from '../utils/client-logger';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -195,7 +196,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
                 ));
               }
             } catch (e) {
-              console.error('Failed to parse SSE data:', e);
+              logger.error('Failed to parse SSE data', e as Error);
             }
           }
         }

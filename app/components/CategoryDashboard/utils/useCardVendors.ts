@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '../../../utils/client-logger';
 
 interface CardVendorMapping {
   [last4_digits: string]: {
@@ -15,11 +16,11 @@ async function fetchCardVendors(): Promise<CardVendorMapping> {
   if (cachedVendors) {
     return cachedVendors;
   }
-  
+
   if (fetchPromise) {
     return fetchPromise;
   }
-  
+
   fetchPromise = fetch('/api/card_vendors')
     .then(res => {
       if (!res.ok) {
@@ -43,10 +44,10 @@ async function fetchCardVendors(): Promise<CardVendorMapping> {
     })
     .catch(err => {
       fetchPromise = null;
-      console.error('Failed to fetch card vendors:', err);
+      logger.error('Failed to fetch card vendors', err as Error);
       return {};
     });
-  
+
   return fetchPromise;
 }
 
@@ -62,7 +63,7 @@ export function useCardVendors() {
         setIsLoading(false);
       });
     }
-    
+
     // Listen for updates to card vendors
     const handleUpdate = () => {
       cachedVendors = null;
@@ -70,7 +71,7 @@ export function useCardVendors() {
         setVendorMap(data);
       });
     };
-    
+
     window.addEventListener('cardVendorsUpdated', handleUpdate);
     return () => window.removeEventListener('cardVendorsUpdated', handleUpdate);
   }, []);

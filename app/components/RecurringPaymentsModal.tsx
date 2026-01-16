@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/client-logger';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -100,7 +101,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       setInstallments(data.installments || []);
       setRecurring(data.recurring || []);
     } catch (err) {
-      console.error('Error fetching recurring payments:', err);
+      logger.error('Error fetching recurring payments', err as Error);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);

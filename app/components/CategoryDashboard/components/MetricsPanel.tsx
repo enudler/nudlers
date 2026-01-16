@@ -1,4 +1,5 @@
 import React from 'react';
+import { logger } from '../../../utils/client-logger';
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import { styled } from "@mui/material/styles";
@@ -51,8 +52,8 @@ const HeaderBox = styled(Box)({
   padding: '0 4px',
 });
 
-const MetricItem: React.FC<{ 
-  title: string; 
+const MetricItem: React.FC<{
+  title: string;
   value: string;
   icon: React.ReactNode;
   color: string;
@@ -60,8 +61,8 @@ const MetricItem: React.FC<{
 }> = ({ title, value, icon, color, subtitle }) => {
   return (
     <MetricCard>
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         textAlign: 'center',
@@ -80,34 +81,34 @@ const MetricItem: React.FC<{
           position: 'relative',
           zIndex: 1
         }}>
-          {React.cloneElement(icon as React.ReactElement<{ sx?: object }>, { 
-            sx: { 
-              fontSize: '20px', 
-              color: color 
-            } 
+          {React.cloneElement(icon as React.ReactElement<{ sx?: object }>, {
+            sx: {
+              fontSize: '20px',
+              color: color
+            }
           })}
         </div>
         <div>
-          <h3 style={{ 
-            margin: '0 0 4px 0', 
-            fontSize: '11px', 
+          <h3 style={{
+            margin: '0 0 4px 0',
+            fontSize: '11px',
             color: 'rgba(255, 255, 255, 0.6)',
             fontWeight: 600,
             textTransform: 'uppercase',
             letterSpacing: '1px'
           }}>{title}</h3>
-          <p style={{ 
-            margin: 0, 
-            fontSize: '24px', 
+          <p style={{
+            margin: 0,
+            fontSize: '24px',
             color: color,
             fontWeight: 700,
             lineHeight: '1.1',
             textShadow: `0 2px 8px ${color}40`
           }}>{value}</p>
           {subtitle && (
-            <p style={{ 
-              margin: '4px 0 0 0', 
-              fontSize: '11px', 
+            <p style={{
+              margin: '4px 0 0 0',
+              fontSize: '11px',
               color: 'rgba(255, 255, 255, 0.5)',
               fontWeight: 500
             }}>{subtitle}</p>
@@ -133,7 +134,7 @@ const MetricsPanel: React.FC = () => {
       const result = await response.json();
       setData(result as BoxPanelData);
     } catch (error) {
-      console.error("Error fetching metrics data:", error);
+      logger.error('Error fetching metrics data', error as Error);
     }
   };
 
@@ -169,8 +170,8 @@ const MetricsPanel: React.FC = () => {
         </IconButton>
       </HeaderBox>
       <Collapse in={open}>
-        <Box sx={{ 
-          display: 'grid', 
+        <Box sx={{
+          display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '12px',
           maxWidth: '800px',
@@ -178,21 +179,21 @@ const MetricsPanel: React.FC = () => {
         }}>
           <MetricItem
             title="Total Transactions"
-            value={data?.allTransactions? data.allTransactions: "N/A"}
+            value={data?.allTransactions ? data.allTransactions : "N/A"}
             icon={<ReceiptIcon />}
             color="#3b82f6"
             subtitle="All time"
           />
           <MetricItem
             title="Active Categories"
-            value={data?.categories? data.categories: "N/A"}
+            value={data?.categories ? data.categories : "N/A"}
             icon={<CategoryIcon />}
             color="#3b82f6"
             subtitle="In use"
           />
           <MetricItem
             title="Latest Activity"
-            value={data.lastMonth?data.lastMonth:"N/A"}
+            value={data.lastMonth ? data.lastMonth : "N/A"}
             icon={<CalendarTodayIcon />}
             color="#3b82f6"
             subtitle="Last transaction"

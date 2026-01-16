@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/client-logger';
 import {
   Dialog,
   DialogTitle,
@@ -181,7 +182,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         setHasInitialLoad(true);
       }
     } catch (error) {
-      console.error('Failed to fetch settings:', error);
+      logger.error('Failed to fetch settings', error as Error);
     } finally {
       setLoading(false);
     }
@@ -224,7 +225,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         setOriginalSettings(settings);
       }
     } catch (error) {
-      console.error('Auto-save error:', error);
+      logger.error('Auto-save error', error as Error);
       setResult({ type: 'error', message: 'Failed to auto-save settings' });
     } finally {
       setSaving(false);

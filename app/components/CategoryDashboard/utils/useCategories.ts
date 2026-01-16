@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '../../../utils/client-logger';
 
 export const useCategories = () => {
   const [categories, setCategories] = useState<string[]>([]);
@@ -22,12 +23,12 @@ export const useCategories = () => {
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Unknown error occurred');
         setError(error);
-        console.error('Error fetching categories:', error.message);
+        logger.error('Error fetching categories', error);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchCategories();
   }, []);
 

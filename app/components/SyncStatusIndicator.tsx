@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/client-logger';
 import { Box, Tooltip, Typography, Chip } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -76,7 +77,7 @@ const parseDate = (dateStr: string | null): Date => {
 
   // Validate the date is valid
   if (isNaN(date.getTime())) {
-    console.warn(`[parseDate] Invalid date string: ${dateStr}`);
+    logger.warn(`Invalid date string: ${dateStr}`);
     return new Date();
   }
 
@@ -124,7 +125,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
         setStatus(data);
       }
     } catch (error) {
-      console.error('Failed to fetch sync status:', error);
+      logger.error('Failed to fetch sync status', error as Error);
     } finally {
       setLoading(false);
     }

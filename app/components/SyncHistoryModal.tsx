@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '../utils/client-logger';
 import { useTheme } from '@mui/material/styles';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -40,7 +41,7 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
                 setEvents(data);
             }
         } catch (err) {
-            console.error('Failed to fetch sync history', err);
+            logger.error('Failed to fetch sync history', err as Error);
         } finally {
             setLoading(false);
         }

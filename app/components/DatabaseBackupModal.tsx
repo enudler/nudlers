@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { logger } from '../utils/client-logger';
 import {
   Dialog,
   DialogTitle,
@@ -114,7 +115,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
         message: `Exported ${totalRows} records from ${Object.keys(data.tables).length} tables`
       });
     } catch (error) {
-      console.error('Export error:', error);
+      logger.error('Export error', error as Error);
       setResult({
         type: 'error',
         message: 'Failed to export database'
@@ -183,7 +184,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
         });
       }
     } catch (error: any) {
-      console.error('Import error:', error);
+      logger.error('Import error', error);
       setResult({
         type: 'error',
         message: error.message || 'Failed to import database'

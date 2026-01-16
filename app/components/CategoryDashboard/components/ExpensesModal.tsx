@@ -1,4 +1,5 @@
 import React from 'react';
+import { logger } from '../../../utils/client-logger';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import CloseIcon from '@mui/icons-material/Close';
@@ -339,11 +340,11 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
               // Trigger a refresh of the dashboard data
               window.dispatchEvent(new CustomEvent('dataRefresh'));
             } else {
-              console.error('Failed to update transaction');
+              logger.error('Failed to update transaction');
             }
           }
         } catch (error) {
-          console.error("Error updating transaction:", error);
+          logger.error('Error updating transaction', error as Error);
           setSnackbar({
             open: true,
             message: 'Error updating transaction',
@@ -458,7 +459,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         }
       }
     } catch (error) {
-      console.error("Error deleting transaction:", error);
+      logger.error('Error deleting transaction', error as Error);
       setSnackbar({
         open: true,
         message: 'Error deleting transaction',

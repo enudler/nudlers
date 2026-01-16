@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/client-logger';
 import IconButton from '@mui/material/IconButton';
 import Box from '@mui/material/Box';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -182,7 +183,7 @@ const BudgetDashboard: React.FC = () => {
       setBudgets(data);
       return data;
     } catch (error) {
-      console.error('Error fetching budgets:', error);
+      logger.error('Error fetching budgets', error as Error);
       showNotification('Failed to load budgets', 'error');
       return [];
     }
@@ -230,7 +231,7 @@ const BudgetDashboard: React.FC = () => {
         setTotalSpendBudget(data.total_spend_budget);
       }
     } catch (error) {
-      console.error('Error fetching spending data:', error);
+      logger.error('Error fetching spending data', error as Error);
     } finally {
       setLoading(false);
     }
@@ -271,7 +272,7 @@ const BudgetDashboard: React.FC = () => {
 
       return { year: defaultYear, month: defaultMonth };
     } catch (error) {
-      console.error('Error fetching available months:', error);
+      logger.error('Error fetching available months', error as Error);
       return null;
     }
   }, []);
@@ -282,7 +283,7 @@ const BudgetDashboard: React.FC = () => {
       const categories = await response.json();
       setAllCategories(categories.filter((c: string) => c !== 'Bank'));
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      logger.error('Error fetching categories', error as Error);
     }
   }, []);
 
@@ -304,7 +305,7 @@ const BudgetDashboard: React.FC = () => {
       const data = await response.json();
       setBurndownData(data);
     } catch (error) {
-      console.error('Error fetching burndown data:', error);
+      logger.error('Error fetching burndown data', error as Error);
       setBurndownData(null);
     } finally {
       setBurndownLoading(false);
@@ -410,7 +411,7 @@ const BudgetDashboard: React.FC = () => {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgetList);
       }
     } catch (error) {
-      console.error('Error saving budget:', error);
+      logger.error('Error saving budget', error as Error);
       showNotification('Failed to save budget', 'error');
     } finally {
       setSavingBudget(false);
@@ -433,7 +434,7 @@ const BudgetDashboard: React.FC = () => {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgetList);
       }
     } catch (error) {
-      console.error('Error deleting budget:', error);
+      logger.error('Error deleting budget', error as Error);
       showNotification('Failed to delete budget', 'error');
     }
   };
@@ -483,7 +484,7 @@ const BudgetDashboard: React.FC = () => {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgets);
       }
     } catch (error) {
-      console.error('Error saving total budget:', error);
+      logger.error('Error saving total budget', error as Error);
       showNotification('Failed to save total budget', 'error');
     } finally {
       setSavingTotalBudget(false);
@@ -508,7 +509,7 @@ const BudgetDashboard: React.FC = () => {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgets);
       }
     } catch (error) {
-      console.error('Error deleting total budget:', error);
+      logger.error('Error deleting total budget', error as Error);
       showNotification('Failed to remove total budget', 'error');
     }
   };

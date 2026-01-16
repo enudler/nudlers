@@ -851,7 +851,7 @@ const MonthlySummary: React.FC = () => {
       });
       setIsModalOpen(true);
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      logger.error('Error fetching transactions by description', err);
     } finally {
       setLoadingDescription(null);
     }
@@ -930,7 +930,7 @@ const MonthlySummary: React.FC = () => {
       });
       setIsModalOpen(true);
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      logger.error('Error fetching transactions by last4', err);
     } finally {
       setLoadingLast4(null);
     }

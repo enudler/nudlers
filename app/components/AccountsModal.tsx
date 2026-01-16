@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/client-logger';
 import {
   Dialog,
   DialogContent,
@@ -205,7 +206,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
       }
     } catch (err) {
       // Silent fail - card ownership is supplementary info
-      console.error('Failed to fetch card ownership:', err);
+      logger.error('Failed to fetch card ownership', err as Error);
     }
   };
 

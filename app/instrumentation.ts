@@ -4,31 +4,69 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const logger = (await import('./utils/logger.js')).default;
     // Intercept Next.js request logs and redirect through our JSON logger
-    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = (chunk: any, encoding?: any, callback?: any) => {
-      const message = chunk?.toString() || '';
+    // Intercept Next.js request logs and redirect through our JSON logger
+    const stripAnsi = (str: string) => str.replace(/[\u001b\u009b][[[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
 
-      // Check if this is a Next.js request log (format: "GET /api/ping 304 in 17ms (compile: 1469µs, render: 16ms)")
-      const requestLogMatch = message.match(/^\s*(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+(\S+)\s+(\d+)\s+in\s+(\d+)ms(?:\s*\(compile:\s*(\d+)µs,\s*render:\s*(\d+)ms\))?/);
+    const handleLog = (chunk: any, originalWrite: Function) => {
+      const rawMessage = chunk?.toString() || '';
 
-      if (requestLogMatch) {
-        const [, method, path, statusCode, duration, compileTime, renderTime] = requestLogMatch;
-        // Log through our JSON logger instead
-        logger.info({
-          method,
-          path,
-          statusCode: parseInt(statusCode, 10),
-          duration: parseInt(duration, 10),
-          compileTime: compileTime ? parseInt(compileTime, 10) : undefined,
-          renderTime: renderTime ? parseInt(renderTime, 10) : undefined,
-          type: 'http_request'
-        }, 'HTTP request');
-        return true; // Suppress the original log
+      // If no request log is present, just write it as is
+      if (!rawMessage.includes('GET ') && !rawMessage.includes('POST ') &&
+        !rawMessage.includes('PUT ') && !rawMessage.includes('DELETE ') &&
+        !rawMessage.includes('PATCH ')) {
+        return originalWrite(chunk);
       }
 
-      // Allow other logs through normally
-      return originalStdoutWrite(chunk, encoding, callback);
+      const lines = rawMessage.split('\n');
+      let allMatched = true;
+      const remainingLines: string[] = [];
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          remainingLines.push(line);
+          continue;
+        }
+
+        const cleanLine = stripAnsi(line);
+        // Regexp updated to be more flexible with query params and Next.js log format
+        const requestLogMatch = cleanLine.match(/^\s*(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+(\S+)\s+(\d+)\s+in\s+(\d+)ms/);
+
+        if (requestLogMatch) {
+          const [, method, path, statusCode, duration] = requestLogMatch;
+          // Capture additional info like compile/render time if present
+          const extraMatch = cleanLine.match(/\((?:compile:\s*(\d+)µs)?(?:,\s*)?(?:render:\s*(\d+)ms)?\)/);
+
+          logger.info({
+            method,
+            path,
+            statusCode: parseInt(statusCode, 10),
+            duration: parseInt(duration, 10),
+            compileTime: extraMatch?.[1] ? parseInt(extraMatch[1], 10) : undefined,
+            renderTime: extraMatch?.[2] ? parseInt(extraMatch[2], 10) : undefined,
+            type: 'http_request'
+          }, `HTTP ${method} ${path}`);
+        } else {
+          allMatched = false;
+          remainingLines.push(line);
+        }
+      }
+
+      if (allMatched && lines.length > 0) {
+        return true;
+      }
+
+      if (remainingLines.length > 0) {
+        return originalWrite(remainingLines.join('\n'));
+      }
+
+      return true;
     };
+
+    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk: any) => handleLog(chunk, originalStdoutWrite) as any;
+
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk: any) => handleLog(chunk, originalStderrWrite) as any;
 
     logger.info('[startup] Running database migrations');
 

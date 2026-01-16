@@ -301,7 +301,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
           try {
             const countResponse = await fetch(`/api/category_expenses?all=true&category=${encodeURIComponent(name)}`);
             if (!countResponse.ok) {
-              console.warn(`Failed to fetch count for category "${name}": ${countResponse.status}`);
+              logger.warn(`Failed to fetch count for category "${name}": ${countResponse.status}`);
               return { name, count: 0 };
             }
             const transactions = await countResponse.json();
@@ -310,7 +310,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               count: Array.isArray(transactions) ? transactions.length : 0
             };
           } catch (err) {
-            console.warn(`Error fetching count for category "${name}":`, err);
+            logger.warn(`Error fetching count for category "${name}": ${err instanceof Error ? err.message : 'Unknown error'}`);
             return { name, count: 0 };
           }
         })
@@ -319,7 +319,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setCategories(categoriesWithCounts.sort((a, b) => b.count - a.count));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Error fetching categories:', errorMessage);
+      logger.error('Error fetching categories', undefined, { errorMessage });
       setError(`Failed to load categories: ${errorMessage}`);
     } finally {
       setIsLoading(false);

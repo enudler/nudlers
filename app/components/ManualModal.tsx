@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/client-logger';
 import {
   Dialog,
   DialogTitle,
@@ -86,7 +87,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
           setCategories(expenseCategories);
         }
       } catch (error) {
-        console.error('Error fetching categories:', error);
+        logger.error('Error fetching categories', error as Error);
         // Fallback to default categories if API fails
         setCategories([
           'Food & Dining',

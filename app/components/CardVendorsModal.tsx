@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/client-logger';
 import {
   Dialog,
   DialogContent,
@@ -253,7 +254,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
       }
     } catch (err) {
       // Silent fail - bank accounts are supplementary
-      console.error('Failed to fetch bank accounts:', err);
+      logger.error('Failed to fetch bank accounts', err as Error);
     }
   };
 

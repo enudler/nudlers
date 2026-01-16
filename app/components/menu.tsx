@@ -1,4 +1,5 @@
 import * as React from "react";
+import { logger } from '../utils/client-logger';
 import packageJson from '../package.json';
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
@@ -241,10 +242,10 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
         // Dispatch a custom event to trigger data refresh
         window.dispatchEvent(new CustomEvent('dataRefresh'));
       } else {
-        console.error("Failed to add manual transaction");
+        logger.error('Failed to add manual transaction');
       }
     } catch (error) {
-      console.error("Error adding manual transaction:", error);
+      logger.error('Error adding manual transaction', error as Error);
     }
   };
 

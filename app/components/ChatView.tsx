@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { logger } from '../utils/client-logger';
 import { useTheme, styled } from '@mui/material/styles';
 import {
     Box,
@@ -120,7 +121,7 @@ const ChatView: React.FC = () => {
                 setSessions(data);
             }
         } catch (error) {
-            console.error('Failed to fetch sessions:', error);
+            logger.error('Failed to fetch sessions', error as Error);
         } finally {
             setIsHistoryLoading(false);
         }
@@ -139,7 +140,7 @@ const ChatView: React.FC = () => {
                 })));
             }
         } catch (error) {
-            console.error('Failed to fetch messages:', error);
+            logger.error('Failed to fetch messages', error as Error);
         } finally {
             setIsLoading(false);
         }
@@ -181,7 +182,7 @@ const ChatView: React.FC = () => {
                 }
             }
         } catch (error) {
-            console.error('Failed to delete session:', error);
+            logger.error('Failed to delete session', error as Error);
         }
     };
 
@@ -273,7 +274,7 @@ const ChatView: React.FC = () => {
                                     fetchSessions();
                                 }
                             }
-                        } catch (e) { console.error(e); }
+                        } catch (e) { logger.error('Failed to parse SSE data', e as Error); }
                     }
                 }
             }

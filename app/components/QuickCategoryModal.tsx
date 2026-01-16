@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/client-logger';
 import {
   Dialog,
   DialogContent,
@@ -97,7 +98,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
       setCategories(categoriesData);
       setCurrentIndex(0);
     } catch (err) {
-      console.error('Error fetching data:', err);
+      logger.error('Error fetching data', err as Error);
       setError('Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
@@ -124,7 +125,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
       const data = await response.json();
       setTransactions(data);
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      logger.error('Error fetching transactions', err as Error);
       setTransactions([]);
     } finally {
       setIsLoadingTransactions(false);
@@ -176,7 +177,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
       // Clear success message after a short delay
       setTimeout(() => setSuccess(null), 1500);
     } catch (err) {
-      console.error('Error updating category:', err);
+      logger.error('Error updating category', err as Error);
       setError(err instanceof Error ? err.message : 'Failed to update category');
     } finally {
       setIsSaving(false);

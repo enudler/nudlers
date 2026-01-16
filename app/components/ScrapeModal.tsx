@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { logger } from '../utils/client-logger';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
@@ -168,7 +169,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
         }
       }
     } catch (err) {
-      console.error('Failed to fetch last transaction date:', err);
+      logger.error('Failed to fetch last transaction date', err as Error);
     }
     return null;
   };

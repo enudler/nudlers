@@ -1,4 +1,5 @@
 import React from 'react';
+import { logger } from '../../../utils/client-logger';
 import { useTheme } from '@mui/material/styles';
 import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -65,7 +66,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
         severity: 'success'
       });
     } catch (error) {
-      console.error("Error deleting transaction:", error);
+      logger.error('Error deleting transaction', error as Error);
       setSnackbar({
         open: true,
         message: 'Error deleting transaction',
@@ -168,7 +169,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
             onUpdate?.(editingTransaction, priceWithSign, editCategory);
           }
         } catch (error) {
-          console.error("Error updating transaction:", error);
+          logger.error('Error updating transaction', error as Error);
           setSnackbar({
             open: true,
             message: 'Error updating transaction',

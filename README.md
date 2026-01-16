@@ -500,7 +500,11 @@ npm start
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+**Polyform Noncommercial License 1.0.0**
+
+This project is free for personal, non-commercial use. For commercial use (business environments, revenue generation, commercial products, or paid services), please contact the author to obtain a commercial license.
+
+See [LICENSE](LICENSE) for full terms.
 
 ---
 
