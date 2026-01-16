@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getDB } from '../pages/api/db.js';
 import logger from './logger.js';
+import { getBillingCycleSql } from "./transaction_logic.js";
 
 /**
  * Generates a daily financial summary using AI.
@@ -10,10 +11,10 @@ export async function generateDailySummary() {
     const client = await getDB();
 
     try {
-        // Get Gemini settings
+        // Get Gemini and WhatsApp settings
         const settingsResult = await client.query(
-            'SELECT key, value FROM app_settings WHERE key IN ($1, $2)',
-            ['gemini_api_key', 'gemini_model']
+            'SELECT key, value FROM app_settings WHERE key IN ($1, $2, $3, $4)',
+            ['gemini_api_key', 'gemini_model', 'whatsapp_summary_mode', 'billing_cycle_start_day']
         );
 
         const settings = {};
@@ -27,8 +28,65 @@ export async function generateDailySummary() {
         }
 
         const modelName = settings.gemini_model || 'gemini-2.5-flash';
+        const summaryMode = settings.whatsapp_summary_mode || 'calendar';
+        const startDay = parseInt(settings.billing_cycle_start_day) || 10;
 
-        // Get last 7 days of transactions
+        // Calculate Date Range & Column
+        let startDate, endDate, dateColumn;
+        let effectiveMonthSql = null;
+        let queryParams = [];
+        let whereClause = '';
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-11
+
+        if (summaryMode === 'cycle') {
+            effectiveMonthSql = getBillingCycleSql(startDay, 'date', 'processed_date');
+
+            // Billing Cycle Mode
+            // Logic: Identify the "Target Billing Month" (when the charge happens).
+            // Usually, if today >= startDay, we are accumulating for NEXT month's bill.
+            // If today < startDay, we are accumulating for THIS month's bill (which is about to close).
+
+            let targetMonth = currentMonth;
+            let targetYear = currentYear;
+
+            if (now.getDate() >= startDay) {
+                targetMonth = currentMonth + 1;
+            }
+
+            if (targetMonth > 11) {
+                targetMonth = 0;
+                targetYear++;
+            }
+
+            // Format target cycle as YYYY-MM
+            const targetCycle = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+
+            whereClause = `(${effectiveMonthSql}) = $1`;
+            queryParams = [targetCycle];
+
+            // For display/logging purposes (optional)
+            startDate = targetCycle;
+            endDate = targetCycle;
+
+        } else {
+            // Calendar Month Mode (Default)
+            // 1st of current month to Last of current month
+            // Filter by 'date' (transaction date)
+            const start = new Date(currentYear, currentMonth, 1);
+            const end = new Date(currentYear, currentMonth + 1, 0);
+
+            startDate = start.toISOString().split('T')[0];
+            endDate = end.toISOString().split('T')[0];
+            dateColumn = 'date';
+
+            whereClause = `${dateColumn} >= $1 AND ${dateColumn} <= $2`;
+            queryParams = [startDate, endDate];
+        }
+
+        // Get last 7 days of transactions (Independent of cycle, for context)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
@@ -42,22 +100,22 @@ export async function generateDailySummary() {
             [sevenDaysAgoStr]
         );
 
-        // Get current month budget vs actual
-        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-
+        // Get actual spent for the calculated period
         const budgetResult = await client.query(
             `SELECT category, budget_limit FROM budgets`
         );
 
         const actualResult = await client.query(
-            `SELECT category, ABS(ROUND(SUM(price))) as actual_spent
+            `SELECT category, 
+            ABS(ROUND(SUM(price))) as actual_spent
        FROM transactions
-       WHERE TO_CHAR(processed_date, 'YYYY-MM') = $1
+       WHERE ${whereClause}
          AND category IS NOT NULL 
          AND category != ''
          AND category != 'Bank'
-       GROUP BY category`,
-            [currentMonth]
+       GROUP BY category
+       ORDER BY actual_spent DESC`,
+            queryParams
         );
 
         const totalBudgetResult = await client.query(

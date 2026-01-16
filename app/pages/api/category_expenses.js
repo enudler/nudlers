@@ -1,5 +1,7 @@
 import { createApiHandler } from "./utils/apiHandler";
 import { decrypt } from "./utils/encryption";
+import { getDB } from "./db";
+import { getBillingCycleSql } from "../../utils/transaction_logic";
 
 const handler = createApiHandler({
   validate: (req) => {
@@ -12,19 +14,37 @@ const handler = createApiHandler({
   },
   query: async (req) => {
     const { month, startDate, endDate, category, all, billingCycle } = req.query;
-    
+
     // Use date range if provided, otherwise fall back to month
     const useDateRange = startDate && endDate;
-    
+
     // Join with card_ownership to get the correct credential for each card
     // This prevents duplicate rows when multiple credentials exist for the same vendor
     const credentialJoin = `
       LEFT JOIN card_ownership co ON t.vendor = co.vendor AND t.account_number = co.account_number
       LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
     `;
-    
+
+    // If billingCycle is provided, use consistent Logic
+    let billingStartDay = 10;
+    let effectiveMonthSql = null;
+
+    if (billingCycle) {
+      // Import settings
+      const client = await getDB();
+      try {
+        const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+        if (settingsResult.rows.length > 0) {
+          billingStartDay = parseInt(settingsResult.rows[0].value);
+        }
+      } finally {
+        client.release();
+      }
+      effectiveMonthSql = getBillingCycleSql(billingStartDay, 'date', 'processed_date');
+    }
+
     if (all === "true") {
-      // If billingCycle is provided, filter by processed_date month
+      // If billingCycle is provided, filter by effective billing month
       if (billingCycle) {
         return {
           sql: `
@@ -45,7 +65,7 @@ const handler = createApiHandler({
               vc.card6_digits as card6_digits_encrypted
             FROM transactions t
             ${credentialJoin}
-            WHERE TO_CHAR(t.processed_date, 'YYYY-MM') = $1
+            WHERE (${effectiveMonthSql}) = $1
             ORDER BY t.identifier, t.vendor, t.date DESC
           `,
           params: [billingCycle]
@@ -102,8 +122,8 @@ const handler = createApiHandler({
         params: [month]
       };
     }
-    
-    // If billingCycle is provided, filter by processed_date month
+
+    // If billingCycle is provided, filter by effective billing month
     if (billingCycle) {
       return {
         sql: `
@@ -124,14 +144,14 @@ const handler = createApiHandler({
             vc.card6_digits as card6_digits_encrypted
           FROM transactions t
           ${credentialJoin}
-          WHERE TO_CHAR(t.processed_date, 'YYYY-MM') = $1
+          WHERE (${effectiveMonthSql}) = $1
           AND t.category = $2
           ORDER BY t.identifier, t.vendor, t.date DESC
         `,
         params: [billingCycle, category]
       };
     }
-    
+
     if (useDateRange) {
       return {
         sql: `
@@ -159,7 +179,7 @@ const handler = createApiHandler({
         params: [startDate, endDate, category]
       };
     }
-    
+
     return {
       sql: `
         SELECT DISTINCT ON (t.identifier, t.vendor)

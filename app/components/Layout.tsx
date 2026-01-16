@@ -1,4 +1,5 @@
 import React, { useState, createContext, useContext, useEffect } from "react";
+import { DateSelectionProvider } from "../context/DateSelectionContext";
 import ResponsiveAppBar from "./menu";
 import { NotificationProvider } from "./NotificationContext";
 import MonthlySummary from "./MonthlySummary";
@@ -141,35 +142,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
-    <NotificationProvider>
-      <ViewContext.Provider value={{
-        currentView,
-        setCurrentView: handleViewChange,
-        screenContext,
-        setScreenContext,
-        syncDrawerOpen,
-        setSyncDrawerOpen,
-        syncDrawerWidth,
-        setSyncDrawerWidth
-      }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-          <ResponsiveAppBar
-            currentView={currentView}
-            onViewChange={handleViewChange}
-          />
-          <main
-            style={{
-              marginTop: '48px', // AppBar height
-            }}
-            className="main-content"
-          >
-            {renderView()}
-          </main>
-          {currentView !== 'chat' && <Footer />}
-          <AIAssistant screenContext={screenContext} />
-        </Box>
-      </ViewContext.Provider>
-    </NotificationProvider>
+    <DateSelectionProvider>
+      <NotificationProvider>
+        <ViewContext.Provider value={{
+          currentView,
+          setCurrentView: handleViewChange,
+          screenContext,
+          setScreenContext,
+          syncDrawerOpen,
+          setSyncDrawerOpen,
+          syncDrawerWidth,
+          setSyncDrawerWidth
+        }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+            <ResponsiveAppBar
+              currentView={currentView}
+              onViewChange={handleViewChange}
+            />
+            <main
+              style={{
+                marginTop: '48px', // AppBar height
+              }}
+              className="main-content"
+            >
+              {renderView()}
+            </main>
+            {currentView !== 'chat' && <Footer />}
+            <AIAssistant screenContext={screenContext} />
+          </Box>
+        </ViewContext.Provider>
+      </NotificationProvider>
+    </DateSelectionProvider>
   );
 };
 

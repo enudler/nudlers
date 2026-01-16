@@ -25,6 +25,7 @@ import Card from './components/Card';
 import ExpensesModal from './components/ExpensesModal';
 import TransactionsTable from './components/TransactionsTable';
 import { useScreenContext } from '../Layout';
+import { useDateSelection, DateRangeMode } from '../../context/DateSelectionContext';
 import { logger } from '../../utils/client-logger';
 
 // Transaction interface for type safety
@@ -40,10 +41,39 @@ interface BudgetInfo {
 }
 
 // Date range mode type
-type DateRangeMode = 'calendar' | 'billing' | 'custom';
+// Date range mode type imported from context
 
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
+
+// Known Israeli bank vendors (to distinguish from credit cards)
+const BANK_VENDORS = [
+  'poalim', 'leumi', 'discount', 'mizrahi', 'otsar_hahayal',
+  'yahav', 'fibi', 'massad', 'union', 'beinleumi', 'jerusalem',
+  'onezero', 'pepper'
+];
+const isBankTransaction = (transaction: any) => {
+  // 1. Check for Credit Card signals FIRST (Priority over category)
+  // If it has card signals, it is a Card transaction, regardless of category (e.g. 'Bank' fees on card)
+  const hasCardSignals =
+    Boolean(transaction.card6_digits) ||
+    (transaction.account_number && String(transaction.account_number).length === 4) ||
+    (transaction.installments_total && transaction.installments_total > 0);
+
+  if (hasCardSignals) return false;
+
+  // 2. Explicit Categories (that are definitely Bank-side if not Card)
+  if (transaction.category === 'Bank' || transaction.category === 'Income') return true;
+
+  // 3. Check vendor source
+  if (transaction.vendor) {
+    const vendorLower = transaction.vendor.toLowerCase();
+    if (BANK_VENDORS.some(v => vendorLower.includes(v))) {
+      return true;
+    }
+  }
+  return false;
+};
 
 // Helper function to calculate date range based on mode
 // This will be redefined inside component to access billingStartDay
@@ -122,11 +152,19 @@ const fetchAllTransactions = async (startDate: string, endDate: string, billingC
 
 const CategoryDashboard: React.FC = () => {
   const theme = useTheme();
+  const {
+    selectedYear, setSelectedYear,
+    selectedMonth, setSelectedMonth,
+    dateRangeMode, setDateRangeMode,
+    customStartDate, setCustomStartDate,
+    customEndDate, setCustomEndDate,
+    uniqueYears,
+    uniqueMonths,
+    startDate, endDate, billingCycle
+  } = useDateSelection();
+
   const [sumPerCategory, setSumPerCategory] = React.useState<ResponseData[]>([]);
-  const [selectedYear, setSelectedYear] = React.useState<string>("");
-  const [selectedMonth, setSelectedMonth] = React.useState<string>("");
-  const [uniqueYears, setUniqueYears] = React.useState<string[]>([]);
-  const [uniqueMonths, setUniqueMonths] = React.useState<string[]>([]);
+  // Local UI State
   const [bankTransactions, setBankTransactions] = React.useState({ income: 0, expenses: 0 });
   const [creditCardTransactions, setCreditCardTransactions] = React.useState(0);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -136,24 +174,15 @@ const CategoryDashboard: React.FC = () => {
   const [showTransactionsTable, setShowTransactionsTable] = React.useState(false);
   const [transactions, setTransactions] = React.useState<any[]>([]);
   const [loadingTransactions, setLoadingTransactions] = React.useState(false);
-  const [dateRangeMode, setDateRangeMode] = React.useState<DateRangeMode>('billing');
-  const [billingStartDay, setBillingStartDay] = React.useState<number>(10);
+
   const categoryIcons = useCategoryIcons();
   const categoryColors = useCategoryColors();
-  const [allAvailableDates, setAllAvailableDates] = React.useState<string[]>([]);
   const { setScreenContext } = useScreenContext();
-
-  // Helper function to calculate date range based on mode (uses component's billingStartDay)
-  const getDateRange = React.useCallback((year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
-    return getDateRangeBase(year, month, mode, billingStartDay);
-  }, [billingStartDay]);
 
   // Budget data state
   const [budgetMap, setBudgetMap] = React.useState<Map<string, BudgetInfo>>(new Map());
 
-  // Custom date range state
-  const [customStartDate, setCustomStartDate] = React.useState<string>('');
-  const [customEndDate, setCustomEndDate] = React.useState<string>('');
+  // Date range error (local validation)
   const [dateRangeError, setDateRangeError] = React.useState<string>('');
 
   // Budget modal state
@@ -244,283 +273,39 @@ const CategoryDashboard: React.FC = () => {
     }
   }, []);
 
-  const handleDataRefresh = React.useCallback(() => {
-    if (currentDateRangeModeRef.current === 'custom') {
-      if (currentCustomStartDateRef.current && currentCustomEndDateRef.current) {
-        setTimeout(() => {
-          fetchData(currentCustomStartDateRef.current, currentCustomEndDateRef.current, undefined);
-        }, 0);
-      }
-    } else if (currentYearRef.current && currentMonthRef.current) {
-      setTimeout(() => {
-        const { startDate, endDate } = getDateRange(
-          currentYearRef.current,
-          currentMonthRef.current,
-          currentDateRangeModeRef.current as 'calendar' | 'billing'
-        );
-        const billingCycle = currentDateRangeModeRef.current === 'billing'
-          ? `${currentYearRef.current}-${currentMonthRef.current}`
-          : undefined;
-        fetchData(startDate, endDate, billingCycle);
-      }, 0);
-    }
-  }, []);
-
-  // Theme-aware styles
-  const selectStyle = {
-    padding: '14px 28px',
-    borderRadius: '16px',
-    border: `1px solid ${theme.palette.divider}`,
-    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    color: theme.palette.text.primary,
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    outline: 'none',
-    textAlign: 'right' as const,
-    direction: 'rtl' as const,
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-  };
-
-  const buttonStyle = {
-    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    padding: '14px',
-    borderRadius: '16px',
-    border: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.primary,
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-  };
-
-  React.useEffect(() => {
-    // Load persisted date range mode from localStorage to sync with MonthlySummary
-    // We only restore 'billing' or 'calendar' to avoid starting in 'custom' with no dates
-    const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
-    if (persistedMode && ['billing', 'calendar'].includes(persistedMode)) {
-      setDateRangeMode(persistedMode);
-    }
-
-    getAvailableMonths();
-
-    // Add event listener for data refresh
-    window.addEventListener('dataRefresh', handleDataRefresh);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('dataRefresh', handleDataRefresh);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (showTransactionsTable) {
-      fetchTransactions();
+  // Helper moved up
+  const fetchTransactionsWithRange = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
+    setLoadingTransactions(true);
+    try {
+      const transactionsData = await fetchAllTransactions(startDate, endDate, billingCycle);
+      // Sort transactions by date descending (newest first)
+      const sortedTransactions = transactionsData.sort((a: any, b: any) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setTransactions(sortedTransactions);
+    } catch (error) {
+      logger.error('Error fetching transactions data', error, {
+        year: selectedYear,
+        month: selectedMonth
+      });
+    } finally {
+      setLoadingTransactions(false);
     }
   }, [selectedYear, selectedMonth]);
 
-  const getAvailableMonths = async () => {
-    try {
-      // Fetch billing start day setting
-      let startDay = 10;
-      try {
-        const settingsResponse = await fetch('/api/settings');
-        if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json();
-          startDay = parseInt(settingsData.settings.billing_cycle_start_day) || 10;
-          setBillingStartDay(startDay);
-        }
-      } catch (e) {
-        logger.error('Error fetching settings, using default start day', e);
-      }
-
-      const response = await fetch("/api/available_months");
-      const transactionsData = await response.json();
-      setAllAvailableDates(transactionsData);
-
-      // Sort dates in descending order to get the most recent first
-      const sortedDates = transactionsData.sort((a: string, b: string) => b.localeCompare(a));
-
-      // Try to sync with MonthlySummary selection from localStorage
-      const persistedYear = localStorage.getItem('monthlySummary_year');
-      const persistedMonth = localStorage.getItem('monthlySummary_month');
-
-      let defaultYear: string;
-      let defaultMonth: string;
-
-      // If we have persisted values and they're available, use them
-      if (persistedYear && persistedMonth && sortedDates.includes(`${persistedYear}-${persistedMonth}`)) {
-        defaultYear = persistedYear;
-        defaultMonth = persistedMonth;
-      } else {
-        // Default to current month/year (the current billing cycle)
-        // If today is past the billing start day, we are in the cycle ending next month
-        const now = new Date();
-        let currentYear = now.getFullYear();
-        let currentMonth = now.getMonth() + 1;
-
-        if (now.getDate() > startDay) {
-          currentMonth += 1;
-          if (currentMonth > 12) {
-            currentMonth = 1;
-            currentYear += 1;
-          }
-        }
-
-        const currentYearStr = currentYear.toString();
-        const currentMonthStr = String(currentMonth).padStart(2, '0');
-        const currentYearMonth = `${currentYearStr}-${currentMonthStr}`;
-
-        // Use current month if available, otherwise fall back to most recent
-        const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
-        defaultYear = defaultDate.substring(0, 4);
-        defaultMonth = defaultDate.substring(5, 7);
-      }
-
-      const years = Array.from(new Set(transactionsData.map((date: string) => date.substring(0, 4)))) as string[];
-
-      setUniqueYears(years);
-      setSelectedYear(defaultYear);
-      localStorage.setItem('monthlySummary_year', defaultYear);
-
-      // Get months for the default year
-      const monthsForYear = transactionsData
-        .filter((date: string) => date.startsWith(defaultYear))
-        .map((date: string) => date.substring(5, 7));
-
-      const months = Array.from(new Set(monthsForYear)) as string[];
-
-      setUniqueMonths(months);
-      setSelectedMonth(defaultMonth);
-      localStorage.setItem('monthlySummary_month', defaultMonth);
-
-      // Fetch data for initial selection with current date range mode
-      const { startDate, endDate } = getDateRange(defaultYear, defaultMonth, dateRangeMode);
-      const billingCycle = dateRangeMode === 'billing' ? `${defaultYear}-${defaultMonth}` : undefined;
-      fetchData(startDate, endDate, billingCycle);
-    } catch (error) {
-      logger.error('Error in handleRefresh', error);
+  const fetchTransactions = React.useCallback(async () => {
+    if (startDate && endDate) {
+      fetchTransactionsWithRange(startDate, endDate, billingCycle);
     }
-  };
+  }, [startDate, endDate, billingCycle, fetchTransactionsWithRange]);
 
-  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newYear = event.target.value;
-    setSelectedYear(newYear);
-    localStorage.setItem('monthlySummary_year', newYear);
-
-    // Update available months for the selected year
-    const monthsForYear = allAvailableDates
-      .filter((date: string) => date.startsWith(newYear))
-      .map((date: string) => date.substring(5, 7));
-
-    const uniqueMonthsForYear = Array.from(new Set(monthsForYear)) as string[];
-    setUniqueMonths(uniqueMonthsForYear);
-
-    // If current month is not available in new year, select the first available month
-    const monthToUse = uniqueMonthsForYear.includes(selectedMonth) ? selectedMonth : uniqueMonthsForYear[0];
-    if (!uniqueMonthsForYear.includes(selectedMonth)) {
-      setSelectedMonth(monthToUse);
-      localStorage.setItem('monthlySummary_month', monthToUse);
-    }
-    const { startDate, endDate } = getDateRange(newYear, monthToUse, dateRangeMode);
-    const billingCycle = dateRangeMode === 'billing' ? `${newYear}-${monthToUse}` : undefined;
-    fetchData(startDate, endDate, billingCycle);
-  };
-
-  const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newMonth = event.target.value;
-    setSelectedMonth(newMonth);
-    localStorage.setItem('monthlySummary_month', newMonth);
-    const { startDate, endDate } = getDateRange(selectedYear, newMonth, dateRangeMode);
-    const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${newMonth}` : undefined;
-    fetchData(startDate, endDate, billingCycle);
-  };
-
-  const handleDateRangeModeChange = (mode: DateRangeMode) => {
-    setDateRangeMode(mode);
-    localStorage.setItem('monthlySummary_mode', mode);
-    setDateRangeError('');
-
-    if (mode === 'custom') {
-      // Initialize custom dates if not set
-      if (!customStartDate || !customEndDate) {
-        // Default to last 3 months from today
-        const today = new Date();
-        const threeMonthsAgo = new Date(today);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-        const formatDate = (d: Date) => d.toISOString().split('T')[0];
-        setCustomStartDate(formatDate(threeMonthsAgo));
-        setCustomEndDate(formatDate(today));
-
-        fetchData(formatDate(threeMonthsAgo), formatDate(today), undefined);
-        if (showTransactionsTable) {
-          fetchTransactionsWithRange(formatDate(threeMonthsAgo), formatDate(today), undefined);
-        }
-      } else if (validateDateRange(customStartDate, customEndDate)) {
-        fetchData(customStartDate, customEndDate, undefined);
-        if (showTransactionsTable) {
-          fetchTransactionsWithRange(customStartDate, customEndDate, undefined);
-        }
-      }
-    } else if (selectedYear && selectedMonth) {
-      const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, mode as 'calendar' | 'billing');
-      const billingCycle = mode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
-      fetchData(startDate, endDate, billingCycle);
-      if (showTransactionsTable) {
-        fetchTransactionsWithRange(startDate, endDate, billingCycle);
-      }
-    }
-  };
-
-  const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
-    if (type === 'start') {
-      setCustomStartDate(value);
-      if (customEndDate && validateDateRange(value, customEndDate)) {
-        fetchData(value, customEndDate, undefined);
-        if (showTransactionsTable) {
-          fetchTransactionsWithRange(value, customEndDate, undefined);
-        }
-      }
-    } else {
-      setCustomEndDate(value);
-      if (customStartDate && validateDateRange(customStartDate, value)) {
-        fetchData(customStartDate, value, undefined);
-        if (showTransactionsTable) {
-          fetchTransactionsWithRange(customStartDate, value, undefined);
-        }
-      }
-    }
-  };
-
-  const handleRefreshClick = () => {
-    if (dateRangeMode === 'custom') {
-      if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
-        fetchData(customStartDate, customEndDate, undefined);
-        if (showTransactionsTable) {
-          fetchTransactionsWithRange(customStartDate, customEndDate, undefined);
-        }
-      }
-    } else if (selectedYear && selectedMonth) {
-      const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-      const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
-      fetchData(startDate, endDate, billingCycle);
-      if (showTransactionsTable) {
-        fetchTransactionsWithRange(startDate, endDate, billingCycle);
-      }
-    }
-  };
-
-  const fetchData = async (startDate: string, endDate: string, billingCycle?: string) => {
+  const fetchData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     try {
       const url = new URL("/api/month_by_categories", window.location.origin);
 
       if (billingCycle) {
-        // In billing mode, use billingCycle parameter (filters by processed_date)
         url.searchParams.append("billingCycle", billingCycle);
       } else {
-        // In calendar mode, use date range
         url.searchParams.append("startDate", startDate);
         url.searchParams.append("endDate", endDate);
       }
@@ -540,29 +325,46 @@ const CategoryDashboard: React.FC = () => {
       // Fetch budget data in parallel
       fetchBudgetData(startDate, endDate, billingCycle);
 
-      // Fetch all transactions to calculate income and expenses properly
-      const allTransactions = await fetchAllTransactions(startDate, endDate, billingCycle);
+      // Fetch transactions:
+      // If in Billing Cycle mode, we need distinct handling:
+      // - Credit Cards: Use billingCycle (processed_date) to match the statement.
+      // - Bank: Use the calculated Date Range (e.g. 10th-10th) because Bank items don't have 'billing cycles'.
 
-      // Helper to get the monthly amount
-      // Note: price is already the per-installment amount (combineInstallments: false)
-      const getMonthlyAmount = (transaction: any) => {
-        return Math.abs(transaction.price);
-      };
+      let bankData: any[] = [];
+      let cardData: any[] = [];
 
-      // Calculate total income: Bank category with positive values
-      const totalIncome = allTransactions
-        .filter((transaction: any) => transaction.category === 'Bank' && transaction.price > 0)
+      if (billingCycle) {
+        // Parallel fetch for speed
+        const [cycleResponse, rangeResponse] = await Promise.all([
+          fetchAllTransactions(startDate, endDate, billingCycle), // For Cards
+          fetchAllTransactions(startDate, endDate, undefined)     // For Bank (Force date range)
+        ]);
+        cardData = cycleResponse;
+        bankData = rangeResponse;
+      } else {
+        // Standard mode (Calendar/Custom): Use date range for both
+        const data = await fetchAllTransactions(startDate, endDate, undefined);
+        bankData = data;
+        cardData = data;
+      }
+
+      const totalIncome = bankData
+        .filter((transaction: any) =>
+          transaction.price > 0 &&
+          (transaction.category === 'Income' || transaction.category === 'Salary' || transaction.category === 'Bank')
+        )
         .reduce((acc: number, transaction: any) => acc + transaction.price, 0);
 
-      // Calculate total expenses: All negative values
-      const totalExpenses = allTransactions
-        .filter((transaction: any) => transaction.category === 'Bank' && transaction.price < 0)
+      const totalExpenses = bankData
+        .filter((transaction: any) => (transaction.category === 'Bank' || isBankTransaction(transaction)) && transaction.price < 0 && transaction.category !== 'Income')
         .reduce((acc: number, transaction: any) => acc + Math.abs(transaction.price), 0);
 
-      // Calculate credit card expenses: All transactions excluding Bank and Income categories (with installment adjustment)
-      const creditCardExpenses = allTransactions
-        .filter((transaction: any) => transaction.category !== 'Bank' && transaction.category !== 'Income')
-        .reduce((acc: number, transaction: any) => acc + getMonthlyAmount(transaction), 0);
+      // Calculate net expenses for credit cards using cardData (Cycle based)
+      const creditCardNetSum = cardData
+        .filter((transaction: any) => !isBankTransaction(transaction) && transaction.category !== 'Income')
+        .reduce((acc: number, transaction: any) => acc + transaction.price, 0);
+
+      const creditCardExpenses = Math.abs(creditCardNetSum);
 
       setBankTransactions({ income: totalIncome, expenses: totalExpenses });
       setCreditCardTransactions(creditCardExpenses);
@@ -572,12 +374,102 @@ const CategoryDashboard: React.FC = () => {
         month: selectedMonth,
         mode: dateRangeMode
       });
-      // Reset states in case of error
       setSumPerCategory([]);
       setBankTransactions({ income: 0, expenses: 0 });
       setCreditCardTransactions(0);
     }
+  }, [selectedYear, selectedMonth, dateRangeMode, fetchBudgetData]);
+
+  // Theme-aware styles
+  // Theme-aware styles
+  const selectStyle: React.CSSProperties = {
+    padding: '14px 40px 14px 14px', // Extra right padding for arrow
+    borderRadius: '16px',
+    border: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(10px)',
+    color: theme.palette.text.primary,
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    outline: 'none',
+    textAlign: 'left' as const,
+    direction: 'ltr' as const,
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none' as 'none',
+    backgroundImage: theme.palette.mode === 'dark'
+      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
+      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    backgroundSize: '16px'
   };
+
+  const buttonStyle = {
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(10px)',
+    padding: '14px',
+    borderRadius: '16px',
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+  };
+
+
+  const handleRefreshClick = () => {
+    if (startDate && endDate) {
+      fetchData(startDate, endDate, billingCycle);
+      if (showTransactionsTable) {
+        fetchTransactionsWithRange(startDate, endDate, billingCycle);
+      }
+    }
+  };
+
+  // Initial data fetch and Refresh listener
+  React.useEffect(() => {
+    if (startDate && endDate) {
+      fetchData(startDate, endDate, billingCycle);
+    }
+
+    const handleRefresh = () => {
+      if (startDate && endDate) {
+        fetchData(startDate, endDate, billingCycle);
+      }
+    };
+    window.addEventListener('dataRefresh', handleRefresh);
+    return () => window.removeEventListener('dataRefresh', handleRefresh);
+  }, [startDate, endDate, billingCycle]);
+
+  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedYear(event.target.value);
+  };
+
+  const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedMonth(event.target.value);
+  };
+
+  const handleDateRangeModeChange = (mode: DateRangeMode) => {
+    setDateRangeMode(mode);
+  };
+
+
+
+
+
+
+  const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
+    if (type === 'start') {
+      setCustomStartDate(value);
+    } else {
+      setCustomEndDate(value);
+    }
+  };
+
+  // fetchData moved up
+
 
   // Sort categories by value (biggest to smallest) and add budget info
   const categories = React.useMemo(() => {
@@ -589,32 +481,26 @@ const CategoryDashboard: React.FC = () => {
         icon: categoryIcons[item.name] || MonetizationOnIcon,
         budget: budgetMap.get(item.name)
       }))
-      .sort((a, b) => b.value - a.value); // Sort by value descending (biggest first)
+      .sort((a, b) => {
+        const aHasBudget = !!a.budget;
+        const bHasBudget = !!b.budget;
+
+        if (aHasBudget && !bHasBudget) return -1;
+        if (!aHasBudget && bHasBudget) return 1;
+
+        return b.value - a.value; // Sort by value descending (biggest first)
+      });
   }, [sumPerCategory, categoryColors, categoryIcons, budgetMap]);
 
   // Update AI Assistant screen context when data changes
   React.useEffect(() => {
-    const getDateRangeForContext = () => {
-      if (dateRangeMode === 'custom') {
-        return {
-          startDate: customStartDate,
-          endDate: customEndDate,
-          mode: 'custom'
-        };
-      } else if (selectedYear && selectedMonth) {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-        return {
-          startDate,
-          endDate,
-          mode: dateRangeMode
-        };
-      }
-      return undefined;
-    };
-
     setScreenContext({
       view: 'dashboard',
-      dateRange: getDateRangeForContext(),
+      dateRange: {
+        startDate,
+        endDate,
+        mode: dateRangeMode
+      },
       summary: {
         totalIncome: bankTransactions.income,
         totalExpenses: bankTransactions.expenses,
@@ -633,10 +519,8 @@ const CategoryDashboard: React.FC = () => {
     creditCardTransactions,
     categories,
     dateRangeMode,
-    selectedYear,
-    selectedMonth,
-    customStartDate,
-    customEndDate,
+    startDate,
+    endDate,
     showTransactionsTable,
     transactions,
     setScreenContext
@@ -645,23 +529,17 @@ const CategoryDashboard: React.FC = () => {
   const handleBankTransactionsClick = async () => {
     setLoadingBankTransactions(true);
     try {
-      let startDate: string, endDate: string, billingCycle: string | undefined;
+      if (!startDate || !endDate) return;
 
-      if (dateRangeMode === 'custom') {
-        startDate = customStartDate;
-        endDate = customEndDate;
-        billingCycle = undefined;
-      } else {
-        const range = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-        startDate = range.startDate;
-        endDate = range.endDate;
-        billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
-      }
-      const allTransactions = await fetchAllTransactions(startDate, endDate, billingCycle);
+      // For Bank Transactions, we ALWAYS use the calculated Date Range (e.g. 10th-10th),
+      // even if we are in Billing Cycle mode. Bank items don't have 'billing cycles'.
+      // Passing undefined for billingCycle forces fetchAllTransactions to use startDate/endDate.
+      const allTransactions = await fetchAllTransactions(startDate, endDate, undefined);
 
       // Filter for Bank category transactions (both positive and negative)
+      // Includes explicit 'Bank' category, or transactions from Bank Source
       const bankTransactionsData = allTransactions.filter((transaction: any) =>
-        transaction.category === 'Bank'
+        transaction.category === 'Bank' || (isBankTransaction(transaction) && transaction.category !== 'Income' && transaction.price < 0)
       );
 
       // Format the data correctly - include identifier and vendor for editing/deleting
@@ -691,23 +569,13 @@ const CategoryDashboard: React.FC = () => {
   const handleTotalCreditCardExpensesClick = async () => {
     setLoadingBankTransactions(true);
     try {
-      let startDate: string, endDate: string, billingCycle: string | undefined;
+      if (!startDate || !endDate) return;
 
-      if (dateRangeMode === 'custom') {
-        startDate = customStartDate;
-        endDate = customEndDate;
-        billingCycle = undefined;
-      } else {
-        const range = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-        startDate = range.startDate;
-        endDate = range.endDate;
-        billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
-      }
       const allExpensesData = await fetchAllTransactions(startDate, endDate, billingCycle);
 
-      // Filter out 'Bank' and 'Income' category transactions to get credit card expenses
+      // Filter out Bank transactions (Bank category, Income, or Bank Source)
       const creditCardData = allExpensesData.filter((transaction: any) =>
-        transaction.category !== 'Bank' && transaction.category !== 'Income'
+        !isBankTransaction(transaction) && transaction.category !== 'Income'
       );
 
       // Format the data correctly - include identifier and vendor for editing/deleting
@@ -739,20 +607,13 @@ const CategoryDashboard: React.FC = () => {
       setLoadingCategory(category);
       const url = new URL("/api/category_expenses", window.location.origin);
 
-      if (dateRangeMode === 'custom') {
-        url.searchParams.append("startDate", customStartDate);
-        url.searchParams.append("endDate", customEndDate);
+      if (dateRangeMode === 'billing') {
+        // In billing mode, use billingCycle parameter (filters by processed_date)
+        url.searchParams.append("billingCycle", `${selectedYear}-${selectedMonth}`);
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-
-        if (dateRangeMode === 'billing') {
-          // In billing mode, use billingCycle parameter (filters by processed_date)
-          url.searchParams.append("billingCycle", `${selectedYear}-${selectedMonth}`);
-        } else {
-          // In calendar mode, use date range
-          url.searchParams.append("startDate", startDate);
-          url.searchParams.append("endDate", endDate);
-        }
+        // In calendar mode, use date range
+        url.searchParams.append("startDate", startDate);
+        url.searchParams.append("endDate", endDate);
       }
       url.searchParams.append("category", category);
 
@@ -789,43 +650,13 @@ const CategoryDashboard: React.FC = () => {
       return;
     }
 
-    if (dateRangeMode === 'custom') {
-      fetchTransactionsWithRange(customStartDate, customEndDate, undefined);
-    } else {
-      const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-      const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
+    if (startDate && endDate) {
       fetchTransactionsWithRange(startDate, endDate, billingCycle);
     }
   };
 
-  const fetchTransactionsWithRange = async (startDate: string, endDate: string, billingCycle?: string) => {
-    setLoadingTransactions(true);
-    try {
-      const transactionsData = await fetchAllTransactions(startDate, endDate, billingCycle);
-      // Sort transactions by date descending (newest first)
-      const sortedTransactions = transactionsData.sort((a: any, b: any) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      setTransactions(sortedTransactions);
-    } catch (error) {
-      logger.error('Error fetching transactions data', error, {
-        year: selectedYear,
-        month: selectedMonth
-      });
-    } finally {
-      setLoadingTransactions(false);
-    }
-  };
+  // Moved up
 
-  const fetchTransactions = async () => {
-    if (dateRangeMode === 'custom') {
-      fetchTransactionsWithRange(customStartDate, customEndDate, undefined);
-    } else {
-      const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-      const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
-      fetchTransactionsWithRange(startDate, endDate, billingCycle);
-    }
-  };
 
   const handleDeleteTransaction = async (transaction: any) => {
     try {
@@ -839,11 +670,7 @@ const CategoryDashboard: React.FC = () => {
           t.identifier !== transaction.identifier || t.vendor !== transaction.vendor
         ));
         // Refresh the data to update the metrics
-        if (dateRangeMode === 'custom') {
-          fetchData(customStartDate, customEndDate, undefined);
-        } else {
-          const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-          const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
+        if (startDate && endDate) {
           fetchData(startDate, endDate, billingCycle);
         }
       } else {
@@ -880,11 +707,7 @@ const CategoryDashboard: React.FC = () => {
             : t
         ));
         // Refresh the data to update the metrics
-        if (dateRangeMode === 'custom') {
-          fetchData(customStartDate, customEndDate, undefined);
-        } else {
-          const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-          const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
+        if (startDate && endDate) {
           fetchData(startDate, endDate, billingCycle);
         }
       } else {
@@ -946,13 +769,7 @@ const CategoryDashboard: React.FC = () => {
       handleCloseBudgetModal();
 
       // Refresh budget data
-      if (dateRangeMode === 'custom') {
-        if (customStartDate && customEndDate) {
-          fetchBudgetData(customStartDate, customEndDate, undefined);
-        }
-      } else if (selectedYear && selectedMonth) {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-        const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
+      if (startDate && endDate) {
         fetchBudgetData(startDate, endDate, billingCycle);
       }
     } catch (error) {
@@ -1127,16 +944,6 @@ const CategoryDashboard: React.FC = () => {
                     value={selectedYear}
                     onChange={handleYearChange}
                     style={{ ...selectStyle, minWidth: '120px' }}
-                    onMouseEnter={(e) => Object.assign(e.currentTarget.style, {
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-                      background: 'rgba(96, 165, 250, 0.15)'
-                    })}
-                    onMouseLeave={(e) => Object.assign(e.currentTarget.style, {
-                      transform: 'translateY(0)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    })}
                   >
                     {uniqueYears.map((year) => (
                       <option key={year} value={year} style={{
@@ -1151,16 +958,6 @@ const CategoryDashboard: React.FC = () => {
                     value={selectedMonth}
                     onChange={handleMonthChange}
                     style={{ ...selectStyle, minWidth: '160px' }}
-                    onMouseEnter={(e) => Object.assign(e.currentTarget.style, {
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-                      background: 'rgba(96, 165, 250, 0.15)'
-                    })}
-                    onMouseLeave={(e) => Object.assign(e.currentTarget.style, {
-                      transform: 'translateY(0)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    })}
                   >
                     {uniqueMonths.map((month) => (
                       <option key={month} value={month} style={{
@@ -1196,7 +993,7 @@ const CategoryDashboard: React.FC = () => {
                     background: dateRangeMode === 'calendar'
                       ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
                       : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1220,15 +1017,15 @@ const CategoryDashboard: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(139, 92, 246, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1246,15 +1043,15 @@ const CategoryDashboard: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'custom'
-                      ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'custom' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'custom' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'custom'
-                      ? '0 4px 12px rgba(16, 185, 129, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1537,16 +1334,18 @@ const CategoryDashboard: React.FC = () => {
         </Box>
       </Box>
 
-      {modalData && (
-        <ExpensesModal
-          open={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          data={modalData}
-          color={categoryColors[modalData?.type] || '#94a3b8'}
-          setModalData={setModalData}
-          currentMonth={`${selectedYear}-${selectedMonth}`}
-        />
-      )}
+      {
+        modalData && (
+          <ExpensesModal
+            open={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            data={modalData}
+            color={categoryColors[modalData?.type] || '#94a3b8'}
+            setModalData={setModalData}
+            currentMonth={`${selectedYear}-${selectedMonth}`}
+          />
+        )
+      }
 
       {/* Budget Modal */}
       <Dialog
@@ -1659,7 +1458,7 @@ const CategoryDashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Box >
   );
 };
 

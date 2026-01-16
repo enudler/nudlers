@@ -30,6 +30,7 @@ import { ModalData } from './CategoryDashboard/types';
 import { useCategories } from './CategoryDashboard/utils/useCategories';
 import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
 import { useScreenContext } from './Layout';
+import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 import { logger } from '../utils/client-logger';
 
 // Maximum date range in years
@@ -67,50 +68,15 @@ interface BankAccountSummary {
 }
 
 type GroupByType = 'vendor' | 'description' | 'last4digits';
-type DateRangeMode = 'calendar' | 'billing' | 'custom';
+// DateRangeMode imported from context
 type SortField = 'name' | 'count' | 'card_expenses';
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to calculate date range based on mode
-const getDateRange = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): { startDate: string; endDate: string } => {
-  const y = parseInt(year);
-  const m = parseInt(month);
-
-  if (mode === 'calendar') {
-    // Full calendar month: 1st to last day of month
-    const startDate = `${year}-${month}-01`;
-    const lastDay = new Date(y, m, 0).getDate(); // Get last day of month
-    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  } else {
-    // Billing cycle: (Start Day) of previous month to (Start Day - 1) of selected month
-    // Example: Start Day = 10. Range: 10th Prev to 9th Curr.
-    // Existing logic was 11th to 10th.
-    // If I want to maintain compatibility where "10" (default) means "Cycle ends on 10th",
-    // then Start = billingStartDay + 1. End = billingStartDay.
-
-    let prevMonth = m - 1;
-    let prevYear = y;
-    if (prevMonth === 0) {
-      prevMonth = 12;
-      prevYear = y - 1;
-    }
-
-    // Start Day = Setting. To match "Cycle starts on X", we use X.
-    // However, matching the "Default 10 = End 10" logic means Setting is CUTOFF.
-    // I will use: Start = Setting + 1. End = Setting.
-    const startDayVal = billingStartDay + 1;
-    const endDayVal = billingStartDay;
-
-    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
-    const endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  }
-};
+// getDateRange removed (handled by context)
 
 // Helper to format date range for display
-const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): string => {
-  const { startDate, endDate } = getDateRange(year, month, mode, billingStartDay);
+const formatDateRangeDisplay = (startDate: string, endDate: string) => {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -138,22 +104,25 @@ const MonthlySummary: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Month/Year selection
-  const [selectedYear, setSelectedYear] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [uniqueYears, setUniqueYears] = useState<string[]>([]);
-  const [uniqueMonths, setUniqueMonths] = useState<string[]>([]);
-  const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
-
+  const {
+    selectedYear, setSelectedYear,
+    selectedMonth, setSelectedMonth,
+    dateRangeMode, setDateRangeMode,
+    customStartDate, setCustomStartDate,
+    customEndDate, setCustomEndDate,
+    uniqueYears,
+    uniqueMonths,
+    startDate, endDate, billingCycle,
+    allAvailableDates,
+    billingStartDay
+  } = useDateSelection();
 
   // Grouping
   const [groupBy, setGroupBy] = useState<GroupByType>('description');
 
-  // Date range mode
-  const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
-
-  // Settings
-  const [billingStartDay, setBillingStartDay] = useState<number>(10);
+  // Date range error (local validation for custom range UI feedback if needed, 
+  // though context handles valid start/end dates for fetching)
+  const [dateRangeError, setDateRangeError] = useState<string>('');
 
   // Modal for transaction details
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -187,10 +156,7 @@ const MonthlySummary: React.FC = () => {
   const [cardNicknameMap, setCardNicknameMap] = useState<Record<string, string>>({});
   const [editingNickname, setEditingNickname] = useState<string>('');
 
-  // Custom date range state
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [dateRangeError, setDateRangeError] = useState<string>('');
+
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,8 +190,8 @@ const MonthlySummary: React.FC = () => {
   };
 
   // Theme-aware styles
-  const selectStyle = {
-    padding: '14px 28px',
+  const selectStyle: React.CSSProperties = {
+    padding: '14px 40px 14px 14px', // Extra right padding for arrow
     borderRadius: '16px',
     border: `1px solid ${theme.palette.divider}`,
     background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
@@ -235,10 +201,18 @@ const MonthlySummary: React.FC = () => {
     fontWeight: '600',
     cursor: 'pointer',
     outline: 'none',
-    textAlign: 'right' as const,
-    direction: 'rtl' as const,
+    textAlign: 'left' as const, // Changed for consistency with LTR
+    direction: 'ltr' as const,
     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none',
+    backgroundImage: theme.palette.mode === 'dark'
+      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
+      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    backgroundSize: '16px'
   };
 
   const buttonStyle = {
@@ -261,21 +235,11 @@ const MonthlySummary: React.FC = () => {
         setDateRangeMode(persistedMode);
       }
 
-      // Fetch settings
-      let startDay = 10;
-      try {
-        const response = await fetch('/api/settings');
-        if (response.ok) {
-          const data = await response.json();
-          startDay = parseInt(data.settings.billing_cycle_start_day) || 10;
-          setBillingStartDay(startDay);
-        }
-      } catch (e) {
-        logger.error('Error fetching settings, using default start day', e);
-      }
+      // Settings loaded by context
+
 
       // Fetch available dates and initialize selection
-      await fetchAvailableMonths();
+      fetchCardVendors();
       fetchCardVendors();
     }
 
@@ -401,57 +365,7 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
-  const fetchAvailableMonths = async () => {
-    try {
-      const response = await fetch('/api/available_months');
-      const datesData = await response.json();
-      setAllAvailableDates(datesData);
-
-      // Sort dates in descending order to get the most recent first
-      const sortedDates = datesData.sort((a: string, b: string) => b.localeCompare(a));
-
-      // Default to current month/year (the current billing cycle)
-      // Default to current month/year (the current billing cycle)
-      // If today is past the 10th, we are in the cycle ending next month
-      const now = new Date();
-      let currentYear = now.getFullYear();
-      let currentMonth = now.getMonth() + 1;
-
-      if (now.getDate() > 10) {
-        currentMonth += 1;
-        if (currentMonth > 12) {
-          currentMonth = 1;
-          currentYear += 1;
-        }
-      }
-
-      const currentYearStr = currentYear.toString();
-      const currentMonthStr = String(currentMonth).padStart(2, '0');
-      const currentYearMonth = `${currentYearStr}-${currentMonthStr}`;
-
-      // Use current month if available, otherwise fall back to most recent
-      const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
-      const defaultYear = defaultDate.substring(0, 4);
-      const defaultMonth = defaultDate.substring(5, 7);
-
-      const years = Array.from(new Set(datesData.map((date: string) => date.substring(0, 4)))) as string[];
-
-      setUniqueYears(years);
-      setSelectedYear(defaultYear);
-
-      // Get months for the default year
-      const monthsForYear = datesData
-        .filter((date: string) => date.startsWith(defaultYear))
-        .map((date: string) => date.substring(5, 7));
-
-      const months = Array.from(new Set(monthsForYear)) as string[];
-
-      setUniqueMonths(months);
-      setSelectedMonth(defaultMonth);
-    } catch (error) {
-      logger.error('Error fetching available months', error);
-    }
-  };
+  // fetchAvailableMonths removed
 
   const fetchMonthlySummary = useCallback(async () => {
     // For custom mode, we need custom dates; for other modes, we need year/month
@@ -464,21 +378,15 @@ const MonthlySummary: React.FC = () => {
     try {
       setLoading(true);
 
+      setLoading(true);
+
       let url: string;
       let cardUrl: string;
 
-      if (dateRangeMode === 'custom') {
-        // In custom mode, use custom date range
-        url = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=${groupBy}`;
-        cardUrl = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=last4digits`;
-      } else if (dateRangeMode === 'billing') {
-        // In billing mode, filter by processed_date month (actual billing cycle from credit card)
-        const billingCycle = `${selectedYear}-${selectedMonth}`;
+      if (billingCycle) {
         url = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
         cardUrl = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=last4digits`;
       } else {
-        // In calendar mode, use date range
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
         cardUrl = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
       }
@@ -593,13 +501,15 @@ const MonthlySummary: React.FC = () => {
     setSelectedYear(newYear);
     localStorage.setItem('monthlySummary_year', newYear);
 
-    // Update available months for the selected year
+    // Context handles uniqueMonths update based on selectedYear
+    // We just need to handle the month selection logic if the current month is invalid for the new year
+
+    // Calculate new available months for logic check (redundant but safe since context is async/external)
     const monthsForYear = allAvailableDates
       .filter((date: string) => date.startsWith(newYear))
       .map((date: string) => date.substring(5, 7));
 
     const uniqueMonthsForYear = Array.from(new Set(monthsForYear)) as string[];
-    setUniqueMonths(uniqueMonthsForYear);
 
     // If current month is not available in new year, select the first available month
     if (!uniqueMonthsForYear.includes(selectedMonth)) {
@@ -613,61 +523,6 @@ const MonthlySummary: React.FC = () => {
     const newMonth = event.target.value;
     setSelectedMonth(newMonth);
     localStorage.setItem('monthlySummary_month', newMonth);
-  };
-
-  const handleDateRangeModeChange = (mode: DateRangeMode) => {
-    setDateRangeMode(mode);
-    localStorage.setItem('monthlySummary_mode', mode);
-
-    // When switching modes, we might want to "reset" the selected month to the smart default for that mode?
-    // User requirement: "if i am on 1-31 show current month" (Calendar Mode).
-    // If I switch to Billing, I should switch to Next Month if > 10th.
-    // If I switch to Calendar, I should switch to Current Month (if today is > 10th, Calendar is physically same month, Billing is next).
-    // Let's re-evaluate the selected month based on the NEW mode.
-
-    const now = new Date();
-    const currentDay = now.getDate();
-
-    let targetYear = now.getFullYear();
-    let targetMonth = now.getMonth() + 1;
-
-    if (mode === 'billing') {
-      if (currentDay > billingStartDay) {
-        targetMonth += 1;
-        if (targetMonth > 12) { targetMonth = 1; targetYear += 1; }
-      }
-    }
-    // Calendar mode defaults to current month (no change needed from now)
-
-    const targetDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
-
-    // Check if target is available
-    if (allAvailableDates.includes(targetDate)) {
-      // Only auto-switch if the user hasn't explicitly navigated far away?
-      // User asked: "remember my choice when moving from overvie and summary".
-      // But also said "if i am on 1-31 show current month".
-      // I'll assume that switching modes implies requesting the "Default View" for that mode.
-      setSelectedYear(targetYear.toString());
-      setSelectedMonth(String(targetMonth).padStart(2, '0'));
-      localStorage.setItem('monthlySummary_year', targetYear.toString());
-      localStorage.setItem('monthlySummary_month', String(targetMonth).padStart(2, '0'));
-    }
-
-    setDateRangeError('');
-
-    if (mode === 'custom') {
-      // Initialize custom dates if not set
-      if (!customStartDate || !customEndDate) {
-        // Default to last 3 months from today
-        const today = new Date();
-        const threeMonthsAgo = new Date(today);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-        const formatDate = (d: Date) => d.toISOString().split('T')[0];
-        setCustomStartDate(formatDate(threeMonthsAgo));
-        setCustomEndDate(formatDate(today));
-      }
-    }
   };
 
   const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
@@ -707,13 +562,9 @@ const MonthlySummary: React.FC = () => {
       setLoadingAll(true);
 
       let url: string;
-      if (dateRangeMode === 'custom') {
-        url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
-      } else if (dateRangeMode === 'billing') {
-        const billingCycle = `${selectedYear}-${selectedMonth}`;
+      if (billingCycle) {
         url = `/api/category_expenses?billingCycle=${billingCycle}&all=true`;
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
       }
 
@@ -739,6 +590,14 @@ const MonthlySummary: React.FC = () => {
       setLoadingAll(false);
     }
   };
+
+  const handleDateRangeModeChange = (mode: DateRangeMode) => {
+    setDateRangeMode(mode);
+    // Mode change handled by context, no custom logic needed
+  };
+
+
+
 
   // Category editing handlers
   const handleCategoryEditClick = (description: string, currentCategory: string) => {
@@ -834,7 +693,6 @@ const MonthlySummary: React.FC = () => {
         const billingCycle = `${selectedYear}-${selectedMonth}`;
         url = `/api/transactions_by_description?billingCycle=${billingCycle}&description=${encodeURIComponent(description)}`;
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/transactions_by_description?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
       }
 
@@ -870,8 +728,7 @@ const MonthlySummary: React.FC = () => {
         queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
       } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {
         queryParams += `&billingCycle=${selectedYear}-${selectedMonth}`;
-      } else if (selectedYear && selectedMonth) {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+      } else if (startDate && endDate) {
         queryParams += `&startDate=${startDate}&endDate=${endDate}`;
       }
 
@@ -913,7 +770,6 @@ const MonthlySummary: React.FC = () => {
         const billingCycle = `${selectedYear}-${selectedMonth}`;
         url = `/api/transactions_by_last4?billingCycle=${billingCycle}&last4digits=${encodeURIComponent(last4digits)}`;
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/transactions_by_last4?startDate=${startDate}&endDate=${endDate}&last4digits=${encodeURIComponent(last4digits)}`;
       }
 
@@ -946,23 +802,8 @@ const MonthlySummary: React.FC = () => {
 
   // Update AI Assistant screen context when data changes
   useEffect(() => {
-    const getDateRangeForContext = () => {
-      if (dateRangeMode === 'custom') {
-        return {
-          startDate: customStartDate,
-          endDate: customEndDate,
-          mode: 'custom'
-        };
-      } else if (selectedYear && selectedMonth) {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-        return {
-          startDate,
-          endDate,
-          mode: dateRangeMode
-        };
-      }
-      return undefined;
-    };
+    // getDateRangeForContext removed
+
 
     // Group expenses by category equivalent for summary
     const categoryTotals: { [key: string]: number } = {};
@@ -974,7 +815,11 @@ const MonthlySummary: React.FC = () => {
 
     setScreenContext({
       view: 'summary',
-      dateRange: getDateRangeForContext(),
+      dateRange: {
+        startDate,
+        endDate,
+        mode: dateRangeMode
+      },
       summary: {
         totalIncome: 0,
         totalExpenses: totals.card_expenses,
@@ -1139,53 +984,7 @@ const MonthlySummary: React.FC = () => {
               flexWrap: 'wrap',
               justifyContent: { xs: 'center', md: 'flex-end' }
             }}>
-              {/* Search Bar */}
-              <Box
-                component="form"
-                onSubmit={handleSearch}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255,255,255,0.8)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: '16px',
-                  padding: '4px 8px 4px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&:focus-within': {
-                    borderColor: 'primary.main',
-                    boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
-                  }
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Search transactions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    fontSize: '14px',
-                    width: '180px',
-                    color: theme.palette.text.primary,
-                    fontWeight: 500
-                  }}
-                />
-                <IconButton
-                  type="submit"
-                  size="small"
-                  disabled={isSearching}
-                  sx={{
-                    color: 'text.secondary',
-                    '&:hover': { color: 'primary.main', background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }
-                  }}
-                >
-                  {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-                </IconButton>
-              </Box>
+
 
               <IconButton
                 onClick={handleRefresh}
@@ -1253,7 +1052,7 @@ const MonthlySummary: React.FC = () => {
                     background: dateRangeMode === 'calendar'
                       ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
                       : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1277,15 +1076,15 @@ const MonthlySummary: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(139, 92, 246, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1303,15 +1102,15 @@ const MonthlySummary: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'custom'
-                      ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'custom' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'custom' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'custom'
-                      ? '0 4px 12px rgba(16, 185, 129, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1319,6 +1118,58 @@ const MonthlySummary: React.FC = () => {
                   <span>Custom</span>
                 </button>
               </div>
+            </Box>
+          </Box>
+
+          {/* Search Bar - New Location */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: '16px', marginBottom: '8px' }}>
+            <Box
+              component="form"
+              onSubmit={handleSearch}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255,255,255,0.8)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '16px',
+                padding: '4px 8px 4px 16px',
+                border: `1px solid ${theme.palette.divider}`,
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                width: '100%',
+                maxWidth: '600px',
+                '&:focus-within': {
+                  borderColor: 'primary.main',
+                  boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
+                }
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Search transactions (vendor, description, etc)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: '14px',
+                  width: '100%',
+                  color: theme.palette.text.primary,
+                  fontWeight: 500
+                }}
+              />
+              <IconButton
+                type="submit"
+                size="small"
+                disabled={isSearching}
+                sx={{
+                  color: 'text.secondary',
+                  '&:hover': { color: 'primary.main', background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }
+                }}
+              >
+                {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
+              </IconButton>
             </Box>
           </Box>
 
