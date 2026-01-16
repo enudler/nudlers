@@ -23,6 +23,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SendIcon from '@mui/icons-material/Send';
 
 interface SettingsModalProps {
   open: boolean;
@@ -136,6 +137,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [originalSettings, setOriginalSettings] = useState<Settings | null>(null);
 
+  // WhatsApp test state
+  const [testingWhatsApp, setTestingWhatsApp] = useState(false);
+  const [whatsappTestResult, setWhatsappTestResult] = useState<{
+    success: boolean;
+    message: string | null;
+    error: string | null;
+  } | null>(null);
+
   const fetchSettings = useCallback(async () => {
     try {
       const response = await fetch('/api/settings');
@@ -224,6 +233,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
   const handleClose = () => {
     onClose();
+  };
+
+  const handleTestWhatsApp = async () => {
+    setTestingWhatsApp(true);
+    setWhatsappTestResult(null);
+
+    try {
+      const response = await fetch('/api/whatsapp_test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+      setWhatsappTestResult({
+        success: data.success,
+        message: data.message,
+        error: data.error
+      });
+    } catch (error) {
+      setWhatsappTestResult({
+        success: false,
+        message: null,
+        error: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    } finally {
+      setTestingWhatsApp(false);
+    }
   };
 
   return (
@@ -691,6 +727,72 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   sx={{ width: '250px' }}
                 />
               </SettingRow>
+
+              {/* Test Message Button */}
+              <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <Button
+                  variant="contained"
+                  startIcon={testingWhatsApp ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                  onClick={handleTestWhatsApp}
+                  disabled={testingWhatsApp || !settings.whatsapp_twilio_sid || !settings.whatsapp_twilio_auth_token || !settings.whatsapp_twilio_from || !settings.whatsapp_to}
+                  sx={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    },
+                    '&:disabled': {
+                      background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                      color: theme.palette.text.disabled
+                    }
+                  }}
+                >
+                  {testingWhatsApp ? 'Sending...' : 'Test & Send Message'}
+                </Button>
+                <Typography variant="caption" sx={{ display: 'block', mt: 1, color: theme.palette.text.secondary }}>
+                  This will generate a daily summary and send it to your WhatsApp now
+                </Typography>
+              </Box>
+
+              {/* Test Result Display */}
+              {whatsappTestResult && (
+                <Box sx={{ mt: 2 }}>
+                  <Alert
+                    severity={whatsappTestResult.success ? 'success' : 'error'}
+                    icon={whatsappTestResult.success ? <CheckCircleIcon /> : <ErrorIcon />}
+                    sx={{ mb: 2 }}
+                  >
+                    {whatsappTestResult.success
+                      ? '✅ Message sent successfully!'
+                      : `❌ Failed: ${whatsappTestResult.error}`}
+                  </Alert>
+
+                  {whatsappTestResult.message && (
+                    <Box sx={{
+                      p: 2,
+                      borderRadius: '8px',
+                      background: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)',
+                      border: `1px solid ${theme.palette.divider}`,
+                      maxHeight: '300px',
+                      overflow: 'auto'
+                    }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#10b981' }}>
+                        📝 Generated Message:
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'monospace',
+                          fontSize: '12px',
+                          color: theme.palette.text.secondary
+                        }}
+                      >
+                        {whatsappTestResult.message}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
             </SettingSection>
           </>
         )}

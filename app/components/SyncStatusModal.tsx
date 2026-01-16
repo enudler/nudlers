@@ -347,25 +347,27 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const prepareCredentials = (account: any, vendor: string) => {
     // Match the logic from scraperUtils.js prepareCredentials
+    // NOTE: account.id is the database row ID, account.id_number is the actual credential ID number
     if (vendor === 'visaCal' || vendor === 'max') {
       return {
         username: String(account.username || ''),
         password: String(account.password || '')
       };
     } else if (BEINLEUMI_GROUP_VENDORS.includes(vendor)) {
-      const bankUsername = account.username || account.id || account.id_number || '';
+      const bankUsername = account.username || account.id_number || '';
       return {
         username: String(bankUsername),
         password: String(account.password || '')
       };
     } else if (vendor === 'hapoalim') {
-      const userCode = account.username || account.id || account.id_number || '';
+      // For Hapoalim, the userCode is stored in the username field
+      const userCode = account.username || account.id_number || '';
       return {
         userCode: String(userCode),
         password: String(account.password || '')
       };
     } else if (BANK_VENDORS.includes(vendor)) {
-      const bankId = account.username || account.id || account.id_number || '';
+      const bankId = account.username || account.id_number || '';
       const bankNum = account.bank_account_number || '';
       return {
         username: String(bankId),

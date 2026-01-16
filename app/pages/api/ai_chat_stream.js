@@ -483,18 +483,23 @@ export default async function handler(req, res) {
 
   const db = await getDB();
   let apiKey = '';
+  let modelName = 'gemini-2.5-flash'; // Default model
 
   try {
+    // Get both API key and model setting
     const settingsResult = await db.query(
-      'SELECT value FROM app_settings WHERE key = $1',
-      ['gemini_api_key']
+      'SELECT key, value FROM app_settings WHERE key IN ($1, $2)',
+      ['gemini_api_key', 'gemini_model']
     );
 
-    if (settingsResult.rows.length > 0) {
-      const rawValue = settingsResult.rows[0].value;
-      // JSONB values are already parsed by the pg driver
-      // Handle both string and object cases
-      apiKey = typeof rawValue === 'string' ? rawValue : rawValue;
+    for (const row of settingsResult.rows) {
+      const rawValue = row.value;
+      const cleanValue = typeof rawValue === 'string' ? rawValue.replace(/"/g, '') : rawValue;
+      if (row.key === 'gemini_api_key') {
+        apiKey = cleanValue;
+      } else if (row.key === 'gemini_model') {
+        modelName = cleanValue;
+      }
     }
 
     if (!apiKey) {
@@ -502,7 +507,7 @@ export default async function handler(req, res) {
     }
 
     if (!apiKey) {
-      return res.status(500).json({ error: 'Gemini API key not configured' });
+      return res.status(500).json({ error: 'Gemini API key not configured. Please add it in App Settings.' });
     }
 
     const { message, context, sessionId } = req.body;
@@ -558,51 +563,38 @@ export default async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // AI Models to try (ordered by preference)
-    const modelNames = [
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-flash",
-      "gemini-1.5-pro"
-    ];
+    // Use the model from settings (no fallback loop - show actual error)
     let model = null;
-    let workingModel = null;
-    let allErrors = [];
+    let workingModel = modelName;
+    let initError = null;
 
-    for (const modelName of modelNames) {
-      try {
-        const testModel = genAI.getGenerativeModel({
-          model: modelName,
-          tools,
-          generationConfig: { temperature: 0.2, maxOutputTokens: 2000 }
-        });
+    logger.info({ modelName }, 'Using model from settings');
 
-        // Quick availability test with 10s timeout
-        const testPromise = testModel.generateContent({
-          contents: [{ role: 'user', parts: [{ text: "test" }] }],
-          generationConfig: { maxOutputTokens: 5 }
-        });
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout')), 10000)
-        );
-
-        await Promise.race([testPromise, timeoutPromise]);
-
-        model = testModel;
-        workingModel = modelName;
-        logger.info({ modelName }, 'Target model identified');
-        break;
-      } catch (e) {
-        allErrors.push(`${modelName}: ${e.message}`);
-        logger.warn({ modelName, error: e.message }, 'Model check failed');
-      }
+    try {
+      model = genAI.getGenerativeModel({
+        model: modelName,
+        tools,
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2000 }
+      });
+    } catch (e) {
+      initError = e;
+      logger.error({ modelName, error: e.message }, 'Failed to initialize model');
     }
 
     if (!model) {
-      const errorMsg = allErrors.some(e => e.toLowerCase().includes('quota'))
-        ? 'AI Quota Exceeded. Please try again later or check your Gemini API billing.'
-        : `AI Service is currently unavailable. Please check your API key and network connection. (Details: ${allErrors.join(', ')})`;
-
+      let errorMsg = `Failed to initialize model "${modelName}". `;
+      if (initError) {
+        const errLower = initError.message?.toLowerCase() || '';
+        if (errLower.includes('quota')) {
+          errorMsg = 'API quota exceeded. Please try again later or check your Gemini API billing.';
+        } else if (errLower.includes('api_key_invalid') || errLower.includes('api key not valid')) {
+          errorMsg = 'Invalid Gemini API key. Please check your settings.';
+        } else if (errLower.includes('not found') || errLower.includes('404')) {
+          errorMsg = `Model "${modelName}" not found. Please check your API key has access to this model or try a different model in settings.`;
+        } else {
+          errorMsg += initError.message || 'Unknown error.';
+        }
+      }
       sendEvent({ error: errorMsg, status: 'error' });
       res.end();
       return;
@@ -715,11 +707,21 @@ export default async function handler(req, res) {
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'AI Chat Error');
     if (res.writableEnded) return;
+
     let userMessage = error.message || 'Failed to get AI response';
-    if (userMessage.toLowerCase().includes('quota')) {
-      userMessage = 'AI Quota Exceeded. Please try again later or check your Gemini API billing.';
+    const errLower = userMessage.toLowerCase();
+
+    if (errLower.includes('quota')) {
+      userMessage = 'API quota exceeded. Please try again later or check your Gemini API billing.';
+    } else if (errLower.includes('api_key_invalid') || errLower.includes('api key not valid')) {
+      userMessage = 'Invalid Gemini API key. Please check your settings.';
+    } else if (errLower.includes('not found') || errLower.includes('404')) {
+      userMessage = `Model not found. Please check your API key has access to this model or try a different model in settings.`;
+    } else if (errLower.includes('safety') || errLower.includes('blocked')) {
+      userMessage = 'Response was blocked by safety filters. Please try rephrasing your question.';
     } else if (userMessage.includes('GoogleGenerativeAI Error')) {
-      userMessage = userMessage.split('] ').pop();
+      // Extract the actual error message
+      userMessage = userMessage.split('] ').pop() || userMessage;
     }
 
     try {
