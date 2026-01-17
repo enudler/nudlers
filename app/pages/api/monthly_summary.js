@@ -68,16 +68,16 @@ const handler = createApiHandler({
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) as bank_expenses,
             -- Credit card transactions (excluding Bank and Income categories)
             -- Note: price is already the per-installment amount (combineInstallments: false)
-            ROUND(COALESCE(SUM(
+            COALESCE(SUM(
               CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
-            ), 0)::numeric, 0) as card_expenses,
-            ROUND((
+            ), 0)::numeric as card_expenses,
+            (
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) -
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) -
               COALESCE(SUM(
                 CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
               ), 0)
-            )::numeric, 0) as net_balance
+            )::numeric as net_balance
           FROM transactions t
           ${credentialJoin}
           ${whereClause}
@@ -102,20 +102,20 @@ const handler = createApiHandler({
             COALESCE(RIGHT(t.account_number, 4), 'Unknown') as last4digits,
             COUNT(DISTINCT (t.identifier, t.vendor)) as transaction_count,
             -- Bank transactions (business): positive = income, negative = expense
-            ROUND(COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0)::numeric, 0) as bank_income,
-            ROUND(COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0)::numeric, 0) as bank_expenses,
+            COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0)::numeric as bank_income,
+            COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0)::numeric as bank_expenses,
             -- Credit card transactions (excluding Bank and Income categories)
             -- Note: price is already the per-installment amount (combineInstallments: false)
-            ROUND(COALESCE(SUM(
+            COALESCE(SUM(
               CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
-            ), 0)::numeric, 0) as card_expenses,
-            ROUND((
+            ), 0)::numeric as card_expenses,
+            (
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) -
               COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) -
               COALESCE(SUM(
                 CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
               ), 0)
-            )::numeric, 0) as net_balance,
+            )::numeric as net_balance,
             -- Include bank account info from card ownership
             ba.id as bank_account_id,
             COALESCE(ba.nickname, co.custom_bank_account_nickname) as bank_account_nickname,
@@ -166,10 +166,10 @@ const handler = createApiHandler({
           month,
           vendor,
           vendor_nickname,
-          ROUND(bank_income::numeric, 0) as bank_income,
-          ROUND(bank_expenses::numeric, 0) as bank_expenses,
-          ROUND(card_expenses::numeric, 0) as card_expenses,
-          ROUND((bank_income - bank_expenses - card_expenses)::numeric, 0) as net_balance
+          bank_income::numeric as bank_income,
+          bank_expenses::numeric as bank_expenses,
+          card_expenses::numeric as card_expenses,
+          (bank_income - bank_expenses - card_expenses)::numeric as net_balance
         FROM monthly_data
         ORDER BY month DESC, vendor
       `,

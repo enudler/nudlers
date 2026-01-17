@@ -38,6 +38,7 @@ interface SyncStatusModalProps {
   onClose: () => void;
   width: number;
   onWidthChange: (width: number) => void;
+  onSyncSuccess?: () => void;
 }
 
 interface SyncStatus {
@@ -225,7 +226,7 @@ const getVendorIcon = (vendor: string) => {
 
 import { useTheme } from '@mui/material/styles';
 
-const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange }) => {
+const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange, onSyncSuccess }) => {
   const theme = useTheme();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -541,6 +542,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             phase: '',
             success: null
           });
+
+          // Notify parent of success
+          if (onSyncSuccess) {
+            onSyncSuccess();
+          }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
             // User cancelled
@@ -698,7 +704,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {status && status.activeAccounts > 0 && (
-            <Tooltip title={isSyncing ? "Cancel sync" : "Sync all accounts now"}>
+            <Tooltip title={isSyncing ? "Stop sync immediately" : "Sync all accounts now"}>
               <Button
                 onClick={handleSyncAll}
                 variant="contained"
@@ -716,7 +722,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   py: 0.5
                 }}
               >
-                {isSyncing ? 'Cancel' : 'Sync Now'}
+                {isSyncing ? 'Stop Now' : 'Sync Now'}
               </Button>
             </Tooltip>
           )}

@@ -27,7 +27,7 @@
     "@mui/x-date-pickers": "^8.3.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
-    "israeli-bank-scrapers": "^6.6.0",
+    "israeli-bank-scrapers": "^6.6.1",
     "next": "^15.1.6",
     "next-auth": "^4.24.11",
     "node-cron": "^4.2.1",
@@ -40,7 +40,7 @@
     "twilio": "^5.11.2"
   },
   "devDependencies": {
-    "@types/node": "^20.17.49",
+    "@types/node": "^22.12.0",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.15.2",
     "@types/react": "^19.2.7",
@@ -56,5 +56,10 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
+  },
+  "overrides": {
+    "react": "$react",
+    "react-dom": "$react-dom",
+    "@types/node": "$@types/node"
   }
 }

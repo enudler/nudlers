@@ -11,9 +11,7 @@ import {
     updateScrapeAudit,
     updateCredentialLastSynced,
     getFetchCategoriesSetting,
-    getStandardTimeoutSetting,
-    getRateLimitedTimeoutSetting,
-    RATE_LIMITED_VENDORS
+    getScraperTimeout
 } from '../pages/api/utils/scraperUtils.js';
 
 // Standalone DB connection for the script
@@ -65,7 +63,6 @@ async function runBackgroundSync() {
 
         for (const row of accountsResult.rows) {
             const companyId = row.vendor;
-            const isRateLimited = RATE_LIMITED_VENDORS.includes(companyId);
 
             logger.info({ vendor: companyId, nickname: row.nickname }, '[Background Sync] Syncing account');
 
@@ -87,14 +84,12 @@ async function runBackgroundSync() {
                 continue;
             }
 
-            const timeoutSetting = isRateLimited
-                ? await getRateLimitedTimeoutSetting(client)
-                : await getStandardTimeoutSetting(client);
+            const timeoutSetting = await getScraperTimeout(client, companyId);
 
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - daysBack);
 
-            const scraperOptions = getScraperOptions(companyId, startDate, isRateLimited, {
+            const scraperOptions = getScraperOptions(companyId, startDate, {
                 showBrowser: false,
                 fetchCategories: fetchCategoriesSetting,
                 timeout: timeoutSetting,
@@ -103,7 +98,7 @@ async function runBackgroundSync() {
             const auditId = await insertScrapeAudit(client, 'background-sync', companyId, startDate);
 
             try {
-                const result = await runScraper(scraperOptions, scraperCredentials);
+                const result = await runScraper(client, scraperOptions, scraperCredentials);
 
                 if (!result.success) {
                     throw new Error(result.errorMessage || 'Scraping failed');

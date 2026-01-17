@@ -57,7 +57,6 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Invalid cycle format. Use YYYY-MM format" });
       }
 
-      // Use consistent helper logic
       const effectiveMonthSql = getBillingCycleSql(billingStartDay, 'date', 'processed_date');
 
       actualSpendingSql = `

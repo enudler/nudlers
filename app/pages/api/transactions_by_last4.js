@@ -11,6 +11,7 @@ const handler = createApiHandler({
   },
   query: async (req) => {
     const { startDate, endDate, billingCycle, last4digits } = req.query;
+    const useBillingCycle = !!billingCycle;
 
     // If billingCycle is provided, use consistent Logic
     let billingStartDay = 10;
@@ -29,6 +30,13 @@ const handler = createApiHandler({
       }
       effectiveMonthSql = getBillingCycleSql(billingStartDay, 't.date', 't.processed_date');
     }
+
+    // Join with card_ownership to get the correct credential for each card
+    const credentialJoin = `
+      LEFT JOIN card_ownership co ON t.vendor = co.vendor AND t.account_number = co.account_number
+      LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
+    `;
+
 
     // Handle 'Unknown' case - match null or empty account_number
     if (last4digits === 'Unknown') {

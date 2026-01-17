@@ -65,6 +65,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc');
   const [confirmDeleteExpense, setConfirmDeleteExpense] = React.useState<Expense | null>(null);
 
+  const isBankView = data.type === "Bank Transactions" ||
+    data.type === "All Bank Expenses" ||
+    (data.type && (data.type.startsWith('Account') || data.type.startsWith('Bank') || data.type.startsWith('Search:')));
+
   // Sort function for expenses
   const getSortedData = React.useCallback((expenses: Expense[]) => {
     if (!Array.isArray(expenses)) return expenses;
@@ -77,9 +81,8 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
           break;
         case 'amount':
-          const amountA = Math.abs(a.price);
-          const amountB = Math.abs(b.price);
-          comparison = amountA - amountB;
+          // Sort by actual value (including sign) - negative amounts come before positive in ascending order
+          comparison = a.price - b.price;
           break;
         case 'installments':
           const installA = a.installments_total || 0;
@@ -103,15 +106,15 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
 
   const sortedExpenses = React.useMemo(() => getSortedData(data.data), [data.data, getSortedData]);
 
-  const isBankView = data.type === "Bank Transactions" ||
-    data.type === "All Bank Expenses" ||
-    (data.type && (data.type.startsWith('Account') || data.type.startsWith('Bank') || data.type.startsWith('Search:')));
-
   React.useEffect(() => {
-    if (isBankView) {
-      setChartData([]);
-      return;
-    }
+    // Determine if we should treat values as signed (Net) or absolute (Magnitude)
+    // Bank View = Signed (Net). Category View = Absolute (Magnitude)
+    const useSignedValues = isBankView;
+
+    // if (isBankView) {
+    //   setChartData([]);
+    //   return;
+    // }
 
     if (!data.data || data.data.length === 0) {
       setChartData([]);
@@ -132,13 +135,15 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     // If range is up to 31 days (inclusive of end date implies we might technically span simple checks, 
     // but diffDays is usually accurate enough). Data point per day.
     // If multiple months (implied by > 31 days), per month.
-    const isDaily = diffDays <= 31;
+    // If range is up to 90 days (approx 3 months), show daily data points.
+    // If > 90 days, switch to monthly aggregation.
+    const isDaily = diffDays <= 90;
 
     const aggregated = new Map<string, number>();
 
     const getKey = (date: Date) => {
       if (isDaily) {
-        return date.toISOString().split('T')[0]; // YYYY-MM-DD
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; // YYYY-MM-DD
       } else {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
       }
@@ -176,14 +181,17 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       if (isNaN(d.getTime())) return;
       const key = getKey(d);
       // Expenses are usually summed by absolute value for these charts
+      // But for Bank View, we might want Net (Signed)
+      const val = useSignedValues ? expense.price : Math.abs(expense.price);
+
       if (aggregated.has(key)) {
-        aggregated.set(key, (aggregated.get(key) || 0) + Math.abs(expense.price));
+        aggregated.set(key, (aggregated.get(key) || 0) + val);
       } else {
         // If data point falls outside the generated range (e.g. late month data vs 1st of month logic), 
         // for monthly we keyed by YYYY-MM so it should match.
         // For daily, strict YYYY-MM-DD match.
         // Just in case, set it.
-        aggregated.set(key, (aggregated.get(key) || 0) + Math.abs(expense.price));
+        aggregated.set(key, (aggregated.get(key) || 0) + val);
       }
     });
 
@@ -500,7 +508,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     >
       <ModalHeader title={data.type} onClose={onClose} />
       <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
-        {!isBankView && (
+        {chartData.length > 0 && (
           <Box sx={{
             mb: 4,
             p: 3,
@@ -954,10 +962,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             </TableBody>
           </Table>
         </Box>
-      </DialogContent>
+      </DialogContent >
 
       {/* Snackbar for feedback messages */}
-      <Snackbar
+      < Snackbar
         open={snackbar.open}
         autoHideDuration={5000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
@@ -974,16 +982,16 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         >
           {snackbar.message}
         </Alert>
-      </Snackbar>
+      </Snackbar >
 
       {/* Delete Confirmation Dialog */}
-      <DeleteConfirmationDialog
+      < DeleteConfirmationDialog
         open={!!confirmDeleteExpense}
         onClose={() => setConfirmDeleteExpense(null)}
         onConfirm={handleDeleteTransaction}
         transaction={confirmDeleteExpense}
       />
-    </Dialog>
+    </Dialog >
   );
 };
 

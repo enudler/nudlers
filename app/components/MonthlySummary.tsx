@@ -544,6 +544,21 @@ const MonthlySummary: React.FC = () => {
     }
   }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
 
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      if (dateRangeMode === 'custom') {
+        if (customStartDate && customEndDate) {
+          fetchMonthlySummary();
+        }
+      } else {
+        fetchMonthlySummary();
+      }
+    };
+
+    window.addEventListener('dataRefresh', handleDataRefresh);
+    return () => window.removeEventListener('dataRefresh', handleDataRefresh);
+  }, [fetchMonthlySummary, dateRangeMode, customStartDate, customEndDate]);
+
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedYear(event.target.value);
   };

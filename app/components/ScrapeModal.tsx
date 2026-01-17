@@ -19,6 +19,8 @@ import Fade from '@mui/material/Fade';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
+import TimerIcon from '@mui/icons-material/Timer';
 import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
 import { useTheme } from '@mui/material/styles';
@@ -80,6 +82,23 @@ interface ScrapeResult {
   cachedCategories?: number;
 }
 
+interface NetworkLogEntry {
+  type: 'httpRequest' | 'httpResponse' | 'rateLimitWait' | 'retryWait';
+  method?: string;
+  url?: string;
+  status?: number;
+  timestamp: string;
+  message?: string;
+  seconds?: number;
+}
+
+interface RateLimitState {
+  isWaiting: boolean;
+  message: string;
+  totalSeconds: number;
+  startTime: number;
+}
+
 export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig }: ScrapeModalProps) {
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(false);
@@ -88,6 +107,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [retryState, setRetryState] = useState<RetryState | null>(null);
   const [stepHistory, setStepHistory] = useState<Array<{ step: string, message: string, success: boolean | null, phase?: string }>>([]);
+  const [networkLogs, setNetworkLogs] = useState<NetworkLogEntry[]>([]);
+  const [rateLimitState, setRateLimitState] = useState<RateLimitState | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { showNotification } = useNotification();
   const todayStr = new Date().toISOString().split('T')[0];
@@ -127,6 +148,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       setScrapeResult(null);
       setRetryState(null);
       setSessionReport([]);
+      setNetworkLogs([]);
+      setRateLimitState(null);
       // Abort any ongoing scrape when modal closes
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -205,6 +228,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     setScrapeResult(null);
     setSessionReport([]);
     setStepHistory([]);
+    setNetworkLogs([]);
+    setRateLimitState(null);
 
     // Create abort controller for this scrape
     abortControllerRef.current = new AbortController();
@@ -251,7 +276,35 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           } else if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6));
 
-            if (currentEvent === 'progress') {
+            if (currentEvent === 'network') {
+              const logEntry: NetworkLogEntry = data;
+
+              // Update network logs (keep last 50)
+              setNetworkLogs(prev => {
+                const newLogs = [logEntry, ...prev].slice(0, 50);
+                return newLogs;
+              });
+
+              // Handle rate limit state
+              if (logEntry.type === 'rateLimitWait' && logEntry.seconds) {
+                setRateLimitState({
+                  isWaiting: true,
+                  message: logEntry.message || 'Rate limit wait...',
+                  totalSeconds: logEntry.seconds,
+                  startTime: Date.now()
+                });
+              } else if (logEntry.type === 'retryWait' && logEntry.seconds) {
+                setRateLimitState({
+                  isWaiting: true,
+                  message: logEntry.message || 'Retrying...',
+                  totalSeconds: logEntry.seconds,
+                  startTime: Date.now()
+                });
+              } else if (logEntry.type === 'httpRequest') {
+                // Clear waiting state on new request
+                setRateLimitState(null);
+              }
+            } else if (currentEvent === 'progress') {
               const progressData = {
                 step: data.step,
                 message: data.message,
@@ -626,6 +679,42 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           )}
         </Box>
 
+        {/* Rate Limit / Retry Warning */}
+        {rateLimitState && !scrapeResult && (
+          <Fade in={true}>
+            <Box sx={{
+              mb: 2,
+              p: 1.5,
+              borderRadius: 2,
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5
+            }}>
+              <TimerIcon sx={{ color: '#f59e0b', fontSize: 20 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="body2" sx={{ color: '#d97706', fontWeight: 600 }}>
+                  {rateLimitState.message}
+                </Typography>
+                <Box sx={{ width: '100%', height: 4, bgcolor: 'rgba(245, 158, 11, 0.2)', borderRadius: 2, mt: 0.5, overflow: 'hidden' }}>
+                  <Box sx={{
+                    width: '100%',
+                    height: '100%',
+                    bgcolor: '#f59e0b',
+                    animation: `progress-shrink ${rateLimitState.totalSeconds}s linear forwards`,
+                    transformOrigin: 'left',
+                    '@keyframes progress-shrink': {
+                      '0%': { transform: 'scaleX(1)' },
+                      '100%': { transform: 'scaleX(0)' }
+                    }
+                  }} />
+                </Box>
+              </Box>
+            </Box>
+          </Fade>
+        )}
+
         {/* Step History (Collapsible or scrollable) */}
         {stepHistory.length > 0 && !scrapeResult && (
           <Box sx={{
@@ -651,6 +740,51 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                 )}
                 <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontSize: '0.75rem' }}>
                   {step.message.replace(/^[✓✗⏭]\s*/, '')}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {/* Network Logs */}
+        {networkLogs.length > 0 && !scrapeResult && (
+          <Box sx={{
+            mt: 2,
+            p: 2,
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.4)' : '#1e293b',
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            maxHeight: 150,
+            overflowY: 'auto',
+            fontFamily: 'monospace'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <SwapVertIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                Network Activity (Debug):
+              </Typography>
+            </Box>
+            {networkLogs.slice(0, 5).map((log, idx) => (
+              <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, opacity: idx === 0 ? 1 : 0.7 }}>
+                <Typography variant="caption" sx={{
+                  color: log.type === 'httpRequest' ? '#60a5fa' :
+                    log.type === 'httpResponse' ? (log.status && log.status >= 400 ? '#ef4444' : '#22c55e') : '#f59e0b',
+                  fontWeight: 'bold',
+                  fontSize: '0.7rem',
+                  minWidth: 35
+                }}>
+                  {log.type === 'httpRequest' ? 'REQ' :
+                    log.type === 'httpResponse' ? `RES ${log.status || ''}` : 'WAIT'}
+                </Typography>
+                <Typography variant="caption" sx={{
+                  color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                  fontSize: '0.7rem',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flex: 1
+                }}>
+                  {log.message || `${log.method || ''} ${log.url ? new URL(log.url).pathname : ''}`}
                 </Typography>
               </Box>
             ))}

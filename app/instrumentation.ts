@@ -4,7 +4,6 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const logger = (await import('./utils/logger.js')).default;
     // Intercept Next.js request logs and redirect through our JSON logger
-    // Intercept Next.js request logs and redirect through our JSON logger
     const stripAnsi = (str: string) => str.replace(/[\u001b\u009b][[[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
 
     const handleLog = (chunk: any, originalWrite: Function) => {
@@ -85,54 +84,7 @@ export async function register() {
       logger.error({ error: error.message, stack: error.stack }, '[startup] Failed to run migrations');
     }
 
-    // New: Handle dynamic library updates for israeli-bank-scrapers
-    try {
-      logger.info('[startup] Checking for scraper library version enforcement');
-      const { getDB } = await import('./pages/api/db');
-      const { execSync } = await import('child_process');
-      const client = await getDB();
-      const versionResult = await client.query("SELECT value FROM app_settings WHERE key = 'israeli_bank_scrapers_version'");
-      client.release();
 
-      let targetVersion = process.env.ISRAELI_BANK_SCRAPERS_VERSION;
-
-      if (versionResult.rows.length > 0) {
-        const dbVersion = versionResult.rows[0].value.replace(/"/g, '');
-        if (dbVersion && dbVersion !== 'none') {
-          targetVersion = dbVersion;
-        }
-      }
-
-      if (targetVersion && targetVersion !== 'none') {
-        logger.info({ version: targetVersion }, '[startup] Ensuring scraper library version');
-        try {
-          const fs = await import('fs');
-          const path = await import('path');
-          const cwd = process.cwd() || __dirname || '.';
-          const pkgPath = path.join(cwd, 'node_modules', 'israeli-bank-scrapers', 'package.json');
-
-          if (fs.existsSync(pkgPath)) {
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            if (pkg.version !== targetVersion && targetVersion !== 'latest') {
-              logger.info({ installed: pkg.version, target: targetVersion }, '[startup] Version mismatch, installing');
-              execSync(`npm install israeli-bank-scrapers@${targetVersion} --no-save`, { stdio: 'inherit' });
-            } else {
-              logger.info({ version: pkg.version }, '[startup] Library version already satisfied');
-            }
-          } else {
-            logger.info({ version: targetVersion }, '[startup] Library not found, installing');
-            execSync(`npm install israeli-bank-scrapers@${targetVersion} --no-save`, { stdio: 'inherit' });
-          }
-        } catch (e) {
-          const errorMessage = e instanceof Error ? e.message : String(e);
-          const errorStack = e instanceof Error ? e.stack : undefined;
-          logger.error({ error: errorMessage, stack: errorStack }, '[startup] Error checking library version');
-          execSync(`npm install israeli-bank-scrapers@${targetVersion} --no-save`, { stdio: 'inherit' });
-        }
-      }
-    } catch (error: any) {
-      logger.warn({ error: error.message }, '[startup] Scraper version enforcement skipped (DB might not be ready or error)');
-    }
 
     // Initialize WhatsApp daily summary cron job
     try {

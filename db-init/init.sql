@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	account_number VARCHAR(50),
 	category_source VARCHAR(50),
 	rule_matched VARCHAR(255),
+	transaction_type VARCHAR(20) DEFAULT 'credit_card',  -- 'bank' or 'credit_card'
 	PRIMARY KEY (identifier, vendor)
 );
 
@@ -241,6 +242,24 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
 
+-- Migration: Add transaction_type column to transactions table if it doesn't exist
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'transactions' AND column_name = 'transaction_type') THEN
+    ALTER TABLE transactions ADD COLUMN transaction_type VARCHAR(20) DEFAULT 'credit_card';
+  END IF;
+END $$;
+
+-- Index for filtering by transaction type
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
+
+-- Migration: Update existing transactions to set transaction_type based on vendor
+-- Bank vendors: hapoalim, leumi, mizrahi, discount, yahav, otsarHahayal, beinleumi, massad, mercantile, igud, union, fibi, jerusalem, onezero, pepper, pagi
+UPDATE transactions SET transaction_type = 'bank' 
+WHERE transaction_type IS NULL OR transaction_type = 'credit_card'
+  AND vendor IN ('hapoalim', 'poalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'fibi', 'jerusalem', 'onezero', 'pepper', 'otsarHahayal', 'otsar_hahayal', 'beinleumi', 'massad', 'pagi', 'mercantile', 'igud');
+
 -- Insert default settings
 INSERT INTO app_settings (key, value, description) VALUES
     ('sync_enabled', 'false', 'Enable automatic background sync'),
@@ -253,5 +272,7 @@ INSERT INTO app_settings (key, value, description) VALUES
     ('fetch_categories_from_scrapers', 'true', 'Fetch categories from card providers during scraping. Disable to reduce rate limiting on Isracard/Amex/Cal.'),
     ('update_category_on_rescrape', 'false', 'Update transaction categories if bank provides new ones during re-scrape'),
     ('scrape_retries', '3', 'Number of times to retry scraping on failure'),
-    ('israeli_bank_scrapers_version', '"latest"', 'Specific version or branch of the scraper library (e.g. "latest", "master", "6.6.0")')
+    ('israeli_bank_scrapers_version', '"latest"', 'Specific version or branch of the scraper library (e.g. "latest", "master", "6.6.0")'),
+    ('scraper_log_http_requests', 'false', 'Log all HTTP requests made by the scraper for debugging rate limiting issues'),
+    ('rate_limit_wait_seconds', '60', 'Seconds to wait before retrying when rate limited by a scraper')
 ON CONFLICT (key) DO NOTHING;

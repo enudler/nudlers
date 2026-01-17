@@ -8,9 +8,9 @@ WORKDIR /app
 # Prevent Puppeteer from downloading Chromium during npm install
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Copy only package files and patches for better layer caching
+# Copy only package files and patches (if they exist) for better layer caching
 COPY package.json package-lock.json* yarn.lock* ./
-COPY patches ./patches
+COPY patches* ./patches/
 
 # Install dependencies
 RUN npm ci
