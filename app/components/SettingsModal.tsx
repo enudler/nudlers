@@ -25,6 +25,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SendIcon from '@mui/icons-material/Send';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import DeleteAllTransactionsDialog from './DeleteAllTransactionsDialog';
 
 interface SettingsModalProps {
   open: boolean;
@@ -147,6 +149,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     message: string | null;
     error: string | null;
   } | null>(null);
+
+  // Delete all transactions dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -817,6 +822,44 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Box>
               )}
             </SettingSection>
+
+            {/* Danger Zone */}
+            <SettingSection sx={{
+              borderColor: theme.palette.error.main,
+              background: theme.palette.mode === 'dark'
+                ? 'rgba(239, 68, 68, 0.1)'
+                : 'rgba(239, 68, 68, 0.05)'
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <WarningAmberIcon sx={{ color: theme.palette.error.main }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: theme.palette.error.main }}>
+                  Danger Zone
+                </Typography>
+              </Box>
+
+              <SettingRow>
+                <Box sx={{ flex: 1, mr: 2 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>Delete All Transactions</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Permanently delete all transactions from the database. This action cannot be undone.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  sx={{
+                    borderColor: theme.palette.error.main,
+                    color: theme.palette.error.main,
+                    '&:hover': {
+                      borderColor: theme.palette.error.dark,
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    },
+                  }}
+                >
+                  Delete All
+                </Button>
+              </SettingRow>
+            </SettingSection>
           </>
         )}
       </DialogContent>
@@ -838,6 +881,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           Close
         </Button>
       </DialogActions>
+
+      <DeleteAllTransactionsDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onSuccess={() => {
+          setResult({ type: 'success', message: 'All transactions deleted successfully' });
+          window.dispatchEvent(new CustomEvent('dataRefresh'));
+        }}
+      />
     </StyledDialog>
   );
 };

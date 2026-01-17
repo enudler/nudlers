@@ -3,8 +3,8 @@ import logger from '../../../utils/logger.js';
 
 const handler = createApiHandler({
     validate: (req) => {
-        if (req.method !== 'POST') {
-            return "Only POST method is allowed";
+        if (req.method !== 'DELETE') {
+            return "Only DELETE method is allowed";
         }
     },
     query: async () => {
