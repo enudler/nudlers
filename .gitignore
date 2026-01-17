@@ -2,4 +2,7 @@ app/node_modules/*
 app/.next
 .env
 .env.local
-run.shapp/scripts/debug/
+app/scripts/debug/
+node_modules/
+*.tsbuildinfo
+.antigravity/
