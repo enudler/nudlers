@@ -15,14 +15,14 @@ const handler = createApiHandler({
   },
   query: async (req) => {
     const { name, amount, date, type, category } = req.body;
-    
+
     // Generate a unique identifier for the transaction
     const identifier = `manual_${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Determine vendor and category based on transaction type
     const vendor = type === 'income' ? 'manual_income' : 'manual_expense';
     const transactionCategory = type === 'income' ? 'Bank' : category;
-    
+
     return {
       sql: `
         INSERT INTO transactions (
@@ -41,7 +41,7 @@ const handler = createApiHandler({
         vendor,
         new Date(date),
         name,
-        Math.abs(amount), // Store positive amount for both income and expenses
+        type === 'expense' ? -Math.abs(amount) : Math.abs(amount), // ENFORCE signs based on type
         transactionCategory,
         type,
         'completed'

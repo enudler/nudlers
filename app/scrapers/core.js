@@ -4,7 +4,7 @@
  */
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
+export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal', 'leumi'];
 
 /**
  * Shared sleep helper
@@ -36,7 +36,7 @@ export function getChromePath() {
 /**
  * Get scraper options with anti-detection measures
  */
-export function getScraperOptions(companyId, startDate, isRateLimited, options = {}) {
+export function getScraperOptions(companyId, startDate, options = {}) {
     const showBrowser = options.showBrowser ?? false;
     const fetchCategories = options.fetchCategories ?? true;
 
@@ -73,18 +73,16 @@ export function getScraperOptions(companyId, startDate, isRateLimited, options =
         '--use-mock-keychain',
         '--disable-gpu',
         '--disable-software-rasterizer',
-        '--headless=new',
     ];
 
     if (showBrowser) {
         baseArgs.push('--remote-debugging-port=9222');
         baseArgs.push('--remote-debugging-address=0.0.0.0');
+    } else {
+        baseArgs.push('--headless=new');
     }
 
-    let timeout = options.timeout;
-    if (!timeout) {
-        timeout = isRateLimited ? 120000 : 60000;
-    }
+    let timeout = options.timeout || 60000;
 
     return {
         companyId,
@@ -92,6 +90,7 @@ export function getScraperOptions(companyId, startDate, isRateLimited, options =
         combineInstallments: false,
         additionalTransactionInformation: fetchCategories,
         showBrowser,
+        headless: showBrowser ? false : 'new',
         verbose: options.verbose ?? true,
         timeout,
         executablePath: getChromePath(),
@@ -105,10 +104,15 @@ export function getScraperOptions(companyId, startDate, isRateLimited, options =
 /**
  * Get preparePage function with anti-detection measures
  */
-export function getPreparePage(isRateLimited) {
+export function getPreparePage(options = {}) {
+    const logRequests = options.logRequests ?? true;
+    const onProgress = options.onProgress;
+    const forceSlowMode = options.forceSlowMode;
+    const isRateLimited = options.isRateLimited ?? false;
+    const timeout = options.timeout ?? 60000;
+
     return async (page) => {
         // Set higher navigation and execution timeouts to avoid defaults
-        const timeout = isRateLimited ? 120000 : 60000;
         await page.setDefaultNavigationTimeout(timeout);
         await page.setDefaultTimeout(timeout);
 
@@ -116,8 +120,138 @@ export function getPreparePage(isRateLimited) {
             setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
         );
 
+        const skipInterception = options.skipInterception ?? false;
 
-        await page.evaluateOnNewDocument(() => {
+        if (!skipInterception) {
+            // Enable request interception to block analytics and prevent hangs
+            await page.setRequestInterception(true);
+        }
+
+        page.on('request', (request) => {
+            try {
+                // If it's already handled by another listener (like the library's internal one), stop here.
+                if (request.isInterceptResolutionHandled()) return;
+
+                const url = request.url();
+
+                // Block Google Analytics and Tag Manager to prevent timeouts
+                if (!skipInterception && (url.includes('google-analytics.com') || url.includes('googletagmanager.com'))) {
+                    try {
+                        request.abort();
+                        return;
+                    } catch (e) {
+                        // ignore if already handled
+                        return;
+                    }
+                }
+
+                // Log all HTTP requests for debugging rate limiting
+                if (logRequests) {
+                    const resourceType = request.resourceType();
+                    // Focus on API calls (xhr/fetch), skip images/css/fonts for cleaner logs
+                    if (resourceType === 'xhr' || resourceType === 'fetch' || resourceType === 'document') {
+                        const logData = {
+                            level: 'info',
+                            msg: '[Scraper HTTP Request]',
+                            method: request.method(),
+                            url: request.url(),
+                            resourceType,
+                            timestamp: new Date().toISOString()
+                        };
+                        console.log(JSON.stringify(logData));
+
+                        if (onProgress) {
+                            onProgress('network', {
+                                type: 'httpRequest',
+                                message: `${request.method()} ${request.url()}`,
+                                method: request.method(),
+                                url: request.url(),
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    }
+                }
+
+                if (!skipInterception) {
+                    try {
+                        if (!request.isInterceptResolutionHandled()) {
+                            request.continue();
+                        }
+                    } catch (e) {
+                        // ignore if already handled
+                    }
+                }
+            } catch (err) {
+                // Prevent unhandled rejections from within the listener
+                console.error('[Scraper Interception Error]', err.message);
+            }
+        });
+
+        // Also log responses to see status codes (only if logging is enabled)
+        if (logRequests) {
+            page.on('response', (response) => {
+                const request = response.request();
+                const resourceType = request.resourceType();
+                if (resourceType === 'xhr' || resourceType === 'fetch' || resourceType === 'document') {
+                    const status = response.status();
+                    // Highlight rate limiting responses (429) or errors
+                    const level = status === 429 ? 'warn' : (status >= 400 ? 'error' : 'debug');
+                    const logData = {
+                        level,
+                        msg: '[Scraper HTTP Response]',
+                        status,
+                        url: request.url(),
+                        resourceType,
+                        timestamp: new Date().toISOString()
+                    };
+                    console.log(JSON.stringify(logData));
+
+                    if (onProgress) {
+                        onProgress('network', {
+                            type: 'httpResponse',
+                            message: `${status} ${request.url()}`,
+                            status,
+                            url: request.url(),
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            });
+        }
+
+
+        await page.evaluateOnNewDocument((options) => {
+            // In-Page Throttling for Isracard/Amex to avoid 429 "Block Automation"
+            const isIsracardOrAmex = options.companyId === 'isracard' || options.companyId === 'amex';
+            if (isIsracardOrAmex) {
+                const originalFetch = window.fetch;
+                window.fetch = async function (...args) {
+                    const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+                    if (url && (url.includes('DashboardMonth') || url.includes('CardsTransactionsList'))) {
+                        const delay = 4000;
+                        // Use CSS-styled log if in browser console, or simple log
+                        console.log(`%c[Throttler] Throttling fetch for ${url.split('reqName=')[1]?.split('&')[0] || 'data'} (${delay}ms)`, 'color: orange; font-weight: bold;');
+                        await new Promise(r => setTimeout(r, delay));
+                    }
+                    return originalFetch.apply(this, args);
+                };
+
+                const originalOpen = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+                    this._url = url;
+                    return originalOpen.apply(this, [method, url, ...rest]);
+                };
+
+                const originalSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.send = function (...args) {
+                    const url = this._url || '';
+                    if (url && (url.includes('DashboardMonth') || url.includes('CardsTransactionsList'))) {
+                        console.log(`[Throttler] XHR detected for ${url}`);
+                    }
+                    return originalSend.apply(this, args);
+                };
+            }
+
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             try { delete Object.getPrototypeOf(navigator).webdriver; } catch (e) { }
             Object.defineProperty(navigator, 'plugins', {
@@ -168,7 +302,7 @@ export function getPreparePage(isRateLimited) {
             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
             Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
             Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
-        });
+        }, options);
 
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -178,8 +312,24 @@ export function getPreparePage(isRateLimited) {
         if (isRateLimited) {
             const originalGoto = page.goto.bind(page);
             page.goto = async (url, options) => {
-                // Cap delay at 5 seconds, and only if rate limited
-                const delayMs = Math.min(Math.floor(Math.random() * 3000) + 1000, 5000);
+                // Cap delay at 5 seconds, and only if rate limited (unless forced slow mode)
+                let delayMs;
+                if (forceSlowMode) {
+                    // Slower delay for detected rate limits: 5-10s
+                    delayMs = Math.floor(Math.random() * 5000) + 5000;
+                } else {
+                    // Standard rate limited vendors: 1-4s
+                    delayMs = Math.min(Math.floor(Math.random() * 3000) + 1000, 5000);
+                }
+
+                if (onProgress) {
+                    onProgress('network', {
+                        type: 'rateLimitWait',
+                        message: `Waiting ${Math.round(delayMs / 1000)}s (rate limit)...`,
+                        seconds: delayMs / 1000
+                    });
+                }
+
                 await randomDelay(delayMs / 2, delayMs);
                 return originalGoto(url, options);
             };

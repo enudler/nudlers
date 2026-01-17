@@ -11,8 +11,7 @@ import {
     updateScrapeAudit,
     updateCredentialLastSynced,
     getFetchCategoriesSetting,
-    getStandardTimeoutSetting,
-    getRateLimitedTimeoutSetting,
+    getScraperTimeout,
     RATE_LIMITED_VENDORS
 } from '../pages/api/utils/scraperUtils.js';
 
@@ -87,14 +86,12 @@ async function runBackgroundSync() {
                 continue;
             }
 
-            const timeoutSetting = isRateLimited
-                ? await getRateLimitedTimeoutSetting(client)
-                : await getStandardTimeoutSetting(client);
+            const timeoutSetting = await getScraperTimeout(client, companyId);
 
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - daysBack);
 
-            const scraperOptions = getScraperOptions(companyId, startDate, isRateLimited, {
+            const scraperOptions = getScraperOptions(companyId, startDate, {
                 showBrowser: false,
                 fetchCategories: fetchCategoriesSetting,
                 timeout: timeoutSetting,
@@ -103,7 +100,7 @@ async function runBackgroundSync() {
             const auditId = await insertScrapeAudit(client, 'background-sync', companyId, startDate);
 
             try {
-                const result = await runScraper(scraperOptions, scraperCredentials);
+                const result = await runScraper(client, scraperOptions, scraperCredentials);
 
                 if (!result.success) {
                     throw new Error(result.errorMessage || 'Scraping failed');

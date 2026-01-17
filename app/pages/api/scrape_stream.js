@@ -2,7 +2,6 @@ import { getDB } from './db';
 import { BANK_VENDORS } from '../../utils/constants';
 import logger from '../../utils/logger.js';
 import {
-  RATE_LIMITED_VENDORS,
   loadCategoryCache,
   lookupCachedCategory,
   insertTransaction,
@@ -17,16 +16,14 @@ import {
   updateCredentialLastSynced,
   getShowBrowserSetting,
   getFetchCategoriesSetting,
-  getStandardTimeoutSetting,
-  getRateLimitedTimeoutSetting,
-  retryWithBackoff,
-  sleep,
+  getScraperTimeout,
   runScraper,
   loadCategorizationRules,
   loadCategoryMappings,
-  getFallbackCategorySetting,
   getUpdateCategoryOnRescrapeSetting,
-  getScrapeRetriesSetting,
+  getLogHttpRequestsSetting,
+  getBillingCycleStartDay,
+  processScrapedAccounts,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -88,9 +85,8 @@ async function handler(req, res) {
     });
 
     const isBank = BANK_VENDORS.includes(options.companyId);
-    const isRateLimited = RATE_LIMITED_VENDORS.includes(options.companyId);
 
-    logger.info({ isBank, isRateLimited }, '[Scrape Stream] Vendor type detection');
+    logger.info({ isBank }, '[Scrape Stream] Vendor type detection');
 
     // Prepare and validate credentials
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
@@ -142,28 +138,35 @@ async function handler(req, res) {
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
     logger.info({ fetchCategories: fetchCategoriesSetting }, '[Scrape Stream] Fetch categories setting');
 
-    // Get timeout settings - rate-limited vendors need longer timeouts
-    const timeoutSetting = isRateLimited
-      ? await getRateLimitedTimeoutSetting(client)
-      : await getStandardTimeoutSetting(client);
+    // Get timeout settings
+    const timeoutSetting = await getScraperTimeout(client, companyId);
 
     // Get update category setting
     const updateCategoryOnRescrape = await getUpdateCategoryOnRescrapeSetting(client);
 
+    // Get HTTP request logging setting
+    const logHttpRequests = await getLogHttpRequestsSetting(client);
+
     // Build scraper options with progress callback
     const scraperOptions = {
-      ...getScraperOptions(companyId, new Date(options.startDate), isRateLimited, {
+      ...getScraperOptions(companyId, new Date(options.startDate), {
         timeout: timeoutSetting,
         defaultTimeout: timeoutSetting,
         showBrowser: showBrowserSetting,
         fetchCategories: fetchCategoriesSetting,
-      })
+      }),
+      logRequests: logHttpRequests,
     };
 
     // Track completed steps for better status reporting
     const completedSteps = new Set();
 
     const progressHandler = (companyId, payload) => {
+      if (companyId === 'network') {
+        sendSSE(res, 'network', payload);
+        return;
+      }
+
       const stepMessages = {
         'initializing': {
           message: 'Initializing scraper...',
@@ -237,6 +240,12 @@ async function handler(req, res) {
           phase: 'processing',
           success: null
         },
+        'fetchingCategory': {
+          message: 'Fetching transaction category...',
+          percent: 70,
+          phase: 'processing',
+          success: null
+        },
         'endScraping': {
           message: '✓ Scraping completed',
           percent: 75,
@@ -280,354 +289,154 @@ async function handler(req, res) {
       success: null
     });
 
-    logger.info('[Scrape Stream] Starting worker-based scrape');
+    // Track cancellation
+    let isCancelled = false;
+    res.on('close', () => {
+      isCancelled = true;
+      logger.info({ vendor: options.companyId }, '[Scrape Stream] Client disconnected, cancelling scrape');
+    });
 
-    // Use retry logic
-    // Get retries setting (default 3) - apply to all vendors if they have retryable errors
-    const maxRetries = await getScrapeRetriesSetting(client);
-    const retryBaseDelay = 5000;
-
-    // Check if fallback to no categories is enabled
-    const fallbackNoCategory = await getFallbackCategorySetting(client);
-    let currentScraperOptions = { ...scraperOptions };
-    let retryAttempt = 0;
+    const accumulatedStats = {
+      accounts: 0,
+      transactions: 0,
+      savedTransactions: 0,
+      duplicateTransactions: 0,
+      updatedTransactions: 0,
+      bankTransactions: 0,
+      cachedCategories: 0,
+      skippedCards: 0,
+      processedTransactions: []
+    };
 
     let result;
     try {
-      result = await retryWithBackoff(
-        async () => {
-          retryAttempt++;
-          if (retryAttempt > 1) {
-            let retryMsg = `Retrying ${options.companyId} (attempt ${retryAttempt}/${maxRetries + 1})...`;
+      sendSSE(res, 'progress', {
+        step: 'startScraping',
+        message: 'Starting scrape process...',
+        percent: 10,
+        phase: 'initialization',
+        success: true
+      });
 
-            // If fallback enabled and previous attempt failed, try disabling categories for this attempt
-            if (fallbackNoCategory && currentScraperOptions.additionalTransactionInformation) {
-              logger.info({ vendor: options.companyId }, '[Scrape Stream] Disabling category fetching for retry');
-              currentScraperOptions.additionalTransactionInformation = false;
-              retryMsg += ' (skipping categories)';
-            }
+      result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler);
 
-            sendSSE(res, 'progress', {
-              step: 'retry',
-              message: retryMsg,
-              percent: 22,
-              phase: 'initialization',
-              success: null
-            });
-          }
-          const scraperResult = await runScraper(currentScraperOptions, scraperCredentials, progressHandler);
-          if (!scraperResult.success && scraperResult.errorMessage) {
-            // Throw so retryWithBackoff can catch it and try again
-            throw new Error(scraperResult.errorMessage);
-          }
-          return scraperResult;
-        },
-        maxRetries,
-        retryBaseDelay,
-        options.companyId
-      );
-      logger.info({ success: result.success }, '[Scrape Stream] Scraper returned');
+      if (!result.success) {
+        throw new Error(result.errorMessage || 'Scraper failed');
+      }
+
+      logger.info({ success: result.success }, '[Scrape Stream] Scrape completed');
+
+      // --- SAVING LOGIC ---
+      sendSSE(res, 'progress', {
+        step: 'saving',
+        message: 'Saving transactions...',
+        percent: 80,
+        phase: 'saving',
+        success: null
+      });
+
+      const categorizationRules = await loadCategorizationRules(client);
+      const categoryMappings = await loadCategoryMappings(client);
+      const billingCycleStartDay = await getBillingCycleStartDay(client);
+
+      const stats = await processScrapedAccounts({
+        client,
+        accounts: result.accounts,
+        companyId: options.companyId,
+        credentialId,
+        categorizationRules,
+        categoryMappings,
+        billingCycleStartDay,
+        updateCategoryOnRescrape,
+        isBank,
+        onAccountStarted: () => !isCancelled,
+        onTransactionProcessed: (reportItem, insertResult, txn) => {
+          if (isCancelled) return false;
+          // If reportItem is null, it's the pre-processing check
+          if (!reportItem) return true;
+          return true; // Continue
+        }
+      });
+
+      if (isCancelled) {
+        logger.warn({ vendor: options.companyId }, '[Scrape Stream] Scrape cancelled during saving');
+      } else {
+        sendSSE(res, 'progress', {
+          step: 'endScraping',
+          message: '✓ All transactions saved successfully',
+          percent: 90,
+          phase: 'saving',
+          success: true
+        });
+      }
+
+      // Map stats back to accumulatedStats for the rest of the handler
+      Object.assign(accumulatedStats, stats);
+
     } catch (scrapeError) {
       const errorDetails = {
         message: scrapeError.message,
         name: scrapeError.name,
         stack: scrapeError.stack?.split('\n').slice(0, 5).join('\n'),
       };
-      logger.error({ error: errorDetails }, '[Scrape Stream] Scraper threw exception');
-      await updateScrapeAudit(client, auditId, 'failed', scrapeError.message || 'Scraper exception');
+      logger.error({ error: errorDetails }, '[Scrape Stream] Scrape failed');
 
-      // Handle JSON parsing errors (common with VisaCal API)
-      let errorMessage = scrapeError.message || 'Scraper exception';
-      let hint = undefined;
-
-      if (errorMessage.includes('JSON') || errorMessage.includes('Unexpected end of JSON') || errorMessage.includes('invalid json') || errorMessage.includes('GetFrameStatus') || errorMessage.includes('frame') || errorMessage.includes('timeout')) {
-        errorMessage = `API Error: Invalid response from ${options.companyId}. This may be a temporary issue. Please try again later. Error: ${errorMessage}`;
-        hint = 'Try disabling "Fetch Categories from Scrapers" in Settings to reduce API calls or waiting 5-10 minutes between scrapes.';
-      } else if (isRateLimited) {
-        hint = 'Rate-limited vendors (VisaCal, Isracard, Amex, Max) may be blocking automation. Try enabling Debug Mode (Show Browser) or disabling "Fetch Categories from Scrapers" in Settings.';
-      }
+      await updateScrapeAudit(client, auditId, 'failed', `Failed: ${scrapeError.message}`);
 
       sendSSE(res, 'error', {
-        message: errorMessage,
-        hint: hint
+        message: `Scrape Failed: ${scrapeError.message}`,
+        hint: 'Please try again later or check your credentials.'
       });
       res.end();
       return;
     }
 
-    // Validate result structure
-    if (!result || typeof result !== 'object') {
-      const errorMsg = 'Invalid scraper result: result is not an object';
-      logger.error({ resultType: typeof result, result }, '[Scrape Stream] Invalid scraper result structure');
-      await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-      sendSSE(res, 'error', {
-        message: errorMsg,
-        hint: 'The scraper returned an invalid result structure. This may indicate a problem with the scraper library or bank website changes.'
-      });
-      res.end();
-      return;
-    }
+    // Final Success Report
+    const accountsCount = accumulatedStats.accounts || 1;
+    const summary = {
+      accounts: accountsCount,
+      transactions: accumulatedStats.transactions,
+      savedTransactions: accumulatedStats.savedTransactions,
+      duplicateTransactions: accumulatedStats.duplicateTransactions,
+      updatedTransactions: accumulatedStats.updatedTransactions,
+      bankTransactions: accumulatedStats.bankTransactions,
+      cachedCategories: accumulatedStats.cachedCategories,
+      skippedCards: accumulatedStats.skippedCards,
+      processedTransactions: accumulatedStats.processedTransactions
+    };
 
-    if (!result.success) {
-      const errorMsg = result.errorMessage || result.errorType || 'Scraping failed';
-      logger.error({ errorType: result.errorType, errorMessage: result.errorMessage }, '[Scrape Stream] Scraper failed');
-      await updateScrapeAudit(client, auditId, 'failed', errorMsg);
+    if (isCancelled) {
+      await updateScrapeAudit(client, auditId, 'cancelled', `Cancelled by user. Saved ${accumulatedStats.savedTransactions} txns.`, summary);
+      // We don't send 'complete' event if cancelled, effectively stopping the stream from client side perspective or just ending it.
+      // Client likely closed connection anyway.
+    } else {
+      await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
 
-      // Provide helpful hints for common errors
-      let hint = undefined;
-      let displayError = errorMsg;
-
-      if (result.errorType === 'InvalidPassword') {
-        hint = 'Check your credentials. For Isracard, you need ID number + card 6 digits + password. For VisaCal, you need username + password.';
-      } else if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || errorMsg.includes('invalid json') || errorMsg.includes('GetFrameStatus') || errorMsg.includes('frame') || errorMsg.includes('timeout')) {
-        if (options.companyId === 'visaCal') {
-          displayError = `VisaCal API Error: The Cal website returned an invalid response (${errorMsg}). This may be due to temporary service issues, rate limiting, or website changes.`;
-          hint = 'VisaCal is rate-limited. Try: 1) Disabling "Fetch Categories from Scrapers" in Settings, 2) Waiting 5-10 minutes between scrapes, 3) Enabling Debug Mode to see what\'s happening.';
-        } else {
-          displayError = `API Error: Invalid JSON response from ${options.companyId} (${errorMsg}). This may be a temporary issue. Please try again later.`;
-        }
-      } else if (result.errorType === 'ChangePassword') {
-        hint = 'You need to log into the bank/card website and change your password first.';
-      } else if (errorMsg.includes('Block') || errorMsg.includes('automation')) {
-        hint = 'The site is blocking automation. Enable Debug Mode to see the browser and try manually.';
-      } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
-        if (options.companyId === 'visaCal') {
-          hint = 'VisaCal request timed out. This is common due to rate limiting. Try waiting 10+ minutes between scrapes or disabling "Fetch Categories from Scrapers".';
-        } else {
-          hint = 'The request timed out. The site may be slow or blocking. Try again with Debug Mode enabled.';
-        }
-      }
-
-      sendSSE(res, 'error', {
-        message: `${result.errorType || 'GENERIC'}: ${displayError}`,
-        hint
-      });
-      res.end();
-      return;
-    }
-
-    sendSSE(res, 'progress', {
-      step: 'saving',
-      message: 'Saving transactions to database...',
-      percent: 80,
-      phase: 'saving',
-      success: null
-    });
-
-    let bankTransactions = 0;
-    let totalTransactions = 0;
-    let savedTransactions = 0;
-    let duplicateTransactions = 0;
-    let updatedTransactions = 0;
-
-    sendSSE(res, 'progress', {
-      step: 'loading_cache',
-      message: 'Loading category cache...',
-      percent: 80,
-      phase: 'saving',
-      success: null
-    });
-
-    const cache = await loadCategoryCache(client);
-    const categorizationRules = await loadCategorizationRules(client);
-    const categoryMappings = await loadCategoryMappings(client);
-    let cachedCategoryCount = 0;
-    let skippedCards = 0;
-
-    sendSSE(res, 'progress', {
-      step: 'loading_cache',
-      message: '✓ Category cache loaded',
-      percent: 82,
-      phase: 'saving',
-      success: true
-    });
-
-    // Validate accounts array exists and is an array
-    if (!result.accounts || !Array.isArray(result.accounts)) {
-      const errorMsg = `Invalid accounts structure: expected array, got ${typeof result.accounts}`;
-      logger.error({
-        accountsType: typeof result.accounts,
-        accountsValue: result.accounts,
-        resultKeys: Object.keys(result || {})
-      }, '[Scrape Stream] Invalid accounts structure');
-      await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-      sendSSE(res, 'error', {
-        message: errorMsg,
-        hint: 'The scraper returned accounts in an unexpected format. This may be due to website changes or temporary issues.'
-      });
-      res.end();
-      return;
-    }
-
-    // Initialize processed transactions list
-    const processedTransactions = [];
-
-    for (let i = 0; i < result.accounts.length; i++) {
-      const account = result.accounts[i];
-
+      // Update last_synced_at
       sendSSE(res, 'progress', {
-        step: 'processing_account',
-        message: `Processing account ${i + 1}/${result.accounts.length} (${account.accountNumber || 'unknown'})...`,
-        percent: 82 + (i * 5 / result.accounts.length),
+        step: 'updating_timestamp',
+        message: 'Updating last sync timestamp...',
+        percent: 95,
         phase: 'saving',
         success: null
       });
 
-      const ownedByOther = await checkCardOwnership(client, account.accountNumber, options.companyId, credentialId);
-
-      if (ownedByOther) {
-        logger.info({ accountNumber: account.accountNumber }, '[Card Ownership] Skipping card');
-        sendSSE(res, 'progress', {
-          step: 'skipping_card',
-          message: `⏭ Skipping card ${account.accountNumber} (already synced by another account)`,
-          percent: 82 + ((i + 1) * 5 / result.accounts.length),
-          phase: 'saving',
-          success: true
-        });
-        skippedCards++;
-        continue;
-      }
-
-      await claimCardOwnership(client, account.accountNumber, options.companyId, credentialId);
-
-      let accountSaved = 0;
-      let accountDuplicates = 0;
-
-      // Defensive check: ensure txns is an array
-      if (!account.txns || !Array.isArray(account.txns)) {
-        logger.warn({
-          accountNumber: account.accountNumber,
-          txnsType: typeof account.txns,
-          txnsValue: account.txns,
-          accountKeys: Object.keys(account || {})
-        }, '[Scrape Stream] Account txns is not an array, skipping transactions');
-        sendSSE(res, 'progress', {
-          step: 'skipping_account',
-          message: `⚠ Account ${account.accountNumber || 'unknown'} has invalid transaction data (txns is not an array)`,
-          percent: 82 + ((i + 1) * 5 / result.accounts.length),
-          phase: 'saving',
-          success: false
-        });
-        continue;
-      }
-
-      for (const txn of account.txns) {
-        totalTransactions++;
-        if (isBank) bankTransactions++;
-        const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-        const insertResult = await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings);
-
-        // Common transaction data for report
-        const reportItem = {
-          description: txn.description,
-          amount: txn.chargedAmount || txn.originalAmount,
-          currency: txn.chargedCurrency || txn.originalCurrency || 'ILS',
-          date: txn.date,
-          category: insertResult.newCategory || insertResult.category || (insertResult.duplicated ? (txn.category || 'Uncategorized') : 'Uncategorized'),
-          source: insertResult.categorySource || 'scraper',
-          rule: insertResult.ruleMatched,
-          cardLast4: account.accountNumber,
-          isUpdate: false,
-          isDuplicate: false
-        };
-
-        if (insertResult.updated) {
-          updatedTransactions++;
-          processedTransactions.push({
-            ...reportItem,
-            isUpdate: true,
-            source: 'scraper', // Updates usually come from scraper finding better category
-            category: insertResult.newCategory,
-            oldCategory: insertResult.oldCategory
-          });
-        }
-
-        if (insertResult.duplicated) {
-          if (!insertResult.updated) {
-            duplicateTransactions++;
-            accountDuplicates++;
-
-            processedTransactions.push({
-              ...reportItem,
-              isDuplicate: true,
-              source: 'duplicate'
-            });
-          }
-        } else {
-          // New transaction
-          savedTransactions++;
-          accountSaved++;
-
-          processedTransactions.push({
-            ...reportItem,
-            source: insertResult.categorySource || 'scraper'
-          });
-        }
-
-        if (insertResult.categorySource === 'cache') {
-          cachedCategoryCount++;
-        }
-      }
+      await updateCredentialLastSynced(client, credentialId);
 
       sendSSE(res, 'progress', {
-        step: 'account_saved',
-        message: `✓ Account ${i + 1}/${result.accounts.length}: ${accountSaved} saved, ${accountDuplicates} duplicates, ${updatedTransactions} updated`,
-        percent: 82 + ((i + 1) * 5 / result.accounts.length),
+        step: 'updating_timestamp',
+        message: '✓ Timestamp updated',
+        percent: 98,
         phase: 'saving',
         success: true
       });
+
+      sendSSE(res, 'complete', {
+        message: '✓ Scraping completed successfully!',
+        percent: 100,
+        summary: summary
+      });
     }
-
-    // Update audit as success with full report
-    const accountsCount = Array.isArray(result.accounts) ? result.accounts.length : 0;
-    const summary = {
-      accounts: result.accounts.length,
-      transactions: totalTransactions,
-      savedTransactions,
-      duplicateTransactions,
-      updatedTransactions,
-      bankTransactions,
-      cachedCategories: cachedCategoryCount,
-      skippedCards,
-      processedTransactions
-    };
-
-    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${accountsCount}, txns=${totalTransactions}, saved=${savedTransactions}, duplicates=${duplicateTransactions}, updated=${updatedTransactions}`, summary);
-
-    // Update last_synced_at
-    sendSSE(res, 'progress', {
-      step: 'updating_timestamp',
-      message: 'Updating last sync timestamp...',
-      percent: 95,
-      phase: 'saving',
-      success: null
-    });
-
-    await updateCredentialLastSynced(client, credentialId);
-
-    sendSSE(res, 'progress', {
-      step: 'updating_timestamp',
-      message: '✓ Timestamp updated',
-      percent: 98,
-      phase: 'saving',
-      success: true
-    });
-
-    sendSSE(res, 'complete', {
-      message: '✓ Scraping completed successfully!',
-      percent: 100,
-      summary: {
-        accounts: result.accounts.length,
-        transactions: totalTransactions,
-        savedTransactions,
-        duplicateTransactions,
-        updatedTransactions,
-        bankTransactions,
-        cachedCategories: cachedCategoryCount,
-        skippedCards,
-        processedTransactions
-      }
-    });
 
     res.end();
   } catch (error) {
@@ -639,8 +448,11 @@ async function handler(req, res) {
         // noop
       }
     }
-    sendSSE(res, 'error', { message: error instanceof Error ? error.message : 'Unknown error' });
-    res.end();
+    // Only send error if not cancelled (client might be gone)
+    if (!res.headersSent && !res.finished) {
+      sendSSE(res, 'error', { message: error instanceof Error ? error.message : 'Unknown error' });
+      res.end();
+    }
   } finally {
     client.release();
   }

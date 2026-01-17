@@ -547,6 +547,9 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
         onClose={() => setSyncDrawerOpen(false)}
         width={syncDrawerWidth}
         onWidthChange={setSyncDrawerWidth}
+        onSyncSuccess={() => {
+          window.dispatchEvent(new CustomEvent('dataRefresh'));
+        }}
       />
     </>
   );

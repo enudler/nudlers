@@ -25,8 +25,27 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
 
     if (!report || report.length === 0) {
         return (
-            <Box sx={{ p: 4, textAlign: 'center', color: '#9ca3af' }}>
-                <Typography variant="body2">No transactions in this report.</Typography>
+            <Box sx={{ width: '100%' }}>
+                {summary && (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 3 }}>
+                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.3)' : '#bbf7d0'}`, borderRadius: 3, textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 700, mb: 0.5 }}>0</Typography>
+                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>New</Typography>
+                        </Paper>
+                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe'}`, borderRadius: 3, textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#1e40af', fontWeight: 700, mb: 0.5 }}>0</Typography>
+                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#1e40af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Updated</Typography>
+                        </Paper>
+                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.15)' : '#fff7ed', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.3)' : '#fed7aa'}`, borderRadius: 3, textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 700, mb: 0.5 }}>{summary.duplicateTransactions || 0}</Typography>
+                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Duplicates</Typography>
+                        </Paper>
+                    </Box>
+                )}
+                <Box sx={{ p: 4, textAlign: 'center', color: '#9ca3af', border: `1px dashed ${theme.palette.divider}`, borderRadius: 3 }}>
+                    <Typography variant="body1" sx={{ mb: 1, fontWeight: 500 }}>No transactions found for this period.</Typography>
+                    <Typography variant="body2">The bank or credit card company returned no transaction data for the selected dates.</Typography>
+                </Box>
             </Box>
         );
     }

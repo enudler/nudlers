@@ -6,21 +6,19 @@
  * - scrape_stream.js
  */
 
-import { BANK_VENDORS, BEINLEUMI_GROUP_VENDORS } from '../../../utils/constants.js';
+import { BANK_VENDORS } from '../../../utils/constants.js';
 import { generateTransactionIdentifier } from './transactionUtils.js';
 import { createScraper } from 'israeli-bank-scrapers';
-
 import logger from '../../../utils/logger.js';
 import {
-  RATE_LIMITED_VENDORS,
   getChromePath,
   getScraperOptions,
   getPreparePage,
-  sleep
+  sleep,
+  RATE_LIMITED_VENDORS
 } from '../../../scrapers/core.js';
 
 export {
-  RATE_LIMITED_VENDORS,
   getChromePath,
   getScraperOptions,
   getPreparePage,
@@ -101,9 +99,6 @@ export async function loadCategorizationRules(client) {
   }
 }
 
-/**
- * Match a description against categorization rules
- */
 /**
  * Match a description against categorization rules
  */
@@ -230,8 +225,9 @@ export function validateCredentials(credentials, vendor) {
 
 /**
  * Insert a transaction into the database
+ * @param {boolean} isBank - Whether this is a bank transaction (true) or credit card (false)
  */
-export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false, categoryMappings = {}) {
+export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false, categoryMappings = {}, isBank = false, billingCycleStartDay = 10) {
   const {
     date,
     processedDate,
@@ -294,15 +290,49 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
   // Check if transaction already exists (primary key is identifier + vendor)
   const existing = await client.query(
-    'SELECT identifier, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
+    'SELECT identifier, name, price, date, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
     [txId, vendor]
   );
 
   if (existing.rows.length > 0) {
+    // Check if this is a true duplicate or a collision
+    const dbTx = existing.rows[0];
+    const normalizedDbName = (dbTx.name || '').trim().toLowerCase();
+    const normalizedNewName = (description || '').trim().toLowerCase();
+    const dbPrice = Math.abs(dbTx.price || 0);
+    const newPrice = Math.abs(chargedAmount || originalAmount || 0);
+
+    // It's a collision if:
+    // 1. Names are significantly different (not just case/whitespace)
+    // 2. OR prices are different
+    // 3. OR dates are different
+    const isCollision = (normalizedDbName !== normalizedNewName && !normalizedDbName.includes(normalizedNewName) && !normalizedNewName.includes(normalizedDbName)) ||
+      (Math.abs(dbPrice - newPrice) > 0.01) ||
+      (new Date(dbTx.date).toISOString().split('T')[0] !== new Date(date).toISOString().split('T')[0]);
+
+    if (isCollision) {
+      logger.warn({
+        txId,
+        vendor,
+        dbName: dbTx.name,
+        newName: description,
+        dbPrice,
+        newPrice,
+        dbDate: dbTx.date,
+        newDate: date
+      }, '[Scraper] Identifier collision detected! Generating robust fallback ID.');
+
+      // Use the robust identifier generator which combines multiple fields
+      const fallbackId = generateTransactionIdentifier(transaction, vendor, accountNumber);
+
+      // Recursive call with the new ID
+      return insertTransaction(client, { ...transaction, identifier: fallbackId }, vendor, accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings, isBank, billingCycleStartDay);
+    }
+
     // If enabled and we have a new resolved category (from scraper OR rules OR cache)
     if (updateCategoryOnRescrape && finalCategory && finalCategory !== 'N/A' && finalCategory !== '') {
-      const currentCategory = existing.rows[0].category;
-      const currentSource = existing.rows[0].category_source;
+      const currentCategory = dbTx.category;
+      const currentSource = dbTx.category_source;
 
       // Only update if the current category is essentially empty/undefined/N/A/Uncategorized
       // OR if it's not a manual edit (cache) and we have a better category
@@ -312,7 +342,6 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
         currentCategory.toLowerCase() === 'uncategorized';
 
       // Allow update if empty, OR if not manual override (cache) and different
-      // Note: We use finalCategory which now includes Rule logic, so this fixes the user's issue
       const shouldUpdate = isCurrentCategoryEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory);
 
       if (shouldUpdate && currentCategory !== finalCategory) {
@@ -347,18 +376,20 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   // Normalize values for business key check
   const normalizedName = (description || '').trim().toLowerCase();
   const normalizedPrice = Math.abs(chargedAmount || originalAmount || 0);
+  const finalPrice = chargedAmount || originalAmount || 0;
   const normalizedAccountNumber = accountNumber || '';
 
   // Calculate processed_date if not provided or it's a credit card transaction that defaults to transaction date
   let finalProcessedDate = processedDate;
-  const isBank = BANK_VENDORS.includes(vendor);
+  // isBank is already passed as a parameter
 
   if (!isBank) {
     // For credit cards, if processedDate is missing or same as date, we might need to adjust it
+    // For credit cards, if processedDate is missing or same as date, we might need to adjust it
     // based on the billing cycle start day
     try {
-      const settingsRes = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
-      const billingStartDay = settingsRes.rows.length > 0 ? parseInt(settingsRes.rows[0].value) || 10 : 10;
+      // Use passed billingCycleStartDay (defaulted to 10 if not provided, though caller should provide it)
+      const billingStartDay = billingCycleStartDay || 10;
 
       const txDate = new Date(date);
       const txDay = txDate.getDate();
@@ -371,7 +402,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
         // Move to next month's billing day
         const nextMonthDate = new Date(txDate.getFullYear(), txDate.getMonth() + 1, billingStartDay);
         finalProcessedDate = nextMonthDate.toISOString().split('T')[0];
-        logger.info({ vendor, description, date, originalProcessedDate: processedDate, newProcessedDate: finalProcessedDate }, '[Scraper] Adjusted processed_date based on billing cycle cutoff');
+        logger.debug({ vendor, description, date, originalProcessedDate: processedDate, newProcessedDate: finalProcessedDate }, '[Scraper] Adjusted processed_date based on billing cycle cutoff');
       } else if (!processedDate) {
         // Just default to txDate if not setting it to next month
         finalProcessedDate = date;
@@ -389,7 +420,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   const businessKeyCheck = await client.query(
     `SELECT identifier FROM transactions 
      WHERE vendor = $1 
-       AND ABS(date - $2) <= 1
+       AND date = $2
        AND LOWER(TRIM(name)) = $3 
        AND ABS(price) = $4 
        AND COALESCE(account_number, '') = $5`,
@@ -397,6 +428,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   );
 
   if (businessKeyCheck.rows.length > 0) {
+    logger.info({ vendor, description, date, price: normalizedPrice }, '[Scraper] Skipping duplicate transaction (business key match)');
     return { success: true, duplicated: true };
   }
 
@@ -421,6 +453,8 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
   // Insert transaction matching the actual database schema
   // Use ON CONFLICT to handle race conditions gracefully
+  const transactionType = isBank ? 'bank' : 'credit_card';
+
   try {
     await client.query(
       `INSERT INTO transactions (
@@ -428,15 +462,15 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
         processed_date, original_amount, original_currency, 
         charged_currency, memo, status, 
         installments_number, installments_total, account_number,
-        category_source, rule_matched
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        category_source, rule_matched, transaction_type
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       ON CONFLICT (identifier, vendor) DO NOTHING`,
       [
-        txId, vendor, date, description || '', normalizedPrice,
+        txId, vendor, date, description || '', finalPrice,
         finalCategory, type, finalProcessedDate, originalAmount, originalCurrency,
         defaultCurrency, memo, status || 'completed',
         installmentsNumber, installmentsTotal, accountNumber,
-        categorySource, ruleDetails
+        categorySource, ruleDetails, transactionType
       ]
     );
   } catch (err) {
@@ -486,57 +520,6 @@ export async function claimCardOwnership(client, accountNumber, vendor, credenti
 }
 
 /**
- * Retry function with exponential backoff
- * Particularly useful for VisaCal/Cal which has intermittent JSON parsing errors
- * @param {Function} fn - Async function to retry
- * @param {number} maxRetries - Maximum number of retries (default: 2)
- * @param {number} baseDelay - Base delay in ms between retries (default: 5000)
- * @param {string} vendor - Vendor name for logging
- */
-export async function retryWithBackoff(fn, maxRetries = 2, baseDelay = 5000, vendor = 'unknown') {
-  let lastError;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-      const errorMessage = error.message || '';
-
-      // Only retry for specific errors (JSON parsing, network issues, VisaCal-specific errors)
-      const isRetryableError =
-        errorMessage.includes('JSON') ||
-        errorMessage.includes('Unexpected end of JSON') ||
-        errorMessage.includes('invalid json') ||
-        errorMessage.includes('GetFrameStatus') ||
-        errorMessage.includes('frame') ||
-        errorMessage.includes('network') ||
-        errorMessage.includes('ECONNRESET') ||
-        errorMessage.includes('ETIMEDOUT') ||
-        errorMessage.includes('timeout') ||
-        errorMessage.includes('ECONNREFUSED') ||
-        (vendor === 'visaCal' && (
-          errorMessage.includes('fetch') ||
-          errorMessage.includes('request') ||
-          errorMessage.includes('response') ||
-          errorMessage.includes('connection')
-        ));
-
-      if (!isRetryableError || attempt === maxRetries) {
-        throw error;
-      }
-
-      // Exponential backoff: baseDelay * 2^attempt (e.g., 5s, 10s, 20s)
-      const delay = baseDelay * Math.pow(2, attempt);
-      logger.info({ vendor, attempt: attempt + 1, maxRetries: maxRetries + 1, errorMessage, delaySeconds: delay / 1000 }, '[Retry] Retrying after failure');
-      await sleep(delay);
-    }
-  }
-
-  throw lastError;
-}
-
-/**
  * Insert a scrape audit row
  */
 export async function insertScrapeAudit(client, triggeredBy, vendor, startDate, message = 'Scrape initiated') {
@@ -578,17 +561,6 @@ export async function updateCredentialLastSynced(client, credentialId) {
 }
 
 /**
- * Get delay in seconds based on vendor type
- */
-export function getVendorDelay(vendor, baseDelay) {
-  if (RATE_LIMITED_VENDORS.includes(vendor)) {
-    // Isracard/Amex/Max need much longer delays (60-120 seconds)
-    return Math.max(baseDelay, 60) + Math.floor(Math.random() * 60);
-  }
-  return baseDelay;
-}
-
-/**
  * Format date as YYYY-MM-DD in local timezone
  */
 export function formatLocalDate(date) {
@@ -599,68 +571,242 @@ export function formatLocalDate(date) {
 }
 
 /**
+ * Fetch category for a single transaction from Isracard API
+ * Uses the authenticated browser page to make the request
+ */
+async function fetchCategoryFromIsracard(page, txn, accountIndex, moedChiuv) {
+  const SERVICES_URL = 'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx';
+
+  const url = new URL(SERVICES_URL);
+  url.searchParams.set('reqName', 'PirteyIska_204');
+  url.searchParams.set('CardIndex', accountIndex.toString());
+  url.searchParams.set('shovarRatz', txn.identifier.toString());
+  url.searchParams.set('moedChiuv', moedChiuv);
+
+  try {
+    // Use page.evaluate to make the request within the authenticated session
+    const result = await page.evaluate(async (apiUrl) => {
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        if (!response.ok) {
+          return { error: response.status };
+        }
+        return await response.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    }, url.toString());
+
+    if (result.error) {
+      return { category: null, error: result.error };
+    }
+
+    const category = result?.PirteyIska_204Bean?.sector?.trim() || null;
+    return { category, error: null };
+  } catch (err) {
+    return { category: null, error: err.message };
+  }
+}
+
+/**
  * Runs the scraper directly in the main process
+ * @param {Object} client - DB Client (optional, required for smart scraping)
  * @param {Object} scraperOptions - Options for createScraper
  * @param {Object} credentials - Scraper credentials
  * @param {Function} onProgress - Progress callback
  */
-export async function runScraper(scraperOptions, credentials, onProgress) {
+export async function runScraper(client, scraperOptions, credentials, onProgress) {
   logger.info({ companyId: scraperOptions.companyId }, '[Scraper] Starting Direct Scrape');
 
-  // Fix non-serializable options (just in case they came from JSON)
+  // Fix non-serializable options
   const startDate = new Date(scraperOptions.startDate);
-
-  // Add non-serializable options like preparePage
+  const logRequests = scraperOptions.logRequests ?? false;
   const isRateLimited = RATE_LIMITED_VENDORS.includes(scraperOptions.companyId);
 
-  const options = {
+  // Check if we should use smart scraping for Isracard/Amex/Leumi
+  const isSmartVendor = ['isracard', 'amex', 'leumi'].includes(scraperOptions.companyId);
+  const shouldFetchCategories = scraperOptions.additionalTransactionInformation === true;
+  const useSmartScraping = isSmartVendor && shouldFetchCategories && client;
+
+  let options = {
     ...scraperOptions,
     startDate,
-    preparePage: getPreparePage(isRateLimited)
+    preparePage: getPreparePage({
+      companyId: scraperOptions.companyId,
+      timeout: scraperOptions.timeout,
+      isRateLimited,
+      logRequests,
+      onProgress,
+      forceSlowMode: scraperOptions.forceSlowMode ?? false
+    }),
   };
 
+  if (useSmartScraping) {
+    logger.info({ vendor: scraperOptions.companyId }, '[Scraper] Using Smart Hybrid Sweeping');
+    // Disable built-in category fetching to avoid rate limits
+    options.additionalTransactionInformation = false;
+
+    // Vendor specific skip features
+    if (scraperOptions.companyId === 'isracard' || scraperOptions.companyId === 'amex') {
+      options.optInFeatures = ['isracard-amex:skipAdditionalTransactionInformation'];
+    }
+
+    options.preparePage = getPreparePage({
+      companyId: scraperOptions.companyId,
+      timeout: scraperOptions.timeout,
+      isRateLimited,
+      logRequests,
+      onProgress,
+      forceSlowMode: scraperOptions.forceSlowMode ?? false,
+      skipInterception: true // CRITICAL: This solves the conflict while keeping logging/masking
+    });
+  }
+
   logger.info('[Scraper] Creating scraper instance');
+
+  if (!options.companyId) {
+    logger.error({ options }, '[Scraper] Missing companyId in options!');
+    throw new Error(`Missing companyId in scraper options. Received: ${JSON.stringify(options)}`);
+  }
+
   const scraper = createScraper(options);
 
-  // Listen for internal scraper events
   if (scraper && typeof scraper.on === 'function') {
     scraper.on('progress', (companyId, progress) => {
       logger.debug({ companyId, progressType: progress?.type || 'unknown' }, '[Scraper] Progress event');
-      if (onProgress) {
-        onProgress(companyId, progress);
-      }
+      if (onProgress) onProgress(companyId, progress);
     });
+  }
+
+  // Monkey-patch terminate for smart scraping ONLY
+  let originalTerminate = null;
+  if (useSmartScraping) {
+    originalTerminate = scraper.terminate.bind(scraper);
+    scraper.terminate = async () => {
+      logger.info('[Scraper] Prevented auto-termination for smart scraping phase');
+      return;
+    };
   }
 
   logger.info('[Scraper] Starting scrape execution');
 
-  // Log credentials structure (masked)
-  const maskedCreds = Object.fromEntries(
-    Object.entries(credentials || {}).map(([k, v]) => [
-      k,
-      v ? `${String(v).substring(0, 2)}***${String(v).substring(String(v).length - 2)} (${String(v).length} chars)` : 'EMPTY'
-    ])
-  );
-  logger.info({
-    companyId: scraperOptions.companyId,
-    credentialKeys: Object.keys(credentials || {}),
-    credentials: maskedCreds
-  }, '[Scraper] Credentials ready');
-
   try {
     const result = await scraper.scrape(credentials);
-    logger.info({ success: result?.success }, '[Scraper] Scrape completed');
+    logger.info({ success: result?.success }, '[Scraper] Base scrape completed');
 
-    // We don't need complex sanitization since we are in the same process,
-    // but we should still ensure the result structure matches what the API expects
-
-    // Ensure accounts is an array if present
     if (result.success && result.accounts && !Array.isArray(result.accounts)) {
       result.accounts = [];
     }
 
+    // --- PHASE 2 & 3: Smart Categorization ---
+    if (useSmartScraping && result.success && result.accounts?.length > 0) {
+      try {
+        logger.info('[Scraper] Starting Phase 2: Local Categorization');
+
+        // Load local data
+        const cache = await loadCategoryCache(client);
+        const rules = await loadCategorizationRules(client);
+
+        const needsApiCall = [];
+        let categorizedLocal = 0;
+
+        for (const account of result.accounts) {
+          const accountIdx = result.accounts.indexOf(account); // Needed for API call
+          for (const txn of account.txns || []) {
+            const desc = txn.description || '';
+
+            // 1. Cache
+            const cached = lookupCachedCategory(desc);
+            if (cached && cached !== 'N/A') {
+              txn.category = cached;
+              categorizedLocal++;
+              continue;
+            }
+
+            // 2. Rules
+            const ruleMatch = matchCategoryRule(desc, rules);
+            if (ruleMatch) {
+              txn.category = ruleMatch.category;
+              categorizedLocal++;
+              continue;
+            }
+
+            // 3. Needs API
+            needsApiCall.push({ txn, accountIndex: accountIdx });
+          }
+        }
+
+        logger.info({ categorizedLocal, needsApi: needsApiCall.length }, '[Scraper] Phase 2 Complete');
+
+        // Phase 3: Selective API calls
+        if (needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
+          logger.info('[Scraper] Starting Phase 3: Selective API Calls');
+
+          // Deduplicate
+          const uniqueMerchants = new Map();
+          for (const item of needsApiCall) {
+            if (!uniqueMerchants.has(item.txn.description)) {
+              uniqueMerchants.set(item.txn.description, item);
+            }
+          }
+
+          const MAX_CALLS = 200; // Increased for historical 12-month fetches
+          let calls = 0;
+          const DELAY = 3000;
+
+          for (const [desc, item] of uniqueMerchants) {
+            if (calls >= MAX_CALLS) break;
+            calls++;
+
+            // Calculate date param
+            const txnDate = new Date(item.txn.date || item.txn.processedDate);
+            const moedChiuv = `${String(txnDate.getMonth() + 1).padStart(2, '0')}${txnDate.getFullYear()}`;
+
+            try {
+              if (onProgress) {
+                onProgress(scraperOptions.companyId, {
+                  type: 'fetchingCategory',
+                  message: `Fetching category: ${desc.substring(0, 20)}...`
+                });
+              }
+              const { category } = await fetchCategoryFromIsracard(scraper.page, item.txn, item.accountIndex, moedChiuv);
+
+              if (category) {
+                // Apply to all matchers
+                for (const t of needsApiCall) {
+                  if (t.txn.description === desc) t.txn.category = category;
+                }
+              }
+
+            } catch (e) {
+              logger.warn({ error: e.message, desc }, '[Scraper] API Fetch failed');
+            }
+
+            await sleep(DELAY);
+          }
+          logger.info({ callsMade: calls }, '[Scraper] Phase 3 Complete');
+        }
+      } catch (smartError) {
+        logger.error({ error: smartError.message }, '[Scraper] Smart scraping error (continuing with partial results)');
+        // Don't fail the whole scrape if smart part fails
+      } finally {
+        // Manual termination
+        if (originalTerminate) {
+          logger.info('[Scraper] Terminating browser after smart scrape');
+          await originalTerminate();
+        }
+      }
+    }
+
     return result;
   } catch (err) {
+    // ... existing error handling ...
     logger.error({
       error: err.message,
       stack: err.stack,
@@ -668,8 +814,9 @@ export async function runScraper(scraperOptions, credentials, onProgress) {
       vendor: scraperOptions.companyId
     }, '[Scraper] Fatal error during scrape');
 
-    // Re-throw or format error similar to how worker did?
-    // The API endpoint catching this likely expects an Error object.
+    // Ensure we close if error happened during smart scrape
+    if (originalTerminate) await originalTerminate();
+
     throw err;
   }
 }
@@ -685,27 +832,127 @@ export async function getFetchCategoriesSetting(client) {
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
-export async function getRateLimitedTimeoutSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout_rate_limited'");
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 120000 : 120000;
-}
-
-export async function getStandardTimeoutSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout_standard'");
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
-}
-
-export async function getFallbackCategorySetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'fallback_no_category_on_error'");
-  return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
-}
-
 export async function getUpdateCategoryOnRescrapeSetting(client) {
   const result = await client.query("SELECT value FROM app_settings WHERE key = 'update_category_on_rescrape'");
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
 }
 
-export async function getScrapeRetriesSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scrape_retries'");
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 3 : 3;
+export async function getLogHttpRequestsSetting(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_log_http_requests'");
+  return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
+}
+
+export async function getScraperTimeout(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout'");
+  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
+}
+
+export async function getBillingCycleStartDay(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 10 : 10;
+}
+
+/**
+ * Consolidate transaction processing logic from scrape handlers
+ */
+export async function processScrapedAccounts({
+  client,
+  accounts,
+  companyId,
+  credentialId,
+  categorizationRules,
+  categoryMappings,
+  billingCycleStartDay,
+  updateCategoryOnRescrape,
+  isBank,
+  onTransactionProcessed = null,
+  onAccountStarted = null
+}) {
+  const stats = {
+    accounts: 0,
+    transactions: 0,
+    savedTransactions: 0,
+    duplicateTransactions: 0,
+    updatedTransactions: 0,
+    bankTransactions: 0,
+    cachedCategories: 0,
+    skippedCards: 0,
+    processedTransactions: []
+  };
+
+  if (!accounts || !Array.isArray(accounts)) return stats;
+  stats.accounts = accounts.length;
+
+  for (const account of accounts) {
+    if (onAccountStarted && onAccountStarted(account) === false) break;
+
+    const ownedByOther = await checkCardOwnership(client, account.accountNumber, companyId, credentialId);
+    if (ownedByOther) {
+      logger.info({ accountNumber: account.accountNumber, ownedBy: ownedByOther }, '[Card Ownership] Skipping card - already owned by another credential');
+      stats.skippedCards++;
+      continue;
+    }
+
+    await claimCardOwnership(client, account.accountNumber, companyId, credentialId);
+
+    if (!account.txns || !Array.isArray(account.txns)) {
+      logger.warn({
+        accountNumber: account.accountNumber,
+        txnsType: typeof account.txns
+      }, '[Scraper] Account txns is not an array, skipping transactions');
+      continue;
+    }
+
+    for (const txn of account.txns) {
+      if (onTransactionProcessed && onTransactionProcessed(null, null, txn) === false) break;
+      stats.transactions++;
+      if (isBank) stats.bankTransactions++;
+
+      const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
+      const insertResult = await insertTransaction(
+        client,
+        txn,
+        companyId,
+        account.accountNumber,
+        defaultCurrency,
+        categorizationRules,
+        updateCategoryOnRescrape,
+        categoryMappings,
+        isBank,
+        billingCycleStartDay
+      );
+
+      const reportItem = {
+        description: txn.description,
+        amount: txn.chargedAmount || txn.originalAmount,
+        currency: txn.chargedCurrency || txn.originalCurrency || 'ILS',
+        date: txn.date,
+        category: insertResult.newCategory || insertResult.category || (insertResult.duplicated ? (txn.category || 'Uncategorized') : 'Uncategorized'),
+        source: insertResult.categorySource || 'scraper',
+        rule: insertResult.ruleMatched,
+        cardLast4: account.accountNumber,
+        isUpdate: !!insertResult.updated,
+        isDuplicate: !!insertResult.duplicated && !insertResult.updated,
+        isBank: isBank
+      };
+
+      if (insertResult.updated) {
+        stats.updatedTransactions++;
+      } else if (insertResult.duplicated) {
+        stats.duplicateTransactions++;
+      } else {
+        stats.savedTransactions++;
+      }
+
+      if (insertResult.categorySource === 'cache') stats.cachedCategories++;
+
+      stats.processedTransactions.push(reportItem);
+
+      if (onTransactionProcessed) {
+        onTransactionProcessed(reportItem, insertResult);
+      }
+    }
+  }
+
+  return stats;
 }

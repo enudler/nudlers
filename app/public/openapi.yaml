@@ -1,0 +1,1303 @@
+openapi: 3.0.3
+info:
+  title: Nudlers Finance API
+  description: |
+    API for managing personal finance transactions, budgets, and bank/credit card scraping.
+    
+    ## Transaction Types
+    Transactions can be of two types:
+    - `credit_card` - Credit card transactions from vendors like visaCal, max, isracard, amex
+    - `bank` - Bank account transactions from vendors like hapoalim, leumi, mizrahi, discount
+    
+    Use the `transactionType` query parameter to filter transactions by type.
+  version: 1.0.0
+  contact:
+    name: Nudlers
+  license:
+    name: MIT
+
+servers:
+  - url: /api
+    description: API Server
+
+tags:
+  - name: Transactions
+    description: Transaction management (credit cards and bank accounts)
+  - name: Categories
+    description: Category management and categorization
+  - name: Budgets
+    description: Budget management
+  - name: Scraping
+    description: Bank and credit card scraping
+  - name: Credentials
+    description: Account credentials management
+  - name: Settings
+    description: Application settings
+  - name: Reports
+    description: Financial reports and summaries
+
+paths:
+  /transactions:
+    get:
+      tags:
+        - Transactions
+      summary: List transactions
+      description: |
+        Retrieve transactions with optional filtering by type, date range, vendor, etc.
+        Default returns all transactions (both bank and credit card).
+      parameters:
+        - name: transactionType
+          in: query
+          description: Filter by transaction type
+          schema:
+            type: string
+            enum: [all, bank, credit_card]
+            default: all
+        - name: startDate
+          in: query
+          description: Start date filter (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: End date filter (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: vendor
+          in: query
+          description: Filter by vendor
+          schema:
+            type: string
+        - name: accountNumber
+          in: query
+          description: Filter by account number
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by category
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /transactions/{id}:
+    get:
+      tags:
+        - Transactions
+      summary: Get a single transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transaction ID in format `identifier|vendor`
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          description: Transaction not found
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags:
+        - Transactions
+      summary: Update a transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transaction ID in format `identifier|vendor`
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                price:
+                  type: number
+                  description: Updated price
+                category:
+                  type: string
+                  description: Updated category
+      responses:
+        '200':
+          description: Transaction updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags:
+        - Transactions
+      summary: Delete a transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transaction ID in format `identifier|vendor`
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /transactions/delete_all_transactions:
+    delete:
+      tags:
+        - Transactions
+      summary: Delete all transactions
+      description: Delete all transactions with confirmation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirm
+              properties:
+                confirm:
+                  type: boolean
+                  description: Must be true to confirm deletion
+      responses:
+        '200':
+          description: Transactions deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  deleted:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /manual_transaction:
+    post:
+      tags:
+        - Transactions
+      summary: Create a manual transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price
+                - date
+              properties:
+                name:
+                  type: string
+                  description: Transaction description
+                price:
+                  type: number
+                  description: Transaction amount
+                date:
+                  type: string
+                  format: date
+                  description: Transaction date
+                category:
+                  type: string
+                  description: Transaction category
+      responses:
+        '200':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /search_transactions:
+    get:
+      tags:
+        - Transactions
+      summary: Search transactions
+      parameters:
+        - name: q
+          in: query
+          description: Search query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+
+  /monthly_summary:
+    get:
+      tags:
+        - Reports
+      summary: Get monthly summary
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: billingCycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
+        - name: vendor
+          in: query
+          schema:
+            type: string
+        - name: groupBy
+          in: query
+          description: Group results by
+          schema:
+            type: string
+            enum: [description, last4digits]
+      responses:
+        '200':
+          description: Monthly summary data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    bank_income:
+                      type: number
+                    bank_expenses:
+                      type: number
+                    card_expenses:
+                      type: number
+                    net_balance:
+                      type: number
+
+  /budget_vs_actual:
+    get:
+      tags:
+        - Reports
+      summary: Compare budget vs actual spending
+      parameters:
+        - name: cycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Budget vs actual comparison
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                    budget_limit:
+                      type: number
+                    actual_spent:
+                      type: number
+                    remaining:
+                      type: number
+
+  /daily_spending:
+    get:
+      tags:
+        - Reports
+      summary: Get daily spending data
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: cycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daily spending data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date:
+                      type: string
+                      format: date
+                    total:
+                      type: number
+
+  /category_expenses:
+    get:
+      tags:
+        - Reports
+      summary: Get expenses by category
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Category expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                    total:
+                      type: number
+                    count:
+                      type: integer
+
+  /recurring_payments:
+    get:
+      tags:
+        - Reports
+      summary: Get recurring payments analysis
+      responses:
+        '200':
+          description: Recurring payments data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    amount:
+                      type: number
+                    frequency:
+                      type: string
+                    occurrences:
+                      type: integer
+
+  /budgets:
+    get:
+      tags:
+        - Budgets
+      summary: List all budgets
+      responses:
+        '200':
+          description: List of budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+    post:
+      tags:
+        - Budgets
+      summary: Create or update a budget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category
+                - budget_limit
+              properties:
+                category:
+                  type: string
+                budget_limit:
+                  type: number
+      responses:
+        '200':
+          description: Budget created/updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+
+  /budgets/{id}:
+    get:
+      tags:
+        - Budgets
+      summary: Get a budget by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+    put:
+      tags:
+        - Budgets
+      summary: Update a budget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                budget_limit:
+                  type: number
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+    delete:
+      tags:
+        - Budgets
+      summary: Delete a budget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /total_budget:
+    get:
+      tags:
+        - Budgets
+      summary: Get total budget limit
+      responses:
+        '200':
+          description: Total budget
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  budget_limit:
+                    type: number
+    post:
+      tags:
+        - Budgets
+      summary: Set total budget limit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - budget_limit
+              properties:
+                budget_limit:
+                  type: number
+      responses:
+        '200':
+          description: Total budget set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /get_all_categories:
+    get:
+      tags:
+        - Categories
+      summary: Get all categories
+      responses:
+        '200':
+          description: List of all categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /categorization_rules:
+    get:
+      tags:
+        - Categories
+      summary: Get categorization rules
+      responses:
+        '200':
+          description: List of categorization rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategorizationRule'
+    post:
+      tags:
+        - Categories
+      summary: Create a categorization rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name_pattern
+                - target_category
+              properties:
+                name_pattern:
+                  type: string
+                  description: Pattern to match in transaction names
+                target_category:
+                  type: string
+                  description: Category to assign
+      responses:
+        '200':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategorizationRule'
+
+  /category_mappings:
+    get:
+      tags:
+        - Categories
+      summary: Get category mappings
+      responses:
+        '200':
+          description: Category mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    source_category:
+                      type: string
+                    target_category:
+                      type: string
+    post:
+      tags:
+        - Categories
+      summary: Create category mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source_category
+                - target_category
+              properties:
+                source_category:
+                  type: string
+                target_category:
+                  type: string
+      responses:
+        '200':
+          description: Mapping created
+
+  /rename_category:
+    post:
+      tags:
+        - Categories
+      summary: Rename a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - oldName
+                - newName
+              properties:
+                oldName:
+                  type: string
+                newName:
+                  type: string
+      responses:
+        '200':
+          description: Category renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  updated:
+                    type: integer
+
+  /merge_categories:
+    post:
+      tags:
+        - Categories
+      summary: Merge categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceCategories
+                - targetCategory
+              properties:
+                sourceCategories:
+                  type: array
+                  items:
+                    type: string
+                targetCategory:
+                  type: string
+      responses:
+        '200':
+          description: Categories merged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  updated:
+                    type: integer
+
+  /delete_category:
+    post:
+      tags:
+        - Categories
+      summary: Delete a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category
+              properties:
+                category:
+                  type: string
+      responses:
+        '200':
+          description: Category deleted
+
+  /credentials:
+    get:
+      tags:
+        - Credentials
+      summary: List all credentials
+      responses:
+        '200':
+          description: List of credentials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Credential'
+    post:
+      tags:
+        - Credentials
+      summary: Create a credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialInput'
+      responses:
+        '200':
+          description: Credential created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+
+  /credentials/{id}:
+    get:
+      tags:
+        - Credentials
+      summary: Get a credential
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Credential details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+    put:
+      tags:
+        - Credentials
+      summary: Update a credential
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialInput'
+      responses:
+        '200':
+          description: Credential updated
+    delete:
+      tags:
+        - Credentials
+      summary: Delete a credential
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Credential deleted
+
+  /scrape:
+    post:
+      tags:
+        - Scraping
+      summary: Scrape transactions (sync)
+      description: Synchronously scrape transactions from a bank or credit card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScrapeRequest'
+      responses:
+        '200':
+          description: Scrape completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+        '500':
+          description: Scrape failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  error:
+                    type: string
+
+  /scrape_stream:
+    post:
+      tags:
+        - Scraping
+      summary: Scrape transactions (streaming)
+      description: |
+        Scrape transactions with Server-Sent Events for progress updates.
+        Returns SSE stream with events: progress, complete, error
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScrapeRequest'
+      responses:
+        '200':
+          description: SSE stream of scrape progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /sync_all:
+    post:
+      tags:
+        - Scraping
+      summary: Sync all credentials
+      description: Trigger scrape for all active credentials
+      responses:
+        '200':
+          description: Sync initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /sync_status:
+    get:
+      tags:
+        - Scraping
+      summary: Get sync status
+      description: Get overall sync health and status
+      responses:
+        '200':
+          description: Sync status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_sync:
+                    type: string
+                    format: date-time
+                  sync_enabled:
+                    type: boolean
+                  healthy:
+                    type: boolean
+
+  /scrape_events:
+    get:
+      tags:
+        - Scraping
+      summary: Get scrape history
+      responses:
+        '200':
+          description: List of scrape events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    vendor:
+                      type: string
+                    status:
+                      type: string
+                    message:
+                      type: string
+                    created_at:
+                      type: string
+                      format: date-time
+
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get all settings
+      responses:
+        '200':
+          description: Application settings
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    put:
+      tags:
+        - Settings
+      summary: Update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Settings updated
+
+  /available_vendors:
+    get:
+      tags:
+        - Scraping
+      summary: Get available vendors
+      description: List of supported bank and credit card vendors
+      responses:
+        '200':
+          description: Available vendors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credit_cards:
+                    type: array
+                    items:
+                      type: string
+                  banks:
+                    type: array
+                    items:
+                      type: string
+
+  /available_months:
+    get:
+      tags:
+        - Reports
+      summary: Get available months
+      description: List of months with transaction data
+      responses:
+        '200':
+          description: Available months
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /ping:
+    get:
+      tags:
+        - Settings
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  schemas:
+    Transaction:
+      type: object
+      properties:
+        identifier:
+          type: string
+          description: Unique transaction identifier
+        vendor:
+          type: string
+          description: Source vendor (bank or credit card company)
+        date:
+          type: string
+          format: date
+          description: Transaction date
+        name:
+          type: string
+          description: Transaction description
+        price:
+          type: number
+          description: Transaction amount
+        category:
+          type: string
+          description: Transaction category
+        type:
+          type: string
+          description: Transaction type (credit/debit)
+        processed_date:
+          type: string
+          format: date
+          description: Processing date (for billing cycle)
+        original_amount:
+          type: number
+          description: Original amount (for foreign transactions)
+        original_currency:
+          type: string
+          description: Original currency code
+        charged_currency:
+          type: string
+          description: Charged currency code
+        memo:
+          type: string
+          description: Additional notes
+        status:
+          type: string
+          description: Transaction status
+        installments_number:
+          type: integer
+          description: Current installment number
+        installments_total:
+          type: integer
+          description: Total number of installments
+        account_number:
+          type: string
+          description: Card/account last 4 digits
+        category_source:
+          type: string
+          description: How the category was assigned (scraper/rule/cache)
+        rule_matched:
+          type: string
+          description: Pattern that matched for rule-based categorization
+        transaction_type:
+          type: string
+          enum: [bank, credit_card]
+          description: Whether this is a bank or credit card transaction
+
+    Budget:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+          description: Category name
+        budget_limit:
+          type: number
+          description: Monthly budget limit
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CategorizationRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        name_pattern:
+          type: string
+          description: Pattern to match in transaction names
+        target_category:
+          type: string
+          description: Category to assign when matched
+        is_active:
+          type: boolean
+
+    Credential:
+      type: object
+      properties:
+        id:
+          type: integer
+        vendor:
+          type: string
+          description: Bank or credit card vendor
+        nickname:
+          type: string
+          description: Friendly name for this credential
+        is_active:
+          type: boolean
+        last_synced_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CredentialInput:
+      type: object
+      required:
+        - vendor
+      properties:
+        vendor:
+          type: string
+          description: Bank or credit card vendor ID
+        username:
+          type: string
+        password:
+          type: string
+        id_number:
+          type: string
+          description: ID number (for Israeli banks)
+        card6_digits:
+          type: string
+          description: First 6 digits of card (for Isracard/Amex)
+        nickname:
+          type: string
+        is_active:
+          type: boolean
+          default: true
+
+    ScrapeRequest:
+      type: object
+      required:
+        - options
+        - credentials
+        - credentialId
+      properties:
+        options:
+          type: object
+          required:
+            - companyId
+            - startDate
+          properties:
+            companyId:
+              type: string
+              description: Vendor ID (e.g., visaCal, hapoalim)
+            startDate:
+              type: string
+              format: date
+              description: Start date for scraping
+            showBrowser:
+              type: boolean
+              description: Show browser window (for debugging/2FA)
+        credentials:
+          type: object
+          description: Vendor-specific credentials
+        credentialId:
+          type: integer
+          description: Database credential ID
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: string

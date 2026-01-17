@@ -1,9 +1,18 @@
 import { createApiHandler } from "../utils/apiHandler";
 
+/**
+ * Transactions CRUD by ID
+ * 
+ * GET /api/transactions/[id] - Get single transaction
+ * PUT /api/transactions/[id] - Update transaction (category, price, etc.)
+ * DELETE /api/transactions/[id] - Delete transaction
+ * 
+ * ID format: identifier|vendor (e.g., "txn123|visaCal")
+ */
 const handler = createApiHandler({
   validate: (req) => {
-    if (!['DELETE', 'PUT'].includes(req.method)) {
-      return "Only DELETE and PUT methods are allowed";
+    if (!['GET', 'DELETE', 'PUT'].includes(req.method)) {
+      return "Only GET, DELETE, and PUT methods are allowed";
     }
     if (!req.query.id) {
       return "ID parameter is required";
@@ -15,6 +24,40 @@ const handler = createApiHandler({
   query: async (req) => {
     const { id } = req.query;
     const [identifier, vendor] = id.split('|');
+
+    if (!identifier || !vendor) {
+      throw new Error('Invalid ID format. Expected: identifier|vendor');
+    }
+
+    if (req.method === 'GET') {
+      return {
+        sql: `
+          SELECT 
+            identifier,
+            vendor,
+            date,
+            name,
+            price,
+            category,
+            type,
+            processed_date,
+            original_amount,
+            original_currency,
+            charged_currency,
+            memo,
+            status,
+            installments_number,
+            installments_total,
+            account_number,
+            category_source,
+            rule_matched,
+            transaction_type
+          FROM transactions 
+          WHERE identifier = $1 AND vendor = $2
+        `,
+        params: [identifier, vendor]
+      };
+    }
 
     if (req.method === 'DELETE') {
       return {
@@ -41,6 +84,9 @@ const handler = createApiHandler({
       updates.push(`category = $${paramIndex}`);
       params.push(req.body.category);
       paramIndex++;
+
+      // Mark as manually edited
+      updates.push(`category_source = 'cache'`);
     }
 
     return {
@@ -52,9 +98,12 @@ const handler = createApiHandler({
       params: params
     };
   },
-  transform: (_) => {
+  transform: (result, req) => {
+    if (req.method === 'GET') {
+      return result.rows[0] || null;
+    }
     return { success: true };
   }
 });
 
-export default handler; 
+export default handler;

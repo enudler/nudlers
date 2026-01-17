@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import ModalHeader from './ModalHeader';
 import { BANK_VENDORS } from '../utils/constants';
 
@@ -136,6 +137,7 @@ export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> 
   size = 32
 }) => {
   const theme = useTheme();
+  const isBankVendor = vendor && BANK_VENDORS.includes(vendor);
   const vendorConfig = vendor ? CARD_VENDORS[vendor as keyof typeof CARD_VENDORS] : null;
 
   if (!vendorConfig) {
@@ -151,7 +153,11 @@ export const CardVendorIcon: React.FC<{ vendor: string | null; size?: number }> 
           borderRadius: '8px',
         }}
       >
-        <CreditCardIcon sx={{ fontSize: size * 0.7, color: '#64748b' }} />
+        {isBankVendor ? (
+          <AccountBalanceIcon sx={{ fontSize: size * 0.7, color: 'primary.main' }} />
+        ) : (
+          <CreditCardIcon sx={{ fontSize: size * 0.7, color: '#64748b' }} />
+        )}
       </Box>
     );
   }

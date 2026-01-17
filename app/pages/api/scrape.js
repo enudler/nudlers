@@ -2,7 +2,6 @@ import { getDB } from './db';
 import { BANK_VENDORS } from '../../utils/constants';
 import logger from '../../utils/logger.js';
 import {
-  RATE_LIMITED_VENDORS,
   loadCategoryCache,
   lookupCachedCategory,
   insertTransaction,
@@ -12,19 +11,19 @@ import {
   validateCredentials,
   getScraperOptions,
   getPreparePage,
-  loadCategorizationRules,
-  loadCategoryMappings,
-  getUpdateCategoryOnRescrapeSetting,
   insertScrapeAudit,
   updateScrapeAudit,
   updateCredentialLastSynced,
   getShowBrowserSetting,
   getFetchCategoriesSetting,
-  getStandardTimeoutSetting,
-  getRateLimitedTimeoutSetting,
-  retryWithBackoff,
-  sleep,
+  getScraperTimeout,
   runScraper,
+  loadCategorizationRules,
+  loadCategoryMappings,
+  getUpdateCategoryOnRescrapeSetting,
+  getLogHttpRequestsSetting,
+  getBillingCycleStartDay,
+  processScrapedAccounts,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -50,6 +49,7 @@ async function handler(req, res) {
   }
 
   const client = await getDB();
+  const startTime = new Date();
   let auditId = null;
 
   try {
@@ -74,57 +74,32 @@ async function handler(req, res) {
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
     logger.info({ fetchCategories: fetchCategoriesSetting }, '[Scraper] Fetch categories setting');
 
-    const isRateLimited = RATE_LIMITED_VENDORS.includes(options.companyId);
+    // Get timeout settings
+    const timeoutSetting = await getScraperTimeout(client, companyId);
 
-    // For rate-limited vendors (VisaCal, Isracard/Amex/Max), add a pre-scrape delay to avoid rate limiting
-    if (isRateLimited) {
-      // These vendors need longer delays due to API rate limiting
-      const preDelay = options.companyId === 'visaCal'
-        ? Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds for VisaCal
-        : Math.floor(Math.random() * 5000) + 3000;  // 3-8 seconds for others
-      logger.info({ vendor: options.companyId, delaySeconds: Math.round(preDelay / 1000) }, '[Scraper] Rate-limited vendor detected, adding pre-scrape delay');
-      await sleep(preDelay);
-    }
-
-    // Get timeout settings - rate-limited vendors need longer timeouts
-    const timeoutSetting = isRateLimited
-      ? await getRateLimitedTimeoutSetting(client)
-      : await getStandardTimeoutSetting(client);
-
-    // Build scraper options with anti-detection measures
     const scraperOptions = {
-      ...getScraperOptions(companyId, new Date(options.startDate), isRateLimited, {
+      ...getScraperOptions(companyId, new Date(options.startDate), {
         showBrowser: showBrowserSetting,
         fetchCategories: fetchCategoriesSetting,
         timeout: timeoutSetting,
       }),
-      // Note: preparePage can't be passed to worker as it's a function
-      // We'll handle it inside the runner or passed as a flag
+      logRequests: await getLogHttpRequestsSetting(client),
     };
 
     // Insert audit row
     const triggeredBy = credentials?.username || credentials?.id || credentials?.nickname || 'unknown';
     auditId = await insertScrapeAudit(client, triggeredBy, options.companyId, new Date(options.startDate));
 
-    // Execute scraping with retry for all rate-limited vendors
-    const maxRetries = isRateLimited ? 3 : 0;
-    const retryBaseDelay = options.companyId === 'visaCal' ? 10000 : 5000;
-
     let result;
     try {
-      result = await retryWithBackoff(
-        async () => {
-          const scraperResult = await runScraper(scraperOptions, scraperCredentials);
-          if (!scraperResult.success && scraperResult.errorMessage) {
-            // Throw so retryWithBackoff can catch it and try again
-            throw new Error(scraperResult.errorMessage);
-          }
-          return scraperResult;
-        },
-        maxRetries,
-        retryBaseDelay,
-        options.companyId
-      );
+      logger.info({ companyId: options.companyId, fetchCategories: fetchCategoriesSetting }, '[Scraper Handler] Starting scrape');
+
+      const onProgress = (type, data) => {
+        logger.info({ ...data, vendor: options.companyId }, `[Scraper Progress] ${data.message || data.type}`);
+      };
+
+      result = await runScraper(client, scraperOptions, scraperCredentials, onProgress);
+
     } catch (scrapeError) {
       const errorMessage = scrapeError.message || 'Scraper exception';
       await updateScrapeAudit(client, auditId, 'failed', errorMessage);
@@ -156,72 +131,58 @@ async function handler(req, res) {
       throw new Error(`${errorType}: ${errorMsg}`);
     }
 
-    // Load category cache and process transactions
-    const cache = await loadCategoryCache(client);
-    const categorizationRules = await loadCategorizationRules(client);
-    const categoryMappings = await loadCategoryMappings(client);
-    const updateCategoryOnRescrape = await getUpdateCategoryOnRescrapeSetting(client);
+    // Process transactions and save to database using consolidated helper
+    const stats = await processScrapedAccounts({
+      client,
+      accounts: result.accounts,
+      companyId: options.companyId,
+      credentialId,
+      categorizationRules,
+      categoryMappings,
+      billingCycleStartDay,
+      updateCategoryOnRescrape,
+      isBank
+    });
 
-    let bankTransactions = 0;
-    let cachedCategoryCount = 0;
-    let skippedCards = 0;
-
-    for (const account of result.accounts) {
-      // Check card ownership
-      const ownedByOther = await checkCardOwnership(client, account.accountNumber, options.companyId, credentialId);
-
-      if (ownedByOther) {
-        logger.info({ accountNumber: account.accountNumber, ownedBy: ownedByOther }, '[Card Ownership] Skipping card - already owned by another credential');
-        skippedCards++;
-        continue;
-      }
-
-      // Claim ownership
-      await claimCardOwnership(client, account.accountNumber, options.companyId, credentialId);
-
-      // Defensive check: ensure txns is an array
-      if (!account.txns || !Array.isArray(account.txns)) {
-        logger.warn({
-          accountNumber: account.accountNumber,
-          txnsType: typeof account.txns,
-          txnsValue: account.txns,
-          accountKeys: Object.keys(account || {})
-        }, '[Scrape] Account txns is not an array, skipping transactions');
-        continue;
-      }
-
-      for (const txn of account.txns) {
-        if (isBank) bankTransactions++;
-
-        const hadCategory = txn.category && txn.category !== 'N/A';
-        const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-        await insertTransaction(client, txn, options.companyId, account.accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings);
-        if (!hadCategory && lookupCachedCategory(txn.description, cache)) {
-          cachedCategoryCount++;
-        }
-      }
+    if (stats.cachedCategories > 0) {
+      logger.info({ count: stats.cachedCategories }, '[Category Cache] Applied cached categories to transactions');
     }
-
-    if (cachedCategoryCount > 0) {
-      logger.info({ count: cachedCategoryCount }, '[Category Cache] Applied cached categories to transactions');
-    }
-    if (skippedCards > 0) {
-      logger.info({ skippedCards }, '[Card Ownership] Skipped cards owned by other credentials');
+    if (stats.skippedCards > 0) {
+      logger.info({ skippedCards: stats.skippedCards }, '[Card Ownership] Skipped cards owned by other credentials');
     }
 
     // Update audit as success
-    const accountsCount = Array.isArray(result.accounts) ? result.accounts.length : 0;
-    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${accountsCount}, bankTxns=${bankTransactions}`);
+    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${stats.accounts}, saved=${stats.savedTransactions}, updated=${stats.updatedTransactions}`);
 
     // Update last_synced_at
     await updateCredentialLastSynced(client, credentialId);
 
+    // Calculate duration
+    const endTime = new Date();
+    const durationSeconds = (endTime - startTime) / 1000;
+    const durationFormatted = `${Math.floor(durationSeconds / 60)}m ${Math.floor(durationSeconds % 60)}s`;
+
+    logger.info({
+      durationSeconds,
+      durationFormatted,
+      accounts: result.accounts?.length
+    }, '[Scraper Handler] Scraping completed');
+
     res.status(200).json({
-      message: 'Scraping and database update completed successfully',
-      accounts: result.accounts
+      message: `Scraping completed successfully in ${durationFormatted}`,
+      accounts: result.accounts,
+      duration: durationFormatted,
+      durationSeconds
     });
   } catch (error) {
-    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Scraping failed');
+    const endTime = new Date();
+    const durationSeconds = (endTime - startTime) / 1000;
+
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      durationSeconds
+    }, 'Scraping failed');
 
     if (auditId) {
       try {
@@ -233,7 +194,8 @@ async function handler(req, res) {
 
     res.status(500).json({
       message: 'Scraping failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      durationSeconds
     });
   } finally {
     client.release();
