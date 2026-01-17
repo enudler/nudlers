@@ -48,10 +48,9 @@ Personal finance management application for tracking credit card expenses and ba
 - **Budget performance tracking** with visual indicators
 
 ### 🔄 Sync & Automation
-- **Automatic background sync** at configurable intervals
+- **Automatic daily background sync** at a configurable hour (0-23)
 - **Catch-up sync** to retrieve transactions from last sync date
 - **Configurable sync history** (days to sync back)
-- **Retry configuration** for failed sync attempts
 - **Update category on re-scrape** option
 - **Real-time sync status** with live updates
 - **Sync history and audit logs** for all scraping operations
@@ -377,6 +376,59 @@ The image supports both `linux/amd64` and `linux/arm64` architectures.
 | `GEMINI_API_KEY` | (Optional) Google Gemini API key for AI Chat and WhatsApp summaries |
 
 > **Note:** The Gemini API key can also be configured in the application settings UI.
+
+---
+
+## Application Settings
+
+All settings can be configured through the Settings UI (accessible via the gear icon in the top navigation). Settings are stored in the database and persist across restarts.
+
+### Sync Configuration
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `sync_enabled` | Enable or disable the daily background transaction synchronization | `false` |
+| `sync_hour` | The hour (0-23) when the daily background sync should run | `3` |
+| `sync_days_back` | Number of past days to fetch during each account sync | `30` |
+
+### Display Preferences
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `default_currency` | The default currency symbol used for display (e.g., ILS, USD) | `ILS` |
+| `date_format` | The visual format used for displaying dates | `DD/MM/YYYY` |
+| `billing_cycle_start_day` | The day of the month when your credit card billing cycle begins | `10` |
+
+### Scraper Configuration
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `show_browser` | (Local only) Display browser window during scraping for debugging/2FA | `false` |
+| `fetch_categories_from_scrapers` | Automatically adopt categories provided by the bank/card scraper | `true` |
+| `update_category_on_rescrape` | If a transaction is re-scraped, update it if the bank provides a new category | `false` |
+| `scraper_timeout` | Maximum time (ms) allowed for each scraper to run | `60000` |
+| `scraper_log_http_requests` | Log detailed HTTP requests for scraper debugging | `false` |
+
+### AI Configuration
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `gemini_api_key` | Google Gemini API key for AI Chat and smart summaries | *(empty)* |
+| `gemini_model` | The specific Google Gemini AI model version to use | `gemini-2.5-flash` |
+
+### WhatsApp Daily Summary
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `whatsapp_enabled` | Send a financial summary via WhatsApp daily | `false` |
+| `whatsapp_hour` | The hour (0-23) when the daily WhatsApp summary is sent | `8` |
+| `whatsapp_summary_mode` | Time period for the summary: `calendar` (monthly) or `cycle` (billing) | `calendar` |
+| `whatsapp_twilio_sid` | Your Twilio Account SID for WhatsApp API access | *(empty)* |
+| `whatsapp_twilio_auth_token` | Your Twilio Auth Token for WhatsApp API access | *(empty)* |
+| `whatsapp_twilio_from` | The Twilio number from which summaries are sent | *(empty)* |
+| `whatsapp_to` | The phone number to receive WhatsApp summaries (e.g., whatsapp:+972...) | *(empty)* |
+
+> **Note:** Settings marked as "Internal" (`sync_last_run_at`, `whatsapp_last_sent_date`) are automatically managed by the system and should not be manually modified.
 
 ---
 

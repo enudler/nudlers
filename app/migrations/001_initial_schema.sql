@@ -265,26 +265,24 @@ CREATE TABLE IF NOT EXISTS app_settings (
 CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
 
 INSERT INTO app_settings (key, value, description) VALUES
-  ('sync_enabled', 'false', 'Enable automatic background sync'),
-  ('sync_interval_hours', '24', 'Hours between automatic syncs'),
-  ('sync_days_back', '30', 'Number of days to sync back for each account'),
-  ('default_currency', '"ILS"', 'Default currency for transactions'),
-  ('date_format', '"DD/MM/YYYY"', 'Date display format'),
-  ('billing_cycle_start_day', '10', 'Day of month when billing cycle starts'),
-  ('show_browser', 'false', 'Show browser window during scraping (for debugging/2FA)'),
-  ('israeli_bank_scrapers_version', '"none"', 'Specific version or branch of the scraper library (e.g. "latest", "master", "6.6.0")'),
-  ('update_category_on_rescrape', 'false', 'Update transaction categories if bank provides new ones during re-scrape'),
-  ('scraper_timeout', '60000', 'Global timeout for all vendors'),
-  ('whatsapp_enabled', 'false', 'Enable daily WhatsApp summary'),
-  ('whatsapp_hour', '8', 'Hour of the day to send WhatsApp summary (0-23)'),
-  ('whatsapp_twilio_sid', '""', 'Twilio Account SID'),
-  ('whatsapp_twilio_auth_token', '""', 'Twilio Auth Token'),
-  ('whatsapp_twilio_from', '""', 'Twilio WhatsApp "From" number'),
-  ('whatsapp_to', '""', 'Destination WhatsApp number'),
-  ('whatsapp_last_sent_date', '""', 'Date of last sent WhatsApp summary'),
-  ('gemini_model', '"gemini-2.5-flash"', 'Gemini AI model to use (e.g., gemini-2.5-flash)'),
-  ('sync_last_run_at', '"1970-01-01T00:00:00.000Z"', 'Timestamp of the last background sync run'),
-  ('sync_hour', '3', 'Hour of the day to trigger background sync (0-23)')
+  ('sync_enabled', 'false', 'Enable or disable the daily background transaction synchronization'),
+  ('sync_days_back', '30', 'Number of past days to fetch during each account sync'),
+  ('default_currency', '"ILS"', 'The default currency symbol used for display (e.g., ILS, USD)'),
+  ('date_format', '"DD/MM/YYYY"', 'The visual format used for displaying dates (e.g., DD/MM/YYYY)'),
+  ('billing_cycle_start_day', '10', 'The day of the month when your credit card billing cycle begins'),
+  ('show_browser', 'false', '(Local only) Display browser window during scraping for debugging/2FA'),
+  ('update_category_on_rescrape', 'false', 'If a transaction is re-scraped, update it if the bank provides a new category'),
+  ('scraper_timeout', '60000', 'Maximum time (ms) allowed for each scraper to run'),
+  ('whatsapp_enabled', 'false', 'Send a financial summary via WhatsApp daily'),
+  ('whatsapp_hour', '8', 'The hour (0-23) when the daily WhatsApp summary is sent'),
+  ('whatsapp_twilio_sid', '""', 'Your Twilio Account SID for WhatsApp API access'),
+  ('whatsapp_twilio_auth_token', '""', 'Your Twilio Auth Token for WhatsApp API access'),
+  ('whatsapp_twilio_from', '""', 'The Twilio number from which summaries are sent'),
+  ('whatsapp_to', '""', 'The phone number to receive WhatsApp summaries (e.g., whatsapp:+972...)'),
+  ('whatsapp_last_sent_date', '""', 'Internal tracker to ensure only one WhatsApp message is sent per day'),
+  ('gemini_model', '"gemini-2.5-flash"', 'The specific Google Gemini AI model version to use'),
+  ('sync_last_run_at', '"1970-01-01T00:00:00.000Z"', 'Internal timestamp tracker for the most recent sync execution'),
+  ('sync_hour', '3', 'The hour (0-23) when the daily background sync should run')
 ON CONFLICT (key) DO NOTHING;
 
 
