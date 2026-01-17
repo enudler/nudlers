@@ -55,11 +55,11 @@ describe('Delete All Transactions API', () => {
     });
 
     describe('Method validation', () => {
-        it('should reject non-POST requests', async () => {
+        it('should reject non-DELETE requests', async () => {
             const handler = createApiHandler({
                 validate: (req) => {
-                    if (req.method !== 'POST') {
-                        return "Only POST method is allowed";
+                    if (req.method !== 'DELETE') {
+                        return "Only DELETE method is allowed";
                     }
                 },
                 query: async () => ({
@@ -78,17 +78,17 @@ describe('Delete All Transactions API', () => {
 
             expect(mockRes.status).toHaveBeenCalledWith(400);
             expect(mockRes.json).toHaveBeenCalledWith({
-                error: 'Only POST method is allowed'
+                error: 'Only DELETE method is allowed'
             });
         });
 
-        it('should accept POST requests', async () => {
+        it('should accept DELETE requests', async () => {
             mockClient.query.mockResolvedValue({ rowCount: 10, rows: [] });
 
             const handler = createApiHandler({
                 validate: (req) => {
-                    if (req.method !== 'POST') {
-                        return "Only POST method is allowed";
+                    if (req.method !== 'DELETE') {
+                        return "Only DELETE method is allowed";
                     }
                 },
                 query: async () => ({
@@ -102,7 +102,7 @@ describe('Delete All Transactions API', () => {
                 })
             });
 
-            mockReq = { method: 'POST' };
+            mockReq = { method: 'DELETE' };
 
             await handler(mockReq as any, mockRes as any);
 
@@ -116,8 +116,8 @@ describe('Delete All Transactions API', () => {
 
             const handler = createApiHandler({
                 validate: (req) => {
-                    if (req.method !== 'POST') {
-                        return "Only POST method is allowed";
+                    if (req.method !== 'DELETE') {
+                        return "Only DELETE method is allowed";
                     }
                 },
                 query: async () => ({
@@ -131,7 +131,7 @@ describe('Delete All Transactions API', () => {
                 })
             });
 
-            mockReq = { method: 'POST' };
+            mockReq = { method: 'DELETE' };
 
             await handler(mockReq as any, mockRes as any);
 
