@@ -54,9 +54,9 @@ const DeleteAllTransactionsDialog: React.FC<DeleteAllTransactionsDialogProps> = 
         setError(null);
 
         try {
-            const response = await fetch('/api/transactions/export_all_transactions');
+            const response = await fetch('/api/database/export');
             if (!response.ok) {
-                throw new Error('Failed to export transactions');
+                throw new Error('Failed to export database');
             }
 
             const data = await response.json();
@@ -66,7 +66,7 @@ const DeleteAllTransactionsDialog: React.FC<DeleteAllTransactionsDialogProps> = 
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `transactions-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `database-backup-${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
