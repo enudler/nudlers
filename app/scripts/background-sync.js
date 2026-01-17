@@ -11,8 +11,7 @@ import {
     updateScrapeAudit,
     updateCredentialLastSynced,
     getFetchCategoriesSetting,
-    getScraperTimeout,
-    RATE_LIMITED_VENDORS
+    getScraperTimeout
 } from '../pages/api/utils/scraperUtils.js';
 
 // Standalone DB connection for the script
@@ -64,7 +63,6 @@ async function runBackgroundSync() {
 
         for (const row of accountsResult.rows) {
             const companyId = row.vendor;
-            const isRateLimited = RATE_LIMITED_VENDORS.includes(companyId);
 
             logger.info({ vendor: companyId, nickname: row.nickname }, '[Background Sync] Syncing account');
 
