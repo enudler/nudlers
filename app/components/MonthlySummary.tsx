@@ -30,10 +30,42 @@ import { ModalData } from './CategoryDashboard/types';
 import { useCategories } from './CategoryDashboard/utils/useCategories';
 import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
 import { useScreenContext } from './Layout';
+import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 import { logger } from '../utils/client-logger';
+import { CREDIT_CARD_VENDORS, BANK_VENDORS } from '../utils/constants';
 
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
+
+const isBankTransaction = (transaction: any) => {
+  // 1. Check for Credit Card signals FIRST
+  const hasCardSignals =
+    Boolean(transaction.card6_digits) ||
+    (transaction.account_number && String(transaction.account_number).length === 4) ||
+    (transaction.installments_total && transaction.installments_total > 0);
+
+  if (hasCardSignals) return false;
+
+  // 2. Check vendor source against known CC vendors
+  if (transaction.vendor) {
+    const vendorLower = transaction.vendor.toLowerCase();
+    if (CREDIT_CARD_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
+      return false;
+    }
+  }
+
+  // 3. Explicit Categories
+  if (transaction.category === 'Bank' || transaction.category === 'Income' || transaction.category === 'Salary') return true;
+
+  // 4. Check vendor source against known Bank vendors
+  if (transaction.vendor) {
+    const vendorLower = transaction.vendor.toLowerCase();
+    if (BANK_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
+      return true;
+    }
+  }
+  return false;
+};
 
 interface MonthlySummaryData {
   month: string;
@@ -49,6 +81,8 @@ interface MonthlySummaryData {
 interface CardSummary {
   last4digits: string;
   card_expenses: number;
+  bank_income: number;
+  bank_expenses: number;
   card_vendor?: string | null;
   bank_account_id?: number | null;
   bank_account_nickname?: string | null;
@@ -56,6 +90,7 @@ interface CardSummary {
   bank_account_vendor?: string | null;
   custom_bank_account_number?: string | null;
   custom_bank_account_nickname?: string | null;
+  transaction_vendor?: string | null;
 }
 
 interface BankAccountSummary {
@@ -67,50 +102,15 @@ interface BankAccountSummary {
 }
 
 type GroupByType = 'vendor' | 'description' | 'last4digits';
-type DateRangeMode = 'calendar' | 'billing' | 'custom';
+// DateRangeMode imported from context
 type SortField = 'name' | 'count' | 'card_expenses';
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to calculate date range based on mode
-const getDateRange = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): { startDate: string; endDate: string } => {
-  const y = parseInt(year);
-  const m = parseInt(month);
-
-  if (mode === 'calendar') {
-    // Full calendar month: 1st to last day of month
-    const startDate = `${year}-${month}-01`;
-    const lastDay = new Date(y, m, 0).getDate(); // Get last day of month
-    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  } else {
-    // Billing cycle: (Start Day) of previous month to (Start Day - 1) of selected month
-    // Example: Start Day = 10. Range: 10th Prev to 9th Curr.
-    // Existing logic was 11th to 10th.
-    // If I want to maintain compatibility where "10" (default) means "Cycle ends on 10th",
-    // then Start = billingStartDay + 1. End = billingStartDay.
-
-    let prevMonth = m - 1;
-    let prevYear = y;
-    if (prevMonth === 0) {
-      prevMonth = 12;
-      prevYear = y - 1;
-    }
-
-    // Start Day = Setting. To match "Cycle starts on X", we use X.
-    // However, matching the "Default 10 = End 10" logic means Setting is CUTOFF.
-    // I will use: Start = Setting + 1. End = Setting.
-    const startDayVal = billingStartDay + 1;
-    const endDayVal = billingStartDay;
-
-    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
-    const endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  }
-};
+// getDateRange removed (handled by context)
 
 // Helper to format date range for display
-const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): string => {
-  const { startDate, endDate } = getDateRange(year, month, mode, billingStartDay);
+const formatDateRangeDisplay = (startDate: string, endDate: string) => {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -138,22 +138,25 @@ const MonthlySummary: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Month/Year selection
-  const [selectedYear, setSelectedYear] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [uniqueYears, setUniqueYears] = useState<string[]>([]);
-  const [uniqueMonths, setUniqueMonths] = useState<string[]>([]);
-  const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
-
+  const {
+    selectedYear, setSelectedYear,
+    selectedMonth, setSelectedMonth,
+    dateRangeMode, setDateRangeMode,
+    customStartDate, setCustomStartDate,
+    customEndDate, setCustomEndDate,
+    uniqueYears,
+    uniqueMonths,
+    startDate, endDate, billingCycle,
+    allAvailableDates,
+    billingStartDay
+  } = useDateSelection();
 
   // Grouping
   const [groupBy, setGroupBy] = useState<GroupByType>('description');
 
-  // Date range mode
-  const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
-
-  // Settings
-  const [billingStartDay, setBillingStartDay] = useState<number>(10);
+  // Date range error (local validation for custom range UI feedback if needed, 
+  // though context handles valid start/end dates for fetching)
+  const [dateRangeError, setDateRangeError] = useState<string>('');
 
   // Modal for transaction details
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -187,10 +190,7 @@ const MonthlySummary: React.FC = () => {
   const [cardNicknameMap, setCardNicknameMap] = useState<Record<string, string>>({});
   const [editingNickname, setEditingNickname] = useState<string>('');
 
-  // Custom date range state
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [dateRangeError, setDateRangeError] = useState<string>('');
+
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,8 +224,8 @@ const MonthlySummary: React.FC = () => {
   };
 
   // Theme-aware styles
-  const selectStyle = {
-    padding: '14px 28px',
+  const selectStyle: React.CSSProperties = {
+    padding: '14px 40px 14px 14px', // Extra right padding for arrow
     borderRadius: '16px',
     border: `1px solid ${theme.palette.divider}`,
     background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
@@ -235,10 +235,18 @@ const MonthlySummary: React.FC = () => {
     fontWeight: '600',
     cursor: 'pointer',
     outline: 'none',
-    textAlign: 'right' as const,
-    direction: 'rtl' as const,
+    textAlign: 'left' as const, // Changed for consistency with LTR
+    direction: 'ltr' as const,
     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none',
+    backgroundImage: theme.palette.mode === 'dark'
+      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
+      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    backgroundSize: '16px'
   };
 
   const buttonStyle = {
@@ -261,28 +269,18 @@ const MonthlySummary: React.FC = () => {
         setDateRangeMode(persistedMode);
       }
 
-      // Fetch settings
-      let startDay = 10;
-      try {
-        const response = await fetch('/api/settings');
-        if (response.ok) {
-          const data = await response.json();
-          startDay = parseInt(data.settings.billing_cycle_start_day) || 10;
-          setBillingStartDay(startDay);
-        }
-      } catch (e) {
-        logger.error('Error fetching settings, using default start day', e);
-      }
+      // Settings loaded by context
+
 
       // Fetch available dates and initialize selection
-      await fetchAvailableMonths();
+      fetchCardVendors();
       fetchCardVendors();
     }
 
     init();
   }, []);
 
-  const fetchCardVendors = async () => {
+  const fetchCardVendors = useCallback(async () => {
     try {
       const response = await fetch('/api/card_vendors');
       if (response.ok) {
@@ -303,7 +301,7 @@ const MonthlySummary: React.FC = () => {
     } catch (error) {
       logger.error('Error fetching card vendors', error);
     }
-  };
+  }, []);
 
   const handleVendorMenuOpen = (event: React.MouseEvent<HTMLElement>, last4digits: string) => {
     event.stopPropagation();
@@ -401,57 +399,7 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
-  const fetchAvailableMonths = async () => {
-    try {
-      const response = await fetch('/api/available_months');
-      const datesData = await response.json();
-      setAllAvailableDates(datesData);
-
-      // Sort dates in descending order to get the most recent first
-      const sortedDates = datesData.sort((a: string, b: string) => b.localeCompare(a));
-
-      // Default to current month/year (the current billing cycle)
-      // Default to current month/year (the current billing cycle)
-      // If today is past the 10th, we are in the cycle ending next month
-      const now = new Date();
-      let currentYear = now.getFullYear();
-      let currentMonth = now.getMonth() + 1;
-
-      if (now.getDate() > 10) {
-        currentMonth += 1;
-        if (currentMonth > 12) {
-          currentMonth = 1;
-          currentYear += 1;
-        }
-      }
-
-      const currentYearStr = currentYear.toString();
-      const currentMonthStr = String(currentMonth).padStart(2, '0');
-      const currentYearMonth = `${currentYearStr}-${currentMonthStr}`;
-
-      // Use current month if available, otherwise fall back to most recent
-      const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
-      const defaultYear = defaultDate.substring(0, 4);
-      const defaultMonth = defaultDate.substring(5, 7);
-
-      const years = Array.from(new Set(datesData.map((date: string) => date.substring(0, 4)))) as string[];
-
-      setUniqueYears(years);
-      setSelectedYear(defaultYear);
-
-      // Get months for the default year
-      const monthsForYear = datesData
-        .filter((date: string) => date.startsWith(defaultYear))
-        .map((date: string) => date.substring(5, 7));
-
-      const months = Array.from(new Set(monthsForYear)) as string[];
-
-      setUniqueMonths(months);
-      setSelectedMonth(defaultMonth);
-    } catch (error) {
-      logger.error('Error fetching available months', error);
-    }
-  };
+  // fetchAvailableMonths removed
 
   const fetchMonthlySummary = useCallback(async () => {
     // For custom mode, we need custom dates; for other modes, we need year/month
@@ -464,21 +412,15 @@ const MonthlySummary: React.FC = () => {
     try {
       setLoading(true);
 
+      setLoading(true);
+
       let url: string;
       let cardUrl: string;
 
-      if (dateRangeMode === 'custom') {
-        // In custom mode, use custom date range
-        url = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=${groupBy}`;
-        cardUrl = `/api/monthly_summary?startDate=${customStartDate}&endDate=${customEndDate}&groupBy=last4digits`;
-      } else if (dateRangeMode === 'billing') {
-        // In billing mode, filter by processed_date month (actual billing cycle from credit card)
-        const billingCycle = `${selectedYear}-${selectedMonth}`;
+      if (billingCycle) {
         url = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
         cardUrl = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=last4digits`;
       } else {
-        // In calendar mode, use date range
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
         cardUrl = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
       }
@@ -500,20 +442,25 @@ const MonthlySummary: React.FC = () => {
         interface CardAPIResponse {
           last4digits: string;
           card_expenses: string | number;
+          bank_income?: string | number;
+          bank_expenses?: string | number;
           bank_account_id?: number | null;
           bank_account_nickname?: string | null;
           bank_account_number?: string | null;
           bank_account_vendor?: string | null;
           custom_bank_account_number?: string | null;
           custom_bank_account_nickname?: string | null;
+          transaction_vendor?: string | null;
         }
         const cardResult: CardAPIResponse[] = await cardResponse.json();
-        // Filter to only include cards with expenses (exclude 0 card_expenses)
+        // Filter to include cards with expenses OR bank activity
         const cards: CardSummary[] = cardResult
-          .filter((c) => Number(c.card_expenses) > 0)
+          .filter((c) => Number(c.card_expenses) > 0 || Number(c.bank_expenses) > 0 || Number(c.bank_income) > 0)
           .map((c) => ({
             last4digits: c.last4digits,
             card_expenses: Number(c.card_expenses),
+            bank_income: Number(c.bank_income || 0),
+            bank_expenses: Number(c.bank_expenses || 0),
             bank_account_id: c.bank_account_id || null,
             bank_account_nickname: c.bank_account_nickname || null,
             bank_account_number: c.bank_account_number || null,
@@ -521,6 +468,7 @@ const MonthlySummary: React.FC = () => {
             // Prioritize custom details if they exist and no linked account
             custom_bank_account_number: c.custom_bank_account_number || null,
             custom_bank_account_nickname: c.custom_bank_account_nickname || null,
+            transaction_vendor: c.transaction_vendor || null,
           }));
         setCardSummary(cards);
 
@@ -528,6 +476,9 @@ const MonthlySummary: React.FC = () => {
         const bankSummaryMap = new Map<string, BankAccountSummary>();
 
         cards.forEach((card) => {
+          const cardVendor = cardResult.find(r => r.last4digits === card.last4digits)?.transaction_vendor || cardVendorMap[card.last4digits];
+          const isBank = cardVendor && BANK_VENDORS.includes(cardVendor);
+
           let key = 'unassigned';
           let nickname = 'Unassigned Cards';
           let acctNumber: string | null = null;
@@ -542,12 +493,18 @@ const MonthlySummary: React.FC = () => {
             acctNumber = card.bank_account_number || null;
             vendor = card.bank_account_vendor || null;
           } else if (card.custom_bank_account_number || card.custom_bank_account_nickname) {
-            // Custom Account (Group by number if available, else nickname)
+            // Custom Account
             const customKey = card.custom_bank_account_number || card.custom_bank_account_nickname || 'custom-unknown';
             key = `custom-${customKey}`;
             nickname = card.custom_bank_account_nickname || 'Custom Bank Account';
             acctNumber = card.custom_bank_account_number || null;
             vendor = 'Custom';
+          } else if (isBank || card.bank_expenses > 0 || card.bank_income > 0) {
+            // Unassigned Bank Account
+            const bankVendor = card.transaction_vendor || 'Other Bank';
+            key = `bank-${bankVendor}`;
+            nickname = bankVendor;
+            vendor = bankVendor;
           }
 
           if (!bankSummaryMap.has(key)) {
@@ -561,7 +518,7 @@ const MonthlySummary: React.FC = () => {
           }
 
           const summary = bankSummaryMap.get(key)!;
-          summary.total_expenses += card.card_expenses;
+          summary.total_expenses += (card.card_expenses + card.bank_expenses);
         });
 
         // Convert map to array and sort by expenses descending
@@ -575,99 +532,26 @@ const MonthlySummary: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYear, selectedMonth, groupBy, dateRangeMode, customStartDate, customEndDate]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate]);
 
   useEffect(() => {
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate) {
-        // Ensure not null/undefined before checking
         fetchMonthlySummary();
       }
-    } else if (selectedYear && selectedMonth) {
+    } else if (startDate && endDate) {
       fetchMonthlySummary();
     }
-  }, [selectedYear, selectedMonth, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
 
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newYear = event.target.value;
-    setSelectedYear(newYear);
-    localStorage.setItem('monthlySummary_year', newYear);
-
-    // Update available months for the selected year
-    const monthsForYear = allAvailableDates
-      .filter((date: string) => date.startsWith(newYear))
-      .map((date: string) => date.substring(5, 7));
-
-    const uniqueMonthsForYear = Array.from(new Set(monthsForYear)) as string[];
-    setUniqueMonths(uniqueMonthsForYear);
-
-    // If current month is not available in new year, select the first available month
-    if (!uniqueMonthsForYear.includes(selectedMonth)) {
-      const firstMonth = uniqueMonthsForYear[0];
-      setSelectedMonth(firstMonth);
-      localStorage.setItem('monthlySummary_month', firstMonth);
-    }
+    setSelectedYear(event.target.value);
   };
 
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newMonth = event.target.value;
     setSelectedMonth(newMonth);
     localStorage.setItem('monthlySummary_month', newMonth);
-  };
-
-  const handleDateRangeModeChange = (mode: DateRangeMode) => {
-    setDateRangeMode(mode);
-    localStorage.setItem('monthlySummary_mode', mode);
-
-    // When switching modes, we might want to "reset" the selected month to the smart default for that mode?
-    // User requirement: "if i am on 1-31 show current month" (Calendar Mode).
-    // If I switch to Billing, I should switch to Next Month if > 10th.
-    // If I switch to Calendar, I should switch to Current Month (if today is > 10th, Calendar is physically same month, Billing is next).
-    // Let's re-evaluate the selected month based on the NEW mode.
-
-    const now = new Date();
-    const currentDay = now.getDate();
-
-    let targetYear = now.getFullYear();
-    let targetMonth = now.getMonth() + 1;
-
-    if (mode === 'billing') {
-      if (currentDay > billingStartDay) {
-        targetMonth += 1;
-        if (targetMonth > 12) { targetMonth = 1; targetYear += 1; }
-      }
-    }
-    // Calendar mode defaults to current month (no change needed from now)
-
-    const targetDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
-
-    // Check if target is available
-    if (allAvailableDates.includes(targetDate)) {
-      // Only auto-switch if the user hasn't explicitly navigated far away?
-      // User asked: "remember my choice when moving from overvie and summary".
-      // But also said "if i am on 1-31 show current month".
-      // I'll assume that switching modes implies requesting the "Default View" for that mode.
-      setSelectedYear(targetYear.toString());
-      setSelectedMonth(String(targetMonth).padStart(2, '0'));
-      localStorage.setItem('monthlySummary_year', targetYear.toString());
-      localStorage.setItem('monthlySummary_month', String(targetMonth).padStart(2, '0'));
-    }
-
-    setDateRangeError('');
-
-    if (mode === 'custom') {
-      // Initialize custom dates if not set
-      if (!customStartDate || !customEndDate) {
-        // Default to last 3 months from today
-        const today = new Date();
-        const threeMonthsAgo = new Date(today);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-        const formatDate = (d: Date) => d.toISOString().split('T')[0];
-        setCustomStartDate(formatDate(threeMonthsAgo));
-        setCustomEndDate(formatDate(today));
-      }
-    }
   };
 
   const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
@@ -707,13 +591,9 @@ const MonthlySummary: React.FC = () => {
       setLoadingAll(true);
 
       let url: string;
-      if (dateRangeMode === 'custom') {
-        url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
-      } else if (dateRangeMode === 'billing') {
-        const billingCycle = `${selectedYear}-${selectedMonth}`;
+      if (billingCycle) {
         url = `/api/category_expenses?billingCycle=${billingCycle}&all=true`;
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
       }
 
@@ -723,10 +603,8 @@ const MonthlySummary: React.FC = () => {
       }
 
       const transactions = await response.json();
-      // Filter to only credit card transactions (exclude Bank and Income)
-      const cardTransactions = transactions.filter((t: any) =>
-        t.category !== 'Bank' && t.category !== 'Income'
-      );
+      // Filter to only credit card transactions (not Bank)
+      const cardTransactions = transactions.filter((t: any) => !isBankTransaction(t));
 
       setModalData({
         type: 'All Card Expenses',
@@ -739,6 +617,14 @@ const MonthlySummary: React.FC = () => {
       setLoadingAll(false);
     }
   };
+
+  const handleDateRangeModeChange = (mode: DateRangeMode) => {
+    setDateRangeMode(mode);
+    // Mode change handled by context, no custom logic needed
+  };
+
+
+
 
   // Category editing handlers
   const handleCategoryEditClick = (description: string, currentCategory: string) => {
@@ -834,7 +720,6 @@ const MonthlySummary: React.FC = () => {
         const billingCycle = `${selectedYear}-${selectedMonth}`;
         url = `/api/transactions_by_description?billingCycle=${billingCycle}&description=${encodeURIComponent(description)}`;
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/transactions_by_description?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
       }
 
@@ -870,8 +755,7 @@ const MonthlySummary: React.FC = () => {
         queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
       } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {
         queryParams += `&billingCycle=${selectedYear}-${selectedMonth}`;
-      } else if (selectedYear && selectedMonth) {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
+      } else if (startDate && endDate) {
         queryParams += `&startDate=${startDate}&endDate=${endDate}`;
       }
 
@@ -896,6 +780,72 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
+  const handleBankAccountClick = async (bank: BankAccountSummary) => {
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+
+    try {
+      setLoading(true);
+
+      let url: string;
+      if (bank.bank_account_id) {
+        // If we have an ID, we could potentially fetch by ID if API supported it.
+        // For now, let's use the account number or vendor if ID is linked.
+        if (dateRangeMode === 'custom') {
+          url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
+        } else if (dateRangeMode === 'billing') {
+          url = `/api/category_expenses?billingCycle=${selectedYear}-${selectedMonth}&all=true`;
+        } else {
+          url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        }
+      } else {
+        // Unassigned - fetch by vendor
+        const vendor = bank.bank_account_vendor || 'Other';
+        if (dateRangeMode === 'custom') {
+          url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
+        } else if (dateRangeMode === 'billing') {
+          url = `/api/category_expenses?billingCycle=${selectedYear}-${selectedMonth}&all=true`;
+        } else {
+          url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        }
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      const allTransactions = await response.json();
+
+      // Filter the transactions locally to match this bank account
+      const filteredTransactions = allTransactions.filter((t: any) => {
+        if (bank.bank_account_id) {
+          // This is tricky because transactions might not have bank_account_id directly
+          // We match by account number if available, or vendor + category 'Bank'
+          const isSameAccount = bank.bank_account_number && String(t.account_number).endsWith(bank.bank_account_number);
+          const isSameVendor = t.vendor && t.vendor.toLowerCase() === bank.bank_account_vendor?.toLowerCase();
+          return isSameAccount || (isSameVendor && isBankTransaction(t));
+        } else {
+          // Unassigned - match by vendor/source
+          return t.vendor && t.vendor.toLowerCase() === bank.bank_account_vendor?.toLowerCase() && isBankTransaction(t);
+        }
+      });
+
+      setModalData({
+        type: bank.bank_account_nickname,
+        data: filteredTransactions
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      logger.error('Error fetching bank transactions', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLast4DigitsClick = async (last4digits: string) => {
     if (dateRangeMode === 'custom') {
       if (!customStartDate || !customEndDate) return;
@@ -913,7 +863,6 @@ const MonthlySummary: React.FC = () => {
         const billingCycle = `${selectedYear}-${selectedMonth}`;
         url = `/api/transactions_by_last4?billingCycle=${billingCycle}&last4digits=${encodeURIComponent(last4digits)}`;
       } else {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
         url = `/api/transactions_by_last4?startDate=${startDate}&endDate=${endDate}&last4digits=${encodeURIComponent(last4digits)}`;
       }
 
@@ -924,8 +873,13 @@ const MonthlySummary: React.FC = () => {
 
       const transactions = await response.json();
 
+      // Determine if it's a bank account for the modal title
+      const cardInfo = cardSummary.find(c => c.last4digits === last4digits);
+      const isBank = cardInfo?.transaction_vendor && BANK_VENDORS.includes(cardInfo.transaction_vendor) ||
+        cardInfo?.bank_account_vendor && BANK_VENDORS.includes(cardInfo.bank_account_vendor) && !cardInfo.card_vendor;
+
       setModalData({
-        type: `Card ending in ${last4digits}`,
+        type: isBank ? `Account ending in ${last4digits}` : `Card ending in ${last4digits}`,
         data: transactions
       });
       setIsModalOpen(true);
@@ -936,33 +890,28 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
-  // Calculate totals from filtered data
-  const totals = data.reduce(
-    (acc, row) => ({
-      card_expenses: acc.card_expenses + Number(row.card_expenses),
-    }),
-    { card_expenses: 0 }
-  );
+  // Calculate totals from card summary (excluding bank accounts)
+  const totals = useMemo(() => {
+    return cardSummary.reduce(
+      (acc, card) => {
+        const cardVendor = cardVendorMap[card.last4digits];
+        const transVendor = card.transaction_vendor;
+        const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
+          (cardVendor && BANK_VENDORS.includes(cardVendor));
+
+        if (!isBank) {
+          acc.card_expenses += card.card_expenses;
+        }
+        return acc;
+      },
+      { card_expenses: 0 }
+    );
+  }, [cardSummary, cardVendorMap]);
 
   // Update AI Assistant screen context when data changes
   useEffect(() => {
-    const getDateRangeForContext = () => {
-      if (dateRangeMode === 'custom') {
-        return {
-          startDate: customStartDate,
-          endDate: customEndDate,
-          mode: 'custom'
-        };
-      } else if (selectedYear && selectedMonth) {
-        const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, dateRangeMode as 'calendar' | 'billing');
-        return {
-          startDate,
-          endDate,
-          mode: dateRangeMode
-        };
-      }
-      return undefined;
-    };
+    // getDateRangeForContext removed
+
 
     // Group expenses by category equivalent for summary
     const categoryTotals: { [key: string]: number } = {};
@@ -974,7 +923,11 @@ const MonthlySummary: React.FC = () => {
 
     setScreenContext({
       view: 'summary',
-      dateRange: getDateRangeForContext(),
+      dateRange: {
+        startDate,
+        endDate,
+        mode: dateRangeMode
+      },
       summary: {
         totalIncome: 0,
         totalExpenses: totals.card_expenses,
@@ -1139,53 +1092,7 @@ const MonthlySummary: React.FC = () => {
               flexWrap: 'wrap',
               justifyContent: { xs: 'center', md: 'flex-end' }
             }}>
-              {/* Search Bar */}
-              <Box
-                component="form"
-                onSubmit={handleSearch}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255,255,255,0.8)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: '16px',
-                  padding: '4px 8px 4px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&:focus-within': {
-                    borderColor: 'primary.main',
-                    boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
-                  }
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Search transactions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    fontSize: '14px',
-                    width: '180px',
-                    color: theme.palette.text.primary,
-                    fontWeight: 500
-                  }}
-                />
-                <IconButton
-                  type="submit"
-                  size="small"
-                  disabled={isSearching}
-                  sx={{
-                    color: 'text.secondary',
-                    '&:hover': { color: 'primary.main', background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }
-                  }}
-                >
-                  {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-                </IconButton>
-              </Box>
+
 
               <IconButton
                 onClick={handleRefresh}
@@ -1253,7 +1160,7 @@ const MonthlySummary: React.FC = () => {
                     background: dateRangeMode === 'calendar'
                       ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
                       : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1277,15 +1184,15 @@ const MonthlySummary: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(139, 92, 246, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1303,15 +1210,15 @@ const MonthlySummary: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'custom'
-                      ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'custom' ? '#ffffff' : '#64748b',
+                    color: dateRangeMode === 'custom' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'custom'
-                      ? '0 4px 12px rgba(16, 185, 129, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -1319,6 +1226,58 @@ const MonthlySummary: React.FC = () => {
                   <span>Custom</span>
                 </button>
               </div>
+            </Box>
+          </Box>
+
+          {/* Search Bar - New Location */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: '16px', marginBottom: '8px' }}>
+            <Box
+              component="form"
+              onSubmit={handleSearch}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255,255,255,0.8)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '16px',
+                padding: '4px 8px 4px 16px',
+                border: `1px solid ${theme.palette.divider}`,
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                width: '100%',
+                maxWidth: '600px',
+                '&:focus-within': {
+                  borderColor: 'primary.main',
+                  boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
+                }
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Search transactions (vendor, description, etc)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: '14px',
+                  width: '100%',
+                  color: theme.palette.text.primary,
+                  fontWeight: 500
+                }}
+              />
+              <IconButton
+                type="submit"
+                size="small"
+                disabled={isSearching}
+                sx={{
+                  color: 'text.secondary',
+                  '&:hover': { color: 'primary.main', background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }
+                }}
+              >
+                {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
+              </IconButton>
             </Box>
           </Box>
 
@@ -1528,140 +1487,153 @@ const MonthlySummary: React.FC = () => {
                 </Box>
 
                 {/* Individual Cards by Last 4 Digits */}
-                {cardSummary.map((card) => {
-                  const isLoading = loadingLast4 === card.last4digits;
-                  const percentage = totals.card_expenses > 0
-                    ? Math.round((card.card_expenses / totals.card_expenses) * 100)
-                    : 0;
-                  const cardVendor = cardVendorMap[card.last4digits];
+                {cardSummary
+                  .filter(card => {
+                    const cardVendor = cardVendorMap[card.last4digits];
+                    const transVendor = card.transaction_vendor;
+                    const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
+                      (cardVendor && BANK_VENDORS.includes(cardVendor));
+                    return !isBank;
+                  })
+                  .map((card) => {
+                    const isLoading = loadingLast4 === card.last4digits;
+                    const percentage = totals.card_expenses > 0
+                      ? Math.round((card.card_expenses / totals.card_expenses) * 100)
+                      : 0;
+                    const cardVendor = cardVendorMap[card.last4digits];
+                    const transVendor = card.transaction_vendor;
+                    const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
+                      (cardVendor && BANK_VENDORS.includes(cardVendor));
 
-                  return (
-                    <Box
-                      key={card.last4digits}
-                      sx={{
-                        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
-                        borderRadius: '16px',
-                        padding: '16px 20px',
-                        minWidth: '160px',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        border: `1px solid ${theme.palette.divider}`,
-                        opacity: isLoading ? 0.7 : 1,
-                        position: 'relative',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
-                          borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
-                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                          '& .vendor-settings-btn': {
-                            opacity: 1
-                          }
-                        }
-                      }}
-                      onClick={() => handleLast4DigitsClick(card.last4digits)}
-                    >
-                      {/* Settings button for vendor selection */}
-                      <IconButton
-                        className="vendor-settings-btn"
-                        size="small"
-                        onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
+                    return (
+                      <Box
+                        key={card.last4digits}
                         sx={{
-                          position: 'absolute',
-                          top: '4px',
-                          right: '4px',
-                          opacity: 0,
-                          transition: 'opacity 0.2s',
-                          padding: '4px',
-                          color: 'text.secondary',
+                          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
+                          borderRadius: '16px',
+                          padding: '16px 20px',
+                          minWidth: '160px',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          border: `1px solid ${theme.palette.divider}`,
+                          opacity: isLoading ? 0.7 : 1,
+                          position: 'relative',
                           '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            color: 'primary.main'
+                            transform: 'translateY(-2px)',
+                            background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
+                            borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                            '& .vendor-settings-btn': {
+                              opacity: 1
+                            }
                           }
                         }}
+                        onClick={() => handleLast4DigitsClick(card.last4digits)}
                       >
-                        <SettingsIcon sx={{ fontSize: '16px' }} />
-                      </IconButton>
+                        {/* Settings button for vendor selection */}
+                        <IconButton
+                          className="vendor-settings-btn"
+                          size="small"
+                          onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
+                          sx={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            opacity: 0,
+                            transition: 'opacity 0.2s',
+                            padding: '4px',
+                            color: 'text.secondary',
+                            '&:hover': {
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              color: 'primary.main'
+                            }
+                          }}
+                        >
+                          <SettingsIcon sx={{ fontSize: '16px' }} />
+                        </IconButton>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        {isLoading ? (
-                          <CircularProgress size={20} style={{ color: '#3b82f6' }} />
-                        ) : (
-                          <CardVendorIcon vendor={cardVendor || null} size={28} />
-                        )}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                          {cardNicknameMap[card.last4digits] ? (
-                            <>
-                              <Box component="span" sx={{
-                                color: 'text.primary',
-                                fontSize: '13px',
-                                fontWeight: 700,
-                              }}>
-                                {cardNicknameMap[card.last4digits]}
-                              </Box>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          {isLoading ? (
+                            <CircularProgress size={20} style={{ color: '#3b82f6' }} />
+                          ) : isBank ? (
+                            <AccountBalanceIcon sx={{ fontSize: 24, color: 'primary.main' }} />
+                          ) : (
+                            <CardVendorIcon vendor={cardVendor || null} size={28} />
+                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                            {cardNicknameMap[card.last4digits] ? (
+                              <>
+                                <Box component="span" sx={{
+                                  color: 'text.primary',
+                                  fontSize: '13px',
+                                  fontWeight: 700,
+                                }}>
+                                  {cardNicknameMap[card.last4digits]}
+                                </Box>
+                                <Box component="span" sx={{
+                                  color: 'text.secondary',
+                                  fontSize: '11px',
+                                  fontFamily: 'monospace',
+                                  letterSpacing: '1px'
+                                }}>
+                                  {isBank ? 'Account' : '••••'} {card.last4digits}
+                                </Box>
+                              </>
+                            ) : (
                               <Box component="span" sx={{
                                 color: 'text.secondary',
-                                fontSize: '11px',
+                                fontSize: '13px',
+                                fontWeight: 700,
                                 fontFamily: 'monospace',
                                 letterSpacing: '1px'
                               }}>
-                                •••• {card.last4digits}
+                                {isBank ? 'Account' : '••••'} {card.last4digits}
                               </Box>
-                            </>
-                          ) : (
-                            <Box component="span" sx={{
-                              color: 'text.secondary',
-                              fontSize: '13px',
-                              fontWeight: 700,
-                              fontFamily: 'monospace',
-                              letterSpacing: '1px'
-                            }}>
-                              •••• {card.last4digits}
-                            </Box>
-                          )}
-                          {card.bank_account_nickname && (
-                            <span style={{
-                              color: '#3b82f6',
-                              fontSize: '10px',
-                              fontWeight: 500,
-                              marginTop: '2px',
-                              opacity: 0.8
-                            }}>
-                              Bank: {card.bank_account_nickname}
-                            </span>
-                          )}
+                            )}
+                            {card.bank_account_nickname && (
+                              <span style={{
+                                color: '#3b82f6',
+                                fontSize: '10px',
+                                fontWeight: 500,
+                                marginTop: '2px',
+                                opacity: 0.8
+                              }}>
+                                Bank: {card.bank_account_nickname}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <Box sx={{ fontSize: '18px', fontWeight: 700, color: 'primary.main' }}>
-                        ₪{formatNumber(card.card_expenses)}
-                      </Box>
-                      <Box sx={{
-                        fontSize: '11px',
-                        color: 'text.secondary',
-                        marginTop: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <div style={{
-                          flex: 1,
-                          height: '4px',
-                          background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.2)',
-                          borderRadius: '2px',
-                          overflow: 'hidden'
+                        <Box sx={{ fontSize: '18px', fontWeight: 700, color: 'primary.main' }}>
+                          ₪{formatNumber(card.card_expenses > 0 ? card.card_expenses : card.bank_expenses)}
+                        </Box>
+                        <Box sx={{
+                          fontSize: '11px',
+                          color: 'text.secondary',
+                          marginTop: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
                         }}>
                           <div style={{
-                            width: `${percentage}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                            flex: 1,
+                            height: '4px',
+                            background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.2)',
                             borderRadius: '2px',
-                            transition: 'width 0.3s ease'
-                          }} />
-                        </div>
-                        <span>{percentage}%</span>
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              width: `${percentage}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                              borderRadius: '2px',
+                              transition: 'width 0.3s ease'
+                            }} />
+                          </div>
+                          <span>{percentage}%</span>
+                        </Box>
                       </Box>
-                    </Box>
-                  );
-                })}
+                    );
+                  })}
 
                 {/* Bank Account Summary Section */}
                 <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
@@ -1671,7 +1643,8 @@ const MonthlySummary: React.FC = () => {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     {bankAccountSummary.map((bank) => (
                       <Box
-                        key={bank.bank_account_id || 'unassigned'}
+                        key={bank.bank_account_id || bank.bank_account_nickname || 'unassigned'}
+                        onClick={() => handleBankAccountClick(bank)}
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1681,7 +1654,14 @@ const MonthlySummary: React.FC = () => {
                           backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
                           border: `1px solid ${theme.palette.divider}`,
                           minWidth: '200px',
-                          flex: '1 1 auto'
+                          flex: '1 1 auto',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+                            borderColor: 'primary.main',
+                            transform: 'translateY(-2px)'
+                          }
                         }}
                       >
                         <Box

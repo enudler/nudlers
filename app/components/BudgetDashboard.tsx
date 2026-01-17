@@ -29,35 +29,9 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { useNotification } from './NotificationContext';
+import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 
-// Date range mode type
-type DateRangeMode = 'calendar' | 'billing';
-
-// Helper function to calculate date range based on mode
-const getDateRange = (year: string, month: string, mode: DateRangeMode): { startDate: string; endDate: string } => {
-  const y = parseInt(year);
-  const m = parseInt(month);
-
-  if (mode === 'calendar') {
-    // Full calendar month: 1st to last day of month
-    const startDate = `${year}-${month}-01`;
-    const lastDay = new Date(y, m, 0).getDate();
-    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  } else {
-    // Billing cycle: 10th of previous month to 9th of selected month
-    // Example: February selection = January 10 to February 9
-    let prevMonth = m - 1;
-    let prevYear = y;
-    if (prevMonth === 0) {
-      prevMonth = 12;
-      prevYear = y - 1;
-    }
-    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-10`;
-    const endDate = `${year}-${month}-09`;
-    return { startDate, endDate };
-  }
-};
+// Helper function removed (handled by context)
 
 interface Budget {
   id: number;
@@ -129,32 +103,46 @@ const BudgetDashboard: React.FC = () => {
     color: theme.palette.primary.main
   };
 
-  const SELECT_STYLE = {
-    padding: '14px 28px',
+  const selectStyle: React.CSSProperties = {
+    padding: '14px 40px 14px 14px', // Extra right padding for arrow
     borderRadius: '16px',
-    border: '1px solid rgba(148, 163, 184, 0.2)',
-    background: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
     backdropFilter: 'blur(10px)',
     color: theme.palette.text.primary,
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
     outline: 'none',
-    textAlign: 'right' as const,
-    direction: 'rtl' as const,
+    textAlign: 'left' as const,
+    direction: 'ltr' as const,
     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none' as 'none',
+    backgroundImage: theme.palette.mode === 'dark'
+      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
+      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    backgroundSize: '16px'
   };
+  // Date Selection Context
+  const {
+    selectedYear, setSelectedYear,
+    selectedMonth, setSelectedMonth,
+    dateRangeMode, setDateRangeMode,
+    uniqueYears,
+    uniqueMonths,
+    startDate, endDate, billingCycle
+  } = useDateSelection();
+
+  // Local state for data
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [budgetsWithSpending, setBudgetsWithSpending] = useState<BudgetWithSpending[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [uniqueYears, setUniqueYears] = useState<string[]>([]);
-  const [uniqueMonths, setUniqueMonths] = useState<string[]>([]);
-  const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
-  const [dateRangeMode, setDateRangeMode] = useState<DateRangeMode>('billing');
+
 
   // Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -197,7 +185,6 @@ const BudgetDashboard: React.FC = () => {
       if (mode === 'billing') {
         url.searchParams.append('billingCycle', `${year}-${month}`);
       } else {
-        const { startDate, endDate } = getDateRange(year, month, mode);
         url.searchParams.append('startDate', startDate);
         url.searchParams.append('endDate', endDate);
       }
@@ -206,7 +193,6 @@ const BudgetDashboard: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch spending data');
       const data = await response.json();
 
-      // Map budgets with their spending data
       const budgetsWithData: BudgetWithSpending[] = budgetList.map(budget => {
         const spendingData = data.categories.find((c: any) => c.category === budget.category);
         const actualSpent = spendingData?.actual_spent || 0;
@@ -222,11 +208,9 @@ const BudgetDashboard: React.FC = () => {
         };
       });
 
-      // Sort by percent used descending
       budgetsWithData.sort((a, b) => b.percent_used - a.percent_used);
       setBudgetsWithSpending(budgetsWithData);
 
-      // Set total spend budget data from API response
       if (data.total_spend_budget) {
         setTotalSpendBudget(data.total_spend_budget);
       }
@@ -235,47 +219,9 @@ const BudgetDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [startDate, endDate]);
 
-  const fetchAvailableMonths = useCallback(async () => {
-    try {
-      const response = await fetch('/api/available_months');
-      const dates = await response.json();
-      setAllAvailableDates(dates);
-
-      // Sort dates in descending order
-      const sortedDates = dates.sort((a: string, b: string) => b.localeCompare(a));
-
-      // Default to current month/year (the current billing cycle)
-      const now = new Date();
-      const currentYear = now.getFullYear().toString();
-      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-      const currentYearMonth = `${currentYear}-${currentMonth}`;
-
-      // Use current month if available, otherwise fall back to most recent
-      const defaultDate = sortedDates.includes(currentYearMonth) ? currentYearMonth : sortedDates[0];
-      const defaultYear = defaultDate.substring(0, 4);
-      const defaultMonth = defaultDate.substring(5, 7);
-
-      const years = Array.from(new Set(dates.map((d: string) => d.substring(0, 4)))) as string[];
-
-      setUniqueYears(years);
-      setSelectedYear(defaultYear);
-
-      const monthsForYear = dates
-        .filter((d: string) => d.startsWith(defaultYear))
-        .map((d: string) => d.substring(5, 7));
-      const months = Array.from(new Set(monthsForYear)) as string[];
-
-      setUniqueMonths(months);
-      setSelectedMonth(defaultMonth);
-
-      return { year: defaultYear, month: defaultMonth };
-    } catch (error) {
-      logger.error('Error fetching available months', error as Error);
-      return null;
-    }
-  }, []);
+  // fetchAvailableMonths removed (managed by context)
 
   const fetchAllCategories = useCallback(async () => {
     try {
@@ -295,7 +241,6 @@ const BudgetDashboard: React.FC = () => {
       if (mode === 'billing') {
         url.searchParams.append('cycle', `${year}-${month}`);
       } else {
-        const { startDate, endDate } = getDateRange(year, month, mode);
         url.searchParams.append('startDate', startDate);
         url.searchParams.append('endDate', endDate);
       }
@@ -310,60 +255,37 @@ const BudgetDashboard: React.FC = () => {
     } finally {
       setBurndownLoading(false);
     }
-  }, []);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     const init = async () => {
-      const [budgetList, dateInfo] = await Promise.all([
+      // Always fetch budgets and categories
+      const [budgetList] = await Promise.all([
         fetchBudgets(),
-        fetchAvailableMonths(),
         fetchAllCategories()
       ]);
-      if (dateInfo && budgetList.length > 0) {
-        fetchSpendingData(dateInfo.year, dateInfo.month, dateRangeMode, budgetList);
-        fetchBurndownData(dateInfo.year, dateInfo.month, dateRangeMode);
-      } else if (dateInfo) {
-        fetchSpendingData(dateInfo.year, dateInfo.month, dateRangeMode, []);
-        fetchBurndownData(dateInfo.year, dateInfo.month, dateRangeMode);
-      } else {
+
+      // If we have selected dates from context, fetch data
+      if (startDate && endDate && budgetList) {
+        fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgetList);
+        fetchBurndownData(selectedYear, selectedMonth, dateRangeMode);
         setLoading(false);
       }
     };
     init();
-  }, [fetchBudgets, fetchAvailableMonths, fetchAllCategories, fetchSpendingData, fetchBurndownData]);
+  }, [startDate, endDate, dateRangeMode, fetchBudgets, fetchAllCategories, fetchSpendingData, fetchBurndownData]);
 
-  const handleYearChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newYear = event.target.value;
-    setSelectedYear(newYear);
-
-    const monthsForYear = allAvailableDates
-      .filter((d: string) => d.startsWith(newYear))
-      .map((d: string) => d.substring(5, 7));
-    const months = Array.from(new Set(monthsForYear)) as string[];
-    setUniqueMonths(months);
-
-    const monthToUse = months.includes(selectedMonth) ? selectedMonth : months[0];
-    if (!months.includes(selectedMonth)) {
-      setSelectedMonth(monthToUse);
-    }
-
-    fetchSpendingData(newYear, monthToUse, dateRangeMode, budgets);
-    fetchBurndownData(newYear, monthToUse, dateRangeMode);
+  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedYear(event.target.value);
+    // Context handles month adjustment
   };
 
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newMonth = event.target.value;
-    setSelectedMonth(newMonth);
-    fetchSpendingData(selectedYear, newMonth, dateRangeMode, budgets);
-    fetchBurndownData(selectedYear, newMonth, dateRangeMode);
+    setSelectedMonth(event.target.value);
   };
 
   const handleDateRangeModeChange = (mode: DateRangeMode) => {
     setDateRangeMode(mode);
-    if (selectedYear && selectedMonth) {
-      fetchSpendingData(selectedYear, selectedMonth, mode, budgets);
-      fetchBurndownData(selectedYear, selectedMonth, mode);
-    }
   };
 
   const handleRefresh = async () => {
@@ -475,7 +397,7 @@ const BudgetDashboard: React.FC = () => {
 
       if (!response.ok) throw new Error('Failed to save total budget');
 
-      showNotification('Total spend budget saved successfully', 'success');
+      showNotification('Total credit card budget saved successfully', 'success');
       setIsTotalBudgetModalOpen(false);
       setNewTotalBudgetLimit('');
 
@@ -492,7 +414,7 @@ const BudgetDashboard: React.FC = () => {
   };
 
   const handleDeleteTotalBudget = async () => {
-    if (!confirm('Are you sure you want to remove the total spend budget?')) return;
+    if (!confirm('Are you sure you want to remove the total credit card budget?')) return;
 
     try {
       const response = await fetch('/api/total_budget', {
@@ -501,7 +423,7 @@ const BudgetDashboard: React.FC = () => {
 
       if (!response.ok) throw new Error('Failed to delete total budget');
 
-      showNotification('Total spend budget removed', 'success');
+      showNotification('Total credit card budget removed', 'success');
       setTotalSpendBudget(null);
 
       // Refresh data
@@ -545,7 +467,7 @@ const BudgetDashboard: React.FC = () => {
           right: '-5%',
           width: '600px',
           height: '600px',
-          background: 'radial-gradient(circle, rgba(34, 197, 94, 0.08) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%)',
           borderRadius: '50%',
           filter: 'blur(60px)',
           zIndex: 0
@@ -556,7 +478,7 @@ const BudgetDashboard: React.FC = () => {
           left: '-5%',
           width: '500px',
           height: '500px',
-          background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, transparent 70%)',
           borderRadius: '50%',
           filter: 'blur(60px)',
           zIndex: 0
@@ -591,7 +513,7 @@ const BudgetDashboard: React.FC = () => {
             right: 0,
             width: '300px',
             height: '300px',
-            background: 'radial-gradient(circle, rgba(34, 197, 94, 0.1) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
             filter: 'blur(40px)',
             zIndex: 0,
             display: { xs: 'none', md: 'block' }
@@ -606,19 +528,21 @@ const BudgetDashboard: React.FC = () => {
             gap: { xs: '16px', md: '24px' }
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: '12px', md: '16px' } }}>
-              <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: theme.palette.success.main }} />
+              <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: theme.palette.primary.main }} />
               <div>
                 <Box component="h1" sx={{
                   fontSize: { xs: '22px', md: '28px' },
                   fontWeight: 700,
                   margin: 0,
-                  background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                  background: theme.palette.mode === 'dark'
+                    ? 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)'
+                    : 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
-                }}>Monthly Budgets</Box>
+                }}>Monthly Credit Card Budgets</Box>
                 <Box component="p" sx={{ margin: '4px 0 0', color: 'text.secondary', fontSize: { xs: '12px', md: '14px' } }}>
-                  Set general budget limits for each category
+                  Set general budget limits for credit card categories
                 </Box>
               </div>
             </Box>
@@ -653,7 +577,7 @@ const BudgetDashboard: React.FC = () => {
               <IconButton
                 onClick={handleOpenAddModal}
                 sx={{
-                  background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                   backdropFilter: 'blur(10px)',
                   padding: '14px',
                   borderRadius: '16px',
@@ -663,7 +587,7 @@ const BudgetDashboard: React.FC = () => {
                   boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
                   '&:hover': {
                     transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(34, 197, 94, 0.4)'
+                    boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)'
                   }
                 }}
               >
@@ -673,51 +597,19 @@ const BudgetDashboard: React.FC = () => {
               <select
                 value={selectedYear}
                 onChange={handleYearChange}
-                style={{
-                  minWidth: '120px',
-                  padding: '14px 28px',
-                  borderRadius: '16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  background: theme.palette.background.default,
-                  backdropFilter: 'blur(10px)',
-                  color: theme.palette.text.primary,
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  textAlign: 'right',
-                  direction: 'rtl',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
+                style={{ ...selectStyle, minWidth: '120px' }}
               >
                 {uniqueYears.map((year) => (
-                  <option key={year} value={year} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>{year}</option>
+                  <option key={year} value={year} style={{ background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', color: theme.palette.text.primary }}>{year}</option>
                 ))}
               </select>
               <select
                 value={selectedMonth}
                 onChange={handleMonthChange}
-                style={{
-                  minWidth: '160px',
-                  padding: '14px 28px',
-                  borderRadius: '16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  background: theme.palette.background.default,
-                  backdropFilter: 'blur(10px)',
-                  color: theme.palette.text.primary,
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  textAlign: 'right',
-                  direction: 'rtl',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
+                style={{ ...selectStyle, minWidth: '160px' }}
               >
                 {uniqueMonths.map((month) => (
-                  <option key={month} value={month} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
+                  <option key={month} value={month} style={{ background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', color: theme.palette.text.primary }}>
                     {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
                   </option>
                 ))}
@@ -725,7 +617,7 @@ const BudgetDashboard: React.FC = () => {
               {/* Date Range Mode Toggle */}
               <div style={{
                 display: 'flex',
-                background: theme.palette.background.default,
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
                 backdropFilter: 'blur(10px)',
                 borderRadius: '16px',
                 border: `1px solid ${theme.palette.divider}`,
@@ -743,9 +635,9 @@ const BudgetDashboard: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'calendar'
-                      ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'calendar' ? theme.palette.common.white : theme.palette.text.secondary,
+                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -769,15 +661,15 @@ const BudgetDashboard: React.FC = () => {
                     borderRadius: '12px',
                     border: 'none',
                     background: dateRangeMode === 'billing'
-                      ? `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
                       : 'transparent',
-                    color: dateRangeMode === 'billing' ? theme.palette.common.white : theme.palette.text.secondary,
+                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(34, 197, 94, 0.3)'
+                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
                       : 'none'
                   }}
                 >
@@ -798,11 +690,11 @@ const BudgetDashboard: React.FC = () => {
             }}>
               {dateRangeMode === 'billing' ? (
                 <span style={{
-                  background: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
+                  background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
                   padding: '6px 12px',
                   borderRadius: '8px',
-                  border: `1px solid ${theme.palette.success.main}`,
-                  color: theme.palette.success.main
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  color: theme.palette.primary.main
                 }}>
                   💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
@@ -814,12 +706,7 @@ const BudgetDashboard: React.FC = () => {
                   border: `1px solid ${theme.palette.primary.main}`,
                   color: theme.palette.primary.main
                 }}>
-                  📅 Full Month: {(() => {
-                    const { startDate, endDate } = getDateRange(selectedYear, selectedMonth, 'calendar');
-                    const start = new Date(startDate);
-                    const end = new Date(endDate);
-                    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-                  })()}
+                  📅 {dateRangeMode === 'custom' ? 'Custom Range' : 'Full Month'}: {new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               )}
             </div>
@@ -828,7 +715,7 @@ const BudgetDashboard: React.FC = () => {
 
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
-            <CircularProgress style={{ color: theme.palette.success.main }} />
+            <CircularProgress style={{ color: theme.palette.primary.main }} />
           </div>
         ) : (
           <>
@@ -856,7 +743,7 @@ const BudgetDashboard: React.FC = () => {
                 height: '200px',
                 background: totalSpendBudget?.is_over_budget
                   ? 'radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%)'
-                  : 'radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)',
+                  : 'radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%)',
                 borderRadius: '50%',
                 filter: 'blur(20px)'
               }} />
@@ -869,7 +756,7 @@ const BudgetDashboard: React.FC = () => {
                       borderRadius: '16px',
                       background: totalSpendBudget?.is_over_budget
                         ? `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`
-                        : `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
+                        : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -884,7 +771,7 @@ const BudgetDashboard: React.FC = () => {
                         fontWeight: 700,
                         color: theme.palette.text.primary
                       }}>
-                        Total Spend Budget
+                        Total Credit Card Budget
                       </h2>
                       <p style={{ margin: '4px 0 0', color: theme.palette.text.secondary, fontSize: '13px' }}>
                         Overall spending limit across all credit cards
@@ -896,8 +783,8 @@ const BudgetDashboard: React.FC = () => {
                       size="small"
                       onClick={handleOpenTotalBudgetModal}
                       style={{
-                        color: theme.palette.secondary.main,
-                        background: 'rgba(139, 92, 246, 0.1)',
+                        color: theme.palette.primary.main,
+                        background: 'rgba(59, 130, 246, 0.1)',
                         borderRadius: '12px'
                       }}
                     >

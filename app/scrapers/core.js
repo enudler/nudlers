@@ -73,12 +73,13 @@ export function getScraperOptions(companyId, startDate, isRateLimited, options =
         '--use-mock-keychain',
         '--disable-gpu',
         '--disable-software-rasterizer',
-        '--headless=new',
     ];
 
     if (showBrowser) {
         baseArgs.push('--remote-debugging-port=9222');
         baseArgs.push('--remote-debugging-address=0.0.0.0');
+    } else {
+        baseArgs.push('--headless=new');
     }
 
     let timeout = options.timeout;
@@ -92,6 +93,7 @@ export function getScraperOptions(companyId, startDate, isRateLimited, options =
         combineInstallments: false,
         additionalTransactionInformation: fetchCategories,
         showBrowser,
+        headless: showBrowser ? false : 'new',
         verbose: options.verbose ?? true,
         timeout,
         executablePath: getChromePath(),

@@ -1,5 +1,7 @@
 import { createApiHandler } from "./utils/apiHandler";
 import { decrypt } from "./utils/encryption";
+import { getDB } from "./db";
+import { getBillingCycleSql } from "../../utils/transaction_logic";
 
 const handler = createApiHandler({
   validate: (req) => {
@@ -10,14 +12,23 @@ const handler = createApiHandler({
   query: async (req) => {
     const { startDate, endDate, billingCycle, last4digits } = req.query;
 
-    // Build the date filter clause based on billingCycle or date range
-    const useBillingCycle = !!billingCycle;
+    // If billingCycle is provided, use consistent Logic
+    let billingStartDay = 10;
+    let effectiveMonthSql = null;
 
-    // Join with card_ownership to get the correct credential for each card
-    const credentialJoin = `
-      LEFT JOIN card_ownership co ON t.vendor = co.vendor AND t.account_number = co.account_number
-      LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
-    `;
+    if (billingCycle) {
+      // Import settings
+      const client = await getDB();
+      try {
+        const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+        if (settingsResult.rows.length > 0) {
+          billingStartDay = parseInt(settingsResult.rows[0].value);
+        }
+      } finally {
+        client.release();
+      }
+      effectiveMonthSql = getBillingCycleSql(billingStartDay, 't.date', 't.processed_date');
+    }
 
     // Handle 'Unknown' case - match null or empty account_number
     if (last4digits === 'Unknown') {
@@ -42,7 +53,7 @@ const handler = createApiHandler({
               vc.card6_digits as card6_digits_encrypted
             FROM transactions t
             ${credentialJoin}
-            WHERE TO_CHAR(COALESCE(t.processed_date, t.date), 'YYYY-MM') = $1
+            WHERE (${effectiveMonthSql}) = $1
             AND (t.account_number IS NULL OR t.account_number = '')
             ORDER BY t.identifier, t.vendor, t.date DESC
           `,
@@ -98,7 +109,7 @@ const handler = createApiHandler({
             vc.card6_digits as card6_digits_encrypted
           FROM transactions t
           ${credentialJoin}
-          WHERE TO_CHAR(COALESCE(t.processed_date, t.date), 'YYYY-MM') = $1
+          WHERE (${effectiveMonthSql}) = $1
           AND RIGHT(t.account_number, 4) = $2
           ORDER BY t.identifier, t.vendor, t.date DESC
         `,

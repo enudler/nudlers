@@ -53,6 +53,7 @@ interface Settings {
   whatsapp_twilio_auth_token: string;
   whatsapp_twilio_from: string;
   whatsapp_to: string;
+  whatsapp_summary_mode: 'calendar' | 'cycle';
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -131,7 +132,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     whatsapp_twilio_sid: '',
     whatsapp_twilio_auth_token: '',
     whatsapp_twilio_from: '',
-    whatsapp_to: ''
+    whatsapp_to: '',
+    whatsapp_summary_mode: 'calendar'
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -175,7 +177,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           whatsapp_twilio_sid: (data.settings.whatsapp_twilio_sid || '').replace(/"/g, ''),
           whatsapp_twilio_auth_token: (data.settings.whatsapp_twilio_auth_token || '').replace(/"/g, ''),
           whatsapp_twilio_from: (data.settings.whatsapp_twilio_from || '').replace(/"/g, ''),
-          whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, '')
+          whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, ''),
+          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle'
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -644,6 +647,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     },
                   }}
                 />
+              </SettingRow>
+
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Summary Mode</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Time period to cover in the summary
+                  </Typography>
+                </Box>
+                <Select
+                  value={settings.whatsapp_summary_mode}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_summary_mode: e.target.value as 'calendar' | 'cycle' })}
+                  size="small"
+                  sx={{ width: 220, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                >
+                  <MenuItem value="calendar">Calendar Month (1st-30th)</MenuItem>
+                  <MenuItem value="cycle">Billing Cycle (from {settings.billing_cycle_start_day}th)</MenuItem>
+                </Select>
               </SettingRow>
 
               <SettingRow>

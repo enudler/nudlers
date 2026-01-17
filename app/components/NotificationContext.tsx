@@ -24,18 +24,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [message, setMessage] = useState('');
   const [severity, setSeverity] = useState<AlertColor>('success');
 
-  const showNotification = (message: string, severity: AlertColor = 'success') => {
+  const showNotification = React.useCallback((message: string, severity: AlertColor = 'success') => {
     setMessage(message);
     setSeverity(severity);
     setOpen(true);
-  };
+  }, []);
+
+  const contextValue = React.useMemo(() => ({ showNotification }), [showNotification]);
 
   const handleClose = () => {
     setOpen(false);
   };
 
   return (
-    <NotificationContext.Provider value={{ showNotification }}>
+    <NotificationContext.Provider value={contextValue}>
       {children}
       <Snackbar
         open={open}

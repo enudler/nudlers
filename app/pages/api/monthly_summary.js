@@ -1,4 +1,6 @@
 import { createApiHandler } from "./utils/apiHandler";
+import { getDB } from "./db";
+import { getBillingCycleSql } from "../../utils/transaction_logic";
 
 const handler = createApiHandler({
   query: async (req) => {
@@ -9,10 +11,23 @@ const handler = createApiHandler({
     const params = [];
     let paramIndex = 1;
 
-    // If billingCycle is provided (e.g., "2026-01"), filter by processed_date month
+    // If billingCycle is provided (e.g., "2026-01"), filter by effective billing month
     // This is more accurate for credit card billing cycles
     if (billingCycle) {
-      whereClause = `WHERE TO_CHAR(t.processed_date, 'YYYY-MM') = $${paramIndex}`;
+      // Import settings
+      const client = await getDB();
+      let billingStartDay = 10;
+      try {
+        const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+        if (settingsResult.rows.length > 0) {
+          billingStartDay = parseInt(settingsResult.rows[0].value);
+        }
+      } finally {
+        client.release();
+      }
+
+      const effectiveMonthSql = getBillingCycleSql(billingStartDay, 't.date', 't.processed_date');
+      whereClause = `WHERE (${effectiveMonthSql}) = $${paramIndex}`;
       params.push(billingCycle);
       paramIndex++;
     }
@@ -107,12 +122,13 @@ const handler = createApiHandler({
             COALESCE(ba.bank_account_number, co.custom_bank_account_number) as bank_account_number,
             co.custom_bank_account_number,
             co.custom_bank_account_nickname,
-            ba.vendor as bank_account_vendor
+            ba.vendor as bank_account_vendor,
+            t.vendor as transaction_vendor
           FROM transactions t
           ${credentialJoin}
           LEFT JOIN vendor_credentials ba ON co.linked_bank_account_id = ba.id
           ${whereClause}
-          GROUP BY COALESCE(RIGHT(t.account_number, 4), 'Unknown'), ba.id, ba.nickname, ba.bank_account_number, ba.vendor, co.custom_bank_account_nickname, co.custom_bank_account_number
+          GROUP BY COALESCE(RIGHT(t.account_number, 4), 'Unknown'), t.vendor, ba.id, ba.nickname, ba.bank_account_number, ba.vendor, co.custom_bank_account_nickname, co.custom_bank_account_number
           ORDER BY (
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) +
             COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) +
