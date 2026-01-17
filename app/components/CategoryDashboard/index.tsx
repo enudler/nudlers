@@ -27,6 +27,7 @@ import TransactionsTable from './components/TransactionsTable';
 import { useScreenContext } from '../Layout';
 import { useDateSelection, DateRangeMode } from '../../context/DateSelectionContext';
 import { logger } from '../../utils/client-logger';
+import { CREDIT_CARD_VENDORS, BANK_VENDORS as IMPORTED_BANK_VENDORS } from '../../utils/constants';
 
 // Transaction interface for type safety
 import { useNotification } from '../NotificationContext';
@@ -47,11 +48,7 @@ interface BudgetInfo {
 const MAX_YEARS_RANGE = 5;
 
 // Known Israeli bank vendors (to distinguish from credit cards)
-const BANK_VENDORS = [
-  'poalim', 'leumi', 'discount', 'mizrahi', 'otsar_hahayal',
-  'yahav', 'fibi', 'massad', 'union', 'beinleumi', 'jerusalem',
-  'onezero', 'pepper'
-];
+const BANK_VENDORS = IMPORTED_BANK_VENDORS;
 const isBankTransaction = (transaction: any) => {
   // 1. Check for Credit Card signals FIRST (Priority over category)
   // If it has card signals, it is a Card transaction, regardless of category (e.g. 'Bank' fees on card)
@@ -62,10 +59,18 @@ const isBankTransaction = (transaction: any) => {
 
   if (hasCardSignals) return false;
 
-  // 2. Explicit Categories (that are definitely Bank-side if not Card)
-  if (transaction.category === 'Bank' || transaction.category === 'Income') return true;
+  // 2. Check vendor source against known CC vendors
+  if (transaction.vendor) {
+    const vendorLower = transaction.vendor.toLowerCase();
+    if (CREDIT_CARD_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
+      return false;
+    }
+  }
 
-  // 3. Check vendor source
+  // 3. Explicit Categories (that are definitely Bank-side if not Card)
+  if (transaction.category === 'Bank' || transaction.category === 'Income' || transaction.category === 'Salary') return true;
+
+  // 4. Check vendor source against known Bank vendors
   if (transaction.vendor) {
     const vendorLower = transaction.vendor.toLowerCase();
     if (BANK_VENDORS.some(v => vendorLower.includes(v))) {
@@ -350,18 +355,17 @@ const CategoryDashboard: React.FC = () => {
 
       const totalIncome = bankData
         .filter((transaction: any) =>
-          transaction.price > 0 &&
-          (transaction.category === 'Income' || transaction.category === 'Salary' || transaction.category === 'Bank')
+          isBankTransaction(transaction) && transaction.price > 0
         )
         .reduce((acc: number, transaction: any) => acc + transaction.price, 0);
 
       const totalExpenses = bankData
-        .filter((transaction: any) => (transaction.category === 'Bank' || isBankTransaction(transaction)) && transaction.price < 0 && transaction.category !== 'Income')
+        .filter((transaction: any) => isBankTransaction(transaction) && transaction.price < 0)
         .reduce((acc: number, transaction: any) => acc + Math.abs(transaction.price), 0);
 
       // Calculate net expenses for credit cards using cardData (Cycle based)
       const creditCardNetSum = cardData
-        .filter((transaction: any) => !isBankTransaction(transaction) && transaction.category !== 'Income')
+        .filter((transaction: any) => !isBankTransaction(transaction))
         .reduce((acc: number, transaction: any) => acc + transaction.price, 0);
 
       const creditCardExpenses = Math.abs(creditCardNetSum);
@@ -378,7 +382,7 @@ const CategoryDashboard: React.FC = () => {
       setBankTransactions({ income: 0, expenses: 0 });
       setCreditCardTransactions(0);
     }
-  }, [selectedYear, selectedMonth, dateRangeMode, fetchBudgetData]);
+  }, [startDate, endDate, billingCycle, fetchBudgetData]);
 
   // Theme-aware styles
   // Theme-aware styles
@@ -536,10 +540,9 @@ const CategoryDashboard: React.FC = () => {
       // Passing undefined for billingCycle forces fetchAllTransactions to use startDate/endDate.
       const allTransactions = await fetchAllTransactions(startDate, endDate, undefined);
 
-      // Filter for Bank category transactions (both positive and negative)
-      // Includes explicit 'Bank' category, or transactions from Bank Source
+      // Filter for Bank transactions (both positive and negative)
       const bankTransactionsData = allTransactions.filter((transaction: any) =>
-        transaction.category === 'Bank' || (isBankTransaction(transaction) && transaction.category !== 'Income' && transaction.price < 0)
+        isBankTransaction(transaction)
       );
 
       // Format the data correctly - include identifier and vendor for editing/deleting
@@ -573,9 +576,9 @@ const CategoryDashboard: React.FC = () => {
 
       const allExpensesData = await fetchAllTransactions(startDate, endDate, billingCycle);
 
-      // Filter out Bank transactions (Bank category, Income, or Bank Source)
+      // Filter for Credit Card transactions (not Bank)
       const creditCardData = allExpensesData.filter((transaction: any) =>
-        !isBankTransaction(transaction) && transaction.category !== 'Income'
+        !isBankTransaction(transaction)
       );
 
       // Format the data correctly - include identifier and vendor for editing/deleting

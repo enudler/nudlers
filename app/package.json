@@ -27,7 +27,7 @@
     "@mui/x-date-pickers": "^8.3.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
-    "israeli-bank-scrapers": "^6.6.0",
+    "israeli-bank-scrapers": "^6.6.1",
     "next": "^15.1.6",
     "next-auth": "^4.24.11",
     "node-cron": "^4.2.1",

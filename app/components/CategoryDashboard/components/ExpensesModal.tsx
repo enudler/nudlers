@@ -103,8 +103,12 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
 
   const sortedExpenses = React.useMemo(() => getSortedData(data.data), [data.data, getSortedData]);
 
+  const isBankView = data.type === "Bank Transactions" ||
+    data.type === "All Bank Expenses" ||
+    (data.type && (data.type.startsWith('Account') || data.type.startsWith('Bank') || data.type.startsWith('Search:')));
+
   React.useEffect(() => {
-    if (data.type === "Bank Transactions" || (data.type && data.type.startsWith('Search:'))) {
+    if (isBankView) {
       setChartData([]);
       return;
     }
@@ -424,7 +428,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             name: expense.name,
             date: expense.date,
             price: expense.price,
-            category: data.type === "Bank Transactions" ? 'Bank' : (expense.category || data.type)
+            category: isBankView ? 'Bank' : (expense.category || data.type)
           }),
         });
 
@@ -496,7 +500,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     >
       <ModalHeader title={data.type} onClose={onClose} />
       <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
-        {data.type !== "Bank Transactions" && !data.type.startsWith('Search:') && (
+        {!isBankView && (
           <Box sx={{
             mb: 4,
             p: 3,
@@ -754,9 +758,9 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   </TableCell>
                   <TableCell align="right" style={{
                     ...getTableBodyCellStyle(theme),
-                    color: data.type === "Bank Transactions"
+                    color: isBankView
                       ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                      : color,
+                      : (expense.price < 0 ? '#F87171' : color),
                     fontWeight: '600'
                   }}>
                     {editingExpense?.identifier === expense.identifier &&
@@ -769,7 +773,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                         inputProps={{
                           style: {
                             textAlign: 'right',
-                            color: data.type === "Bank Transactions"
+                            color: isBankView
                               ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
                               : color
                           }
@@ -778,7 +782,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                           width: '100px',
                           '& .MuiOutlinedInput-root': {
                             '& fieldset': {
-                              borderColor: data.type === "Bank Transactions"
+                              borderColor: isBankView
                                 ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
                                 : color,
                             },
@@ -804,8 +808,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                           return currency + ' ';
                         };
 
-                        if (data.type === "Bank Transactions") {
-                          return `${expense.price >= 0 ? '+' : ''}₪${formatNumber(displayAmount)}`;
+                        const sign = expense.price >= 0 ? (isBankView ? '+' : '') : '-';
+
+                        if (isBankView) {
+                          return `${sign}₪${formatNumber(displayAmount)}`;
                         }
 
                         // For foreign currency transactions, show ILS amount with original amount below
@@ -816,7 +822,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
 
                           return (
                             <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span>₪{formatNumber(displayAmount)}</span>
+                              <span>{sign}₪{formatNumber(displayAmount)}</span>
                               <span style={{
                                 fontSize: '11px',
                                 color: '#64748b'
@@ -827,7 +833,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                           );
                         }
 
-                        return `₪${formatNumber(displayAmount)}`;
+                        return `${sign}₪${formatNumber(displayAmount)}`;
                       })()
                     )}
                   </TableCell>

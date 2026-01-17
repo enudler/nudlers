@@ -13,22 +13,14 @@
  * @returns {string} The SQL fragment returning a 'YYYY-MM' string
  */
 export function getBillingCycleSql(startDay = 10, dateCol = 'date', processedDateCol = 'processed_date') {
-    // Note: We cast to ::numeric for DAY extraction safety, though usually not needed if column is date/timestamp
-    // TO_CHAR returns YYYY-MM
-    // PostgreSQL specific
-
     return `
-        CASE 
-            WHEN ${processedDateCol} IS NOT NULL THEN 
-                TO_CHAR(${processedDateCol}, 'YYYY-MM')
-            ELSE
-                TO_CHAR(
-                    CASE 
-                        WHEN EXTRACT(DAY FROM ${dateCol}) >= ${startDay} THEN (${dateCol} + INTERVAL '1 month')
-                        ELSE ${dateCol}
-                    END,
-                    'YYYY-MM'
-                )
-        END
+        TO_CHAR(
+            CASE 
+                WHEN EXTRACT(DAY FROM COALESCE(${processedDateCol}, ${dateCol})) > ${startDay} 
+                THEN (COALESCE(${processedDateCol}, ${dateCol}) + INTERVAL '1 month')
+                ELSE COALESCE(${processedDateCol}, ${dateCol})
+            END, 
+            'YYYY-MM'
+        )
     `;
 }

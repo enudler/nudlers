@@ -32,9 +32,40 @@ import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
 import { useScreenContext } from './Layout';
 import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 import { logger } from '../utils/client-logger';
+import { CREDIT_CARD_VENDORS, BANK_VENDORS } from '../utils/constants';
 
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
+
+const isBankTransaction = (transaction: any) => {
+  // 1. Check for Credit Card signals FIRST
+  const hasCardSignals =
+    Boolean(transaction.card6_digits) ||
+    (transaction.account_number && String(transaction.account_number).length === 4) ||
+    (transaction.installments_total && transaction.installments_total > 0);
+
+  if (hasCardSignals) return false;
+
+  // 2. Check vendor source against known CC vendors
+  if (transaction.vendor) {
+    const vendorLower = transaction.vendor.toLowerCase();
+    if (CREDIT_CARD_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
+      return false;
+    }
+  }
+
+  // 3. Explicit Categories
+  if (transaction.category === 'Bank' || transaction.category === 'Income' || transaction.category === 'Salary') return true;
+
+  // 4. Check vendor source against known Bank vendors
+  if (transaction.vendor) {
+    const vendorLower = transaction.vendor.toLowerCase();
+    if (BANK_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
+      return true;
+    }
+  }
+  return false;
+};
 
 interface MonthlySummaryData {
   month: string;
@@ -50,6 +81,8 @@ interface MonthlySummaryData {
 interface CardSummary {
   last4digits: string;
   card_expenses: number;
+  bank_income: number;
+  bank_expenses: number;
   card_vendor?: string | null;
   bank_account_id?: number | null;
   bank_account_nickname?: string | null;
@@ -57,6 +90,7 @@ interface CardSummary {
   bank_account_vendor?: string | null;
   custom_bank_account_number?: string | null;
   custom_bank_account_nickname?: string | null;
+  transaction_vendor?: string | null;
 }
 
 interface BankAccountSummary {
@@ -246,7 +280,7 @@ const MonthlySummary: React.FC = () => {
     init();
   }, []);
 
-  const fetchCardVendors = async () => {
+  const fetchCardVendors = useCallback(async () => {
     try {
       const response = await fetch('/api/card_vendors');
       if (response.ok) {
@@ -267,7 +301,7 @@ const MonthlySummary: React.FC = () => {
     } catch (error) {
       logger.error('Error fetching card vendors', error);
     }
-  };
+  }, []);
 
   const handleVendorMenuOpen = (event: React.MouseEvent<HTMLElement>, last4digits: string) => {
     event.stopPropagation();
@@ -408,20 +442,25 @@ const MonthlySummary: React.FC = () => {
         interface CardAPIResponse {
           last4digits: string;
           card_expenses: string | number;
+          bank_income?: string | number;
+          bank_expenses?: string | number;
           bank_account_id?: number | null;
           bank_account_nickname?: string | null;
           bank_account_number?: string | null;
           bank_account_vendor?: string | null;
           custom_bank_account_number?: string | null;
           custom_bank_account_nickname?: string | null;
+          transaction_vendor?: string | null;
         }
         const cardResult: CardAPIResponse[] = await cardResponse.json();
-        // Filter to only include cards with expenses (exclude 0 card_expenses)
+        // Filter to include cards with expenses OR bank activity
         const cards: CardSummary[] = cardResult
-          .filter((c) => Number(c.card_expenses) > 0)
+          .filter((c) => Number(c.card_expenses) > 0 || Number(c.bank_expenses) > 0 || Number(c.bank_income) > 0)
           .map((c) => ({
             last4digits: c.last4digits,
             card_expenses: Number(c.card_expenses),
+            bank_income: Number(c.bank_income || 0),
+            bank_expenses: Number(c.bank_expenses || 0),
             bank_account_id: c.bank_account_id || null,
             bank_account_nickname: c.bank_account_nickname || null,
             bank_account_number: c.bank_account_number || null,
@@ -429,6 +468,7 @@ const MonthlySummary: React.FC = () => {
             // Prioritize custom details if they exist and no linked account
             custom_bank_account_number: c.custom_bank_account_number || null,
             custom_bank_account_nickname: c.custom_bank_account_nickname || null,
+            transaction_vendor: c.transaction_vendor || null,
           }));
         setCardSummary(cards);
 
@@ -436,6 +476,9 @@ const MonthlySummary: React.FC = () => {
         const bankSummaryMap = new Map<string, BankAccountSummary>();
 
         cards.forEach((card) => {
+          const cardVendor = cardResult.find(r => r.last4digits === card.last4digits)?.transaction_vendor || cardVendorMap[card.last4digits];
+          const isBank = cardVendor && BANK_VENDORS.includes(cardVendor);
+
           let key = 'unassigned';
           let nickname = 'Unassigned Cards';
           let acctNumber: string | null = null;
@@ -450,12 +493,18 @@ const MonthlySummary: React.FC = () => {
             acctNumber = card.bank_account_number || null;
             vendor = card.bank_account_vendor || null;
           } else if (card.custom_bank_account_number || card.custom_bank_account_nickname) {
-            // Custom Account (Group by number if available, else nickname)
+            // Custom Account
             const customKey = card.custom_bank_account_number || card.custom_bank_account_nickname || 'custom-unknown';
             key = `custom-${customKey}`;
             nickname = card.custom_bank_account_nickname || 'Custom Bank Account';
             acctNumber = card.custom_bank_account_number || null;
             vendor = 'Custom';
+          } else if (isBank || card.bank_expenses > 0 || card.bank_income > 0) {
+            // Unassigned Bank Account
+            const bankVendor = card.transaction_vendor || 'Other Bank';
+            key = `bank-${bankVendor}`;
+            nickname = bankVendor;
+            vendor = bankVendor;
           }
 
           if (!bankSummaryMap.has(key)) {
@@ -469,7 +518,7 @@ const MonthlySummary: React.FC = () => {
           }
 
           const summary = bankSummaryMap.get(key)!;
-          summary.total_expenses += card.card_expenses;
+          summary.total_expenses += (card.card_expenses + card.bank_expenses);
         });
 
         // Convert map to array and sort by expenses descending
@@ -483,40 +532,20 @@ const MonthlySummary: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYear, selectedMonth, groupBy, dateRangeMode, customStartDate, customEndDate]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate]);
 
   useEffect(() => {
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate) {
-        // Ensure not null/undefined before checking
         fetchMonthlySummary();
       }
-    } else if (selectedYear && selectedMonth) {
+    } else if (startDate && endDate) {
       fetchMonthlySummary();
     }
-  }, [selectedYear, selectedMonth, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
 
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newYear = event.target.value;
-    setSelectedYear(newYear);
-    localStorage.setItem('monthlySummary_year', newYear);
-
-    // Context handles uniqueMonths update based on selectedYear
-    // We just need to handle the month selection logic if the current month is invalid for the new year
-
-    // Calculate new available months for logic check (redundant but safe since context is async/external)
-    const monthsForYear = allAvailableDates
-      .filter((date: string) => date.startsWith(newYear))
-      .map((date: string) => date.substring(5, 7));
-
-    const uniqueMonthsForYear = Array.from(new Set(monthsForYear)) as string[];
-
-    // If current month is not available in new year, select the first available month
-    if (!uniqueMonthsForYear.includes(selectedMonth)) {
-      const firstMonth = uniqueMonthsForYear[0];
-      setSelectedMonth(firstMonth);
-      localStorage.setItem('monthlySummary_month', firstMonth);
-    }
+    setSelectedYear(event.target.value);
   };
 
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -574,10 +603,8 @@ const MonthlySummary: React.FC = () => {
       }
 
       const transactions = await response.json();
-      // Filter to only credit card transactions (exclude Bank and Income)
-      const cardTransactions = transactions.filter((t: any) =>
-        t.category !== 'Bank' && t.category !== 'Income'
-      );
+      // Filter to only credit card transactions (not Bank)
+      const cardTransactions = transactions.filter((t: any) => !isBankTransaction(t));
 
       setModalData({
         type: 'All Card Expenses',
@@ -753,6 +780,72 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
+  const handleBankAccountClick = async (bank: BankAccountSummary) => {
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+
+    try {
+      setLoading(true);
+
+      let url: string;
+      if (bank.bank_account_id) {
+        // If we have an ID, we could potentially fetch by ID if API supported it.
+        // For now, let's use the account number or vendor if ID is linked.
+        if (dateRangeMode === 'custom') {
+          url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
+        } else if (dateRangeMode === 'billing') {
+          url = `/api/category_expenses?billingCycle=${selectedYear}-${selectedMonth}&all=true`;
+        } else {
+          url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        }
+      } else {
+        // Unassigned - fetch by vendor
+        const vendor = bank.bank_account_vendor || 'Other';
+        if (dateRangeMode === 'custom') {
+          url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
+        } else if (dateRangeMode === 'billing') {
+          url = `/api/category_expenses?billingCycle=${selectedYear}-${selectedMonth}&all=true`;
+        } else {
+          url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        }
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      const allTransactions = await response.json();
+
+      // Filter the transactions locally to match this bank account
+      const filteredTransactions = allTransactions.filter((t: any) => {
+        if (bank.bank_account_id) {
+          // This is tricky because transactions might not have bank_account_id directly
+          // We match by account number if available, or vendor + category 'Bank'
+          const isSameAccount = bank.bank_account_number && String(t.account_number).endsWith(bank.bank_account_number);
+          const isSameVendor = t.vendor && t.vendor.toLowerCase() === bank.bank_account_vendor?.toLowerCase();
+          return isSameAccount || (isSameVendor && isBankTransaction(t));
+        } else {
+          // Unassigned - match by vendor/source
+          return t.vendor && t.vendor.toLowerCase() === bank.bank_account_vendor?.toLowerCase() && isBankTransaction(t);
+        }
+      });
+
+      setModalData({
+        type: bank.bank_account_nickname,
+        data: filteredTransactions
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      logger.error('Error fetching bank transactions', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLast4DigitsClick = async (last4digits: string) => {
     if (dateRangeMode === 'custom') {
       if (!customStartDate || !customEndDate) return;
@@ -780,8 +873,13 @@ const MonthlySummary: React.FC = () => {
 
       const transactions = await response.json();
 
+      // Determine if it's a bank account for the modal title
+      const cardInfo = cardSummary.find(c => c.last4digits === last4digits);
+      const isBank = cardInfo?.transaction_vendor && BANK_VENDORS.includes(cardInfo.transaction_vendor) ||
+        cardInfo?.bank_account_vendor && BANK_VENDORS.includes(cardInfo.bank_account_vendor) && !cardInfo.card_vendor;
+
       setModalData({
-        type: `Card ending in ${last4digits}`,
+        type: isBank ? `Account ending in ${last4digits}` : `Card ending in ${last4digits}`,
         data: transactions
       });
       setIsModalOpen(true);
@@ -792,13 +890,23 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
-  // Calculate totals from filtered data
-  const totals = data.reduce(
-    (acc, row) => ({
-      card_expenses: acc.card_expenses + Number(row.card_expenses),
-    }),
-    { card_expenses: 0 }
-  );
+  // Calculate totals from card summary (excluding bank accounts)
+  const totals = useMemo(() => {
+    return cardSummary.reduce(
+      (acc, card) => {
+        const cardVendor = cardVendorMap[card.last4digits];
+        const transVendor = card.transaction_vendor;
+        const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
+          (cardVendor && BANK_VENDORS.includes(cardVendor));
+
+        if (!isBank) {
+          acc.card_expenses += card.card_expenses;
+        }
+        return acc;
+      },
+      { card_expenses: 0 }
+    );
+  }, [cardSummary, cardVendorMap]);
 
   // Update AI Assistant screen context when data changes
   useEffect(() => {
@@ -1379,140 +1487,153 @@ const MonthlySummary: React.FC = () => {
                 </Box>
 
                 {/* Individual Cards by Last 4 Digits */}
-                {cardSummary.map((card) => {
-                  const isLoading = loadingLast4 === card.last4digits;
-                  const percentage = totals.card_expenses > 0
-                    ? Math.round((card.card_expenses / totals.card_expenses) * 100)
-                    : 0;
-                  const cardVendor = cardVendorMap[card.last4digits];
+                {cardSummary
+                  .filter(card => {
+                    const cardVendor = cardVendorMap[card.last4digits];
+                    const transVendor = card.transaction_vendor;
+                    const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
+                      (cardVendor && BANK_VENDORS.includes(cardVendor));
+                    return !isBank;
+                  })
+                  .map((card) => {
+                    const isLoading = loadingLast4 === card.last4digits;
+                    const percentage = totals.card_expenses > 0
+                      ? Math.round((card.card_expenses / totals.card_expenses) * 100)
+                      : 0;
+                    const cardVendor = cardVendorMap[card.last4digits];
+                    const transVendor = card.transaction_vendor;
+                    const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
+                      (cardVendor && BANK_VENDORS.includes(cardVendor));
 
-                  return (
-                    <Box
-                      key={card.last4digits}
-                      sx={{
-                        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
-                        borderRadius: '16px',
-                        padding: '16px 20px',
-                        minWidth: '160px',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        border: `1px solid ${theme.palette.divider}`,
-                        opacity: isLoading ? 0.7 : 1,
-                        position: 'relative',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
-                          borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
-                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                          '& .vendor-settings-btn': {
-                            opacity: 1
-                          }
-                        }
-                      }}
-                      onClick={() => handleLast4DigitsClick(card.last4digits)}
-                    >
-                      {/* Settings button for vendor selection */}
-                      <IconButton
-                        className="vendor-settings-btn"
-                        size="small"
-                        onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
+                    return (
+                      <Box
+                        key={card.last4digits}
                         sx={{
-                          position: 'absolute',
-                          top: '4px',
-                          right: '4px',
-                          opacity: 0,
-                          transition: 'opacity 0.2s',
-                          padding: '4px',
-                          color: 'text.secondary',
+                          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
+                          borderRadius: '16px',
+                          padding: '16px 20px',
+                          minWidth: '160px',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          border: `1px solid ${theme.palette.divider}`,
+                          opacity: isLoading ? 0.7 : 1,
+                          position: 'relative',
                           '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            color: 'primary.main'
+                            transform: 'translateY(-2px)',
+                            background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
+                            borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                            '& .vendor-settings-btn': {
+                              opacity: 1
+                            }
                           }
                         }}
+                        onClick={() => handleLast4DigitsClick(card.last4digits)}
                       >
-                        <SettingsIcon sx={{ fontSize: '16px' }} />
-                      </IconButton>
+                        {/* Settings button for vendor selection */}
+                        <IconButton
+                          className="vendor-settings-btn"
+                          size="small"
+                          onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
+                          sx={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            opacity: 0,
+                            transition: 'opacity 0.2s',
+                            padding: '4px',
+                            color: 'text.secondary',
+                            '&:hover': {
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              color: 'primary.main'
+                            }
+                          }}
+                        >
+                          <SettingsIcon sx={{ fontSize: '16px' }} />
+                        </IconButton>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        {isLoading ? (
-                          <CircularProgress size={20} style={{ color: '#3b82f6' }} />
-                        ) : (
-                          <CardVendorIcon vendor={cardVendor || null} size={28} />
-                        )}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                          {cardNicknameMap[card.last4digits] ? (
-                            <>
-                              <Box component="span" sx={{
-                                color: 'text.primary',
-                                fontSize: '13px',
-                                fontWeight: 700,
-                              }}>
-                                {cardNicknameMap[card.last4digits]}
-                              </Box>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          {isLoading ? (
+                            <CircularProgress size={20} style={{ color: '#3b82f6' }} />
+                          ) : isBank ? (
+                            <AccountBalanceIcon sx={{ fontSize: 24, color: 'primary.main' }} />
+                          ) : (
+                            <CardVendorIcon vendor={cardVendor || null} size={28} />
+                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                            {cardNicknameMap[card.last4digits] ? (
+                              <>
+                                <Box component="span" sx={{
+                                  color: 'text.primary',
+                                  fontSize: '13px',
+                                  fontWeight: 700,
+                                }}>
+                                  {cardNicknameMap[card.last4digits]}
+                                </Box>
+                                <Box component="span" sx={{
+                                  color: 'text.secondary',
+                                  fontSize: '11px',
+                                  fontFamily: 'monospace',
+                                  letterSpacing: '1px'
+                                }}>
+                                  {isBank ? 'Account' : '••••'} {card.last4digits}
+                                </Box>
+                              </>
+                            ) : (
                               <Box component="span" sx={{
                                 color: 'text.secondary',
-                                fontSize: '11px',
+                                fontSize: '13px',
+                                fontWeight: 700,
                                 fontFamily: 'monospace',
                                 letterSpacing: '1px'
                               }}>
-                                •••• {card.last4digits}
+                                {isBank ? 'Account' : '••••'} {card.last4digits}
                               </Box>
-                            </>
-                          ) : (
-                            <Box component="span" sx={{
-                              color: 'text.secondary',
-                              fontSize: '13px',
-                              fontWeight: 700,
-                              fontFamily: 'monospace',
-                              letterSpacing: '1px'
-                            }}>
-                              •••• {card.last4digits}
-                            </Box>
-                          )}
-                          {card.bank_account_nickname && (
-                            <span style={{
-                              color: '#3b82f6',
-                              fontSize: '10px',
-                              fontWeight: 500,
-                              marginTop: '2px',
-                              opacity: 0.8
-                            }}>
-                              Bank: {card.bank_account_nickname}
-                            </span>
-                          )}
+                            )}
+                            {card.bank_account_nickname && (
+                              <span style={{
+                                color: '#3b82f6',
+                                fontSize: '10px',
+                                fontWeight: 500,
+                                marginTop: '2px',
+                                opacity: 0.8
+                              }}>
+                                Bank: {card.bank_account_nickname}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <Box sx={{ fontSize: '18px', fontWeight: 700, color: 'primary.main' }}>
-                        ₪{formatNumber(card.card_expenses)}
-                      </Box>
-                      <Box sx={{
-                        fontSize: '11px',
-                        color: 'text.secondary',
-                        marginTop: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <div style={{
-                          flex: 1,
-                          height: '4px',
-                          background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.2)',
-                          borderRadius: '2px',
-                          overflow: 'hidden'
+                        <Box sx={{ fontSize: '18px', fontWeight: 700, color: 'primary.main' }}>
+                          ₪{formatNumber(card.card_expenses > 0 ? card.card_expenses : card.bank_expenses)}
+                        </Box>
+                        <Box sx={{
+                          fontSize: '11px',
+                          color: 'text.secondary',
+                          marginTop: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
                         }}>
                           <div style={{
-                            width: `${percentage}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                            flex: 1,
+                            height: '4px',
+                            background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.2)',
                             borderRadius: '2px',
-                            transition: 'width 0.3s ease'
-                          }} />
-                        </div>
-                        <span>{percentage}%</span>
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              width: `${percentage}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                              borderRadius: '2px',
+                              transition: 'width 0.3s ease'
+                            }} />
+                          </div>
+                          <span>{percentage}%</span>
+                        </Box>
                       </Box>
-                    </Box>
-                  );
-                })}
+                    );
+                  })}
 
                 {/* Bank Account Summary Section */}
                 <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
@@ -1522,7 +1643,8 @@ const MonthlySummary: React.FC = () => {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     {bankAccountSummary.map((bank) => (
                       <Box
-                        key={bank.bank_account_id || 'unassigned'}
+                        key={bank.bank_account_id || bank.bank_account_nickname || 'unassigned'}
+                        onClick={() => handleBankAccountClick(bank)}
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1532,7 +1654,14 @@ const MonthlySummary: React.FC = () => {
                           backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
                           border: `1px solid ${theme.palette.divider}`,
                           minWidth: '200px',
-                          flex: '1 1 auto'
+                          flex: '1 1 auto',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+                            borderColor: 'primary.main',
+                            transform: 'translateY(-2px)'
+                          }
                         }}
                       >
                         <Box

@@ -185,13 +185,6 @@ const BudgetDashboard: React.FC = () => {
       if (mode === 'billing') {
         url.searchParams.append('billingCycle', `${year}-${month}`);
       } else {
-        // Use global startDate/endDate from context if possible, but here we might need to rely on the passed values or context
-        // Since we are inside useCallback, best to trust the components re-render with new context values
-        // For consistency with how MonthlySummary does it, we should use the context values directly in the URL params
-        // But this function accepts year/month/mode as args.
-        // Let's rely on the fact that if mode is NOT billing, we likely have valid startDate/endDate in the context
-        // However, we can't access them conditionally inside the callback easily without adding them to dependency array
-        // Let's modify the signature to NOT take year/month/mode effectively, or just use the context values directly.
         url.searchParams.append('startDate', startDate);
         url.searchParams.append('endDate', endDate);
       }
@@ -200,7 +193,6 @@ const BudgetDashboard: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch spending data');
       const data = await response.json();
 
-      // Map budgets with their spending data
       const budgetsWithData: BudgetWithSpending[] = budgetList.map(budget => {
         const spendingData = data.categories.find((c: any) => c.category === budget.category);
         const actualSpent = spendingData?.actual_spent || 0;
@@ -216,11 +208,9 @@ const BudgetDashboard: React.FC = () => {
         };
       });
 
-      // Sort by percent used descending
       budgetsWithData.sort((a, b) => b.percent_used - a.percent_used);
       setBudgetsWithSpending(budgetsWithData);
 
-      // Set total spend budget data from API response
       if (data.total_spend_budget) {
         setTotalSpendBudget(data.total_spend_budget);
       }
@@ -276,14 +266,14 @@ const BudgetDashboard: React.FC = () => {
       ]);
 
       // If we have selected dates from context, fetch data
-      if (selectedYear && selectedMonth && budgetList) {
+      if (startDate && endDate && budgetList) {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgetList);
         fetchBurndownData(selectedYear, selectedMonth, dateRangeMode);
         setLoading(false);
       }
     };
     init();
-  }, [selectedYear, selectedMonth, dateRangeMode, fetchBudgets, fetchAllCategories, fetchSpendingData, fetchBurndownData]);
+  }, [startDate, endDate, dateRangeMode, fetchBudgets, fetchAllCategories, fetchSpendingData, fetchBurndownData]);
 
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedYear(event.target.value);

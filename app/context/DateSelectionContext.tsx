@@ -101,7 +101,15 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
     const [allAvailableDates, setAllAvailableDates] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const [computedRange, setComputedRange] = useState({ startDate: '', endDate: '' });
+    // Calculate Computed Range synchronously
+    const computedRange = React.useMemo(() => {
+        if (dateRangeMode === 'custom') {
+            return { startDate: customStartDate, endDate: customEndDate };
+        } else if (selectedYear && selectedMonth) {
+            return getDateRangeBase(selectedYear, selectedMonth, dateRangeMode, billingStartDay);
+        }
+        return { startDate: '', endDate: '' };
+    }, [selectedYear, selectedMonth, dateRangeMode, customStartDate, customEndDate, billingStartDay]);
 
     // Initialize state
     const init = useCallback(async () => {
@@ -213,7 +221,7 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [init]);
 
     // Handle Year Change
-    const handleSetYear = (year: string) => {
+    const handleSetYear = useCallback((year: string) => {
         setSelectedYear(year);
         localStorage.setItem('monthlySummary_year', year);
 
@@ -230,16 +238,16 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
             setSelectedMonth(newMonth);
             localStorage.setItem('monthlySummary_month', newMonth);
         }
-    };
+    }, [allAvailableDates, selectedMonth]);
 
     // Handle Month Change
-    const handleSetMonth = (month: string) => {
+    const handleSetMonth = useCallback((month: string) => {
         setSelectedMonth(month);
         localStorage.setItem('monthlySummary_month', month);
-    };
+    }, []);
 
     // Handle Mode Change
-    const handleSetMode = (mode: DateRangeMode) => {
+    const handleSetMode = useCallback((mode: DateRangeMode) => {
         setDateRangeMode(mode);
         localStorage.setItem('monthlySummary_mode', mode);
 
@@ -254,42 +262,44 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
                 setCustomEndDate(formatDate(now));
             }
         }
-    };
+    }, [customStartDate, customEndDate]);
 
-    // Calculate Computed Range whenever dependencies change
-    useEffect(() => {
-        if (dateRangeMode === 'custom') {
-            setComputedRange({ startDate: customStartDate, endDate: customEndDate });
-        } else if (selectedYear && selectedMonth) {
-            const range = getDateRangeBase(selectedYear, selectedMonth, dateRangeMode, billingStartDay);
-            setComputedRange(range);
-        }
-    }, [selectedYear, selectedMonth, dateRangeMode, customStartDate, customEndDate, billingStartDay]);
 
     const billingCycle = dateRangeMode === 'billing' ? `${selectedYear}-${selectedMonth}` : undefined;
 
+    const contextValue = React.useMemo(() => ({
+        selectedYear,
+        setSelectedYear: handleSetYear,
+        selectedMonth,
+        setSelectedMonth: handleSetMonth,
+        dateRangeMode,
+        setDateRangeMode: handleSetMode,
+        customStartDate,
+        setCustomStartDate,
+        customEndDate,
+        setCustomEndDate,
+        uniqueYears,
+        uniqueMonths,
+        startDate: computedRange.startDate,
+        endDate: computedRange.endDate,
+        billingCycle,
+        isLoading,
+        refreshData: init,
+        allAvailableDates,
+        billingStartDay
+    }), [
+        selectedYear, handleSetYear,
+        selectedMonth, handleSetMonth,
+        dateRangeMode, handleSetMode,
+        customStartDate, customEndDate,
+        uniqueYears, uniqueMonths,
+        computedRange, billingCycle,
+        isLoading, init,
+        allAvailableDates, billingStartDay
+    ]);
+
     return (
-        <DateSelectionContext.Provider value={{
-            selectedYear,
-            setSelectedYear: handleSetYear,
-            selectedMonth,
-            setSelectedMonth: handleSetMonth,
-            dateRangeMode,
-            setDateRangeMode: handleSetMode,
-            customStartDate,
-            setCustomStartDate,
-            customEndDate,
-            setCustomEndDate,
-            uniqueYears,
-            uniqueMonths,
-            startDate: computedRange.startDate,
-            endDate: computedRange.endDate,
-            billingCycle,
-            isLoading,
-            refreshData: init,
-            allAvailableDates,
-            billingStartDay
-        }}>
+        <DateSelectionContext.Provider value={contextValue}>
             {children}
         </DateSelectionContext.Provider>
     );

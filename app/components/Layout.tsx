@@ -117,6 +117,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setScreenContext(prev => ({ ...prev, view }));
   };
 
+  const contextValue = React.useMemo(() => ({
+    currentView,
+    setCurrentView: handleViewChange,
+    screenContext,
+    setScreenContext,
+    syncDrawerOpen,
+    setSyncDrawerOpen,
+    syncDrawerWidth,
+    setSyncDrawerWidth
+  }), [currentView, screenContext, syncDrawerOpen, syncDrawerWidth]);
+
   const renderView = () => {
     switch (currentView) {
       case 'summary':
@@ -141,19 +152,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return null; // Or a centralized loading spinner
   }
 
+
   return (
     <DateSelectionProvider>
       <NotificationProvider>
-        <ViewContext.Provider value={{
-          currentView,
-          setCurrentView: handleViewChange,
-          screenContext,
-          setScreenContext,
-          syncDrawerOpen,
-          setSyncDrawerOpen,
-          syncDrawerWidth,
-          setSyncDrawerWidth
-        }}>
+        <ViewContext.Provider value={contextValue}>
           <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
             <ResponsiveAppBar
               currentView={currentView}

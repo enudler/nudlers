@@ -289,45 +289,80 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     }
   }
 
-  // Generate identifier if not provided
-  const txId = identifier || generateTransactionIdentifier(transaction, vendor, accountNumber);
+  // Normalize values for business key check
+  const normalizedName = (description || '').trim().toLowerCase();
+  const normalizedAccountNumber = accountNumber || '';
 
-  // Check if transaction already exists (primary key is identifier + vendor)
-  const existing = await client.query(
-    'SELECT identifier, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
+  // 1. Generate identifier
+  const txId = identifier || generateTransactionIdentifier(transaction, vendor, accountNumber);
+  const signedPrice = chargedAmount || originalAmount || 0;
+  const absPrice = Math.abs(signedPrice);
+
+  // 2. Try to find existing transaction (by identifier OR business key)
+  let existingRes = await client.query(
+    'SELECT identifier, category, category_source, price FROM transactions WHERE identifier = $1 AND vendor = $2',
     [txId, vendor]
   );
 
-  if (existing.rows.length > 0) {
-    // If enabled and we have a new resolved category (from scraper OR rules OR cache)
-    if (updateCategoryOnRescrape && finalCategory && finalCategory !== 'N/A' && finalCategory !== '') {
-      const currentCategory = existing.rows[0].category;
-      const currentSource = existing.rows[0].category_source;
+  if (existingRes.rows.length === 0) {
+    // Check business key constraint (vendor, date, name, price, account_number)
+    // Extended check: also look for ±1 day shift for timezone-related duplicates
+    existingRes = await client.query(
+      `SELECT identifier, category, category_source, price FROM transactions 
+       WHERE vendor = $1 
+         AND ABS(date - $2) <= 1
+         AND LOWER(TRIM(name)) = $3 
+         AND ABS(price) = $4 
+         AND COALESCE(account_number, '') = $5`,
+      [vendor, date, normalizedName, absPrice, normalizedAccountNumber]
+    );
+  }
 
-      // Only update if the current category is essentially empty/undefined/N/A/Uncategorized
-      // OR if it's not a manual edit (cache) and we have a better category
+  // 3. If found ANY existing transaction, handle updates
+  if (existingRes.rows.length > 0) {
+    const existingRow = existingRes.rows[0];
+    const realIdentifier = existingRow.identifier; // Use DB identifier for updates to ensure we target the right row
+    const currentPrice = parseFloat(existingRow.price);
+    let wasUpdated = false;
+
+    // A. Fix price sign/value if different (Crucial for Bank transactions)
+    if (currentPrice !== signedPrice) {
+      logger.info({
+        identifier: realIdentifier,
+        vendor,
+        oldPrice: currentPrice,
+        newPrice: signedPrice
+      }, '[Scraper] Updating transaction price sign/value');
+      await client.query(
+        'UPDATE transactions SET price = $1 WHERE identifier = $2 AND vendor = $3',
+        [signedPrice, realIdentifier, vendor]
+      );
+      wasUpdated = true;
+    }
+
+    // B. Category update logic (If enabled and we have a better category)
+    if (updateCategoryOnRescrape && finalCategory && finalCategory !== 'N/A' && finalCategory !== '') {
+      const currentCategory = existingRow.category;
+      const currentSource = existingRow.category_source;
+
       const isCurrentCategoryEmpty = !currentCategory ||
         currentCategory === 'N/A' ||
         currentCategory === '' ||
         currentCategory.toLowerCase() === 'uncategorized';
 
-      // Allow update if empty, OR if not manual override (cache) and different
-      // Note: We use finalCategory which now includes Rule logic, so this fixes the user's issue
       const shouldUpdate = isCurrentCategoryEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory);
 
       if (shouldUpdate && currentCategory !== finalCategory) {
         logger.info({
-          txId,
+          identifier: realIdentifier,
           vendor,
           oldCategory: currentCategory,
-          newCategory: finalCategory,
-          oldSource: currentSource,
-          newSource: categorySource
+          newCategory: finalCategory
         }, '[Scraper] Updating transaction category based on re-scrape');
 
         await client.query(
           'UPDATE transactions SET category = $1, category_source = $2, rule_matched = $3 WHERE identifier = $4 AND vendor = $5',
-          [finalCategory, categorySource, ruleDetails, txId, vendor]
+          [finalCategory, categorySource, ruleDetails, realIdentifier, vendor]
         );
         return {
           success: true,
@@ -341,13 +376,8 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       }
     }
 
-    return { success: true, duplicated: true, updated: false };
+    return { success: true, duplicated: true, updated: wasUpdated };
   }
-
-  // Normalize values for business key check
-  const normalizedName = (description || '').trim().toLowerCase();
-  const normalizedPrice = Math.abs(chargedAmount || originalAmount || 0);
-  const normalizedAccountNumber = accountNumber || '';
 
   // Calculate processed_date if not provided or it's a credit card transaction that defaults to transaction date
   let finalProcessedDate = processedDate;
@@ -384,22 +414,6 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
   // (Category logic moved to top)
 
-  // Check business key constraint (vendor, date, name, price, account_number)
-  // Extended check: also look for ±1 day shift for timezone-related duplicates
-  const businessKeyCheck = await client.query(
-    `SELECT identifier FROM transactions 
-     WHERE vendor = $1 
-       AND ABS(date - $2) <= 1
-       AND LOWER(TRIM(name)) = $3 
-       AND ABS(price) = $4 
-       AND COALESCE(account_number, '') = $5`,
-    [vendor, date, normalizedName, normalizedPrice, normalizedAccountNumber]
-  );
-
-  if (businessKeyCheck.rows.length > 0) {
-    return { success: true, duplicated: true };
-  }
-
   // Extra check for installments: if this is an installment, check if a "total" transaction 
   // exists with the same name and date but different price (original_amount instead of price)
   if (installmentsTotal > 1) {
@@ -432,7 +446,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       ON CONFLICT (identifier, vendor) DO NOTHING`,
       [
-        txId, vendor, date, description || '', normalizedPrice,
+        txId, vendor, date, description || '', signedPrice,
         finalCategory, type, finalProcessedDate, originalAmount, originalCurrency,
         defaultCurrency, memo, status || 'completed',
         installmentsNumber, installmentsTotal, accountNumber,
