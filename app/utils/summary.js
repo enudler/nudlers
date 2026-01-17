@@ -107,7 +107,7 @@ export async function generateDailySummary() {
 
         const actualResult = await client.query(
             `SELECT category, 
-            ABS(SUM(price)) as actual_spent
+            ABS(ROUND(SUM(price))) as actual_spent
        FROM transactions
        WHERE ${whereClause}
          AND category IS NOT NULL 

@@ -57,13 +57,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Invalid cycle format. Use YYYY-MM format" });
       }
 
-      // Use consistent helper logic
       const effectiveMonthSql = getBillingCycleSql(billingStartDay, 'date', 'processed_date');
 
       actualSpendingSql = `
         SELECT
           COALESCE(NULLIF(category, ''), 'Uncategorized') as category,
-          ABS(SUM(price)) as actual_spent
+          ABS(ROUND(SUM(price))) as actual_spent
         FROM transactions
         WHERE (${effectiveMonthSql}) = $1
           AND COALESCE(category, '') != 'Bank'
@@ -79,7 +78,7 @@ export default async function handler(req, res) {
       actualSpendingSql = `
         SELECT
           COALESCE(NULLIF(category, ''), 'Uncategorized') as category,
-          ABS(SUM(price)) as actual_spent
+          ABS(ROUND(SUM(price))) as actual_spent
         FROM transactions
         WHERE date >= $1 AND date <= $2
           AND COALESCE(category, '') != 'Bank'

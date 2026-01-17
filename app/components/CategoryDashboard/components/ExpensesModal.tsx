@@ -508,7 +508,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     >
       <ModalHeader title={data.type} onClose={onClose} />
       <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
-        {(
+        {chartData.length > 0 && (
           <Box sx={{
             mb: 4,
             p: 3,
@@ -962,10 +962,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
             </TableBody>
           </Table>
         </Box>
-      </DialogContent>
+      </DialogContent >
 
       {/* Snackbar for feedback messages */}
-      <Snackbar
+      < Snackbar
         open={snackbar.open}
         autoHideDuration={5000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
@@ -982,16 +982,16 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         >
           {snackbar.message}
         </Alert>
-      </Snackbar>
+      </Snackbar >
 
       {/* Delete Confirmation Dialog */}
-      <DeleteConfirmationDialog
+      < DeleteConfirmationDialog
         open={!!confirmDeleteExpense}
         onClose={() => setConfirmDeleteExpense(null)}
         onConfirm={handleDeleteTransaction}
         transaction={confirmDeleteExpense}
       />
-    </Dialog>
+    </Dialog >
   );
 };
 

@@ -37,6 +37,7 @@ const handler = createApiHandler({
       LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
     `;
 
+
     // Handle 'Unknown' case - match null or empty account_number
     if (last4digits === 'Unknown') {
       if (useBillingCycle) {
