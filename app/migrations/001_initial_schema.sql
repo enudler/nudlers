@@ -270,7 +270,7 @@ INSERT INTO app_settings (key, value, description) VALUES
   ('default_currency', '"ILS"', 'The default currency symbol used for display (e.g., ILS, USD)'),
   ('date_format', '"DD/MM/YYYY"', 'The visual format used for displaying dates (e.g., DD/MM/YYYY)'),
   ('billing_cycle_start_day', '10', 'The day of the month when your credit card billing cycle begins'),
-  ('show_browser', 'false', '(Local only) Display browser window during scraping for debugging/2FA'),
+  ('scraper_log_http_requests', 'false', 'Log detailed HTTP requests for scraper debugging'),
   ('update_category_on_rescrape', 'false', 'If a transaction is re-scraped, update it if the bank provides a new category'),
   ('scraper_timeout', '60000', 'Maximum time (ms) allowed for each scraper to run'),
   ('whatsapp_enabled', 'false', 'Send a financial summary via WhatsApp daily'),
