@@ -190,13 +190,14 @@ describe('Sync Reporting and Audit', () => {
 
             (scraperUtils.runScraper as any).mockResolvedValue({ success: true, accounts: [] });
             (scraperUtils.processScrapedAccounts as any).mockResolvedValue(mockStats);
+            (scraperUtils.insertScrapeAudit as any).mockResolvedValue(123);
 
             await scrapeHandler(mockReq, mockRes);
 
             // We check the spy on updateScrapeAudit
             expect(scraperUtils.updateScrapeAudit).toHaveBeenCalledWith(
                 expect.anything(),
-                expect.anything(),
+                123,
                 'success',
                 expect.stringContaining('saved=10'),
                 mockStats
