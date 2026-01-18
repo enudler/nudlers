@@ -407,7 +407,7 @@ async function handler(req, res) {
       // We don't send 'complete' event if cancelled, effectively stopping the stream from client side perspective or just ending it.
       // Client likely closed connection anyway.
     } else {
-      await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
+      await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): fetched=${accumulatedStats.transactions}, saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
 
       // Update last_synced_at
       sendSSE(res, 'progress', {

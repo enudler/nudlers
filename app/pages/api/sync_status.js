@@ -95,7 +95,9 @@ export default async function handler(req, res) {
         vendor,
         start_date,
         status,
+        status,
         message,
+        report_json,
         CASE 
           WHEN created_at IS NOT NULL 
           THEN to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
@@ -116,7 +118,9 @@ export default async function handler(req, res) {
         vendor,
         start_date,
         status,
+        status,
         message,
+        report_json,
         CASE 
           WHEN created_at IS NOT NULL 
           THEN to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
@@ -145,6 +149,35 @@ export default async function handler(req, res) {
     `);
     const accountSyncStatus = lastSyncedResult.rows;
     // PostgreSQL formatted it as ISO string with 'Z' suffix
+
+    // Helper to enrich message with fetched count from report_json
+    const enrichMessage = (item) => {
+      if (item && item.report_json && item.message && item.message.includes('Success')) {
+        // If message doesn't already have "fetched=", try to add it
+        if (!item.message.includes('fetched=')) {
+          const stats = item.report_json;
+          // Check if we have transactions count (fetched)
+          if (typeof stats.transactions === 'number') {
+            // Replace "Success (Chunked): saved=" with "Success (Chunked): fetched=X, saved="
+            // Or just prepend if format matches standard
+            if (item.message.includes('saved=')) {
+              item.message = item.message.replace('saved=', `fetched=${stats.transactions}, saved=`);
+            } else {
+              // Fallback
+              item.message = `${item.message} (fetched=${stats.transactions})`;
+            }
+          }
+        }
+      }
+      // Remove report_json from output to save bandwidth if not needed by frontend (though frontend might use it?)
+      // Frontend SyncStatusModal uses it? No, it uses history list. 
+      // Actually, frontend SyncStatusModal DOES NOT use report_json from the list. It fetches report on click.
+      // So we can remove it to keep payload small.
+      delete item.report_json;
+    };
+
+    if (latestScrape) enrichMessage(latestScrape);
+    history.forEach(enrichMessage);
 
     // Calculate overall sync health
     const now = new Date();
