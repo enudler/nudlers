@@ -794,11 +794,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                               {syncProgress.currentStep}
                             </Typography>
-                            {syncProgress.percent !== undefined && (
-                              <Typography variant="caption" sx={{ color: theme.palette.text.disabled, ml: 'auto' }}>
-                                {syncProgress.percent}%
-                              </Typography>
-                            )}
                           </Box>
                         )}
                       </>

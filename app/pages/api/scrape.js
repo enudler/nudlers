@@ -14,6 +14,7 @@ import {
   insertScrapeAudit,
   updateScrapeAudit,
   updateCredentialLastSynced,
+
   getFetchCategoriesSetting,
   getScraperTimeout,
   runScraper,
@@ -64,10 +65,6 @@ async function handler(req, res) {
     const scraperCredentials = prepareCredentials(options.companyId, credentials);
     validateCredentials(scraperCredentials, options.companyId);
 
-    // Get settings from database (unless explicitly overridden)
-    const showBrowserSetting = options.showBrowser !== undefined
-      ? options.showBrowser
-      : false;
 
     // Get category fetching setting - disabling helps avoid rate limiting
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
@@ -78,7 +75,7 @@ async function handler(req, res) {
 
     const scraperOptions = {
       ...getScraperOptions(companyId, new Date(options.startDate), {
-        showBrowser: showBrowserSetting,
+        showBrowser: false,
         fetchCategories: fetchCategoriesSetting,
         timeout: timeoutSetting,
       }),
@@ -122,7 +119,7 @@ async function handler(req, res) {
       // Handle JSON parsing errors (common with VisaCal API)
       if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || errorMsg.includes('invalid json') || errorMsg.includes('GetFrameStatus') || errorMsg.includes('frame') || errorMsg.includes('timeout')) {
         if (options.companyId === 'visaCal') {
-          throw new Error(`VisaCal API Error: The Cal website returned an invalid response (${errorMsg}). This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes. If the problem persists, try enabling "Show Browser" mode for debugging.`);
+          throw new Error(`VisaCal API Error: The Cal website returned an invalid response (${errorMsg}). This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes.`);
         }
         throw new Error(`API Error: Invalid JSON response from ${options.companyId} (${errorMsg}). This may be a temporary issue. Please try again later.`);
       }

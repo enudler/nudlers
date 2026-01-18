@@ -22,9 +22,8 @@ async function cleanupSettings() {
     const settingsToDelete = [
         'scraper_timeout_standard',
         'scraper_timeout_rate_limited',
-        'scrape_retries',
-        'fallback_no_category_on_error',
-        'rate_limit_wait_seconds'
+        'rate_limit_wait_seconds',
+        'show_browser'
     ];
 
     try {

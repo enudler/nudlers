@@ -631,8 +631,9 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
   // Check if we should use smart scraping for Isracard/Amex/Leumi
   const isSmartVendor = ['isracard', 'amex', 'leumi'].includes(scraperOptions.companyId);
-  const shouldFetchCategories = scraperOptions.additionalTransactionInformation === true;
-  const useSmartScraping = isSmartVendor && shouldFetchCategories && client;
+  // For these vendors, we ALWAYS want to use the 3-phase smart scraping to avoid blocking
+  // and ensure categories are fetched efficiently. We ignore the generic setting for them.
+  const useSmartScraping = isSmartVendor && client;
 
   let options = {
     ...scraperOptions,
@@ -822,10 +823,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 }
 
 // Re-export specific settings helpers
-export async function getShowBrowserSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'show_browser'");
-  return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
-}
+
 
 export async function getFetchCategoriesSetting(client) {
   const result = await client.query("SELECT value FROM app_settings WHERE key = 'fetch_categories_from_scrapers'");
