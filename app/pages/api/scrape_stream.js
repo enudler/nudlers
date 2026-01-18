@@ -129,7 +129,7 @@ async function handler(req, res) {
     });
 
     // Get settings from database (unless explicitly overridden)
-    const showBrowserSetting = false;
+    const showBrowserSetting = options.showBrowser || false;
 
     // Get category fetching setting - disabling helps avoid rate limiting
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);

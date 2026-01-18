@@ -6,10 +6,13 @@
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
 export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal', 'leumi'];
 
+
 /**
  * Shared sleep helper
  */
 export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const LOW_RESOURCES_MODE = process.env.LOW_RESOURCES_MODE === 'true';
 
 /**
  * Get Chromium executable path based on OS/Environment
@@ -75,6 +78,23 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         '--disable-software-rasterizer',
     ];
 
+    if (LOW_RESOURCES_MODE) {
+        baseArgs.push(
+            '--disable-gl-drawing-for-tests',
+            '--mute-audio',
+            '--no-zygote',
+            '--disable-accelerated-2d-canvas',
+            '--disable-dev-shm-usage',
+            '--disable-notifications',
+            '--disable-offer-store-unmasked-wallet-cards',
+            '--disable-offer-upload-credit-cards',
+            '--disable-print-preview',
+            '--disable-speech-api',
+            '--disable-wake-on-wifi',
+            '--disk-cache-size=0' // Disable disk cache to save IO
+        );
+    }
+
     if (showBrowser) {
         baseArgs.push('--remote-debugging-port=9222');
         baseArgs.push('--remote-debugging-address=0.0.0.0');
@@ -135,13 +155,27 @@ export function getPreparePage(options = {}) {
                 const url = request.url();
 
                 // Block Google Analytics and Tag Manager to prevent timeouts
-                if (!skipInterception && (url.includes('google-analytics.com') || url.includes('googletagmanager.com'))) {
-                    try {
-                        request.abort();
-                        return;
-                    } catch (e) {
-                        // ignore if already handled
-                        return;
+                if (!skipInterception) {
+                    if (url.includes('google-analytics.com') || url.includes('googletagmanager.com')) {
+                        try {
+                            request.abort();
+                            return;
+                        } catch (e) {
+                            return;
+                        }
+                    }
+
+                    // Low resource mode: Block heavy resources
+                    if (LOW_RESOURCES_MODE) {
+                        const resourceType = request.resourceType();
+                        if (['image', 'media', 'font', 'texttrack', 'object', 'beacon', 'csp_report', 'imageset'].includes(resourceType)) {
+                            try {
+                                request.abort();
+                                return;
+                            } catch (e) {
+                                return;
+                            }
+                        }
                     }
                 }
 

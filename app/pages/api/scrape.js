@@ -75,7 +75,7 @@ async function handler(req, res) {
 
     const scraperOptions = {
       ...getScraperOptions(companyId, new Date(options.startDate), {
-        showBrowser: false,
+        showBrowser: options.showBrowser || false,
         fetchCategories: fetchCategoriesSetting,
         timeout: timeoutSetting,
       }),
