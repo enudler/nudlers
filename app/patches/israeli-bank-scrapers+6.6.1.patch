@@ -1,0 +1,90 @@
+diff --git a/node_modules/israeli-bank-scrapers/lib/scrapers/max.js b/node_modules/israeli-bank-scrapers/lib/scrapers/max.js
+index ed199af..7a2dbdc 100644
+--- a/node_modules/israeli-bank-scrapers/lib/scrapers/max.js
++++ b/node_modules/israeli-bank-scrapers/lib/scrapers/max.js
+@@ -189,14 +189,14 @@ async function fetchTransactionsForMonth(page, monthMoment, options) {
+   const transactionsByAccount = {};
+   if (!data || !data.result) return transactionsByAccount;
+   data.result.transactions
+-  // Filter out non-transactions without a plan type, e.g. summary rows
+-  .filter(transaction => !!transaction.planName).forEach(transaction => {
+-    if (!transactionsByAccount[transaction.shortCardNumber]) {
+-      transactionsByAccount[transaction.shortCardNumber] = [];
+-    }
+-    const mappedTransaction = mapTransaction(transaction, options);
+-    transactionsByAccount[transaction.shortCardNumber].push(mappedTransaction);
+-  });
++    // Filter out non-transactions without a plan type, e.g. summary rows
++    .filter(transaction => !!transaction.planName).forEach(transaction => {
++      if (!transactionsByAccount[transaction.shortCardNumber]) {
++        transactionsByAccount[transaction.shortCardNumber] = [];
++      }
++      const mappedTransaction = mapTransaction(transaction, options);
++      transactionsByAccount[transaction.shortCardNumber].push(mappedTransaction);
++    });
+   return transactionsByAccount;
+ }
+ function addResult(allResults, result) {
+@@ -230,7 +230,8 @@ async function fetchTransactions(page, options) {
+   await loadCategories(page);
+   let allResults = {};
+   for (let i = 0; i < allMonths.length; i += 1) {
+-    const result = await fetchTransactionsForMonth(page, allMonths[i], options);
++    const monthMoment = allMonths[i];
++    const result = await fetchTransactionsForMonth(page, monthMoment, options);
+     allResults = addResult(allResults, result);
+   }
+   Object.keys(allResults).forEach(accountNumber => {
+diff --git a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+index e1db751..87b4bcf 100644
+--- a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
++++ b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+@@ -246,18 +246,36 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+     const [cards, xSiteId, Authorization] = await Promise.all([this.getCards(), this.getXSiteId(), this.getAuthorizationHeader()]);
+     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
+     debug('fetch frames (misgarot) of cards');
+-    const frames = await (0, _fetch.fetchPost)(FRAMES_REQUEST_ENDPOINT, {
+-      cardsForFrameData: cards.map(({
+-        cardUniqueId
+-      }) => ({
+-        cardUniqueId
+-      }))
+-    }, {
+-      Authorization,
+-      'X-Site-Id': xSiteId,
+-      'Content-Type': 'application/json',
+-      ...apiHeaders
+-    });
++    let frames;
++    try {
++      const fetchPromise = (0, _fetch.fetchPost)(FRAMES_REQUEST_ENDPOINT, {
++        cardsForFrameData: cards.map(({
++          cardUniqueId
++        }) => ({
++          cardUniqueId
++        }))
++      }, {
++        Authorization,
++        'X-Site-Id': xSiteId,
++        'Content-Type': 'application/json',
++        ...apiHeaders
++      });
++
++      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Frames fetch timeout')), 10000));
++      frames = await Promise.race([fetchPromise, timeoutPromise]);
++      console.log('[VISA-CAL-PATCH] Successfully fetched frames via API');
++    } catch (e) {
++      console.log(`[VISA-CAL-PATCH] Frames fetch failed (${e.message}), using fallback synthesis`);
++      frames = {
++        result: {
++          calIssuedCards: {
++            accountLevelFrames: cards.map(c => ({
++              cardUniqueId: c.cardUniqueId
++            }))
++          }
++        }
++      };
++    }
+     const accounts = await Promise.all(cards.map(async card => {
+       const finalMonthToFetchMoment = (0, _moment.default)().add(futureMonthsToScrape, 'month');
+       const months = finalMonthToFetchMoment.diff(startMoment, 'months');
