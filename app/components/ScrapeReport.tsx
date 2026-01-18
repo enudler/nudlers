@@ -27,7 +27,7 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
         return (
             <Box sx={{ width: '100%' }}>
                 {summary && (
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 3 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3 }}>
                         <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.3)' : '#bbf7d0'}`, borderRadius: 3, textAlign: 'center' }}>
                             <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 700, mb: 0.5 }}>0</Typography>
                             <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>New</Typography>
@@ -39,6 +39,12 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                         <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.15)' : '#fff7ed', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.3)' : '#fed7aa'}`, borderRadius: 3, textAlign: 'center' }}>
                             <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 700, mb: 0.5 }}>{summary.duplicateTransactions || 0}</Typography>
                             <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Duplicates</Typography>
+                        </Paper>
+                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.15)' : '#f5f3ff', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.3)' : '#ddd6fe'}`, borderRadius: 3, textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 700, mb: 0.5 }}>
+                                {summary.durationSeconds ? `${Math.floor(summary.durationSeconds / 60)}:${(summary.durationSeconds % 60).toString().padStart(2, '0')}` : '--'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Time</Typography>
                         </Paper>
                     </Box>
                 )}
@@ -85,7 +91,7 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
     return (
         <Box sx={{ width: '100%' }}>
             {/* Summary Stats Cards */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 3 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3 }}>
                 <Paper elevation={0} sx={{
                     p: 2,
                     bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4',
@@ -126,6 +132,20 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                     </Typography>
                     <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         Duplicates
+                    </Typography>
+                </Paper>
+                <Paper elevation={0} sx={{
+                    p: 2,
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.15)' : '#f5f3ff',
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.3)' : '#ddd6fe'}`,
+                    borderRadius: 3,
+                    textAlign: 'center'
+                }}>
+                    <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 700, mb: 0.5 }}>
+                        {stats.durationSeconds ? `${Math.floor(stats.durationSeconds / 60)}:${(stats.durationSeconds % 60).toString().padStart(2, '0')}` : '--'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Time
                     </Typography>
                 </Paper>
             </Box>

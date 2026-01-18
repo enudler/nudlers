@@ -8,7 +8,7 @@ export default async function handler(req, res) {
       case 'GET': {
         const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
         const result = await client.query(
-          `SELECT id, triggered_by, vendor, start_date, status, message, created_at
+          `SELECT id, triggered_by, vendor, start_date, status, message, created_at, report_json, duration_seconds
            FROM scrape_events
            ORDER BY created_at DESC
            LIMIT $1`,

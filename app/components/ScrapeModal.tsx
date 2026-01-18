@@ -109,8 +109,22 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const [stepHistory, setStepHistory] = useState<Array<{ step: string, message: string, success: boolean | null, phase?: string }>>([]);
   const [networkLogs, setNetworkLogs] = useState<NetworkLogEntry[]>([]);
   const [rateLimitState, setRateLimitState] = useState<RateLimitState | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { showNotification } = useNotification();
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isLoading) {
+      const startTime = Date.now();
+      interval = setInterval(() => {
+        setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isLoading]);
   const todayStr = new Date().toISOString().split('T')[0];
   const clampDateString = (value: string) => (value > todayStr ? todayStr : value);
   const defaultConfig: ScraperConfig = {
@@ -224,6 +238,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const handleScrape = async () => {
     setIsLoading(true);
     setError(null);
+    setElapsedSeconds(0);
     setProgress({ step: 'init', message: 'Starting...', percent: 0 });
     setScrapeResult(null);
     setSessionReport([]);
@@ -610,6 +625,12 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     return phases[phase || ''] || 'Processing';
   };
 
+  const formatTime = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
+
   const renderProgress = () => {
     return (
       <Box sx={{ width: '100%', mt: 2 }}>
@@ -672,6 +693,12 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
             {Math.round(progress?.percent || 0)}%
           </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <TimerIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+              {formatTime(elapsedSeconds)}
+            </Typography>
+          </Box>
           {progress?.phase && (
             <Typography variant="caption" sx={{ color: theme.palette.text.disabled }}>
               Step {stepHistory.length + 1}

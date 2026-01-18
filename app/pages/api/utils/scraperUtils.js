@@ -184,7 +184,7 @@ export function prepareCredentials(vendor, rawCredentials) {
     credentials.userCode = String(hapoalimUserCode);
     credentials.password = String(password || '');
   } else if (vendor === 'mizrahi' || vendor === 'yahav' || vendor === 'beinleumi' ||
-    vendor === 'otsarHahayal' || vendor === 'mercantile' || vendor === 'leumi' || vendor === 'mercantile' ||
+    vendor === 'otsarHahayal' || vendor === 'mercantile' || vendor === 'leumi' ||
     vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
     credentials.username = username;
     credentials.password = password;
@@ -538,12 +538,21 @@ export async function updateScrapeAudit(client, auditId, status, message, report
   if (!auditId) return;
   if (report) {
     await client.query(
-      `UPDATE scrape_events SET status = $1, message = $2, report_json = $3 WHERE id = $4`,
+      `UPDATE scrape_events 
+       SET status = $1, 
+           message = $2, 
+           report_json = $3,
+           duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+       WHERE id = $4`,
       [status, message, report, auditId]
     );
   } else {
     await client.query(
-      `UPDATE scrape_events SET status = $1, message = $2 WHERE id = $3`,
+      `UPDATE scrape_events 
+       SET status = $1, 
+           message = $2,
+           duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+       WHERE id = $3`,
       [status, message, auditId]
     );
   }
@@ -629,7 +638,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   const logRequests = scraperOptions.logRequests ?? false;
   const isRateLimited = RATE_LIMITED_VENDORS.includes(scraperOptions.companyId);
 
-  // Check if we should use smart scraping for Isracard/Amex/Leumi
+  // Check if we should use smart scraping for Isracard/Amex
   const isSmartVendor = ['isracard', 'amex', 'leumi'].includes(scraperOptions.companyId);
   // For these vendors, we ALWAYS want to use the 3-phase smart scraping to avoid blocking
   // and ensure categories are fetched efficiently. We ignore the generic setting for them.
