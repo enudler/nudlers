@@ -89,7 +89,7 @@ describe('Sync Reporting and Audit', () => {
             await scraperUtils.updateScrapeAudit(mockClient, auditId, status, message, report);
 
             expect(mockClient.query).toHaveBeenCalledWith(
-                expect.stringContaining('UPDATE scrape_events SET status = $1, message = $2, report_json = $3 WHERE id = $4'),
+                expect.stringMatching(/UPDATE scrape_events\s+SET status = \$1,\s+message = \$2,\s+report_json = \$3,\s+duration_seconds = EXTRACT\(EPOCH FROM \(CURRENT_TIMESTAMP - created_at\)\)\s+WHERE id = \$4/),
                 [status, message, report, auditId]
             );
         });
@@ -102,7 +102,7 @@ describe('Sync Reporting and Audit', () => {
             await scraperUtils.updateScrapeAudit(mockClient, auditId, status, message);
 
             expect(mockClient.query).toHaveBeenCalledWith(
-                expect.stringContaining('UPDATE scrape_events SET status = $1, message = $2 WHERE id = $3'),
+                expect.stringMatching(/UPDATE scrape_events\s+SET status = \$1,\s+message = \$2,\s+duration_seconds = EXTRACT\(EPOCH FROM \(CURRENT_TIMESTAMP - created_at\)\)\s+WHERE id = \$3/),
                 [status, message, auditId]
             );
         });
