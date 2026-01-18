@@ -31,6 +31,7 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
     const [loading, setLoading] = useState(false);
     const [events, setEvents] = useState<any[]>([]);
     const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+    const [reportLoading, setReportLoading] = useState(false);
 
     const fetchEvents = async () => {
         setLoading(true);
@@ -54,8 +55,24 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
         }
     }, [isOpen]);
 
-    const handleSelectEvent = (event: any) => {
+    const handleSelectEvent = async (event: any) => {
         setSelectedEvent(event);
+
+        // Fetch detailed report if missing
+        if (!event.report_json || !event.report_json.processedTransactions) {
+            setReportLoading(true);
+            try {
+                const res = await fetch(`/api/get_scrape_report?id=${event.id}`);
+                if (res.ok) {
+                    const reportData = await res.json();
+                    setSelectedEvent((prev: any) => prev && prev.id === event.id ? { ...prev, report_json: reportData } : prev);
+                }
+            } catch (err) {
+                logger.error('Failed to fetch detailed report', err as Error);
+            } finally {
+                setReportLoading(false);
+            }
+        }
     };
 
     const handleBack = () => {
@@ -111,15 +128,20 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
                             />
                         </Box>
 
-                        {selectedEvent.report_json ? (
+                        {reportLoading ? (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 8, gap: 2 }}>
+                                <CircularProgress size={40} />
+                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>Loading detailed report...</Typography>
+                            </Box>
+                        ) : selectedEvent.report_json ? (
                             <ScrapeReport
                                 report={selectedEvent.report_json.processedTransactions || []}
                                 summary={selectedEvent.report_json}
                             />
                         ) : (
-                            <Box sx={{ p: 4, textAlign: 'center', bgcolor: '#f9fafb', borderRadius: 2 }}>
-                                <Typography variant="body1" sx={{ color: '#374151' }}>No detailed report available for this sync.</Typography>
-                                <Typography variant="caption" sx={{ color: '#6b7280', mt: 1, display: 'block' }}>
+                            <Box sx={{ p: 4, textAlign: 'center', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f9fafb', borderRadius: 2 }}>
+                                <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>No detailed report available for this sync.</Typography>
+                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
                                     {selectedEvent.message}
                                 </Typography>
                             </Box>
@@ -137,7 +159,7 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
                             </Box>
                         ) : (
                             <List>
-                                {events.map((event) => (
+                                {events.map((event: any) => (
                                     <div key={event.id}>
                                         <ListItemButton
                                             onClick={() => handleSelectEvent(event)}

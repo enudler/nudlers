@@ -29,6 +29,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import TimerIcon from '@mui/icons-material/Timer';
 import { BEINLEUMI_GROUP_VENDORS, BANK_VENDORS } from '../utils/constants';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ScrapeReport from './ScrapeReport';
@@ -56,6 +57,7 @@ interface SyncStatus {
     status: string;
     message: string;
     created_at: string;
+    duration_seconds?: number;
   } | null;
   history: Array<{
     id: number;
@@ -64,6 +66,7 @@ interface SyncStatus {
     status: string;
     message: string;
     created_at: string;
+    duration_seconds?: number;
   }>;
   accountSyncStatus: Array<{
     nickname: string;
@@ -231,6 +234,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [syncProgress, setSyncProgress] = useState<{
     current: number;
     total: number;
@@ -304,7 +308,25 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isSyncing) {
+      const startTime = Date.now();
+      setElapsedSeconds(0);
+      interval = setInterval(() => {
+        setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isSyncing]);
 
+  const formatTime = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -582,6 +604,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     status: string;
     message: string;
     created_at: string;
+    duration_seconds?: number;
   }
 
   const handleHistoryClick = async (event: SyncEvent) => {
@@ -778,9 +801,17 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                     <SyncIcon sx={{ fontSize: 24, color: '#60a5fa', animation: `${spin} 1.5s linear infinite` }} />
                   )}
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#60a5fa' }}>
-                      Syncing accounts... ({Math.min(syncProgress.current + 1, syncProgress.total)} / {syncProgress.total})
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#60a5fa' }}>
+                        Syncing accounts... ({Math.min(syncProgress.current + 1, syncProgress.total)} / {syncProgress.total})
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <TimerIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
+                        <Typography variant="caption" sx={{ color: '#60a5fa', fontWeight: 500 }}>
+                          {formatTime(elapsedSeconds)}
+                        </Typography>
+                      </Box>
+                    </Box>
                     {syncProgress.currentAccount && (
                       <>
                         <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 500, mt: 0.5 }}>
@@ -854,9 +885,19 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   </Box>
                 </Box>
                 {status?.latestScrape && (
-                  <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block' }}>
-                    Last activity: {formatRelativeTime(status.latestScrape.created_at)}
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.disabled }}>
+                      Last activity: {formatRelativeTime(status.latestScrape.created_at)}
+                    </Typography>
+                    {status.latestScrape.duration_seconds && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <TimerIcon sx={{ fontSize: 10, color: theme.palette.text.disabled }} />
+                        <Typography variant="caption" sx={{ fontSize: '10px', color: theme.palette.text.disabled }}>
+                          {formatTime(Math.round(status.latestScrape.duration_seconds))}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                 )}
               </StatusCard>
             )}
@@ -1059,9 +1100,19 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                           </Typography>
                         )}
                       </Box>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.disabled, flexShrink: 0 }}>
-                        {formatRelativeTime(event.created_at)}
-                      </Typography>
+                      <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block' }}>
+                          {formatRelativeTime(event.created_at)}
+                        </Typography>
+                        {event.duration_seconds && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end', mt: 0.5 }}>
+                            <TimerIcon sx={{ fontSize: 10, color: theme.palette.text.disabled }} />
+                            <Typography variant="caption" sx={{ fontSize: '10px', color: theme.palette.text.disabled }}>
+                              {formatTime(Math.round(event.duration_seconds))}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
                     </Box>
                   ))}
                 </Box>

@@ -127,6 +127,12 @@ async function handler(req, res) {
       throw new Error(`${errorType}: ${errorMsg}`);
     }
 
+    // Load rules and settings for processing
+    const categorizationRules = await loadCategorizationRules(client);
+    const categoryMappings = await loadCategoryMappings(client);
+    const billingCycleStartDay = await getBillingCycleStartDay(client);
+    const updateCategoryOnRescrape = await getUpdateCategoryOnRescrapeSetting(client);
+
     // Process transactions and save to database using consolidated helper
     const stats = await processScrapedAccounts({
       client,
@@ -148,7 +154,7 @@ async function handler(req, res) {
     }
 
     // Update audit as success
-    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${stats.accounts}, saved=${stats.savedTransactions}, updated=${stats.updatedTransactions}`);
+    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${stats.accounts}, saved=${stats.savedTransactions}, updated=${stats.updatedTransactions}`, stats);
 
     // Update last_synced_at
     await updateCredentialLastSynced(client, credentialId);

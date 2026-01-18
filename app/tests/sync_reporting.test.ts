@@ -1,0 +1,207 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getDB } from '../pages/api/db';
+import * as scraperUtils from '../pages/api/utils/scraperUtils';
+import scrapeEventsHandler from '../pages/api/scrape_events';
+import getScrapeReportHandler from '../pages/api/get_scrape_report';
+import scrapeHandler from '../pages/api/scrape';
+
+// Mock the database module
+vi.mock('../pages/api/db', () => ({
+    getDB: vi.fn()
+}));
+
+// Mock the logger
+vi.mock('../utils/logger.js', () => ({
+    default: {
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn()
+    }
+}));
+
+// Mock scraperUtils functions selectively
+vi.mock('../pages/api/utils/scraperUtils', async (importOriginal) => {
+    const actual: any = await importOriginal();
+    return {
+        ...actual,
+        runScraper: vi.fn(),
+        processScrapedAccounts: vi.fn(),
+        updateScrapeAudit: vi.spyOn(actual, 'updateScrapeAudit'), // Spy on the actual implementation
+        insertScrapeAudit: vi.fn().mockResolvedValue(123),
+        updateCredentialLastSynced: vi.fn(),
+        getFetchCategoriesSetting: vi.fn().mockResolvedValue(true),
+        getScraperTimeout: vi.fn().mockResolvedValue(60000),
+        getScraperOptions: vi.fn().mockReturnValue({}),
+        getLogHttpRequestsSetting: vi.fn().mockResolvedValue(false),
+        loadCategorizationRules: vi.fn().mockResolvedValue([]),
+        loadCategoryMappings: vi.fn().mockResolvedValue({}),
+        getUpdateCategoryOnRescrapeSetting: vi.fn().mockResolvedValue(false),
+        getBillingCycleStartDay: vi.fn().mockResolvedValue(10),
+        prepareCredentials: vi.fn().mockReturnValue({}),
+        validateCredentials: vi.fn()
+    };
+});
+
+// Mock constants
+vi.mock('../utils/constants', () => ({
+    BANK_VENDORS: ['hapoalim']
+}));
+
+describe('Sync Reporting and Audit', () => {
+    let mockClient: any;
+    let mockReq: any;
+    let mockRes: any;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+
+        mockClient = {
+            query: vi.fn(),
+            release: vi.fn()
+        };
+
+        (getDB as any).mockResolvedValue(mockClient);
+
+        mockRes = {
+            status: vi.fn().mockReturnThis(),
+            json: vi.fn().mockReturnThis(),
+            setHeader: vi.fn(),
+            write: vi.fn(),
+            end: vi.fn(),
+            flushHeaders: vi.fn(),
+            on: vi.fn()
+        };
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    describe('updateScrapeAudit Logic', () => {
+        it('should save report_json when provided', async () => {
+            const auditId = 123;
+            const status = 'success';
+            const message = 'Test message';
+            const report = { processedTransactions: [{ description: 'Test' }], savedTransactions: 1 };
+
+            // We call the actual implementation which we've spied on
+            await scraperUtils.updateScrapeAudit(mockClient, auditId, status, message, report);
+
+            expect(mockClient.query).toHaveBeenCalledWith(
+                expect.stringContaining('UPDATE scrape_events SET status = $1, message = $2, report_json = $3 WHERE id = $4'),
+                [status, message, report, auditId]
+            );
+        });
+
+        it('should not include report_json in query when not provided', async () => {
+            const auditId = 123;
+            const status = 'failed';
+            const message = 'Error occurred';
+
+            await scraperUtils.updateScrapeAudit(mockClient, auditId, status, message);
+
+            expect(mockClient.query).toHaveBeenCalledWith(
+                expect.stringContaining('UPDATE scrape_events SET status = $1, message = $2 WHERE id = $3'),
+                [status, message, auditId]
+            );
+        });
+    });
+
+    describe('API: /api/scrape_events', () => {
+        it('should include report_json in the SELECT query', async () => {
+            mockReq = {
+                method: 'GET',
+                query: { limit: '10' }
+            };
+
+            mockClient.query.mockResolvedValue({
+                rows: [
+                    { id: 1, vendor: 'max', report_json: { savedTransactions: 5 } }
+                ]
+            });
+
+            await scrapeEventsHandler(mockReq, mockRes);
+
+            expect(mockClient.query).toHaveBeenCalledWith(
+                expect.stringContaining('SELECT'),
+                expect.any(Array)
+            );
+
+            const [sql] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('report_json');
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+            expect(mockRes.json).toHaveBeenCalledWith(expect.arrayContaining([
+                expect.objectContaining({ report_json: expect.any(Object) })
+            ]));
+        });
+    });
+
+    describe('API: /api/get_scrape_report', () => {
+        it('should return report_json for a specific ID', async () => {
+            const mockReport = { processedTransactions: [{ name: 'Tx 1' }] };
+            mockReq = {
+                method: 'GET',
+                query: { id: '123' }
+            };
+
+            mockClient.query.mockResolvedValue({
+                rows: [{ report_json: mockReport }]
+            });
+
+            await getScrapeReportHandler(mockReq, mockRes);
+
+            expect(mockClient.query).toHaveBeenCalledWith(
+                expect.stringContaining('SELECT report_json FROM scrape_events WHERE id = $1'),
+                ['123']
+            );
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+            expect(mockRes.json).toHaveBeenCalledWith(mockReport);
+        });
+
+        it('should return 404 if event not found', async () => {
+            mockReq = {
+                method: 'GET',
+                query: { id: '999' }
+            };
+
+            mockClient.query.mockResolvedValue({
+                rows: []
+            });
+
+            await getScrapeReportHandler(mockReq, mockRes);
+
+            expect(mockRes.status).toHaveBeenCalledWith(404);
+        });
+    });
+
+    describe('API: /api/scrape', () => {
+        it('should call updateScrapeAudit with stats on success', async () => {
+            const mockStats = { savedTransactions: 10, processedTransactions: [] };
+
+            mockReq = {
+                method: 'POST',
+                body: {
+                    options: { companyId: 'hapoalim', startDate: '2023-01-01' },
+                    credentials: { username: 'user', password: 'pass' },
+                    credentialId: 1
+                }
+            };
+
+            (scraperUtils.runScraper as any).mockResolvedValue({ success: true, accounts: [] });
+            (scraperUtils.processScrapedAccounts as any).mockResolvedValue(mockStats);
+
+            await scrapeHandler(mockReq, mockRes);
+
+            // We check the spy on updateScrapeAudit
+            expect(scraperUtils.updateScrapeAudit).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.anything(),
+                'success',
+                expect.stringContaining('saved=10'),
+                mockStats
+            );
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+        });
+    });
+});

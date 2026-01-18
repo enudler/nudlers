@@ -61,6 +61,7 @@ async function handler(req, res) {
   res.flushHeaders();
 
   const client = await getDB();
+  const startTime = Date.now();
   let auditId = null;
 
   try {
@@ -366,9 +367,8 @@ async function handler(req, res) {
           success: true
         });
       }
-
-      // Map stats back to accumulatedStats for the rest of the handler
       Object.assign(accumulatedStats, stats);
+      logger.info({ vendor: options.companyId, saved: stats.savedTransactions }, '[Scrape Stream] Processing completed, finalizing...');
 
     } catch (scrapeError) {
       const errorDetails = {
@@ -376,82 +376,100 @@ async function handler(req, res) {
         name: scrapeError.name,
         stack: scrapeError.stack?.split('\n').slice(0, 5).join('\n'),
       };
-      logger.error({ error: errorDetails }, '[Scrape Stream] Scrape failed');
+      logger.error({ error: errorDetails }, '[Scrape Stream] Scrape failed in main loop');
 
-      await updateScrapeAudit(client, auditId, 'failed', `Failed: ${scrapeError.message}`);
+      if (auditId) {
+        try {
+          await updateScrapeAudit(client, auditId, 'failed', `Failed: ${scrapeError.message}`);
+        } catch (e) {
+          logger.error({ error: e.message }, '[Scrape Stream] Failed to update audit in catch');
+        }
+      }
 
-      sendSSE(res, 'error', {
-        message: `Scrape Failed: ${scrapeError.message}`,
-        hint: 'Please try again later or check your credentials.'
-      });
-      res.end();
+      if (!res.finished) {
+        sendSSE(res, 'error', {
+          message: `Scrape Failed: ${scrapeError.message}`,
+          hint: 'Please try again later or check your credentials.'
+        });
+        res.end();
+      }
       return;
     }
 
     // Final Success Report
-    const accountsCount = accumulatedStats.accounts || 1;
-    const summary = {
-      accounts: accountsCount,
-      transactions: accumulatedStats.transactions,
-      savedTransactions: accumulatedStats.savedTransactions,
-      duplicateTransactions: accumulatedStats.duplicateTransactions,
-      updatedTransactions: accumulatedStats.updatedTransactions,
-      bankTransactions: accumulatedStats.bankTransactions,
-      cachedCategories: accumulatedStats.cachedCategories,
-      skippedCards: accumulatedStats.skippedCards,
-      processedTransactions: accumulatedStats.processedTransactions
-    };
+    try {
+      const summary = {
+        accounts: accumulatedStats.accounts || 1,
+        transactions: accumulatedStats.transactions,
+        savedTransactions: accumulatedStats.savedTransactions,
+        duplicateTransactions: accumulatedStats.duplicateTransactions,
+        updatedTransactions: accumulatedStats.updatedTransactions,
+        bankTransactions: accumulatedStats.bankTransactions,
+        cachedCategories: accumulatedStats.cachedCategories,
+        skippedCards: accumulatedStats.skippedCards,
+        processedTransactions: accumulatedStats.processedTransactions,
+        durationSeconds: Math.floor((Date.now() - startTime) / 1000)
+      };
 
-    if (isCancelled) {
-      await updateScrapeAudit(client, auditId, 'cancelled', `Cancelled by user. Saved ${accumulatedStats.savedTransactions} txns.`, summary);
-      // We don't send 'complete' event if cancelled, effectively stopping the stream from client side perspective or just ending it.
-      // Client likely closed connection anyway.
-    } else {
-      await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
+      if (isCancelled) {
+        logger.info({ vendor: options.companyId }, '[Scrape Stream] Scrape was cancelled, updating audit');
+        await updateScrapeAudit(client, auditId, 'cancelled', `Cancelled by user. Saved ${accumulatedStats.savedTransactions} txns.`, summary);
+      } else {
+        logger.info({ vendor: options.companyId }, '[Scrape Stream] Updating audit as success');
+        await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): fetched=${accumulatedStats.transactions}, saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
 
-      // Update last_synced_at
-      sendSSE(res, 'progress', {
-        step: 'updating_timestamp',
-        message: 'Updating last sync timestamp...',
-        percent: 95,
-        phase: 'saving',
-        success: null
-      });
+        // Update last_synced_at
+        sendSSE(res, 'progress', {
+          step: 'updating_timestamp',
+          message: 'Updating last sync timestamp...',
+          percent: 95,
+          phase: 'saving',
+          success: null
+        });
 
-      await updateCredentialLastSynced(client, credentialId);
+        logger.info({ vendor: options.companyId, credentialId }, '[Scrape Stream] Updating last synced timestamp for credential');
+        await updateCredentialLastSynced(client, credentialId);
 
-      sendSSE(res, 'progress', {
-        step: 'updating_timestamp',
-        message: '✓ Timestamp updated',
-        percent: 98,
-        phase: 'saving',
-        success: true
-      });
+        sendSSE(res, 'progress', {
+          step: 'updating_timestamp',
+          message: '✓ Timestamp updated',
+          percent: 98,
+          phase: 'saving',
+          success: true
+        });
 
-      sendSSE(res, 'complete', {
-        message: '✓ Scraping completed successfully!',
-        percent: 100,
-        summary: summary
-      });
+        logger.info({ vendor: options.companyId }, '[Scrape Stream] Sending complete event');
+        sendSSE(res, 'complete', {
+          message: '✓ Scraping completed successfully!',
+          percent: 100,
+          summary: summary
+        });
+      }
+    } catch (finalError) {
+      logger.error({ error: finalError.message }, '[Scrape Stream] Error during finalization steps');
+      if (!res.finished) {
+        sendSSE(res, 'error', { message: `Finalization failed: ${finalError.message}` });
+      }
+    } finally {
+      if (!res.finished) {
+        res.end();
+      }
     }
-
-    res.end();
   } catch (error) {
-    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Scraping failed');
-    if (auditId) {
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Scrape stream outer catch');
+    if (auditId && client) {
       try {
         await updateScrapeAudit(client, auditId, 'failed', error instanceof Error ? error.message : 'Unknown error');
       } catch (e) {
         // noop
       }
     }
-    // Only send error if not cancelled (client might be gone)
-    if (!res.headersSent && !res.finished) {
+    if (!res.finished) {
       sendSSE(res, 'error', { message: error instanceof Error ? error.message : 'Unknown error' });
       res.end();
     }
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 

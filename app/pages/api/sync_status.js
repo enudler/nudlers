@@ -100,7 +100,8 @@ export default async function handler(req, res) {
           WHEN created_at IS NOT NULL 
           THEN to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
           ELSE NULL
-        END as created_at
+        END as created_at,
+        duration_seconds
       FROM scrape_events
       ORDER BY created_at DESC
       LIMIT 1
@@ -121,7 +122,8 @@ export default async function handler(req, res) {
           WHEN created_at IS NOT NULL 
           THEN to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
           ELSE NULL
-        END as created_at
+        END as created_at,
+        duration_seconds
       FROM scrape_events
       ORDER BY created_at DESC
       LIMIT 10
