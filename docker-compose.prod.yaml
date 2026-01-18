@@ -55,6 +55,9 @@ services:
     security_opt:
       - seccomp=unconfined
     shm_size: '2gb'
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     
 volumes:
   db-data:
