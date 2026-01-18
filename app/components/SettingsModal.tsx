@@ -40,12 +40,11 @@ interface Settings {
   default_currency: string;
   date_format: string;
   billing_cycle_start_day: number;
-  show_browser: boolean;
-  fetch_categories_from_scrapers: boolean;
-  scraper_timeout_standard: number;
-  scraper_timeout_rate_limited: number;
-  fallback_no_category_on_error: boolean;
+  // fetch_categories_from_scrapers removed - forced to true/smart for capable vendors
+  scraper_timeout: number;
+  scraper_log_http_requests: boolean;
   update_category_on_rescrape: boolean;
+
   scrape_retries: number;
   gemini_api_key: string;
   gemini_model: string;
@@ -120,11 +119,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     default_currency: 'ILS',
     date_format: 'DD/MM/YYYY',
     billing_cycle_start_day: 10,
-    show_browser: false,
-    fetch_categories_from_scrapers: true,
-    scraper_timeout_standard: 60000,
-    scraper_timeout_rate_limited: 120000,
-    fallback_no_category_on_error: false,
+    // fetch_categories_from_scrapers removed
+    scraper_timeout: 60000,
+    scraper_log_http_requests: false,
     update_category_on_rescrape: false,
     scrape_retries: 3,
     gemini_api_key: '',
@@ -166,13 +163,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           default_currency: (data.settings.default_currency || 'ILS').replace(/"/g, ''),
           date_format: (data.settings.date_format || 'DD/MM/YYYY').replace(/"/g, ''),
           billing_cycle_start_day: parseInt(data.settings.billing_cycle_start_day) || 10,
-          show_browser: parseBool(data.settings.show_browser),
-          fetch_categories_from_scrapers: data.settings.fetch_categories_from_scrapers === undefined
-            ? true  // Default to true if not set
-            : parseBool(data.settings.fetch_categories_from_scrapers),
-          scraper_timeout_standard: parseInt(data.settings.scraper_timeout_standard) || 60000,
-          scraper_timeout_rate_limited: parseInt(data.settings.scraper_timeout_rate_limited) || 120000,
-          fallback_no_category_on_error: parseBool(data.settings.fallback_no_category_on_error),
+          // fetch_categories_from_scrapers removed
+          scraper_timeout: parseInt(data.settings.scraper_timeout) || parseInt(data.settings.scraper_timeout_standard) || 60000,
+          scraper_log_http_requests: data.settings.scraper_log_http_requests === undefined
+            ? false // Default to false if not set (matches backend behavior)
+            : parseBool(data.settings.scraper_log_http_requests),
           update_category_on_rescrape: parseBool(data.settings.update_category_on_rescrape),
           scrape_retries: parseInt(data.settings.scrape_retries) || 3,
           gemini_api_key: (data.settings.gemini_api_key || '').replace(/"/g, ''),
@@ -324,6 +319,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Typography>
               </Box>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Enable Auto Sync</Typography>
@@ -345,6 +342,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 />
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Sync at Hour</Typography>
@@ -361,6 +360,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   inputProps={{ min: 0, max: 23 }}
                 />
               </SettingRow>
+
+
 
               <SettingRow>
                 <Box>
@@ -389,6 +390,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Typography>
               </Box>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Default Currency</Typography>
@@ -405,6 +408,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 />
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Date Format</Typography>
@@ -419,6 +424,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   sx={{ width: '150px' }}
                 />
               </SettingRow>
+
+
 
               <SettingRow>
                 <Box>
@@ -447,64 +454,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Typography>
               </Box>
 
-              <SettingRow>
-                <Box>
-                  <Typography variant="body1">Show Browser Window</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Display browser window during scraping (useful for debugging or entering 2FA codes). Only works when running locally, not in Docker.
-                  </Typography>
-                </Box>
-                <Switch
-                  checked={settings.show_browser}
-                  onChange={(e) => setSettings({ ...settings, show_browser: e.target.checked })}
-                  sx={{
-                    '& .MuiSwitch-switchBase.Mui-checked': {
-                      color: '#60a5fa',
-                    },
-                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                      backgroundColor: '#60a5fa',
-                    },
-                  }}
-                />
-              </SettingRow>
 
-              <SettingRow>
-                <Box>
-                  <Typography variant="body1">Category Fetching Mode</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Control how the scraper handles transaction categories.
-                  </Typography>
-                </Box>
-                <Select
-                  value={
-                    !settings.fetch_categories_from_scrapers ? 'never' :
-                      settings.fallback_no_category_on_error ? 'smart' : 'always'
-                  }
-                  onChange={(e) => {
-                    const mode = e.target.value;
-                    const newSettings = { ...settings };
-                    if (mode === 'never') {
-                      newSettings.fetch_categories_from_scrapers = false;
-                      newSettings.fallback_no_category_on_error = false;
-                    } else if (mode === 'smart') {
-                      newSettings.fetch_categories_from_scrapers = true;
-                      newSettings.fallback_no_category_on_error = true;
-                    } else { // always
-                      newSettings.fetch_categories_from_scrapers = true;
-                      newSettings.fallback_no_category_on_error = false;
-                    }
-                    setSettings(newSettings);
-                  }}
-                  size="small"
-                  sx={{ width: 200, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
-                >
-                  <MenuItem value="always">Always Fetch</MenuItem>
-                  <MenuItem value="smart">Smart Fetch (Fallback on Error)</MenuItem>
-                  <MenuItem value="never">Never Fetch</MenuItem>
-                </Select>
-              </SettingRow>
+
+
+
+
+
+
 
               {/* Added: Update Categories on Re-Scrape Setting */}
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Update Categories on Re-Scrape</Typography>
@@ -526,6 +486,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 />
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Scrape Failure Retries</Typography>
@@ -543,17 +505,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 />
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box>
-                  <Typography variant="body1">Standard Timeout (ms)</Typography>
+                  <Typography variant="body1">Scraper Timeout (ms)</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Timeout for standard vendors (default: 60000ms)
+                    Maximum duration for scraping operations (default: 60000ms)
                   </Typography>
                 </Box>
                 <StyledTextField
                   type="number"
-                  value={settings.scraper_timeout_standard}
-                  onChange={(e) => setSettings({ ...settings, scraper_timeout_standard: parseInt(e.target.value) || 60000 })}
+                  value={settings.scraper_timeout}
+                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 60000 })}
                   size="small"
                   sx={{ width: '120px' }}
                   inputProps={{ min: 1000, step: 1000 }}
@@ -562,18 +526,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box>
-                  <Typography variant="body1">Rate-Limited Timeout (ms)</Typography>
+                  <Typography variant="body1">Log HTTP Requests</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Timeout for rate-limited vendors (Isracard, Amex) (default: 120000ms)
+                    Output all HTTP requests from the scraper to the console (useful for debugging).
                   </Typography>
                 </Box>
-                <StyledTextField
-                  type="number"
-                  value={settings.scraper_timeout_rate_limited}
-                  onChange={(e) => setSettings({ ...settings, scraper_timeout_rate_limited: parseInt(e.target.value) || 120000 })}
-                  size="small"
-                  sx={{ width: '120px' }}
-                  inputProps={{ min: 1000, step: 1000 }}
+                <Switch
+                  checked={settings.scraper_log_http_requests}
+                  onChange={(e) => setSettings({ ...settings, scraper_log_http_requests: e.target.checked })}
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#60a5fa',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#60a5fa',
+                    },
+                  }}
                 />
               </SettingRow>
             </SettingSection>
@@ -586,6 +554,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   AI Configuration
                 </Typography>
               </Box>
+
+
 
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
@@ -603,6 +573,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   sx={{ width: '250px' }}
                 />
               </SettingRow>
+
+
 
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
@@ -633,6 +605,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Typography>
               </Box>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Enable Daily Summary</Typography>
@@ -655,6 +629,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               </SettingRow>
 
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Summary Mode</Typography>
@@ -673,6 +649,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Select>
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box>
                   <Typography variant="body1">Send at Hour</Typography>
@@ -689,6 +667,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   inputProps={{ min: 0, max: 23 }}
                 />
               </SettingRow>
+
+
 
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
@@ -707,6 +687,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 />
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
                   <Typography variant="body1">Twilio Auth Token</Typography>
@@ -724,6 +706,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 />
               </SettingRow>
 
+
+
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
                   <Typography variant="body1">From Number</Typography>
@@ -739,6 +723,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   sx={{ width: '250px' }}
                 />
               </SettingRow>
+
+
 
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
@@ -836,6 +822,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   Danger Zone
                 </Typography>
               </Box>
+
+
 
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
