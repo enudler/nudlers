@@ -14,7 +14,6 @@ import {
   insertScrapeAudit,
   updateScrapeAudit,
   updateCredentialLastSynced,
-  getShowBrowserSetting,
   getFetchCategoriesSetting,
   getScraperTimeout,
   runScraper,
@@ -68,7 +67,7 @@ async function handler(req, res) {
     // Get settings from database (unless explicitly overridden)
     const showBrowserSetting = options.showBrowser !== undefined
       ? options.showBrowser
-      : await getShowBrowserSetting(client);
+      : false;
 
     // Get category fetching setting - disabling helps avoid rate limiting
     const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
