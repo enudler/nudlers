@@ -46,7 +46,7 @@ async function updateSettings() {
             ['default_currency', 'The default currency symbol used for display (e.g., ILS, USD)'],
             ['date_format', 'The visual format used for displaying dates (e.g., DD/MM/YYYY)'],
             ['billing_cycle_start_day', 'The day of the month when your credit card billing cycle begins'],
-            ['show_browser', '(Local only) Display browser window during scraping for debugging/2FA'],
+
             ['fetch_categories_from_scrapers', 'Automatically adopt categories provided by the bank/card scraper'],
             ['update_category_on_rescrape', 'If a transaction is re-scraped, update it if the bank provides a new category'],
             ['scraper_timeout', 'Maximum time (ms) allowed for each scraper to run'],

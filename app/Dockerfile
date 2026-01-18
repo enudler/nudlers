@@ -66,7 +66,8 @@ COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
 COPY --from=builder --chown=pptruser:pptruser /app/.next/static ./.next/static
 COPY --from=builder --chown=pptruser:pptruser /app/public ./public
 COPY --from=builder --chown=pptruser:pptruser /app/scrapers ./scrapers
-COPY --from=builder --chown=pptruser:pptruser /app/scripts ./scripts
+# Copy scripts directory from source (not from standalone build)
+COPY --chown=pptruser:pptruser scripts ./scripts
 COPY --from=builder --chown=pptruser:pptruser /app/utils ./utils
 COPY --from=builder --chown=pptruser:pptruser /app/pages ./pages
 
