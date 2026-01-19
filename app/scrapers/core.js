@@ -41,14 +41,41 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     const chromeVersion = '132.0.6834.83';
     const userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
 
-    const baseArgs = [
+    // Essential flags for Docker/Container environments
+    const DOCKER_FLAGS = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+    ];
+
+    const LOW_RESOURCE_FLAGS = [
+        '--disable-gl-drawing-for-tests',
+        '--mute-audio',
+        '--no-zygote',
+        '--disable-accelerated-2d-canvas',
+        '--disable-canvas-aa',
+        '--disable-2d-canvas-clip-aa',
+        '--disable-notifications',
+        '--disable-offer-store-unmasked-wallet-cards',
+        '--disable-offer-upload-credit-cards',
+        '--disable-print-preview',
+        '--disable-speech-api',
+        '--disable-wake-on-wifi',
+        '--disk-cache-size=0',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-datasaver-prompt',
+        '--disable-features=TranslateUI',
+        '--force-color-profile=srgb',
+    ];
+
+    const baseArgs = [
+        ...DOCKER_FLAGS,
         '--disable-blink-features=AutomationControlled',
         '--disable-features=IsolateOrigins,site-per-process',
         '--window-size=1920,1080',
-        // Removed --disable-web-security as it can trigger security warnings
         `--user-agent=${userAgent}`,
         '--disable-infobars',
         '--disable-extensions',
@@ -69,52 +96,15 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         '--no-first-run',
         '--password-store=basic',
         '--use-mock-keychain',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
     ];
 
     if (LOW_RESOURCES_MODE) {
-        baseArgs.push(
-            '--disable-gl-drawing-for-tests',
-            '--mute-audio',
-            '--no-zygote',
-            '--disable-accelerated-2d-canvas',
-            '--disable-canvas-aa',
-            '--disable-2d-canvas-clip-aa',
-            '--disable-dev-shm-usage',
-            '--disable-notifications',
-            '--disable-offer-store-unmasked-wallet-cards',
-            '--disable-offer-upload-credit-cards',
-            '--disable-print-preview',
-            '--disable-speech-api',
-            '--disable-wake-on-wifi',
-            '--disk-cache-size=0', // Disable disk cache to save IO
-            '--disable-background-timer-throttling',
-            '--disable-breakpad',
-            '--disable-client-side-phishing-detection',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-datasaver-prompt',
-            '--disable-features=TranslateUI',
-            '--disable-hang-monitor',
-            '--disable-ipc-flooding-protection',
-            '--disable-popup-blocking',
-            '--disable-prompt-on-repost',
-            '--disable-renderer-backgrounding',
-            '--disable-sync',
-            '--force-color-profile=srgb',
-            '--metrics-recording-only',
-            '--no-first-run',
-            '--password-store=basic',
-            '--use-mock-keychain'
-        );
+        baseArgs.push(...LOW_RESOURCE_FLAGS);
     }
 
     if (showBrowser) {
-        // Use a configurable port or default to 9223 to avoid conflicts with existing Chrome instances
-        // Port 9222 is commonly used by other Chrome instances
         const debugPort = options.debugPort || 9223;
         baseArgs.push(`--remote-debugging-port=${debugPort}`);
-        // Use localhost only to reduce detection surface
         baseArgs.push('--remote-debugging-address=127.0.0.1');
     } else {
         baseArgs.push('--headless=new');
@@ -123,8 +113,15 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     let timeout = options.timeout || 60000;
 
     if (companyId === 'leumi') {
-        // For Leumi, use minimal options to match the library's default behavior
-        // BUT we must include sandbox args for Docker environments
+        // Leumi needs a minimal set of args to work correctly, but MUST include:
+        // 1. Docker flags (to run in container)
+        // 2. Low resource flags (if enabled, to save RAM/CPU)
+        const leumiArgs = [...DOCKER_FLAGS];
+
+        if (LOW_RESOURCES_MODE) {
+            leumiArgs.push(...LOW_RESOURCE_FLAGS);
+        }
+
         return {
             companyId,
             startDate,
@@ -135,13 +132,7 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             verbose: options.verbose ?? true,
             timeout,
             executablePath: getChromePath(),
-            // Minimal args required for Docker
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu'
-            ],
+            args: leumiArgs,
             ...options
         };
     }

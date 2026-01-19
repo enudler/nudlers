@@ -44,7 +44,8 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PORT=3000 \
-    HOSTNAME="0.0.0.0"
+    HOSTNAME="0.0.0.0" \
+    LOW_RESOURCES_MODE=true
 
 # Install runtime dependencies for Chrome/Puppeteer on Debian
 RUN apt-get update && apt-get install -y \
