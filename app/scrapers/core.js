@@ -124,6 +124,7 @@ export function getScraperOptions(companyId, startDate, options = {}) {
 
     if (companyId === 'leumi') {
         // For Leumi, use minimal options to match the library's default behavior
+        // BUT we must include sandbox args for Docker environments
         return {
             companyId,
             startDate,
@@ -134,8 +135,13 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             verbose: options.verbose ?? true,
             timeout,
             executablePath: getChromePath(),
-            // No custom args or viewport overrides for Leumi - STRICTLY default
-            // args: [], // Puppeteer usage of undefined args uses defaults
+            // Minimal args required for Docker
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
+            ],
             ...options
         };
     }
