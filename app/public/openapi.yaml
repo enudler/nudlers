@@ -1216,6 +1216,415 @@ paths:
                     type: string
                     example: ok
 
+  /month_by_categories:
+    get:
+      tags:
+        - Reports
+      summary: Get monthly category breakdown
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: billingCycle
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monthly category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                    amount:
+                      type: number
+                    count:
+                      type: integer
+
+  /box_panel_data:
+    get:
+      tags:
+        - Reports
+      summary: Get box panel summary data
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: billingCycle
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Box panel data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_income:
+                    type: number
+                  total_expenses:
+                    type: number
+                  net_savings:
+                    type: number
+                  savings_rate:
+                    type: number
+
+  /transactions_by_description:
+    get:
+      tags:
+        - Transactions
+      summary: Get transactions by description
+      parameters:
+        - name: description
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: billingCycle
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+
+  /transactions_by_last4:
+    get:
+      tags:
+        - Transactions
+      summary: Get transactions by card last 4 digits
+      parameters:
+        - name: last4digits
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: billingCycle
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+
+  /uncategorized_descriptions:
+    get:
+      tags:
+        - Categories
+      summary: Get uncategorized descriptions
+      responses:
+        '200':
+          description: List of descriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    description:
+                      type: string
+                    count:
+                      type: integer
+                    totalAmount:
+                      type: number
+
+  /apply_categorization_rules:
+    post:
+      tags:
+        - Categories
+      summary: Apply categorization rules
+      responses:
+        '200':
+          description: Rules applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  rulesApplied:
+                    type: integer
+                  transactionsUpdated:
+                    type: integer
+
+  /update_category_by_description:
+    post:
+      tags:
+        - Categories
+      summary: Update category by description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - description
+                - newCategory
+              properties:
+                description:
+                  type: string
+                newCategory:
+                  type: string
+                createRule:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /card_ownership:
+    get:
+      tags:
+        - Credentials
+      summary: Get card ownership mappings
+      responses:
+        '200':
+          description: List of card ownerships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CardOwnership'
+
+  /card_ownership/{id}:
+    patch:
+      tags:
+        - Credentials
+      summary: Update card ownership
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                linked_bank_account_id:
+                  type: integer
+                custom_bank_account_number:
+                  type: string
+                custom_bank_account_nickname:
+                  type: string
+      responses:
+        '200':
+          description: Updated successfully
+
+  /card_vendors:
+    get:
+      tags:
+        - Credentials
+      summary: Get card vendors
+      responses:
+        '200':
+          description: List of card vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CardVendor'
+    post:
+      tags:
+        - Credentials
+      summary: create card vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardVendor'
+      responses:
+        '200':
+          description: Created
+    delete:
+      tags:
+        - Credentials
+      summary: delete card vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - last4_digits
+              properties:
+                last4_digits:
+                  type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /credentials/truncate/{id}:
+    delete:
+      tags:
+        - Credentials
+      summary: Truncate credential transactions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Data truncated
+
+  /chat/history:
+    get:
+      tags:
+        - Reports
+      summary: Get chat history (sessions)
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatSession'
+    delete:
+      tags:
+        - Reports
+      summary: Delete chat session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /chat/messages:
+    get:
+      tags:
+        - Reports
+      summary: Get chat messages
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+
+  /database/export:
+    get:
+      tags:
+        - Settings
+      summary: Export database
+      responses:
+        '200':
+          description: Database backup JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /database/import:
+    post:
+      tags:
+        - Settings
+      summary: Import database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                mode:
+                  type: string
+                  enum: [replace, merge]
+      responses:
+        '200':
+          description: Import result
+
 components:
   schemas:
     Transaction:
@@ -1487,6 +1896,62 @@ components:
           type: boolean
         model:
           type: string
+
+    CardOwnership:
+      type: object
+      properties:
+        id:
+          type: integer
+        vendor:
+          type: string
+        account_number:
+          type: string
+        linked_bank_account_id:
+          type: integer
+        custom_bank_account_number:
+          type: string
+        custom_bank_account_nickname:
+          type: string
+
+    CardVendor:
+      type: object
+      properties:
+        last4_digits:
+          type: string
+        card_vendor:
+          type: string
+        card_nickname:
+          type: string
+        transaction_count:
+          type: integer
+
+    ChatSession:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
 
   responses:
     BadRequest:

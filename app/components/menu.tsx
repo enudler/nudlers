@@ -1,11 +1,11 @@
 import * as React from "react";
 import { logger } from '../utils/client-logger';
-import packageJson from '../package.json';
+
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
-import Menu from "@mui/material/Menu";
+
 import Container from "@mui/material/Container";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -18,8 +18,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme, styled } from "@mui/material/styles";
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import EditIcon from '@mui/icons-material/Edit';
@@ -29,9 +28,8 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import BackupIcon from '@mui/icons-material/Backup';
-import MenuIcon from '@mui/icons-material/Menu';
+
 import ForumIcon from '@mui/icons-material/Forum';
-import CloseIcon from '@mui/icons-material/Close';
 import dynamic from 'next/dynamic';
 import DatabaseIndicator from './DatabaseIndicator';
 import SyncStatusIndicator from './SyncStatusIndicator';
@@ -41,6 +39,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import { useColorMode } from '../context/ThemeContext';
+import Image from 'next/image';
 
 const ScrapeModal = dynamic(() => import('./ScrapeModal'), { ssr: false });
 const ManualModal = dynamic(() => import('./ManualModal'), { ssr: false });
@@ -62,7 +61,7 @@ interface ResponsiveAppBarProps {
   onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat') => void;
 }
 
-const pages: StringDictionary = {};
+
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: theme.palette.mode === 'dark'
@@ -95,46 +94,11 @@ const Logo = styled(Typography)({
   },
 });
 
-const NavButton = styled(Button)({
-  color: 'rgba(255, 255, 255, 0.9)',
-  textTransform: 'none',
-  fontSize: '0.95rem',
-  fontWeight: 500,
-  padding: '8px 16px',
-  borderRadius: '12px',
-  margin: '0 4px',
-  position: 'relative',
-  overflow: 'hidden',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: '-100%',
-    width: '100%',
-    height: '100%',
-    background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent)',
-    transition: 'left 0.5s ease-in-out',
-  },
-  '&:hover': {
-    backgroundColor: 'rgba(96, 165, 250, 0.2)',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 8px 16px rgba(96, 165, 250, 0.3)',
-    color: '#fff',
-  },
-  '&:hover::before': {
-    left: '100%',
-  },
-  '&:active': {
-    transform: 'translateY(0)',
-  },
-});
+
 
 import { useView } from "./Layout";
 
-const redirectTo = (page: string) => {
-  return () => (window.location.href = page);
-};
+
 
 function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveAppBarProps) {
   const theme = useTheme();
@@ -142,7 +106,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
   const [desktopDrawerOpen, setDesktopDrawerOpen] = React.useState(true); // Persistent drawer for desktop
-  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
   const [isScrapeModalOpen, setIsScrapeModalOpen] = React.useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
   const [isAccountsModalOpen, setIsAccountsModalOpen] = React.useState(false);
@@ -211,9 +174,7 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
     { label: 'Settings', icon: <TuneIcon />, action: () => setIsSettingsOpen(true) },
   ];
 
-  const handleCloseUserMenu = () => {
-    setAnchorElUser(null);
-  };
+
 
   const handleAddManualTransaction = async (transactionData: {
     name: string;
@@ -429,9 +390,11 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
                 fontSize: { xs: '1.2rem', md: '1.5rem' },
               }}
             >
-              <img
+              <Image
                 src="/nudlers-logo.svg"
                 alt="Nudlers Logo"
+                width={36}
+                height={36}
                 style={{
                   width: 'auto',
                   height: '36px',

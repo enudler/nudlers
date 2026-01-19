@@ -19,25 +19,40 @@ interface ScrapeReportProps {
 }
 
 // Custom table components for Virtuoso to preserve styling
+const Scroller = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => (
+    <div {...props} ref={ref} style={{ ...props.style, overflowY: 'auto' }} />
+));
+Scroller.displayName = 'VirtuosoScroller';
+
+const Table = (props: React.HTMLAttributes<HTMLTableElement>) => (
+    <table {...props} style={{ ...props.style, width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.8rem', tableLayout: 'fixed' }} />
+);
+Table.displayName = 'VirtuosoTable';
+
+const TableHead = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>((props, ref) => (
+    <thead {...props} ref={ref} style={{
+        ...props.style,
+        position: 'sticky',
+        top: 0,
+        backgroundColor: 'var(--table-header-bg)',
+        zIndex: 10,
+        boxShadow: '0 2px 4px var(--table-header-shadow)'
+    }} />
+));
+TableHead.displayName = 'VirtuosoTableHead';
+
+const TableRow = (props: React.HTMLAttributes<HTMLTableRowElement>) => <tr {...props} />;
+TableRow.displayName = 'VirtuosoTableRow';
+
+const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>((props, ref) => <tbody {...props} ref={ref} />);
+TableBody.displayName = 'VirtuosoTableBody';
+
 const VirtuosoTableComponents = {
-    Scroller: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => (
-        <div {...props} ref={ref} style={{ ...props.style, overflowY: 'auto' }} />
-    )),
-    Table: (props: React.HTMLAttributes<HTMLTableElement>) => (
-        <table {...props} style={{ ...props.style, width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.8rem', tableLayout: 'fixed' }} />
-    ),
-    TableHead: React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>((props, ref) => (
-        <thead {...props} ref={ref} style={{
-            ...props.style,
-            position: 'sticky',
-            top: 0,
-            backgroundColor: 'var(--table-header-bg)',
-            zIndex: 10,
-            boxShadow: '0 2px 4px var(--table-header-shadow)'
-        }} />
-    )),
-    TableRow: (props: React.HTMLAttributes<HTMLTableRowElement>) => <tr {...props} />,
-    TableBody: React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>((props, ref) => <tbody {...props} ref={ref} />),
+    Scroller,
+    Table,
+    TableHead,
+    TableRow,
+    TableBody,
 };
 
 export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
