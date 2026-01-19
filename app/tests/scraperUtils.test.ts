@@ -427,7 +427,7 @@ describe('ScraperUtils', () => {
                     identifier: 'tx123',
                     name: 'Test Transaction',
                     price: 100,
-                    date: mockDate.toISOString()
+                    date: mockDate
                 }]
             });
 
@@ -452,7 +452,7 @@ describe('ScraperUtils', () => {
                     identifier: 'tx123',
                     name: 'Test Transaction',
                     price: 100,
-                    date: mockDate.toISOString(),
+                    date: mockDate,
                     category: null,
                     category_source: null
                 }]

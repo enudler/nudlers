@@ -23,6 +23,12 @@ interface SyncStatus {
     status: string;
     created_at: string;
   } | null;
+  accountSyncStatus: Array<{
+    id: number;
+    nickname: string;
+    vendor: string;
+    last_synced_at: string | null;
+  }>;
 }
 
 const spin = keyframes`
@@ -133,8 +139,8 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
 
   useEffect(() => {
     fetchStatus();
-    // Refresh status more frequently if syncing
-    const intervalTime = status?.syncHealth === 'syncing' ? 5000 : 10000;
+    // Poll every 10 seconds to reduce CPU usage
+    const intervalTime = 10000;
     const interval = setInterval(fetchStatus, intervalTime);
     return () => clearInterval(interval);
   }, [fetchStatus, status?.syncHealth]);
@@ -174,18 +180,27 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
     }
 
     const health = status.syncHealth;
-    const lastSync = status.latestScrape?.created_at
-      ? formatRelativeTime(status.latestScrape.created_at)
-      : 'Never';
+
+    // Determine sync status across all accounts
+    let oldestSyncDate: Date | null = null;
+    let oldestSyncLabel = 'Never';
+    let hasNeverSyncedAccount = false;
+
+    if (status.accountSyncStatus && status.accountSyncStatus.length > 0) {
+      hasNeverSyncedAccount = status.accountSyncStatus.some(a => !a.last_synced_at);
+      const syncDates = status.accountSyncStatus
+        .map((a: { last_synced_at: string | null }) => a.last_synced_at ? new Date(a.last_synced_at).getTime() : 0)
+        .filter((t: number) => t > 0);
+
+      if (syncDates.length > 0) {
+        oldestSyncDate = new Date(Math.min(...syncDates));
+        oldestSyncLabel = formatRelativeTime(oldestSyncDate.toISOString());
+      }
+    }
+
+    const isFullySynced = !hasNeverSyncedAccount && oldestSyncDate && (new Date().getTime() - oldestSyncDate.getTime()) < 24 * 60 * 60 * 1000;
 
     switch (health) {
-      case 'healthy':
-        return {
-          icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#22c55e' }} />,
-          label: 'Synced',
-          color: '#22c55e',
-          tooltip: `Last sync: ${lastSync}`
-        };
       case 'syncing':
         return {
           icon: <SyncIcon sx={{ fontSize: 18, color: '#60a5fa', animation: `${spin} 1.5s linear infinite` }} />,
@@ -200,26 +215,29 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
           color: '#ef4444',
           tooltip: 'Last sync failed'
         };
-      case 'stale':
+      case 'healthy':
+        if (isFullySynced) {
+          return {
+            icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#22c55e' }} />,
+            label: 'Synced',
+            color: '#22c55e',
+            tooltip: `All accounts fresh (${oldestSyncLabel})`
+          };
+        }
         return {
           icon: <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />,
-          label: 'Stale',
+          label: hasNeverSyncedAccount ? 'Needs Sync' : 'Stale',
           color: '#f59e0b',
-          tooltip: `Last sync: ${lastSync}`
+          tooltip: hasNeverSyncedAccount ? 'Some accounts never synced' : `Oldest sync: ${oldestSyncLabel}`
         };
+      case 'stale':
       case 'outdated':
-        return {
-          icon: <WarningIcon sx={{ fontSize: 18, color: '#f59e0b', animation: `${pulse} 2s ease-in-out infinite` }} />,
-          label: 'Outdated',
-          color: '#f59e0b',
-          tooltip: `Last sync: ${lastSync} - consider syncing`
-        };
       case 'never_synced':
         return {
-          icon: <SyncDisabledIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-          label: 'Never synced',
-          color: '#64748b',
-          tooltip: 'No sync history'
+          icon: <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />,
+          label: (health === 'never_synced' || hasNeverSyncedAccount) ? 'Needs Sync' : (health === 'stale' ? 'Stale' : 'Outdated'),
+          color: '#f59e0b',
+          tooltip: (hasNeverSyncedAccount || health === 'never_synced') ? 'Some accounts never synced' : `Oldest: ${oldestSyncLabel}`
         };
       case 'no_accounts':
         return {
@@ -228,13 +246,23 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
           color: '#64748b',
           tooltip: 'Add accounts to start syncing'
         };
-      default:
+      default: {
+        if (isFullySynced) {
+          return {
+            icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#22c55e' }} />,
+            label: 'Synced',
+            color: '#22c55e',
+            tooltip: `Last sync: ${oldestSyncLabel}`
+          };
+        }
+
         return {
           icon: <SyncIcon sx={{ fontSize: 18, color: '#64748b' }} />,
           label: 'Sync Status',
           color: '#64748b',
-          tooltip: 'Status unavailable'
+          tooltip: hasNeverSyncedAccount ? 'Some accounts never synced' : `Oldest: ${oldestSyncLabel}`
         };
+      }
     }
   };
 
@@ -253,7 +281,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
       title={
         <Box sx={{ p: 0.5 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Sync Status: {statusInfo.label}
+            {statusInfo.label}
           </Typography>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
             {statusInfo.tooltip}

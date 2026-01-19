@@ -19,7 +19,8 @@ import ErrorIcon from '@mui/icons-material/Error';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ModalHeader from './ModalHeader';
-import ScrapeReport from './ScrapeReport';
+import dynamic from 'next/dynamic';
+const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
 
 interface SyncHistoryModalProps {
     isOpen: boolean;
@@ -136,7 +137,10 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
                         ) : selectedEvent.report_json ? (
                             <ScrapeReport
                                 report={selectedEvent.report_json.processedTransactions || []}
-                                summary={selectedEvent.report_json}
+                                summary={{
+                                    ...selectedEvent.report_json,
+                                    duration_seconds: selectedEvent.duration_seconds
+                                }}
                             />
                         ) : (
                             <Box sx={{ p: 4, textAlign: 'center', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f9fafb', borderRadius: 2 }}>

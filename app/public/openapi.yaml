@@ -980,28 +980,46 @@ paths:
       tags:
         - Scraping
       summary: Get sync status
-      description: Get overall sync health and status
+      description: Get overall sync health, settings, latest scrape, and history.
       responses:
         '200':
           description: Sync status
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  last_sync:
-                    type: string
-                    format: date-time
-                  sync_enabled:
-                    type: boolean
-                  healthy:
-                    type: boolean
+                $ref: '#/components/schemas/SyncStatusResponse'
+
+  /sync_all_stream:
+    post:
+      tags:
+        - Scraping
+      summary: Sync all accounts (streaming)
+      description: Trigger scrape for all active credentials with SSE progress updates.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncAllRequest'
+      responses:
+        '200':
+          description: SSE stream of sync progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
 
   /scrape_events:
     get:
       tags:
         - Scraping
       summary: Get scrape history
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 100
       responses:
         '200':
           description: List of scrape events
@@ -1010,19 +1028,108 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    vendor:
-                      type: string
-                    status:
-                      type: string
-                    message:
-                      type: string
-                    created_at:
-                      type: string
-                      format: date-time
+                  $ref: '#/components/schemas/ScrapeEvent'
+
+  /get_scrape_report:
+    get:
+      tags:
+        - Scraping
+      summary: Get detailed scrape report
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Scrape event ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detailed scrape report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapeReport'
+        '404':
+          description: Scrape report not found
+
+  /last_transaction_date:
+    get:
+      tags:
+        - Transactions
+      summary: Get last transaction date
+      parameters:
+        - name: vendor
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Most recent transaction date
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastDate:
+                    type: string
+                    format: date-time
+
+  /ai_chat:
+    post:
+      tags:
+        - Reports
+      summary: Chat with financial AI assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIChatRequest'
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIChatResponse'
+
+  /ai_chat_stream:
+    post:
+      tags:
+        - Reports
+      summary: Chat with financial AI assistant (streaming)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIChatRequest'
+      responses:
+        '200':
+          description: SSE stream of AI response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /stop_scrapers:
+    post:
+      tags:
+        - Scraping
+      summary: Stop all running scrapers
+      responses:
+        '200':
+          description: Scrapers stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
 
   /settings:
     get:
@@ -1064,16 +1171,17 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  credit_cards:
-                    type: array
-                    items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    vendor:
                       type: string
-                  banks:
-                    type: array
-                    items:
+                    vendor_nickname:
                       type: string
+                    vendor_type:
+                      type: string
+                      enum: [bank, card]
 
   /available_months:
     get:
@@ -1279,6 +1387,106 @@ components:
         credentialId:
           type: integer
           description: Database credential ID
+
+    ScrapeEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        triggered_by:
+          type: string
+        vendor:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        duration_seconds:
+          type: number
+        report_json:
+          $ref: '#/components/schemas/ScrapeReport'
+
+    ScrapeReport:
+      type: object
+      properties:
+        processedTransactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        savedTransactions:
+          type: integer
+        duration_seconds:
+          type: number
+
+    SyncAllRequest:
+      type: object
+      properties:
+        daysBack:
+          type: integer
+          default: 30
+
+    SyncStatusResponse:
+      type: object
+      properties:
+        syncHealth:
+          type: string
+          enum: [healthy, stale, outdated, error, syncing, no_accounts, never_synced, unknown]
+        settings:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            syncHour:
+              type: integer
+            daysBack:
+              type: integer
+        activeAccounts:
+          type: integer
+        latestScrape:
+          $ref: '#/components/schemas/ScrapeEvent'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScrapeEvent'
+        accountSyncStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              nickname:
+                type: string
+              vendor:
+                type: string
+              last_synced_at:
+                type: string
+                format: date-time
+
+    AIChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+        context:
+          type: object
+        sessionId:
+          type: string
+
+    AIChatResponse:
+      type: object
+      properties:
+        response:
+          type: string
+        success:
+          type: boolean
+        model:
+          type: string
 
   responses:
     BadRequest:

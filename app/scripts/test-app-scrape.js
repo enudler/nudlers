@@ -24,7 +24,7 @@ async function test() {
         const row = credsResult.rows[0];
 
         const { decrypt } = await import('../pages/api/utils/encryption.js');
-        
+
         // Helper to safely decrypt
         const safeDecrypt = (value) => {
             if (!value || typeof value !== 'string' || value.trim() === '') {
@@ -37,17 +37,17 @@ async function test() {
                 return null;
             }
         };
-        
+
         const rawCreds = {
             username: safeDecrypt(row.username),
             password: safeDecrypt(row.password),
             num: safeDecrypt(row.bank_account_number),
         };
-        
-        console.log('Raw credentials check:', { 
-            hasUsername: !!rawCreds.username, 
+
+        console.log('Raw credentials check:', {
+            hasUsername: !!rawCreds.username,
             hasPassword: !!rawCreds.password,
-            hasNum: !!rawCreds.num 
+            hasNum: !!rawCreds.num
         });
         const creds = prepareCredentials('leumi', rawCreds);
         console.log('Prepared credentials:', Object.keys(creds));
@@ -63,6 +63,8 @@ async function test() {
             logRequests: false,
             debugPort: 9224  // Use a different port to avoid conflicts
         });
+
+        console.log(`[Scraper] Using browser at: ${scraperOptions.executablePath || 'Puppeteer Default (Chrome for Testing)'}`);
 
         console.log('Starting Test Scrape (Simulating App)...');
         const result = await runScraper(client, scraperOptions, creds, (c, p) => console.log(`[Progress] ${p.type}: ${p.message || ''}`));

@@ -8,216 +8,52 @@ Personal finance management application for tracking credit card expenses and ba
 
 ## Features
 
-### 📊 Financial Overview & Tracking
-- **Multi-view Dashboard** with Summary, Overview, and Budget perspectives
-- **Real-time financial snapshots** showing total expenses across all accounts
-- **Bank & credit card transaction tracking** with automatic synchronization
-- **Monthly billing cycle management** with customizable cycle start dates
-- **Expense trend visualization** with interactive charts and graphs
+### 📊 Financial Dashboards
+- **Multi-view Analytics**: Summary, Budget, and Category-wise spending perspectives.
+- **Automated Sync**: Support for major Israeli banks and cards (**Visa Cal, Max, Isracard, Amex, Hapoalim, Leumi**, etc.).
+- **Transaction Management**: Manual entries, installments tracking, and customizable billing cycles.
 
-### 💳 Account Management
-- 🏦 **Automatic bank & credit card scraping** (Israeli financial institutions)
-- **Multi-account support** for both bank accounts and credit cards
-- **Account nicknames** for easy identification
-- **Card ownership tracking** to assign cards to specific users
-- **Last sync status** and sync history for each account
-- **Sync interval configuration** (automatic background sync every N hours)
+### 🧠 Smart Categorization
+- **3-Phase Logic**: Hybrid scraping + Regex Rules + Smart Cache for high-accuracy auto-labeling.
+- **Selective Enrichment**: Targeted API lookups for Isracard/Amex to avoid bot detection.
+- **Refinement Tools**: Bulk category merging, renaming, and automatic updates on re-scrape.
 
-### 📝 Transaction Management
-- **Manual transaction entry** for cash purchases and income
-- **Transaction editing** with category reassignment
-- **Transaction deletion** with confirmation dialogs
-- **Installment tracking** for split payments
-- **Search and filter** transactions by description, amount, category, or date
-- **Transaction source tracking** (scraper vs. manual entry)
+### 🤖 AI & Connectivity
+- **AI Assistant**: Natural language queries via **Google Gemini** ("What's my grocery budget status?").
+- **WhatsApp Summary**: Daily automated reports with trends and alerts via Twilio.
+- **MCP Integration**: Native Model Context Protocol support for **Claude Desktop** and **Cursor**.
 
-### 🎯 Categorization & Rules
-- 📊 **Category-based tracking** and spending analytics
-- ⚙️ **Customizable categorization rules** for automatic transaction labeling
-- **Pattern-based auto-categorization** using transaction descriptions
-- **Category merging** to consolidate similar categories
-- **Category renaming** to organize your finances
-- **Rule management** to apply categorization to existing transactions
-- **Uncategorized transaction tracking** with indicators
-
-### 💰 Budgeting & Analytics
-- **Monthly budget setting** per category
-- **Budget vs. actual spending** comparison
-- **Total spend budget** across all credit cards
-- **Category budget totals** and remaining amounts
-- **Budget performance tracking** with visual indicators
-
-### 🔄 Sync & Automation
-- **Automatic daily background sync** at a configurable hour (0-23)
-- **Catch-up sync** to retrieve transactions from last sync date
-- **Configurable sync history** (days to sync back)
-- **Update category on re-scrape** option
-- **Real-time sync status** with live updates
-- **Sync history and audit logs** for all scraping operations
-
-### 🔍 Advanced Features
-- 🔐 **Secure authentication** with encrypted credentials (AES-256-GCM)
-- 🤖 **AI Chat Assistant** - Ask questions about your finances using natural language (Google Gemini)
-- 📱 **WhatsApp Daily Summary** - Automated daily financial summaries sent via WhatsApp
-- **Recurring payment detection** and tracking
-- **Database backup & restore** with export/import functionality
-- **Scrape audit logs** with detailed sync reports
-- **Dark/light theme** support
-- **Responsive design** for mobile and desktop
-- **Multi-currency support** with configurable default currency
-- **Customizable date formats**
-
-### 🤖 AI Features
-
-#### AI Chat Assistant
-- **Natural language queries** about your financial data
-- **Context-aware responses** based on current screen
-- **Configurable AI model** (Gemini 2.5 Flash, Gemini 3 Flash, Gemini 3 Pro)
-- **Floating chat interface** accessible from any screen
-- Ask questions like:
-  - "How much did I spend on groceries this month?"
-  - "What's my budget status?"
-  - "Show me my largest expenses"
-
-#### WhatsApp Daily Summary
-- **Automated daily summaries** sent to your WhatsApp
-- **Configurable schedule** - choose the hour to receive your summary
-- **Comprehensive financial overview** including:
-  - Total spending for the last 7 days
-  - Budget status (overall and by category)
-  - Last 10 transactions with details
-  - Spending insights and recommendations
-- **Hebrew language support** with emoji formatting
-- **Twilio integration** for reliable message delivery
-- **Audit logging** of all sent messages
-
-### 🤖 MCP Integration (Claude/Cursor)
-- **Model Context Protocol** server for AI assistant integration
-- Query transactions, budgets, and expenses via natural language
-- Add manual transactions through AI assistants
-- Check sync status and account information
-- Works with Claude Desktop, Cursor, and other MCP-compatible clients
+### 🔐 Security & Performance
+- **Secure Vault**: AES-256-GCM encryption for all financial credentials.
+- **Low Resource Mode**: Optimized for Raspberry Pi/NAS; blocks heavy assets to save CPU/RAM.
+- **Collision Protection**: Robust identifier logic to prevent duplicate transactions.
 
 ---
 
-## MCP Integration (Claude Desktop / Cursor)
+## 🤖 MCP Integration (Claude/Cursor)
 
-Nudlers includes an MCP (Model Context Protocol) server that allows AI assistants like Claude Desktop or Cursor to interact with your financial data.
+Connect Nudlers to your AI assistant using the **Model Context Protocol**.
 
-### Prerequisites
-
-- Nudlers app must be running (`npm run dev` in the `app` directory)
-- Node.js 18+ installed
-
-### Setup
-
-1. **Build the MCP server**
-   ```bash
-   cd mcp
-   npm install
-   npm run build
-   ```
-
-2. **Find your absolute path**
-   ```bash
-   # Run this in the nudlers directory to get your path
-   echo "$(pwd)/mcp/build/index.js"
-   ```
-
-### Claude Desktop Configuration
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
+### Quick Setup
+1. **Build**: `cd mcp && npm install && npm run build`
+2. **Configure**: Add the following to your Claude/Cursor MCP settings:
 ```json
 {
   "mcpServers": {
     "nudlers": {
       "command": "node",
-      "args": ["/Users/YOUR_USERNAME/path/to/nudlers/mcp/build/index.js"],
-      "env": {
-        "NUDLERS_API_URL": "http://localhost:6969"
-      }
+      "args": ["/ABS_PATH_TO_NUDLERS/mcp/build/index.js"],
+      "env": { "NUDLERS_API_URL": "http://localhost:6969" }
     }
   }
 }
 ```
+*Note: Replace `/ABS_PATH_TO_NUDLERS` with your actual path.*
 
-> **Important:** Replace `/Users/YOUR_USERNAME/path/to/nudlers` with the actual absolute path to your nudlers directory.
-
-### Cursor Configuration
-
-Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global settings):
-
-```json
-{
-  "mcpServers": {
-    "nudlers": {
-      "command": "node",
-      "args": ["/Users/YOUR_USERNAME/path/to/nudlers/mcp/build/index.js"],
-      "env": {
-        "NUDLERS_API_URL": "http://localhost:6969"
-      }
-    }
-  }
-}
-```
-
-### Remote Server (Optional)
-
-If your Nudlers app is running on a different machine or port, use `mcp-remote`:
-
-```json
-{
-  "mcpServers": {
-    "nudlers": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://YOUR_SERVER_IP:6969/api/mcp"
-      ]
-    }
-  }
-}
-```
-
-> **Note:** Remote mode requires exposing the Nudlers API. For local development, use the standard configuration above.
-
-### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_monthly_summary` | Get monthly financial summary with expenses by vendor/card |
-| `get_category_expenses` | Get all transactions for a specific category |
-| `get_all_categories` | List all spending categories |
-| `search_transactions` | Search transactions by description, vendor, or category |
-| `get_budgets` | Get budget vs actual spending comparison |
-| `get_sync_status` | Get sync status for all accounts |
-| `add_manual_transaction` | Add a manual expense or income transaction |
-| `get_recurring_payments` | Get recurring payments and installments |
-| `list_accounts` | List all configured accounts |
-| `get_all_transactions` | Get all transactions for a date range |
-
-### Example Prompts
-
-Once configured, you can ask Claude or Cursor:
-- "What are my expenses for January 2026?"
-- "Search for all grocery transactions"
-- "How much did I spend on dining this month?"
-- "Show me my budget vs actual spending"
-- "Add a manual expense: Coffee at Aroma, 25 shekels"
-- "What's the sync status of my accounts?"
-
-### Troubleshooting
-
-**MCP server not connecting:**
-1. Verify the Nudlers app is running on port 6969
-2. Check the path in your configuration is absolute and correct
-3. Restart Claude Desktop/Cursor after changing configuration
-
-**No data returned:**
-1. Ensure you have transactions in the database
-2. Check that the billing cycle parameter matches your data
+### Use Cases
+- "What was my total grocery spend in January?"
+- "Search for transactions from Aroma"
+- "Add manual expense: Coffee, 20 ILS"
 
 
 
@@ -432,24 +268,12 @@ All settings can be configured through the Settings UI (accessible via the gear 
 
 ---
 
-## Supported Financial Institutions
+## 🏦 Supported Institutions
 
-### Credit Cards
-- Visa Cal
-- Max (Leumi Card)
-- Isracard
-- American Express (Israel)
-
-### Banks
-- Bank Hapoalim
-- Bank Leumi
-- Mizrahi Tefahot
-- Discount Bank
-- Bank Yahav
-- First International Bank (FIBI)
-- Otsar Hahayal
-- Massad
-- Bank Pagi
+| Category | Institutions |
+|----------|--------------|
+| **Banks** | Hapoalim, Leumi, Mizrahi Tefahot, Discount, Yahav, FIBI, Otsar Hahayal, Massad, Pagi |
+| **Cards** | Visa Cal, Max (Leumi Card), Isracard, American Express (Israel) |
 
 ---
 
@@ -501,35 +325,56 @@ nudlers/
 
 ---
 
-## Troubleshooting
+## 💡 Smart Categorization (3-Phase Flow)
+
+To ensure maximum reliability and speed while avoiding bot detection (especially with **Isracard**, **Amex**, and **Max**), Nudlers uses a unique 3-phase categorization strategy:
+
+1.  **Phase 1: Hybrid Scrape**
+    *   The browser fetches raw transaction data without requesting categories. This mimics human behavior and avoids the heavy "Additional Information" requests that often trigger "Block Automation" errors.
+2.  **Phase 2: Local Matching (Instant)**
+    *   **Rules First**: Matches transactions against your custom regex-based patterns.
+    *   **Smart Cache**: If no rule matches, it looks at your history. If you previously categorized "Aroma Coffee" as "Dining", it will automatically apply that category.
+3.  **Phase 3: Selective Enrichment (Targeted)**
+    *   Only for vendors that support it (Isracard/Amex), the app performs low-frequency, targeted API calls for *only* the transactions that still lack a category. This ensures 100% coverage without risking account lockouts.
+
+---
+
+## 🚀 Low Resource Mode
+
+Running Nudlers on a Raspberry Pi, a low-end Synology NAS, or a $5 VPS? Enable **Low Resource Mode** to significantly reduce CPU and RAM usage during scraping.
+
+### Features:
+- **Headless Optimization**: Strips all non-essential browser components (GPU, Audio, Sync, etc.).
+- **Asset Blocking**: Automatically blocks heavy network requests (Images, Video, Fonts) during scraping.
+- **IO Reduction**: Disables disk caching and minimizes database writes through batching.
+
+### How to Enable:
+Set the following environment variable in your `.env` or Docker configuration:
+```env
+LOW_RESOURCES_MODE=true
+```
+
+---
+
+## 🛠️ Troubleshooting
 
 ### Isracard/Amex/Max "Block Automation" Error
 
-These vendors have aggressive bot detection. The app includes mitigations:
+These vendors have aggressive bot detection. Nudlers is built to handle this:
 
-- **Category caching**: Known descriptions are mapped to categories locally
-- **Rate limiting delays**: 3-8 second random delays between requests
-- **Extended timeouts**: 3 minutes for these vendors
-- **Anti-detection measures**: Browser fingerprint spoofing
+- **Use the 3-Phase Flow**: Ensure "Fetch categories from scrapers" is enabled in settings; the app will handle the rest.
+- **Low Resource Mode**: Often helps evade detection by reducing the "footprint" of the browser.
+- **Rate Limiting**: The app automatically adds 3-10 second random delays between navigation steps.
 
-**If you still encounter issues:**
-
-1. Wait 24-48 hours between sync attempts
-2. Sync one account at a time
-3. Try logging into the website manually first
-4. Reduce the date range being synced
-
-### Database Connection Issues
-
-1. Verify PostgreSQL is running: `docker-compose ps`
-2. Check environment variables match your setup
-3. For Docker, ensure the database container is healthy
+**If you are still getting blocked:**
+1. Log in to the vendor's website manually once to "clear" any pending notices.
+2. Reduce your `sync_days_back` to 7 or 14 days.
+3. Wait 24 hours before trying again to let the rate limit expire.
 
 ### Chrome/Chromium Not Found
-
-The scraper needs Chrome. Install it or set the path:
+The scraper bundles "Chrome for Testing" by default. If you use a custom environment, set:
 ```env
-PUPPETEER_EXECUTABLE_PATH=/path/to/chrome
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 ```
 
 ---

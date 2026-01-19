@@ -4,7 +4,7 @@
  */
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal', 'leumi'];
+export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
 
 
 /**
@@ -15,25 +15,20 @@ export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const LOW_RESOURCES_MODE = process.env.LOW_RESOURCES_MODE === 'true';
 
 /**
- * Get Chromium executable path based on OS/Environment
+ * Get Chromium/Chrome executable path based on OS/Environment.
+ * Returning undefined allows Puppeteer to find its bundled "Chrome for Testing".
  */
 export function getChromePath() {
+    // 1. If explicitly set via environment variable (e.g., in Docker), use it.
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
         return process.env.PUPPETEER_EXECUTABLE_PATH;
     }
 
-    if (process.platform === 'win32') {
-        return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-    } else if (process.platform === 'darwin') {
-        return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    } else {
-        // Alpine Linux often uses chromium-browser specifically
-        const fs = require('fs');
-        if (fs.existsSync('/usr/bin/chromium-browser')) {
-            return '/usr/bin/chromium-browser';
-        }
-        return '/usr/bin/chromium';
-    }
+    // 2. Default: Return undefined. 
+    // Puppeteer 22+ will automatically look in ~/.cache/puppeteer for the 
+    // bundled "Chrome for Testing" binary. This is the most reliable way 
+    // to "make sure it's Chrome for Testing" across macOS, Windows, and Linux.
+    return undefined;
 }
 
 /**
@@ -84,6 +79,8 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             '--mute-audio',
             '--no-zygote',
             '--disable-accelerated-2d-canvas',
+            '--disable-canvas-aa',
+            '--disable-2d-canvas-clip-aa',
             '--disable-dev-shm-usage',
             '--disable-notifications',
             '--disable-offer-store-unmasked-wallet-cards',
@@ -91,7 +88,24 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             '--disable-print-preview',
             '--disable-speech-api',
             '--disable-wake-on-wifi',
-            '--disk-cache-size=0' // Disable disk cache to save IO
+            '--disk-cache-size=0', // Disable disk cache to save IO
+            '--disable-background-timer-throttling',
+            '--disable-breakpad',
+            '--disable-client-side-phishing-detection',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-datasaver-prompt',
+            '--disable-features=TranslateUI',
+            '--disable-hang-monitor',
+            '--disable-ipc-flooding-protection',
+            '--disable-popup-blocking',
+            '--disable-prompt-on-repost',
+            '--disable-renderer-backgrounding',
+            '--disable-sync',
+            '--force-color-profile=srgb',
+            '--metrics-recording-only',
+            '--no-first-run',
+            '--password-store=basic',
+            '--use-mock-keychain'
         );
     }
 
@@ -107,6 +121,24 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     }
 
     let timeout = options.timeout || 60000;
+
+    if (companyId === 'leumi') {
+        // For Leumi, use minimal options to match the library's default behavior
+        return {
+            companyId,
+            startDate,
+            combineInstallments: false,
+            additionalTransactionInformation: fetchCategories,
+            showBrowser,
+            headless: showBrowser ? false : 'new',
+            verbose: options.verbose ?? true,
+            timeout,
+            executablePath: getChromePath(),
+            // No custom args or viewport overrides for Leumi - STRICTLY default
+            // args: [], // Puppeteer usage of undefined args uses defaults
+            ...options
+        };
+    }
 
     return {
         companyId,
@@ -227,9 +259,11 @@ export function getPreparePage(options = {}) {
 
         // Also log responses to see status codes (only if logging is enabled)
         if (logRequests) {
-            page.on('response', (response) => {
+            page.on('response', async (response) => {
                 const request = response.request();
                 const resourceType = request.resourceType();
+                const url = request.url();
+
                 if (resourceType === 'xhr' || resourceType === 'fetch' || resourceType === 'document') {
                     const status = response.status();
                     // Highlight rate limiting responses (429) or errors
@@ -238,18 +272,29 @@ export function getPreparePage(options = {}) {
                         level,
                         msg: '[Scraper HTTP Response]',
                         status,
-                        url: request.url(),
+                        url,
                         resourceType,
                         timestamp: new Date().toISOString()
                     };
+
+                    // Enhanced logging for specific Visa Cal endpoints to debug failures
+                    if (url.includes('GetFrameStatus') || url.includes('Authentication/api/account/init')) {
+                        try {
+                            const text = await response.text();
+                            logData.responseText = text;
+                        } catch (e) {
+                            logData.responseTextError = e.message;
+                        }
+                    }
+
                     console.log(JSON.stringify(logData));
 
                     if (onProgress) {
                         onProgress('network', {
                             type: 'httpResponse',
-                            message: `${status} ${request.url()}`,
+                            message: `${status} ${url}`,
                             status,
-                            url: request.url(),
+                            url,
                             timestamp: new Date().toISOString()
                         });
                     }
@@ -266,7 +311,7 @@ export function getPreparePage(options = {}) {
                 window.fetch = async function (...args) {
                     const url = typeof args[0] === 'string' ? args[0] : args[0].url;
                     if (url && (url.includes('DashboardMonth') || url.includes('CardsTransactionsList'))) {
-                        const delay = 4000;
+                        const delay = 1000;
                         // Use CSS-styled log if in browser console, or simple log
                         console.log(`%c[Throttler] Throttling fetch for ${url.split('reqName=')[1]?.split('&')[0] || 'data'} (${delay}ms)`, 'color: orange; font-weight: bold;');
                         await new Promise(r => setTimeout(r, delay));
@@ -340,9 +385,9 @@ export function getPreparePage(options = {}) {
             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
             Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
             Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
-            
+
             // Additional anti-detection for Leumi and other banks
-            if (options.companyId === 'leumi' || options.companyId === 'hapoalim' || options.companyId === 'discount') {
+            if (options.companyId === 'hapoalim' || options.companyId === 'discount') {
                 // Override connection API
                 if (navigator.connection) {
                     Object.defineProperty(navigator, 'connection', {
@@ -354,7 +399,7 @@ export function getPreparePage(options = {}) {
                         })
                     });
                 }
-                
+
                 // Add more realistic browser properties
                 Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
                 Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
@@ -366,19 +411,12 @@ export function getPreparePage(options = {}) {
         const chromeVersion = '132.0.6834.83';
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
             'Sec-CH-UA': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not=A?Brand";v="8"`,
             'Sec-CH-UA-Mobile': '?0',
             'Sec-CH-UA-Platform': '"macOS"',
             'Sec-CH-UA-Arch': '"x86"',
             'Sec-CH-UA-Bitness': '"64"',
             'Sec-CH-UA-Model': '""',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1',
         });
 
         // Add navigation delays for rate-limited vendors (including Leumi)
@@ -404,9 +442,22 @@ export function getPreparePage(options = {}) {
                 }
 
                 await randomDelay(delayMs / 2, delayMs);
+
+                if (onProgress) {
+                    onProgress('network', {
+                        type: 'progress',
+                        message: 'Navigating to page...',
+                        phase: 'network'
+                    });
+                    onProgress('network', {
+                        type: 'rateLimitFinished',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
                 return originalGoto(url, options);
             };
         }
-        
+
     };
 }

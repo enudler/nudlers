@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
     try {
         const result = await client.query(
-            `SELECT report_json FROM scrape_events WHERE id = $1`,
+            `SELECT report_json, duration_seconds FROM scrape_events WHERE id = $1`,
             [id]
         );
 
@@ -24,9 +24,15 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'Scrape event not found' });
         }
 
-        const report = result.rows[0].report_json;
+        const report = result.rows[0].report_json || { processedTransactions: [], savedTransactions: 0 };
+        const duration_seconds = result.rows[0].duration_seconds;
 
-        res.status(200).json(report || { processedTransactions: [], savedTransactions: 0 });
+        // Merge duration_seconds into the report object if it's an object
+        if (typeof report === 'object' && !Array.isArray(report)) {
+            report.duration_seconds = duration_seconds;
+        }
+
+        res.status(200).json(report);
     } catch (error) {
         logger.error({ error: error.message, stack: error.stack }, 'Get scrape report error');
         res.status(500).json({ error: error.message });
