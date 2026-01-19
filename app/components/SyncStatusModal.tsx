@@ -505,7 +505,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       if (isStopping) return;
       setIsStopping(true);
 
-      // Cancel client-side fetch if already running
+      // Cancel client-side fetch 
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -517,7 +517,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         const data = await response.json();
         if (data.success) {
           setStopStatus('Successfully stopped all processes.');
-          // Force a state clear once stopped after a small delay to show feedback
           setTimeout(async () => {
             setIsSyncing(false);
             setSyncProgress(null);
@@ -540,8 +539,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     }
 
     setIsInitializing(true);
-    // Don't set isSyncing yet - keep the button green while initializing
-    // Clear previous session report to start fresh
     setSessionReport([]);
     setSessionSummary(null);
     setShowReport(false);
@@ -549,213 +546,111 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     setSyncQueue([]);
     setSyncProgress({ current: 0, total: 0, currentAccount: null });
 
-    // Internal async function to handle the rest
     const runSync = async () => {
-      const initController = new AbortController();
-      const timeoutId = setTimeout(() => initController.abort(), 15000); // 15s timeout for init
+      abortControllerRef.current = new AbortController();
 
       try {
-        // Fetch all active accounts
-        const response = await fetch('/api/sync_all', {
+        const response = await fetch('/api/sync_all_stream', {
           method: 'POST',
-          signal: initController.signal
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ daysBack: status?.settings?.daysBack || 30 }),
+          signal: abortControllerRef.current.signal
         });
-        clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch accounts');
-        }
-
-        const data = await response.json();
-        const accounts = data.accounts || [];
-
-        if (accounts.length === 0) {
-          setSyncProgress(null);
-          setIsSyncing(false);
-          setIsInitializing(false);
-          return;
-        }
-
+        if (!response.ok) throw new Error('Failed to start batch sync');
         setIsSyncing(true);
         setIsInitializing(false);
-        const initialQueue: QueueItem[] = accounts.map((acc: any) => ({
-          id: acc.id,
-          accountName: acc.nickname || acc.vendor,
-          vendor: acc.vendor,
-          status: 'pending'
-        }));
-        setSyncQueue(initialQueue);
-        setSyncProgress({ current: 0, total: accounts.length, currentAccount: null });
 
-        // Sync each account sequentially
-        for (let i = 0; i < accounts.length; i++) {
-          const account = accounts[i];
-          setSyncQueue(prev => prev.map(item =>
-            item.id === account.id ? { ...item, status: 'active' } : item
-          ));
-          setSyncProgress({
-            current: i,
-            total: accounts.length,
-            currentAccount: account.nickname || account.vendor
-          });
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        if (!reader) throw new Error('No reader available');
 
-          // Create abort controller for this sync
-          abortControllerRef.current = new AbortController();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-          try {
-            // Get last transaction date to determine start date
-            const lastDate = await fetchLastTransactionDate(account.vendor);
-            const startDate = lastDate ? new Date(lastDate) : new Date();
-            // Go back configured days or default to 30
-            const daysBack = status?.settings?.daysBack || 30;
-            startDate.setDate(startDate.getDate() - daysBack);
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-            const credentials = prepareCredentials(account, account.vendor);
-            const config = {
-              options: {
-                companyId: account.vendor,
-                startDate: startDate.toISOString().split('T')[0],
-                combineInstallments: false,
-                showBrowser: false,
-                additionalTransactionInformation: true
-              },
-              credentials: credentials,
-              credentialId: account.id
-            };
+          let currentEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7);
+            } else if (line.startsWith('data: ')) {
+              const eventData = JSON.parse(line.slice(6));
 
-            // Trigger sync using scrape_stream API
-            const syncResponse = await fetch('/api/scrape_stream', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(config),
-              signal: abortControllerRef.current.signal
-            });
+              switch (currentEvent) {
+                case 'queue':
+                  const initialQueue: QueueItem[] = eventData.accounts.map((acc: any) => ({
+                    id: acc.id,
+                    accountName: acc.nickname,
+                    vendor: acc.vendor,
+                    status: 'pending'
+                  }));
+                  setSyncQueue(initialQueue);
+                  setSyncProgress(prev => ({ ...prev!, total: initialQueue.length }));
+                  break;
 
-            if (!syncResponse.ok) {
-              throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
-            }
+                case 'account_start':
+                  setSyncQueue(prev => prev.map(item =>
+                    item.id === eventData.id ? { ...item, status: 'active' } : item
+                  ));
+                  setSyncProgress(prev => ({
+                    current: eventData.index,
+                    total: prev?.total || 0,
+                    currentAccount: eventData.nickname,
+                    currentStep: 'Initializing...',
+                    percent: 5,
+                    phase: 'initialization'
+                  }));
+                  break;
 
-            // Read SSE stream to completion with detailed progress
-            const reader = syncResponse.body?.getReader();
-            const decoder = new TextDecoder();
+                case 'progress':
+                  setSyncProgress(prev => ({
+                    ...prev!,
+                    currentStep: eventData.message || prev?.currentStep,
+                    percent: eventData.percent || prev?.percent,
+                    phase: eventData.phase || prev?.phase,
+                    success: eventData.success
+                  }));
+                  break;
 
-            if (reader) {
-              let buffer = '';
-              let currentStep = '';
-              let lastProgress = null;
-
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                let currentEvent = '';
-                for (const line of lines) {
-                  if (line.startsWith('event: ')) {
-                    currentEvent = line.slice(7);
-                  } else if (line.startsWith('data: ')) {
-                    const eventData = JSON.parse(line.slice(6));
-
-                    if (currentEvent === 'progress') {
-                      currentStep = eventData.message || '';
-                      lastProgress = eventData;
-                      // Update sync progress with detailed step info
-                      setSyncProgress({
-                        current: i,
-                        total: accounts.length,
-                        currentAccount: account.nickname || account.vendor,
-                        currentStep: currentStep,
-                        percent: eventData.percent || 0,
-                        phase: eventData.phase || '',
-                        success: eventData.success
-                      });
-                    } else if (currentEvent === 'error') {
-                      throw new Error(eventData.message || 'Sync failed');
-                    } else if (currentEvent === 'complete') {
-                      // Account synced successfully
-                      setSyncProgress({
-                        current: i,
-                        total: accounts.length,
-                        currentAccount: account.nickname || account.vendor,
-                        currentStep: '✓ Completed successfully',
-                        percent: 100,
-                        phase: 'complete',
-                        success: true,
-                        summary: eventData.summary
-                      });
-
-                      if (eventData.summary && eventData.summary.processedTransactions) {
-                        setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
-                          ...t,
-                          accountName: account.nickname || account.vendor,
-                          source: t.source,
-                          rule: t.rule,
-                          oldCategory: t.oldCategory
-                        }))]);
-                      }
-                      setSyncQueue(prev => prev.map(item =>
-                        item.id === account.id ? { ...item, status: 'completed', summary: eventData.summary } : item
-                      ));
-                      break;
-                    }
+                case 'account_complete':
+                  setSyncQueue(prev => prev.map(item =>
+                    item.id === eventData.id ? { ...item, status: 'completed', summary: eventData.summary } : item
+                  ));
+                  if (eventData.summary && eventData.summary.processedTransactions) {
+                    setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions]);
                   }
-                }
+                  break;
+
+                case 'account_error':
+                  setSyncQueue(prev => prev.map(item =>
+                    item.id === eventData.id ? { ...item, status: 'failed', error: eventData.message } : item
+                  ));
+                  break;
+
+                case 'complete':
+                  setIsSyncing(false);
+                  setSessionSummary({ durationSeconds: eventData.durationSeconds });
+                  setShowReport(true);
+                  await fetchStatus();
+                  if (onSyncSuccess) onSyncSuccess();
+                  return;
+
+                case 'error':
+                  throw new Error(eventData.message);
               }
             }
-
-            // Update progress after account completes
-            setSyncProgress({
-              current: i + 1,
-              total: accounts.length,
-              currentAccount: null,
-              currentStep: null,
-              percent: 0,
-              phase: '',
-              success: null
-            });
-
-            // Notify parent of success
-            if (onSyncSuccess) {
-              onSyncSuccess();
-            }
-          } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') {
-              // User cancelled
-              setIsSyncing(false);
-              setSyncProgress(null);
-              setIsInitializing(false);
-              return;
-            }
-            logger.error('Failed to sync account', err, {
-              account: account.nickname || account.vendor
-            });
-            setSyncQueue(prev => prev.map(item =>
-              item.id === account.id ? { ...item, status: 'failed', error: err instanceof Error ? err.message : String(err) } : item
-            ));
-            // Continue with next account even if one fails
           }
         }
-
-        // Refresh status after all syncs complete
-        await fetchStatus();
-        setSyncProgress(null);
-        setIsSyncing(false);
-        setSessionSummary({
-          durationSeconds: elapsedSeconds
-        });
-        setSyncStartTime(null);
-        setShowReport(true);
       } catch (err) {
-        logger.error('Sync all failed', err);
-        setSyncProgress(null);
+        if (err instanceof Error && err.name === 'AbortError') return;
+        logger.error('Batch sync failed', err);
         setIsSyncing(false);
         setSyncStartTime(null);
-        // Even on error, show what we got
         setShowReport(true);
       } finally {
         setIsInitializing(false);

@@ -19,6 +19,7 @@ import {
     loadCategoryMappings,
     checkScraperConcurrency,
 } from './utils/scraperUtils';
+import { BANK_VENDORS } from '../../utils/constants';
 
 // Helper to send SSE messages
 function sendSSE(res, event, data) {
@@ -53,6 +54,19 @@ export default async function handler(req, res) {
     });
 
     try {
+        // Check for other running scrapers
+        try {
+            await checkScraperConcurrency(client);
+        } catch (concurrencyError) {
+            logger.warn({ error: concurrencyError.message }, '[Sync All Stream] Concurrency check failed');
+            sendSSE(res, 'error', {
+                message: concurrencyError.message,
+                type: 'CONCURRENCY_ERROR'
+            });
+            res.end();
+            return;
+        }
+
         // 1. Get all active accounts
         const accountsResult = await client.query(`
       SELECT id, vendor, username, password, id_number, card6_digits, nickname, bank_account_number
@@ -135,6 +149,8 @@ export default async function handler(req, res) {
                     throw new Error(result.errorMessage || 'Scraper failed');
                 }
 
+                const isBank = BANK_VENDORS.includes(account.vendor);
+
                 const stats = await processScrapedAccounts({
                     client,
                     accounts: result.accounts,
@@ -144,7 +160,7 @@ export default async function handler(req, res) {
                     categoryMappings,
                     billingCycleStartDay,
                     updateCategoryOnRescrape,
-                    isBank: false, // Will be handled inside processScrapedAccounts if needed
+                    isBank,
                     onTransactionProcessed: () => true,
                 });
 
