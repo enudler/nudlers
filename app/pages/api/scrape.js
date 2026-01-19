@@ -24,6 +24,7 @@ import {
   getLogHttpRequestsSetting,
   getBillingCycleStartDay,
   processScrapedAccounts,
+  checkScraperConcurrency,
 } from './utils/scraperUtils';
 
 const CompanyTypes = {
@@ -53,6 +54,18 @@ async function handler(req, res) {
   let auditId = null;
 
   try {
+    // Check for other running scrapers
+    try {
+      await checkScraperConcurrency(client);
+    } catch (concurrencyError) {
+      logger.warn({ error: concurrencyError.message }, '[Scrape] Concurrency check failed');
+      return res.status(409).json({
+        message: concurrencyError.message,
+        error: 'Scraper already running',
+        type: 'CONCURRENCY_ERROR'
+      });
+    }
+
     const { options, credentials, credentialId } = req.body;
     const companyId = CompanyTypes[options.companyId];
     if (!companyId) {

@@ -109,6 +109,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const [stepHistory, setStepHistory] = useState<Array<{ step: string, message: string, success: boolean | null, phase?: string }>>([]);
   const [networkLogs, setNetworkLogs] = useState<NetworkLogEntry[]>([]);
   const [rateLimitState, setRateLimitState] = useState<RateLimitState | null>(null);
+  const [errorType, setErrorType] = useState<string | null>(null);
+  const [isKilling, setIsKilling] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { showNotification } = useNotification();
@@ -164,6 +166,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       setSessionReport([]);
       setNetworkLogs([]);
       setRateLimitState(null);
+      setErrorType(null);
+      setIsKilling(false);
       // Abort any ongoing scrape when modal closes
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -235,6 +239,26 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     }, 100);
   };
 
+  const handleKillScrapers = async () => {
+    setIsKilling(true);
+    try {
+      const response = await fetch('/api/stop_scrapers', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        showNotification('All scrapers stopped successfully.', 'success');
+        setError(null);
+        setErrorType(null);
+        setRetryState(null);
+      } else {
+        showNotification(data.message || 'Failed to stop scrapers', 'error');
+      }
+    } catch (err) {
+      showNotification('Failed to stop scrapers', 'error');
+    } finally {
+      setIsKilling(false);
+    }
+  };
+
   const handleScrape = async () => {
     setIsLoading(true);
     setError(null);
@@ -245,6 +269,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     setStepHistory([]);
     setNetworkLogs([]);
     setRateLimitState(null);
+    // Dispatch refresh event so global indicators (like header/sidebar) know it started
+    window.dispatchEvent(new CustomEvent('dataRefresh'));
 
     // Create abort controller for this scrape
     abortControllerRef.current = new AbortController();
@@ -260,7 +286,17 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start scraping');
+        let errorMsg = 'Failed to start scraping';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+          if (errorData.type === 'CONCURRENCY_ERROR') {
+            setErrorType('CONCURRENCY_ERROR');
+          }
+        } catch (e) {
+          // not json, stick with default
+        }
+        throw new Error(errorMsg);
       }
 
       // Read the SSE stream
@@ -361,6 +397,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
               }
               showNotification('Scraping completed successfully!', 'success');
             } else if (currentEvent === 'error') {
+              if (data.type === 'CONCURRENCY_ERROR') {
+                setErrorType('CONCURRENCY_ERROR');
+              }
               const errorWithHint = data.hint ? `${data.message}\n\n💡 Hint: ${data.hint}` : data.message;
               throw new Error(errorWithHint);
             }
@@ -863,7 +902,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
               {error}
             </Typography>
 
-            {retryState?.canRetry && (
+            {retryState?.canRetry && !errorType && (
               <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#b91c1c' : '#991b1b', mb: 1 }}>
                   Would you like to retry?
@@ -906,6 +945,29 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                     "Continue" will start from the day after the last saved transaction, skipping already synced data.
                   </Typography>
                 )}
+              </Box>
+            )}
+
+            {errorType === 'CONCURRENCY_ERROR' && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="contained"
+                  color="error"
+                  fullWidth
+                  onClick={handleKillScrapers}
+                  disabled={isKilling}
+                  startIcon={<BugReportIcon />}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: '8px'
+                  }}
+                >
+                  {isKilling ? 'Stopping Scrapers...' : 'Force Stop All Scrapers'}
+                </Button>
+                <Typography variant="caption" sx={{ display: 'block', mt: 1, textAlign: 'center', opacity: 0.8 }}>
+                  This will terminate any running browser processes and allow you to start a new scrape.
+                </Typography>
               </Box>
             )}
           </div>

@@ -11,7 +11,8 @@ import {
     updateScrapeAudit,
     updateCredentialLastSynced,
     getFetchCategoriesSetting,
-    getScraperTimeout
+    getScraperTimeout,
+    checkScraperConcurrency
 } from '../pages/api/utils/scraperUtils.js';
 
 // Standalone DB connection for the script
@@ -33,6 +34,14 @@ async function runBackgroundSync() {
     logger.info('[Background Sync] Started');
 
     try {
+        // Check for other running scrapers
+        try {
+            await checkScraperConcurrency(client);
+        } catch (concurrencyError) {
+            logger.warn({ error: concurrencyError.message }, '[Background Sync] Concurrency check failed, skipping');
+            return;
+        }
+
         // Check if sync is enabled
         const syncEnabledRes = await client.query("SELECT value FROM app_settings WHERE key = 'sync_enabled'");
         const syncEnabled = syncEnabledRes.rows[0]?.value === true || syncEnabledRes.rows[0]?.value === 'true';

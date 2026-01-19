@@ -24,11 +24,33 @@ async function test() {
         const row = credsResult.rows[0];
 
         const { decrypt } = await import('../pages/api/utils/encryption.js');
-        const rawCreds = {
-            username: row.username ? decrypt(row.username) : null,
-            password: row.password ? decrypt(row.password) : null,
+        
+        // Helper to safely decrypt
+        const safeDecrypt = (value) => {
+            if (!value || typeof value !== 'string' || value.trim() === '') {
+                return null;
+            }
+            try {
+                return decrypt(value);
+            } catch (e) {
+                console.error('Decrypt error:', e.message);
+                return null;
+            }
         };
+        
+        const rawCreds = {
+            username: safeDecrypt(row.username),
+            password: safeDecrypt(row.password),
+            num: safeDecrypt(row.bank_account_number),
+        };
+        
+        console.log('Raw credentials check:', { 
+            hasUsername: !!rawCreds.username, 
+            hasPassword: !!rawCreds.password,
+            hasNum: !!rawCreds.num 
+        });
         const creds = prepareCredentials('leumi', rawCreds);
+        console.log('Prepared credentials:', Object.keys(creds));
 
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 1);
@@ -38,7 +60,8 @@ async function test() {
             fetchCategories: true,
             timeout: 240000,
             verbose: true,
-            logRequests: false
+            logRequests: false,
+            debugPort: 9224  // Use a different port to avoid conflicts
         });
 
         console.log('Starting Test Scrape (Simulating App)...');

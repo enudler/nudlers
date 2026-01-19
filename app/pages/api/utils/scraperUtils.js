@@ -10,6 +10,10 @@ import { BANK_VENDORS } from '../../../utils/constants.js';
 import { generateTransactionIdentifier } from './transactionUtils.js';
 import { createScraper } from 'israeli-bank-scrapers';
 import logger from '../../../utils/logger.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import {
   getChromePath,
   getScraperOptions,
@@ -188,6 +192,10 @@ export function prepareCredentials(vendor, rawCredentials) {
     vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
     credentials.username = username;
     credentials.password = password;
+    // Include account number (num) if provided for banks that require it
+    if (num) {
+      credentials.num = num;
+    }
   } else if (vendor === 'isracard' || vendor === 'amex') {
     credentials.id = id;
     credentials.card6Digits = card6Digits;
@@ -624,6 +632,65 @@ async function fetchCategoryFromIsracard(page, txn, accountIndex, moedChiuv) {
 }
 
 /**
+ * Check if any scraper is currently running.
+ * Throws an error if another scraper is active.
+ * A scraper is considered active if status is 'started' and it was created less than 30 minutes ago.
+ */
+export async function checkScraperConcurrency(client) {
+  const result = await client.query(`
+    SELECT id, vendor, created_at 
+    FROM scrape_events 
+    WHERE status = 'started' 
+    AND created_at > (CURRENT_TIMESTAMP - INTERVAL '30 minutes')
+    ORDER BY created_at DESC 
+    LIMIT 1
+  `);
+
+  if (result.rows.length > 0) {
+    const active = result.rows[0];
+    const startTime = new Date(active.created_at).toLocaleTimeString();
+    throw new Error(`Another scraper (${active.vendor}) is already running (started at ${startTime}). Please wait for it to finish or stop it before starting a new one.`);
+  }
+}
+
+/**
+ * Stop all running scrapers by killing browser processes and updating database status.
+ */
+export async function stopAllScrapers(client) {
+  logger.info('[Scraper Utils] Stopping all scrapers...');
+
+  // 1. Mark all 'started' events as 'cancelled'
+  const result = await client.query(`
+    UPDATE scrape_events 
+    SET status = 'cancelled', 
+        message = 'Stopped by user',
+        duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+    WHERE status = 'started'
+    RETURNING id
+  `);
+
+  logger.info({ count: result.rowCount }, '[Scraper Utils] Updated started events to cancelled');
+
+  // 2. Kill Chromium/Chrome processes launched by the app
+  // We look for processes with specific flags used by our scraper
+  try {
+    if (process.platform === 'darwin') {
+      // macOS: target Chrome/Chromium with headless or automation flags
+      await execAsync("pkill -f 'Google Chrome.*headless' || true");
+      await execAsync("pkill -f 'Chromium.*headless' || true");
+      await execAsync("pkill -f 'Google Chrome.*remote-debugging-port=9223' || true");
+    } else {
+      // Linux/others
+      await execAsync("pkill -f 'chromium.*headless' || true");
+      await execAsync("pkill -f 'chrome.*headless' || true");
+    }
+    logger.info('[Scraper Utils] Browser processes killed');
+  } catch (err) {
+    logger.error({ error: err.message }, '[Scraper Utils] Error killing browser processes');
+  }
+}
+
+/**
  * Runs the scraper directly in the main process
  * @param {Object} client - DB Client (optional, required for smart scraping)
  * @param {Object} scraperOptions - Options for createScraper
@@ -754,8 +821,9 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
         logger.info({ categorizedLocal, needsApi: needsApiCall.length }, '[Scraper] Phase 2 Complete');
 
-        // Phase 3: Selective API calls
-        if (needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
+        // Phase 3: Selective API calls (only for Isracard/Amex, not Leumi)
+        const supportsCategoryAPI = scraperOptions.companyId === 'isracard' || scraperOptions.companyId === 'amex';
+        if (supportsCategoryAPI && needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
           logger.info('[Scraper] Starting Phase 3: Selective API Calls');
 
           // Deduplicate

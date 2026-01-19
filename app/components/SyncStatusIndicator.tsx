@@ -133,10 +133,11 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
 
   useEffect(() => {
     fetchStatus();
-    // Refresh status every 30 seconds
-    const interval = setInterval(fetchStatus, 30000);
+    // Refresh status more frequently if syncing
+    const intervalTime = status?.syncHealth === 'syncing' ? 5000 : 10000;
+    const interval = setInterval(fetchStatus, intervalTime);
     return () => clearInterval(interval);
-  }, [fetchStatus]);
+  }, [fetchStatus, status?.syncHealth]);
 
   // Also refresh when a data refresh event is dispatched
   useEffect(() => {
@@ -144,6 +145,19 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
     window.addEventListener('dataRefresh', handleRefresh);
     return () => window.removeEventListener('dataRefresh', handleRefresh);
   }, [fetchStatus]);
+
+  // Update browser tab title based on sync status
+  useEffect(() => {
+    const originalTitle = 'Nudlers';
+    if (status?.syncHealth === 'syncing') {
+      document.title = `(Syncing...) ${originalTitle}`;
+    } else {
+      document.title = originalTitle;
+    }
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [status?.syncHealth]);
 
   if (loading) {
     return null;

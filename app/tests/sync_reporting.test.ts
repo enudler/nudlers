@@ -39,7 +39,8 @@ vi.mock('../pages/api/utils/scraperUtils', async (importOriginal) => {
         getUpdateCategoryOnRescrapeSetting: vi.fn().mockResolvedValue(false),
         getBillingCycleStartDay: vi.fn().mockResolvedValue(10),
         prepareCredentials: vi.fn().mockReturnValue({}),
-        validateCredentials: vi.fn()
+        validateCredentials: vi.fn(),
+        checkScraperConcurrency: vi.fn().mockResolvedValue(undefined)
     };
 });
 
