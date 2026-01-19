@@ -141,23 +141,27 @@ describe('Sync Reporting and Audit', () => {
     describe('API: /api/get_scrape_report', () => {
         it('should return report_json for a specific ID', async () => {
             const mockReport = { processedTransactions: [{ name: 'Tx 1' }] };
+            const duration = 45;
             mockReq = {
                 method: 'GET',
                 query: { id: '123' }
             };
 
             mockClient.query.mockResolvedValue({
-                rows: [{ report_json: mockReport }]
+                rows: [{ report_json: mockReport, duration_seconds: duration }]
             });
 
             await getScrapeReportHandler(mockReq, mockRes);
 
             expect(mockClient.query).toHaveBeenCalledWith(
-                expect.stringContaining('SELECT report_json FROM scrape_events WHERE id = $1'),
+                expect.stringContaining('SELECT report_json, duration_seconds FROM scrape_events WHERE id = $1'),
                 ['123']
             );
             expect(mockRes.status).toHaveBeenCalledWith(200);
-            expect(mockRes.json).toHaveBeenCalledWith(mockReport);
+            expect(mockRes.json).toHaveBeenCalledWith({
+                ...mockReport,
+                duration_seconds: duration
+            });
         });
 
         it('should return 404 if event not found', async () => {
