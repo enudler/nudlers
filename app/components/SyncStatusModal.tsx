@@ -32,7 +32,9 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import TimerIcon from '@mui/icons-material/Timer';
 import { BEINLEUMI_GROUP_VENDORS, BANK_VENDORS } from '../utils/constants';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import ScrapeReport from './ScrapeReport';
+import { getSyncStatusLabel } from '../utils/sync-ui-utils';
 
 interface SyncStatusModalProps {
   open: boolean;
@@ -69,6 +71,7 @@ interface SyncStatus {
     duration_seconds?: number;
   }>;
   accountSyncStatus: Array<{
+    id: number;
     nickname: string;
     vendor: string;
     last_synced_at: string | null;
@@ -228,9 +231,11 @@ const getVendorIcon = (vendor: string) => {
 };
 
 import { useTheme } from '@mui/material/styles';
+import { useNotification } from './NotificationContext';
 
 const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange, onSyncSuccess }) => {
   const theme = useTheme();
+  const { showNotification } = useNotification();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -257,6 +262,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     };
   } | null>(null);
 
+  const [syncStartTime, setSyncStartTime] = useState<number | null>(null);
+
   interface ProcessedTransaction {
     name: string;
     amount: number;
@@ -267,6 +274,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const [sessionReport, setSessionReport] = useState<ProcessedTransaction[]>([]);
   const [showReport, setShowReport] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [stopStatus, setStopStatus] = useState<string | null>(null);
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
   // Resizing state
@@ -310,17 +320,19 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isSyncing) {
-      const startTime = Date.now();
+    if (isSyncing && syncStartTime) {
+      const updateTimer = () => {
+        setElapsedSeconds(Math.floor((Date.now() - syncStartTime) / 1000));
+      };
+      updateTimer();
+      interval = setInterval(updateTimer, 1000);
+    } else {
       setElapsedSeconds(0);
-      interval = setInterval(() => {
-        setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-      }, 1000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isSyncing]);
+  }, [isSyncing, syncStartTime]);
 
   const formatTime = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -342,16 +354,49 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     }
   }, []);
 
+  // Sync state recovery on mount or status change
+  useEffect(() => {
+    if (status && status.syncHealth === 'syncing' && !isSyncing) {
+      setIsSyncing(true);
+      if (status.latestScrape) {
+        const startTime = new Date(status.latestScrape.created_at).getTime();
+        setSyncStartTime(startTime);
+        setSyncProgress({
+          current: 0,
+          total: 1, // When recovering from status, we only know about the one active scrape
+          currentAccount: status.latestScrape.vendor,
+          currentStep: status.latestScrape.message || 'Syncing...',
+          percent: 50, // Placeholder since we don't know exact percent
+          phase: 'processing'
+        });
+      }
+    } else if (status && status.syncHealth !== 'syncing' && isSyncing && !isInitializing && !isStopping) {
+      // If server says we are no longer syncing, clear everything
+      // Only do this if we are not currently starting or stopping a sync manually
+      setIsSyncing(false);
+      setSyncProgress(null);
+      setSyncStartTime(null);
+    }
+  }, [status, isSyncing]); // Removed syncProgress from dependencies to avoid loop
+
 
 
   // Reset report when opening
-  // Fetch status when opening
   useEffect(() => {
     if (open) {
-      setLoading(true);
       fetchStatus();
+      // Poll every 5 seconds while open to keep status up to date
+      const interval = setInterval(fetchStatus, 5000);
+      return () => clearInterval(interval);
     }
   }, [open, fetchStatus]);
+
+  // Also refresh when a data refresh event is dispatched
+  useEffect(() => {
+    const handleRefresh = () => fetchStatus();
+    window.addEventListener('dataRefresh', handleRefresh);
+    return () => window.removeEventListener('dataRefresh', handleRefresh);
+  }, [fetchStatus]);
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
@@ -409,56 +454,273 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const handleSyncAll = async () => {
     if (isSyncing) {
-      // Cancel sync if already running
+      if (isStopping) return;
+      setIsStopping(true);
+
+      // Cancel client-side fetch if already running
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      setIsSyncing(false);
-      setSyncProgress(null);
+
+      // Stop all server-side scrapers
+      try {
+        setStopStatus('Sending stop command...');
+        const response = await fetch('/api/stop_scrapers', { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+          setStopStatus('Successfully stopped all processes.');
+          // Force a state clear once stopped after a small delay to show feedback
+          setTimeout(async () => {
+            setIsSyncing(false);
+            setSyncProgress(null);
+            setSyncStartTime(null);
+            setStopStatus(null);
+            await fetchStatus();
+          }, 2000);
+        } else {
+          setStopStatus('Failed to stop some processes.');
+          setTimeout(() => setStopStatus(null), 3000);
+        }
+      } catch (err) {
+        logger.error('Failed to call stop_scrapers API', err);
+        setStopStatus('Error stopping scrapers.');
+        setTimeout(() => setStopStatus(null), 3000);
+      } finally {
+        setIsStopping(false);
+      }
       return;
     }
 
-    setIsSyncing(true);
+    setIsInitializing(true);
+    // Don't set isSyncing yet - keep the button green while initializing
+    setSyncStartTime(Date.now());
     setSyncProgress({ current: 0, total: 0, currentAccount: null });
 
-    try {
-      // Fetch all active accounts
-      const response = await fetch('/api/sync_all', {
-        method: 'POST'
-      });
+    // Internal async function to handle the rest
+    const runSync = async () => {
+      const initController = new AbortController();
+      const timeoutId = setTimeout(() => initController.abort(), 15000); // 15s timeout for init
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch accounts');
-      }
+      try {
+        // Fetch all active accounts
+        const response = await fetch('/api/sync_all', {
+          method: 'POST',
+          signal: initController.signal
+        });
+        clearTimeout(timeoutId);
 
-      const data = await response.json();
-      const accounts = data.accounts || [];
+        if (!response.ok) {
+          throw new Error('Failed to fetch accounts');
+        }
 
-      if (accounts.length === 0) {
+        const data = await response.json();
+        const accounts = data.accounts || [];
+
+        if (accounts.length === 0) {
+          setSyncProgress(null);
+          setIsSyncing(false);
+          setIsInitializing(false);
+          return;
+        }
+
+        setIsSyncing(true);
+        setIsInitializing(false);
+        setSyncProgress({ current: 0, total: accounts.length, currentAccount: null });
+
+        // Sync each account sequentially
+        for (let i = 0; i < accounts.length; i++) {
+          const account = accounts[i];
+          setSyncProgress({
+            current: i,
+            total: accounts.length,
+            currentAccount: account.nickname || account.vendor
+          });
+
+          // Create abort controller for this sync
+          abortControllerRef.current = new AbortController();
+
+          try {
+            // Get last transaction date to determine start date
+            const lastDate = await fetchLastTransactionDate(account.vendor);
+            const startDate = lastDate ? new Date(lastDate) : new Date();
+            // Go back configured days or default to 30
+            const daysBack = status?.settings?.daysBack || 30;
+            startDate.setDate(startDate.getDate() - daysBack);
+
+            const credentials = prepareCredentials(account, account.vendor);
+            const config = {
+              options: {
+                companyId: account.vendor,
+                startDate: startDate.toISOString().split('T')[0],
+                combineInstallments: false,
+                showBrowser: false,
+                additionalTransactionInformation: true
+              },
+              credentials: credentials,
+              credentialId: account.id
+            };
+
+            // Trigger sync using scrape_stream API
+            const syncResponse = await fetch('/api/scrape_stream', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(config),
+              signal: abortControllerRef.current.signal
+            });
+
+            if (!syncResponse.ok) {
+              throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
+            }
+
+            // Read SSE stream to completion with detailed progress
+            const reader = syncResponse.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (reader) {
+              let buffer = '';
+              let currentStep = '';
+              let lastProgress = null;
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                let currentEvent = '';
+                for (const line of lines) {
+                  if (line.startsWith('event: ')) {
+                    currentEvent = line.slice(7);
+                  } else if (line.startsWith('data: ')) {
+                    const eventData = JSON.parse(line.slice(6));
+
+                    if (currentEvent === 'progress') {
+                      currentStep = eventData.message || '';
+                      lastProgress = eventData;
+                      // Update sync progress with detailed step info
+                      setSyncProgress({
+                        current: i,
+                        total: accounts.length,
+                        currentAccount: account.nickname || account.vendor,
+                        currentStep: currentStep,
+                        percent: eventData.percent || 0,
+                        phase: eventData.phase || '',
+                        success: eventData.success
+                      });
+                    } else if (currentEvent === 'error') {
+                      throw new Error(eventData.message || 'Sync failed');
+                    } else if (currentEvent === 'complete') {
+                      // Account synced successfully
+                      setSyncProgress({
+                        current: i,
+                        total: accounts.length,
+                        currentAccount: account.nickname || account.vendor,
+                        currentStep: '✓ Completed successfully',
+                        percent: 100,
+                        phase: 'complete',
+                        success: true,
+                        summary: eventData.summary
+                      });
+
+                      if (eventData.summary && eventData.summary.processedTransactions) {
+                        setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
+                          ...t,
+                          accountName: account.nickname || account.vendor
+                        }))]);
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Update progress after account completes
+            setSyncProgress({
+              current: i + 1,
+              total: accounts.length,
+              currentAccount: null,
+              currentStep: null,
+              percent: 0,
+              phase: '',
+              success: null
+            });
+
+            // Notify parent of success
+            if (onSyncSuccess) {
+              onSyncSuccess();
+            }
+          } catch (err) {
+            if (err instanceof Error && err.name === 'AbortError') {
+              // User cancelled
+              setIsSyncing(false);
+              setSyncProgress(null);
+              setIsInitializing(false);
+              return;
+            }
+            logger.error('Failed to sync account', err, {
+              account: account.nickname || account.vendor
+            });
+            // Continue with next account even if one fails
+          }
+        }
+
+        // Refresh status after all syncs complete
+        await fetchStatus();
         setSyncProgress(null);
         setIsSyncing(false);
-        return;
+        setSyncStartTime(null);
+        setShowReport(true);
+      } catch (err) {
+        logger.error('Sync all failed', err);
+        setSyncProgress(null);
+        setIsSyncing(false);
+        setSyncStartTime(null);
+        // Even on error, show what we got
+        setShowReport(true);
+      } finally {
+        setIsInitializing(false);
       }
+    };
 
-      setSyncProgress({ current: 0, total: accounts.length, currentAccount: null });
+    runSync();
+  };
 
-      // Sync each account sequentially
-      for (let i = 0; i < accounts.length; i++) {
-        const account = accounts[i];
+  const handleSyncSingle = async (accountId: number) => {
+    if (isSyncing || isInitializing) return;
+
+    setIsInitializing(true);
+    setSyncStartTime(Date.now());
+    setSyncProgress({ current: 0, total: 1, currentAccount: null });
+
+    const runSingle = async () => {
+      try {
+        // Fetch full credentials for this specific account
+        const response = await fetch(`/api/credentials/${accountId}`);
+        if (!response.ok) throw new Error('Failed to fetch account credentials');
+        const account = await response.json();
+
+        setIsSyncing(true);
+        setIsInitializing(false);
         setSyncProgress({
-          current: i,
-          total: accounts.length,
-          currentAccount: account.nickname || account.vendor
+          current: 0,
+          total: 1,
+          currentAccount: account.nickname || account.vendor,
+          currentStep: 'Initializing...'
         });
 
-        // Create abort controller for this sync
+        // Trigger global refresh so header knows we started
+        window.dispatchEvent(new CustomEvent('dataRefresh'));
+
         abortControllerRef.current = new AbortController();
 
         try {
-          // Get last transaction date to determine start date
           const lastDate = await fetchLastTransactionDate(account.vendor);
           const startDate = lastDate ? new Date(lastDate) : new Date();
-          // Go back configured days or default to 30
           const daysBack = status?.settings?.daysBack || 30;
           startDate.setDate(startDate.getDate() - daysBack);
 
@@ -475,29 +737,20 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             credentialId: account.id
           };
 
-          // Trigger sync using scrape_stream API
           const syncResponse = await fetch('/api/scrape_stream', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
             signal: abortControllerRef.current.signal
           });
 
-          if (!syncResponse.ok) {
-            throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
-          }
+          if (!syncResponse.ok) throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
 
-          // Read SSE stream to completion with detailed progress
           const reader = syncResponse.body?.getReader();
           const decoder = new TextDecoder();
 
           if (reader) {
             let buffer = '';
-            let currentStep = '';
-            let lastProgress = null;
-
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
@@ -514,14 +767,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   const eventData = JSON.parse(line.slice(6));
 
                   if (currentEvent === 'progress') {
-                    currentStep = eventData.message || '';
-                    lastProgress = eventData;
-                    // Update sync progress with detailed step info
                     setSyncProgress({
-                      current: i,
-                      total: accounts.length,
+                      current: 0,
+                      total: 1,
                       currentAccount: account.nickname || account.vendor,
-                      currentStep: currentStep,
+                      currentStep: eventData.message || '',
                       percent: eventData.percent || 0,
                       phase: eventData.phase || '',
                       success: eventData.success
@@ -529,10 +779,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   } else if (currentEvent === 'error') {
                     throw new Error(eventData.message || 'Sync failed');
                   } else if (currentEvent === 'complete') {
-                    // Account synced successfully
                     setSyncProgress({
-                      current: i,
-                      total: accounts.length,
+                      current: 0,
+                      total: 1,
                       currentAccount: account.nickname || account.vendor,
                       currentStep: '✓ Completed successfully',
                       percent: 100,
@@ -547,54 +796,39 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                         accountName: account.nickname || account.vendor
                       }))]);
                     }
+                    if (onSyncSuccess) onSyncSuccess();
                     break;
                   }
                 }
               }
             }
           }
-
-          // Update progress after account completes
-          setSyncProgress({
-            current: i + 1,
-            total: accounts.length,
-            currentAccount: null,
-            currentStep: null,
-            percent: 0,
-            phase: '',
-            success: null
-          });
-
-          // Notify parent of success
-          if (onSyncSuccess) {
-            onSyncSuccess();
-          }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
-            // User cancelled
             setIsSyncing(false);
             setSyncProgress(null);
+            setIsInitializing(false);
             return;
           }
-          logger.error('Failed to sync account', err, {
-            account: account.nickname || account.vendor
-          });
-          // Continue with next account even if one fails
+          logger.error('Failed to sync account', err, { account: account.nickname || account.vendor });
         }
-      }
 
-      // Refresh status after all syncs complete
-      await fetchStatus();
-      setSyncProgress(null);
-      setIsSyncing(false);
-      setShowReport(true);
-    } catch (err) {
-      logger.error('Sync all failed', err);
-      setSyncProgress(null);
-      setIsSyncing(false);
-      // Even on error, show what we got
-      setShowReport(true);
-    }
+        await fetchStatus();
+        setSyncProgress(null);
+        setIsSyncing(false);
+        setSyncStartTime(null);
+        setShowReport(true);
+      } catch (err) {
+        logger.error('Single sync failed', err);
+        setSyncProgress(null);
+        setIsSyncing(false);
+        setSyncStartTime(null);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    runSingle();
   };
 
   interface SyncEvent {
@@ -732,20 +966,26 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                 onClick={handleSyncAll}
                 variant="contained"
                 size="small"
-                startIcon={isSyncing ? <CircularProgress size={16} sx={{ color: 'inherit' }} variant="determinate" value={100} /> : <PlayArrowIcon />}
+                disabled={isStopping || isInitializing}
+                color={isSyncing ? "error" : "success"}
+                startIcon={
+                  isStopping || isInitializing ? (
+                    <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                  ) : isSyncing ? (
+                    <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                  ) : (
+                    <PlayArrowIcon />
+                  )
+                }
                 sx={{
-                  backgroundColor: isSyncing ? '#ef4444' : '#22c55e',
-                  color: '#fff',
-                  '&:hover': {
-                    backgroundColor: isSyncing ? '#dc2626' : '#16a34a',
-                  },
                   textTransform: 'none',
                   fontSize: '0.75rem',
                   px: 1.5,
-                  py: 0.5
+                  py: 0.5,
+                  minWidth: '110px'
                 }}
               >
-                {isSyncing ? 'Stop Now' : 'Sync Now'}
+                {isStopping ? 'Stopping...' : isInitializing ? 'Starting...' : isSyncing ? 'Stop Now' : 'Sync Now'}
               </Button>
             </Tooltip>
           )}
@@ -785,7 +1025,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         ) : (
           <>
             {/* Sync Progress */}
-            {isSyncing && syncProgress && (
+            {(isSyncing || isInitializing) && syncProgress && (
               <StatusCard sx={{
                 background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0.05) 100%)',
                 borderColor: 'rgba(96, 165, 250, 0.4)'
@@ -802,17 +1042,17 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   )}
                   <Box sx={{ flex: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#60a5fa' }}>
-                        Syncing accounts... ({Math.min(syncProgress.current + 1, syncProgress.total)} / {syncProgress.total})
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: isStopping || stopStatus ? '#94a3b8' : '#60a5fa' }}>
+                        {getSyncStatusLabel(syncProgress, isInitializing, isStopping, stopStatus)}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <TimerIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
-                        <Typography variant="caption" sx={{ color: '#60a5fa', fontWeight: 500 }}>
+                        <TimerIcon sx={{ fontSize: 14, color: isStopping || stopStatus ? '#94a3b8' : '#60a5fa' }} />
+                        <Typography variant="caption" sx={{ color: isStopping || stopStatus ? '#94a3b8' : '#60a5fa', fontWeight: 500 }}>
                           {formatTime(elapsedSeconds)}
                         </Typography>
                       </Box>
                     </Box>
-                    {syncProgress.currentAccount && (
+                    {!isStopping && !stopStatus && syncProgress.currentAccount && (
                       <>
                         <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 500, mt: 0.5 }}>
                           {syncProgress.currentAccount}
@@ -829,21 +1069,26 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                         )}
                       </>
                     )}
+                    {(isStopping || stopStatus) && (
+                      <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
+                        Terminating browser instances and updating logs...
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
                 <LinearProgress
-                  variant="determinate"
-                  value={((syncProgress.current / syncProgress.total) * 100) + ((syncProgress.percent || 0) / syncProgress.total)}
+                  variant={isStopping ? "indeterminate" : "determinate"}
+                  value={isStopping ? undefined : (((syncProgress?.current || 0) / (syncProgress?.total || 1)) * 100) + ((syncProgress?.percent || 0) / (syncProgress?.total || 1))}
                   sx={{
                     height: 6,
                     borderRadius: 3,
                     backgroundColor: 'rgba(96, 165, 250, 0.2)',
                     '& .MuiLinearProgress-bar': {
-                      backgroundColor: syncProgress.success === false ? '#ef4444' : syncProgress.success === true ? '#22c55e' : '#60a5fa'
+                      backgroundColor: isStopping || stopStatus ? '#94a3b8' : (syncProgress?.success === false ? '#ef4444' : syncProgress?.success === true ? '#22c55e' : '#60a5fa')
                     }
                   }}
                 />
-                {syncProgress.summary && (
+                {syncProgress?.summary && (
                   <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
                     <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
                       Summary:
@@ -864,8 +1109,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
               </StatusCard>
             )}
 
-            {/* Main Status Display - Hidden when syncing */}
-            {!isSyncing && (
+            {/* Main Status Display - Hidden when syncing or initializing */}
+            {!isSyncing && !isInitializing && (
               <StatusCard sx={{
                 background: `linear-gradient(135deg, ${healthDisplay.color}10 0%, ${healthDisplay.color}05 100%)`,
                 borderColor: `${healthDisplay.color}40`
@@ -992,7 +1237,21 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                             </Typography>
                           }
                         />
-                        <ListItemSecondaryAction>
+                        <ListItemSecondaryAction sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title="Sync this account only">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleSyncSingle(account.id)}
+                              disabled={isSyncing || isInitializing || isStopping}
+                              sx={{
+                                color: '#60a5fa',
+                                p: 0.5,
+                                '&:hover': { backgroundColor: 'rgba(96, 165, 250, 0.1)' }
+                              }}
+                            >
+                              <RefreshIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
                           <Chip
                             icon={<AccessTimeIcon sx={{ fontSize: 14 }} />}
                             label={formatRelativeTime(account.last_synced_at)}
@@ -1121,7 +1380,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
           </>
         )}
       </Box>
-    </StyledDrawer>
+    </StyledDrawer >
   );
 };
 

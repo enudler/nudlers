@@ -134,6 +134,7 @@ export default async function handler(req, res) {
     // Get last synced time for each active account
     const lastSyncedResult = await client.query(`
       SELECT 
+        id,
         nickname,
         vendor,
         CASE 
@@ -178,6 +179,8 @@ export default async function handler(req, res) {
         }
       } else if (latestScrape.status === 'failed') {
         syncHealth = 'error';
+      } else if (latestScrape.status === 'cancelled') {
+        syncHealth = 'healthy'; // Or 'stale' depending on time, but definitely not 'syncing'
       }
     } else if (activeAccounts === 0) {
       syncHealth = 'no_accounts';

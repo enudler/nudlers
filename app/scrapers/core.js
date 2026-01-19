@@ -53,7 +53,7 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         '--disable-blink-features=AutomationControlled',
         '--disable-features=IsolateOrigins,site-per-process',
         '--window-size=1920,1080',
-        '--disable-web-security',
+        // Removed --disable-web-security as it can trigger security warnings
         `--user-agent=${userAgent}`,
         '--disable-infobars',
         '--disable-extensions',
@@ -96,8 +96,12 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     }
 
     if (showBrowser) {
-        baseArgs.push('--remote-debugging-port=9222');
-        baseArgs.push('--remote-debugging-address=0.0.0.0');
+        // Use a configurable port or default to 9223 to avoid conflicts with existing Chrome instances
+        // Port 9222 is commonly used by other Chrome instances
+        const debugPort = options.debugPort || 9223;
+        baseArgs.push(`--remote-debugging-port=${debugPort}`);
+        // Use localhost only to reduce detection surface
+        baseArgs.push('--remote-debugging-address=127.0.0.1');
     } else {
         baseArgs.push('--headless=new');
     }
@@ -336,13 +340,48 @@ export function getPreparePage(options = {}) {
             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
             Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
             Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+            
+            // Additional anti-detection for Leumi and other banks
+            if (options.companyId === 'leumi' || options.companyId === 'hapoalim' || options.companyId === 'discount') {
+                // Override connection API
+                if (navigator.connection) {
+                    Object.defineProperty(navigator, 'connection', {
+                        get: () => ({
+                            effectiveType: '4g',
+                            rtt: 50,
+                            downlink: 10,
+                            saveData: false
+                        })
+                    });
+                }
+                
+                // Add more realistic browser properties
+                Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+                Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
+                Object.defineProperty(navigator, 'vendorSub', { get: () => '' });
+            }
         }, options);
 
+        // Set comprehensive headers to avoid bot detection
+        const chromeVersion = '132.0.6834.83';
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Sec-CH-UA': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not=A?Brand";v="8"`,
+            'Sec-CH-UA-Mobile': '?0',
             'Sec-CH-UA-Platform': '"macOS"',
+            'Sec-CH-UA-Arch': '"x86"',
+            'Sec-CH-UA-Bitness': '"64"',
+            'Sec-CH-UA-Model': '""',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
         });
 
+        // Add navigation delays for rate-limited vendors (including Leumi)
         if (isRateLimited) {
             const originalGoto = page.goto.bind(page);
             page.goto = async (url, options) => {
@@ -368,5 +407,6 @@ export function getPreparePage(options = {}) {
                 return originalGoto(url, options);
             };
         }
+        
     };
 }
