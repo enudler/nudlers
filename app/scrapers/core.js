@@ -240,9 +240,11 @@ export function getPreparePage(options = {}) {
 
         // Also log responses to see status codes (only if logging is enabled)
         if (logRequests) {
-            page.on('response', (response) => {
+            page.on('response', async (response) => {
                 const request = response.request();
                 const resourceType = request.resourceType();
+                const url = request.url();
+
                 if (resourceType === 'xhr' || resourceType === 'fetch' || resourceType === 'document') {
                     const status = response.status();
                     // Highlight rate limiting responses (429) or errors
@@ -251,18 +253,29 @@ export function getPreparePage(options = {}) {
                         level,
                         msg: '[Scraper HTTP Response]',
                         status,
-                        url: request.url(),
+                        url,
                         resourceType,
                         timestamp: new Date().toISOString()
                     };
+
+                    // Enhanced logging for specific Visa Cal endpoints to debug failures
+                    if (url.includes('GetFrameStatus') || url.includes('Authentication/api/account/init')) {
+                        try {
+                            const text = await response.text();
+                            logData.responseText = text;
+                        } catch (e) {
+                            logData.responseTextError = e.message;
+                        }
+                    }
+
                     console.log(JSON.stringify(logData));
 
                     if (onProgress) {
                         onProgress('network', {
                             type: 'httpResponse',
-                            message: `${status} ${request.url()}`,
+                            message: `${status} ${url}`,
                             status,
-                            url: request.url(),
+                            url,
                             timestamp: new Date().toISOString()
                         });
                     }
