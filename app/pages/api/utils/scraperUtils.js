@@ -726,7 +726,8 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
       isRateLimited,
       logRequests,
       onProgress,
-      forceSlowMode: scraperOptions.forceSlowMode ?? false
+      forceSlowMode: scraperOptions.forceSlowMode ?? false,
+      skipInterception: scraperOptions.companyId === 'max'
     }),
   };
 

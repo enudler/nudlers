@@ -392,19 +392,12 @@ export function getPreparePage(options = {}) {
         const chromeVersion = '132.0.6834.83';
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
             'Sec-CH-UA': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not=A?Brand";v="8"`,
             'Sec-CH-UA-Mobile': '?0',
             'Sec-CH-UA-Platform': '"macOS"',
             'Sec-CH-UA-Arch': '"x86"',
             'Sec-CH-UA-Bitness': '"64"',
             'Sec-CH-UA-Model': '""',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1',
         });
 
         // Add navigation delays for rate-limited vendors (including Leumi)
