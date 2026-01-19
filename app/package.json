@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run",
+    "test": "NODE_OPTIONS=--max-old-space-size=6144 vitest run",
     "scrape": "ts-node --esm scrapers/index.ts"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-icons": "^5.5.0",
+    "react-virtuoso": "^4.18.1",
     "styled-components": "^6.1.18",
     "twilio": "^5.11.2"
   },

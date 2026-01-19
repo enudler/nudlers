@@ -18,7 +18,6 @@ import {
 } from '@mui/material';
 import { logger } from '../utils/client-logger';
 import { styled, keyframes } from '@mui/material/styles';
-import CloseIcon from '@mui/icons-material/Close';
 import SyncIcon from '@mui/icons-material/Sync';
 
 import ErrorIcon from '@mui/icons-material/Error';
@@ -33,8 +32,8 @@ import TimerIcon from '@mui/icons-material/Timer';
 import { BEINLEUMI_GROUP_VENDORS, BANK_VENDORS } from '../utils/constants';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import ScrapeReport from './ScrapeReport';
-import { getSyncStatusLabel } from '../utils/sync-ui-utils';
+import dynamic from 'next/dynamic';
+const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
 
 interface SyncStatusModalProps {
   open: boolean;
@@ -281,6 +280,19 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   const [isStopping, setIsStopping] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [stopStatus, setStopStatus] = useState<string | null>(null);
+  interface QueueItem {
+    id: number | string;
+    accountName: string;
+    vendor: string;
+    status: 'pending' | 'active' | 'completed' | 'failed';
+    error?: string;
+    summary?: {
+      savedTransactions?: number;
+      duplicateTransactions?: number;
+      transactions?: number;
+    };
+  }
+  const [syncQueue, setSyncQueue] = useState<QueueItem[]>([]);
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
   // Resizing state
@@ -385,19 +397,47 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
 
 
-  // Reset report when opening
+  // Smart Polling Strategy
   useEffect(() => {
-    if (open) {
-      // Clear any stale report data when opening the modal
-      setSessionReport([]);
-      setSessionSummary(null);
-      setShowReport(false);
-      fetchStatus();
-      // Poll every 5 seconds while open to keep status up to date
-      const interval = setInterval(fetchStatus, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [open, fetchStatus]);
+    if (!open) return;
+
+    let pollingInterval: NodeJS.Timeout | null = null;
+    let isTabVisible = true;
+
+    const startPolling = () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+      if (!isTabVisible) return;
+
+      // Speed up polling during active sync (3s), slow down when idle (10s)
+      const intervalTime = isSyncing ? 3000 : 10000;
+
+      pollingInterval = setInterval(async () => {
+        await fetchStatus();
+        // If syncing state changed during poll, restart with new interval
+      }, intervalTime);
+    };
+
+    const handleVisibilityChange = () => {
+      isTabVisible = document.visibilityState === 'visible';
+      if (isTabVisible) {
+        fetchStatus();
+        startPolling();
+      } else {
+        if (pollingInterval) clearInterval(pollingInterval);
+      }
+    };
+
+    // Initial fetch and start
+    fetchStatus();
+    startPolling();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [open, fetchStatus, isSyncing]);
 
   // Also refresh when a data refresh event is dispatched
   useEffect(() => {
@@ -506,6 +546,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     setSessionSummary(null);
     setShowReport(false);
     setSyncStartTime(Date.now());
+    setSyncQueue([]);
     setSyncProgress({ current: 0, total: 0, currentAccount: null });
 
     // Internal async function to handle the rest
@@ -537,11 +578,21 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
         setIsSyncing(true);
         setIsInitializing(false);
+        const initialQueue: QueueItem[] = accounts.map((acc: any) => ({
+          id: acc.id,
+          accountName: acc.nickname || acc.vendor,
+          vendor: acc.vendor,
+          status: 'pending'
+        }));
+        setSyncQueue(initialQueue);
         setSyncProgress({ current: 0, total: accounts.length, currentAccount: null });
 
         // Sync each account sequentially
         for (let i = 0; i < accounts.length; i++) {
           const account = accounts[i];
+          setSyncQueue(prev => prev.map(item =>
+            item.id === account.id ? { ...item, status: 'active' } : item
+          ));
           setSyncProgress({
             current: i,
             total: accounts.length,
@@ -647,6 +698,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                           oldCategory: t.oldCategory
                         }))]);
                       }
+                      setSyncQueue(prev => prev.map(item =>
+                        item.id === account.id ? { ...item, status: 'completed', summary: eventData.summary } : item
+                      ));
                       break;
                     }
                   }
@@ -680,6 +734,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             logger.error('Failed to sync account', err, {
               account: account.nickname || account.vendor
             });
+            setSyncQueue(prev => prev.map(item =>
+              item.id === account.id ? { ...item, status: 'failed', error: err instanceof Error ? err.message : String(err) } : item
+            ));
             // Continue with next account even if one fails
           }
         }
@@ -717,6 +774,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     setSessionSummary(null);
     setShowReport(false);
     setSyncStartTime(Date.now());
+    setSyncQueue([]);
     setSyncProgress({ current: 0, total: 1, currentAccount: null });
 
     const runSingle = async () => {
@@ -728,6 +786,12 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
         setIsSyncing(true);
         setIsInitializing(false);
+        setSyncQueue([{
+          id: account.id,
+          accountName: account.nickname || account.vendor,
+          vendor: account.vendor,
+          status: 'active'
+        }]);
         setSyncProgress({
           current: 0,
           total: 1,
@@ -821,6 +885,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                         oldCategory: t.oldCategory
                       }))]);
                     }
+                    setSyncQueue(prev => prev.map(item =>
+                      item.id === account.id ? { ...item, status: 'completed', summary: eventData.summary } : item
+                    ));
                     if (onSyncSuccess) onSyncSuccess();
                     break;
                   }
@@ -836,6 +903,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             return;
           }
           logger.error('Failed to sync account', err, { account: account.nickname || account.vendor });
+          setSyncQueue(prev => prev.map(item =>
+            item.id === account.id ? { ...item, status: 'failed', error: err instanceof Error ? err.message : String(err) } : item
+          ));
         }
 
         await fetchStatus();
@@ -1054,88 +1124,124 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         ) : (
           <>
             {/* Sync Progress */}
-            {(isSyncing || isInitializing) && syncProgress && (
-              <StatusCard sx={{
-                background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0.05) 100%)',
-                borderColor: 'rgba(96, 165, 250, 0.4)'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                  {syncProgress.success === true ? (
-                    <Box sx={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fff' }} />
-                    </Box>
-                  ) : syncProgress.success === false ? (
-                    <ErrorIcon sx={{ fontSize: 24, color: '#ef4444' }} />
-                  ) : (
-                    <SyncIcon sx={{ fontSize: 24, color: '#60a5fa', animation: `${spin} 1.5s linear infinite` }} />
-                  )}
-                  <Box sx={{ flex: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: isStopping || stopStatus ? '#94a3b8' : '#60a5fa' }}>
-                        {getSyncStatusLabel(syncProgress, isInitializing, isStopping, stopStatus)}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <TimerIcon sx={{ fontSize: 14, color: isStopping || stopStatus ? '#94a3b8' : '#60a5fa' }} />
-                        <Typography variant="caption" sx={{ color: isStopping || stopStatus ? '#94a3b8' : '#60a5fa', fontWeight: 500 }}>
-                          {formatTime(elapsedSeconds)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    {!isStopping && !stopStatus && syncProgress.currentAccount && (
-                      <>
-                        <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 500, mt: 0.5 }}>
-                          {syncProgress.currentAccount}
-                        </Typography>
-                        {syncProgress.currentStep && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                            {syncProgress.success === null && (
-                              <CircularProgress size={12} sx={{ color: '#60a5fa' }} />
-                            )}
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {syncProgress.currentStep}
-                            </Typography>
-                          </Box>
-                        )}
-                      </>
-                    )}
-                    {(isStopping || stopStatus) && (
-                      <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
-                        Terminating browser instances and updating logs...
-                      </Typography>
-                    )}
+            {(isSyncing || isInitializing) && (
+              <Box sx={{ mb: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                  <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                    {isStopping ? 'Stopping Sync...' : 'Sync Progress'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <TimerIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
+                    <Typography variant="caption" sx={{ color: '#60a5fa', fontWeight: 600 }}>
+                      {formatTime(elapsedSeconds)}
+                    </Typography>
                   </Box>
                 </Box>
-                <LinearProgress
-                  variant={isStopping ? "indeterminate" : "determinate"}
-                  value={isStopping ? undefined : (((syncProgress?.current || 0) / (syncProgress?.total || 1)) * 100) + ((syncProgress?.percent || 0) / (syncProgress?.total || 1))}
-                  sx={{
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
-                    '& .MuiLinearProgress-bar': {
-                      backgroundColor: isStopping || stopStatus ? '#94a3b8' : (syncProgress?.success === false ? '#ef4444' : syncProgress?.success === true ? '#22c55e' : '#60a5fa')
-                    }
-                  }}
-                />
-                {syncProgress?.summary && (
-                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
-                      Summary:
+
+                {syncQueue.length === 0 && isInitializing && (
+                  <StatusCard sx={{ textAlign: 'center', py: 3 }}>
+                    <CircularProgress size={24} sx={{ mb: 1, color: '#60a5fa' }} />
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Initializing session...
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {syncProgress.summary.savedTransactions !== undefined && (
-                        <Chip label={`${syncProgress.summary.savedTransactions} saved`} size="small" sx={{ backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', height: 20, fontSize: '0.7rem' }} />
-                      )}
-                      {syncProgress.summary.duplicateTransactions !== undefined && syncProgress.summary.duplicateTransactions > 0 && (
-                        <Chip label={`${syncProgress.summary.duplicateTransactions} duplicates`} size="small" sx={{ backgroundColor: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8', height: 20, fontSize: '0.7rem' }} />
-                      )}
-                      {syncProgress.summary.transactions !== undefined && (
-                        <Chip label={`${syncProgress.summary.transactions} total`} size="small" sx={{ backgroundColor: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', height: 20, fontSize: '0.7rem' }} />
-                      )}
-                    </Box>
+                  </StatusCard>
+                )}
+
+                {syncQueue.map((item) => {
+                  const isActive = item.status === 'active';
+                  const isCompleted = item.status === 'completed';
+                  const isFailed = item.status === 'failed';
+
+                  return (
+                    <StatusCard key={item.id} sx={{
+                      mb: 1,
+                      p: isActive ? 2 : 1.5,
+                      background: isActive
+                        ? 'linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0.05) 100%)'
+                        : isCompleted ? 'rgba(34, 197, 94, 0.05)' : isFailed ? 'rgba(239, 68, 68, 0.05)' : 'rgba(30, 41, 59, 0.2)',
+                      borderColor: isActive ? 'rgba(96, 165, 250, 0.4)' : isCompleted ? 'rgba(34, 197, 94, 0.2)' : isFailed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                      opacity: isActive || isCompleted || isFailed ? 1 : 0.6
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        {isCompleted ? (
+                          <Box sx={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#fff' }} />
+                          </Box>
+                        ) : isFailed ? (
+                          <ErrorIcon sx={{ fontSize: 18, color: '#ef4444' }} />
+                        ) : isActive ? (
+                          <SyncIcon sx={{ fontSize: 18, color: '#60a5fa', animation: `${spin} 2s linear infinite` }} />
+                        ) : (
+                          <Box sx={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)' }} />
+                        )}
+
+                        <Box sx={{ flex: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: isActive ? 600 : 500, color: isActive ? '#60a5fa' : isCompleted ? '#22c55e' : isFailed ? '#ef4444' : 'text.secondary' }}>
+                              {item.accountName}
+                            </Typography>
+                            {isCompleted && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {item.summary && (
+                                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    {item.summary.savedTransactions !== undefined && item.summary.savedTransactions > 0 && (
+                                      <Typography variant="caption" sx={{ color: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)', px: 0.5, borderRadius: '4px' }}>
+                                        {item.summary.savedTransactions} new
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                )}
+                                <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600 }}>
+                                  Done
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+
+                          {isActive && (
+                            <Box sx={{ mt: 1 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                  {syncProgress?.currentStep || 'Syncing...'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#60a5fa', fontWeight: 600 }}>
+                                  {syncProgress?.percent || 0}%
+                                </Typography>
+                              </Box>
+                              <LinearProgress
+                                variant={isStopping ? "indeterminate" : "determinate"}
+                                value={isStopping ? undefined : (syncProgress?.percent || 0)}
+                                sx={{
+                                  height: 4,
+                                  borderRadius: 2,
+                                  backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                                  '& .MuiLinearProgress-bar': {
+                                    backgroundColor: isStopping ? '#94a3b8' : '#60a5fa'
+                                  }
+                                }}
+                              />
+                            </Box>
+                          )}
+
+                          {isFailed && item.error && (
+                            <Typography variant="caption" sx={{ color: '#ef4444', display: 'block', mt: 0.5, fontSize: '10px' }}>
+                              {item.error}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </StatusCard>
+                  );
+                })}
+
+                {isStopping && (
+                  <Box sx={{ mt: 2, p: 1.5, borderRadius: '8px', backgroundColor: 'rgba(148, 163, 184, 0.1)', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                    <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', textAlign: 'center' }}>
+                      {stopStatus || 'Terminating browser processes...'}
+                    </Typography>
                   </Box>
                 )}
-              </StatusCard>
+              </Box>
             )}
 
             {/* Main Status Display - Hidden when syncing or initializing */}
@@ -1191,21 +1297,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                 </Typography>
                 <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '10px' }}>
                   Accounts
-                </Typography>
-              </Box>
-              <Box sx={{
-                flex: 1,
-                p: 1.5,
-                borderRadius: '10px',
-                backgroundColor: 'rgba(96, 165, 250, 0.1)',
-                border: '1px solid rgba(96, 165, 250, 0.2)',
-                textAlign: 'center'
-              }}>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: '#60a5fa' }}>
-                  {status?.history.filter(h => h.status === 'completed').length || 0}
-                </Typography>
-                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '10px' }}>
-                  Syncs
                 </Typography>
               </Box>
               <Box sx={{

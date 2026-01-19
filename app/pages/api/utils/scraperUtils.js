@@ -1007,81 +1007,93 @@ export async function processScrapedAccounts({
   // Warm up history for ALL cards of this vendor (Identifier Map + Business Keys + Name-to-Category map)
   const historyCache = await fetchHistoryCache(client, companyId);
 
-  for (const account of accounts) {
-    if (onAccountStarted && onAccountStarted(account) === false) break;
+  try {
+    await client.query('BEGIN');
 
-    const ownedByOther = await checkCardOwnership(client, account.accountNumber, companyId, credentialId);
-    if (ownedByOther) {
-      logger.info({ accountNumber: account.accountNumber, ownedBy: ownedByOther }, '[Card Ownership] Skipping card - already owned by another credential');
-      stats.skippedCards++;
-      continue;
-    }
+    for (const account of accounts) {
+      if (onAccountStarted && onAccountStarted(account) === false) break;
 
-    await claimCardOwnership(client, account.accountNumber, companyId, credentialId);
-
-    if (!account.txns || !Array.isArray(account.txns)) {
-      logger.warn({
-        accountNumber: account.accountNumber,
-        txnsType: typeof account.txns
-      }, '[Scraper] Account txns is not an array, skipping transactions');
-      continue;
-    }
-
-    for (const txn of account.txns) {
-      if (onTransactionProcessed && onTransactionProcessed(null, null, txn) === false) break;
-      stats.transactions++;
-      if (isBank) stats.bankTransactions++;
-
-      const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
-      const insertResult = await insertTransaction(
-        client,
-        txn,
-        companyId,
-        account.accountNumber,
-        defaultCurrency,
-        categorizationRules,
-        updateCategoryOnRescrape,
-        categoryMappings,
-        isBank,
-        billingCycleStartDay,
-        historyCache
-      );
-
-      const effectiveSource = insertResult.categorySource || 'scraper';
-
-      const reportItem = {
-        description: txn.description,
-        amount: txn.chargedAmount || txn.originalAmount,
-        currency: txn.chargedCurrency || txn.originalCurrency || 'ILS',
-        date: txn.date,
-        category: insertResult.newCategory || insertResult.category || (insertResult.duplicated ? (txn.category || 'Uncategorized') : 'Uncategorized'),
-        source: effectiveSource,
-        rule: insertResult.ruleMatched,
-        cardLast4: account.accountNumber,
-        isUpdate: !!insertResult.updated,
-        isDuplicate: !!insertResult.duplicated && !insertResult.updated,
-        isBank: isBank,
-        oldCategory: insertResult.oldCategory
-      };
-
-      if (insertResult.updated) {
-        stats.updatedTransactions++;
-      } else if (insertResult.duplicated) {
-        stats.duplicateTransactions++;
-      } else {
-        stats.savedTransactions++;
+      const ownedByOther = await checkCardOwnership(client, account.accountNumber, companyId, credentialId);
+      if (ownedByOther) {
+        logger.info({ accountNumber: account.accountNumber, ownedBy: ownedByOther }, '[Card Ownership] Skipping card - already owned by another credential');
+        stats.skippedCards++;
+        continue;
       }
 
-      if (effectiveSource === 'cache') stats.cachedCategories++;
-      else if (effectiveSource === 'rule') stats.ruleCategories++;
-      else stats.scraperCategories++;
+      await claimCardOwnership(client, account.accountNumber, companyId, credentialId);
 
-      stats.processedTransactions.push(reportItem);
+      if (!account.txns || !Array.isArray(account.txns)) {
+        logger.warn({
+          accountNumber: account.accountNumber,
+          txnsType: typeof account.txns
+        }, '[Scraper] Account txns is not an array, skipping transactions');
+        continue;
+      }
 
-      if (onTransactionProcessed) {
-        onTransactionProcessed(reportItem, insertResult);
+      for (const txn of account.txns) {
+        if (onTransactionProcessed && onTransactionProcessed(null, null, txn) === false) break;
+        stats.transactions++;
+        if (isBank) stats.bankTransactions++;
+
+        const defaultCurrency = txn.originalCurrency || txn.chargedCurrency || 'ILS';
+        const insertResult = await insertTransaction(
+          client,
+          txn,
+          companyId,
+          account.accountNumber,
+          defaultCurrency,
+          categorizationRules,
+          updateCategoryOnRescrape,
+          categoryMappings,
+          isBank,
+          billingCycleStartDay,
+          historyCache
+        );
+
+        const effectiveSource = insertResult.categorySource || 'scraper';
+
+        const reportItem = {
+          description: txn.description,
+          amount: txn.chargedAmount || txn.originalAmount,
+          currency: txn.chargedCurrency || txn.originalCurrency || 'ILS',
+          date: txn.date,
+          category: insertResult.newCategory || insertResult.category || (insertResult.duplicated ? (txn.category || 'Uncategorized') : 'Uncategorized'),
+          source: effectiveSource,
+          rule: insertResult.ruleMatched,
+          cardLast4: account.accountNumber,
+          isUpdate: !!insertResult.updated,
+          isDuplicate: !!insertResult.duplicated && !insertResult.updated,
+          isBank: isBank,
+          oldCategory: insertResult.oldCategory
+        };
+
+        if (insertResult.updated) {
+          stats.updatedTransactions++;
+        } else if (insertResult.duplicated) {
+          stats.duplicateTransactions++;
+        } else {
+          stats.savedTransactions++;
+        }
+
+        if (effectiveSource === 'cache') stats.cachedCategories++;
+        else if (effectiveSource === 'rule') stats.ruleCategories++;
+        else stats.scraperCategories++;
+
+        stats.processedTransactions.push(reportItem);
+
+        if (onTransactionProcessed) {
+          onTransactionProcessed(reportItem, insertResult);
+        }
       }
     }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    if (client) {
+      await client.query('ROLLBACK');
+    }
+    logger.error({ error: err.message }, '[Scraper Utils] Error in processScrapedAccounts, transaction rolled back');
+    throw err;
   }
 
   return stats;

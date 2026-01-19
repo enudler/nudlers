@@ -32,24 +32,26 @@ import BackupIcon from '@mui/icons-material/Backup';
 import MenuIcon from '@mui/icons-material/Menu';
 import ForumIcon from '@mui/icons-material/Forum';
 import CloseIcon from '@mui/icons-material/Close';
-import ScrapeModal from './ScrapeModal';
-import ManualModal from './ManualModal';
+import dynamic from 'next/dynamic';
 import DatabaseIndicator from './DatabaseIndicator';
-import AccountsModal from './AccountsModal';
-import CategoryManagementModal from './CategoryDashboard/components/CategoryManagementModal';
-import ScrapeAuditModal from './ScrapeAuditModal';
-import CardVendorsModal from './CardVendorsModal';
-import RecurringPaymentsModal from './RecurringPaymentsModal';
-import DatabaseBackupModal from './DatabaseBackupModal';
-import SettingsModal from './SettingsModal';
 import SyncStatusIndicator from './SyncStatusIndicator';
-import SyncStatusModal from './SyncStatusModal';
 import { useNotification } from './NotificationContext';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import TuneIcon from '@mui/icons-material/Tune';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import { useColorMode } from '../context/ThemeContext';
+
+const ScrapeModal = dynamic(() => import('./ScrapeModal'), { ssr: false });
+const ManualModal = dynamic(() => import('./ManualModal'), { ssr: false });
+const AccountsModal = dynamic(() => import('./AccountsModal'), { ssr: false });
+const CategoryManagementModal = dynamic(() => import('./CategoryDashboard/components/CategoryManagementModal'), { ssr: false });
+const ScrapeAuditModal = dynamic(() => import('./ScrapeAuditModal'), { ssr: false });
+const CardVendorsModal = dynamic(() => import('./CardVendorsModal'), { ssr: false });
+const RecurringPaymentsModal = dynamic(() => import('./RecurringPaymentsModal'), { ssr: false });
+const DatabaseBackupModal = dynamic(() => import('./DatabaseBackupModal'), { ssr: false });
+const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
+const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false });
 
 interface StringDictionary {
   [key: string]: string;

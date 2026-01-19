@@ -79,6 +79,8 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             '--mute-audio',
             '--no-zygote',
             '--disable-accelerated-2d-canvas',
+            '--disable-canvas-aa',
+            '--disable-2d-canvas-clip-aa',
             '--disable-dev-shm-usage',
             '--disable-notifications',
             '--disable-offer-store-unmasked-wallet-cards',
@@ -86,7 +88,24 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             '--disable-print-preview',
             '--disable-speech-api',
             '--disable-wake-on-wifi',
-            '--disk-cache-size=0' // Disable disk cache to save IO
+            '--disk-cache-size=0', // Disable disk cache to save IO
+            '--disable-background-timer-throttling',
+            '--disable-breakpad',
+            '--disable-client-side-phishing-detection',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-datasaver-prompt',
+            '--disable-features=TranslateUI',
+            '--disable-hang-monitor',
+            '--disable-ipc-flooding-protection',
+            '--disable-popup-blocking',
+            '--disable-prompt-on-repost',
+            '--disable-renderer-backgrounding',
+            '--disable-sync',
+            '--force-color-profile=srgb',
+            '--metrics-recording-only',
+            '--no-first-run',
+            '--password-store=basic',
+            '--use-mock-keychain'
         );
     }
 

@@ -19,7 +19,8 @@ import ErrorIcon from '@mui/icons-material/Error';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ModalHeader from './ModalHeader';
-import ScrapeReport from './ScrapeReport';
+import dynamic from 'next/dynamic';
+const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
 
 interface SyncHistoryModalProps {
     isOpen: boolean;

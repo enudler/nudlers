@@ -25,7 +25,8 @@ import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
 import { useTheme } from '@mui/material/styles';
 import { BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
-import ScrapeReport from './ScrapeReport';
+import dynamic from 'next/dynamic';
+const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
 
 interface ScraperConfig {
   options: {
