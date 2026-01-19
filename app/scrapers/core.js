@@ -292,7 +292,7 @@ export function getPreparePage(options = {}) {
                 window.fetch = async function (...args) {
                     const url = typeof args[0] === 'string' ? args[0] : args[0].url;
                     if (url && (url.includes('DashboardMonth') || url.includes('CardsTransactionsList'))) {
-                        const delay = 4000;
+                        const delay = 1000;
                         // Use CSS-styled log if in browser console, or simple log
                         console.log(`%c[Throttler] Throttling fetch for ${url.split('reqName=')[1]?.split('&')[0] || 'data'} (${delay}ms)`, 'color: orange; font-weight: bold;');
                         await new Promise(r => setTimeout(r, delay));

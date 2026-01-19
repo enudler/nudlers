@@ -48,6 +48,7 @@ interface Settings {
   scrape_retries: number;
   gemini_api_key: string;
   gemini_model: string;
+  isracard_scrape_categories: boolean;
   whatsapp_enabled: boolean;
   whatsapp_hour: number;
   whatsapp_twilio_sid: string;
@@ -126,6 +127,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     scrape_retries: 3,
     gemini_api_key: '',
     gemini_model: 'gemini-2.5-flash',
+    isracard_scrape_categories: true,
     whatsapp_enabled: false,
     whatsapp_hour: 8,
     whatsapp_twilio_sid: '',
@@ -172,6 +174,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           scrape_retries: parseInt(data.settings.scrape_retries) || 3,
           gemini_api_key: (data.settings.gemini_api_key || '').replace(/"/g, ''),
           gemini_model: (data.settings.gemini_model || 'gemini-2.5-flash').replace(/"/g, ''),
+          isracard_scrape_categories: data.settings.isracard_scrape_categories === undefined
+            ? true // Default to true
+            : parseBool(data.settings.isracard_scrape_categories),
           whatsapp_enabled: parseBool(data.settings.whatsapp_enabled),
           whatsapp_hour: parseInt(data.settings.whatsapp_hour) || 8,
           whatsapp_twilio_sid: (data.settings.whatsapp_twilio_sid || '').replace(/"/g, ''),
@@ -540,6 +545,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     },
                     '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
                       backgroundColor: '#60a5fa',
+                    },
+                  }}
+                />
+              </SettingRow>
+
+              <Box sx={{ mt: 3, mb: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Vendor Specific Features
+                </Typography>
+              </Box>
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Scrape Isracard Categories</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Fetch categories from Isracard/Amex API (slower, but provides bank categorization).
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.isracard_scrape_categories}
+                  onChange={(e) => setSettings({ ...settings, isracard_scrape_categories: e.target.checked })}
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#f59e0b',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#f59e0b',
                     },
                   }}
                 />

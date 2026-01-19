@@ -420,6 +420,8 @@ async function handler(req, res) {
         updatedTransactions: accumulatedStats.updatedTransactions,
         bankTransactions: accumulatedStats.bankTransactions,
         cachedCategories: accumulatedStats.cachedCategories,
+        ruleCategories: accumulatedStats.ruleCategories,
+        scraperCategories: accumulatedStats.scraperCategories,
         skippedCards: accumulatedStats.skippedCards,
         processedTransactions: accumulatedStats.processedTransactions,
         durationSeconds: Math.floor((Date.now() - startTime) / 1000)

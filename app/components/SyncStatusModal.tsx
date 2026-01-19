@@ -270,9 +270,13 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     category: string;
     date: string;
     accountName?: string;
+    source?: string;
+    rule?: string;
+    oldCategory?: string;
   }
 
   const [sessionReport, setSessionReport] = useState<ProcessedTransaction[]>([]);
+  const [sessionSummary, setSessionSummary] = useState<any>(null);
   const [showReport, setShowReport] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
@@ -629,7 +633,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                       if (eventData.summary && eventData.summary.processedTransactions) {
                         setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
                           ...t,
-                          accountName: account.nickname || account.vendor
+                          accountName: account.nickname || account.vendor,
+                          source: t.source,
+                          rule: t.rule,
+                          oldCategory: t.oldCategory
                         }))]);
                       }
                       break;
@@ -673,6 +680,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         await fetchStatus();
         setSyncProgress(null);
         setIsSyncing(false);
+        setSessionSummary({
+          durationSeconds: elapsedSeconds
+        });
         setSyncStartTime(null);
         setShowReport(true);
       } catch (err) {
@@ -793,7 +803,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                     if (eventData.summary && eventData.summary.processedTransactions) {
                       setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
                         ...t,
-                        accountName: account.nickname || account.vendor
+                        accountName: account.nickname || account.vendor,
+                        source: t.source,
+                        rule: t.rule,
+                        oldCategory: t.oldCategory
                       }))]);
                     }
                     if (onSyncSuccess) onSyncSuccess();
@@ -816,6 +829,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         await fetchStatus();
         setSyncProgress(null);
         setIsSyncing(false);
+        setSessionSummary({
+          durationSeconds: elapsedSeconds
+        });
         setSyncStartTime(null);
         setShowReport(true);
       } catch (err) {
@@ -852,6 +868,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         // Handle both formats: direct transactions array or nested in processedTransactions
         const txns = Array.isArray(data) ? data : (data.processedTransactions || []);
         setSessionReport(txns);
+        setSessionSummary(data); // Store the full report object as summary
         setShowReport(true);
       } else {
         logger.error('Failed to fetch report for event', undefined, { eventId: event.id });
@@ -1009,7 +1026,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                 No new transactions found during this sync.
               </Typography>
             ) : (
-              <ScrapeReport report={sessionReport} />
+              <ScrapeReport report={sessionReport} summary={sessionSummary} />
             )}
 
             <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>

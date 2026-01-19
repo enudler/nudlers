@@ -58,7 +58,13 @@ export async function loadCategoryCache(client) {
       logger.info('[Category Cache] transaction_categories table not found, building cache from transactions');
       try {
         const result = await client.query(
-          `SELECT DISTINCT name, category FROM transactions WHERE category IS NOT NULL AND category != ''`
+          `SELECT name, category FROM (
+            SELECT name, category, MAX(date) as last_seen 
+            FROM transactions 
+            WHERE category IS NOT NULL AND category != '' 
+            AND date >= CURRENT_DATE - INTERVAL '120 days'
+            GROUP BY name, category
+          ) t ORDER BY last_seen DESC LIMIT 300`
         );
 
         for (const row of result.rows) {
@@ -66,7 +72,7 @@ export async function loadCategoryCache(client) {
             categoryCache[row.name.toLowerCase()] = row.category;
           }
         }
-        logger.info({ count: Object.keys(categoryCache).length }, '[Category Cache] Built cache from transactions');
+        logger.info({ count: Object.keys(categoryCache).length }, '[Category Cache] Built recent-merchants cache from transactions (120 days / 300 limit)');
       } catch (fallbackErr) {
         logger.error({ error: fallbackErr.message }, '[Category Cache] Failed to build cache from transactions');
         // Return empty cache if both fail
@@ -160,8 +166,9 @@ export function applyCategoryMappings(category, mappings) {
  * Lookup category from cache based on transaction description
  */
 export function lookupCachedCategory(description) {
-  if (!categoryCache || !description) return null;
-  return categoryCache[description.toLowerCase()] || null;
+  if (!description) return null;
+  if (!categoryCache) return null;
+  return categoryCache[description.trim().toLowerCase()] || null;
 }
 
 /**
@@ -235,7 +242,7 @@ export function validateCredentials(credentials, vendor) {
  * Insert a transaction into the database
  * @param {boolean} isBank - Whether this is a bank transaction (true) or credit card (false)
  */
-export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false, categoryMappings = {}, isBank = false, billingCycleStartDay = 10) {
+export async function insertTransaction(client, transaction, vendor, accountNumber, defaultCurrency, categorizationRules = [], updateCategoryOnRescrape = false, categoryMappings = {}, isBank = false, billingCycleStartDay = 10, historyCache = null) {
   const {
     date,
     processedDate,
@@ -252,251 +259,145 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     category: scraperCategory
   } = transaction;
 
-  // Determine category
-  // Priority: Cache (Exact previous edit) > Rule (Pattern match) > Scraper (Source)
+  // 1. Determine local categorization
   let finalCategory = scraperCategory || null;
   if (finalCategory === 'N/A') finalCategory = null;
 
   let categorySource = finalCategory ? 'scraper' : null;
   let ruleDetails = null;
 
-  // Try Rules
-  if (categorizationRules && categorizationRules.length > 0) {
+  if (categorizationRules?.length > 0) {
     const ruleMatch = matchCategoryRule(description, categorizationRules);
     if (ruleMatch) {
       finalCategory = ruleMatch.category;
       categorySource = 'rule';
       ruleDetails = ruleMatch.match;
-      logger.debug({ description, category: finalCategory, rule: ruleDetails }, '[Scraper] Matched category from rules');
     }
   }
 
-  // Try Cache (Overrides scraper and rules if exact match exists, as this implies user correction)
-  const cachedCategory = lookupCachedCategory(description);
+  const cachedCategory = lookupCachedCategory(description) || historyCache?.nameToCategory?.get(description.toLowerCase());
   if (cachedCategory && cachedCategory !== 'N/A') {
     finalCategory = cachedCategory;
     categorySource = 'cache';
   }
 
-  // Apply Persistent Mappings (If previous categories were merged into a new one)
   if (finalCategory && categoryMappings && Object.keys(categoryMappings).length > 0) {
     const mappedCategory = applyCategoryMappings(finalCategory, categoryMappings);
     if (mappedCategory !== finalCategory) {
-      logger.debug({
-        description,
-        originalCategory: finalCategory,
-        mappedCategory,
-        source: categorySource
-      }, '[Scraper] Applied persistent category mapping');
       finalCategory = mappedCategory;
-      // We keep the original source (rule/cache/scraper) but the category is now mapped
     }
   }
 
-  // Generate identifier if not provided
+  // 2. Identifier & Collision Check
   const txId = identifier || generateTransactionIdentifier(transaction, vendor, accountNumber);
+  const newDateStr = new Date(date).toISOString().split('T')[0];
 
-  // Check if transaction already exists (primary key is identifier + vendor)
-  const existing = await client.query(
-    'SELECT identifier, name, price, date, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
-    [txId, vendor]
-  );
+  let existingTx = null;
+  const cachedTx = historyCache?.idMap.get(txId);
 
-  if (existing.rows.length > 0) {
-    // Check if this is a true duplicate or a collision
-    const dbTx = existing.rows[0];
-    const normalizedDbName = (dbTx.name || '').trim().toLowerCase();
+  if (cachedTx) {
+    existingTx = {
+      identifier: txId,
+      name: cachedTx.name,
+      price: cachedTx.price,
+      date: cachedTx.date,
+      category: cachedTx.category,
+      category_source: cachedTx.category_source
+    };
+  } else {
+    // Cache miss or too old - hit database
+    const existing = await client.query(
+      'SELECT identifier, name, price, date, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
+      [txId, vendor]
+    );
+    if (existing.rows.length > 0) existingTx = existing.rows[0];
+  }
+
+  if (existingTx) {
+    const normalizedDbName = (existingTx.name || '').trim().toLowerCase();
     const normalizedNewName = (description || '').trim().toLowerCase();
-    const dbPrice = Math.abs(dbTx.price || 0);
+    const dbPrice = Math.abs(existingTx.price || 0);
     const newPrice = Math.abs(chargedAmount || originalAmount || 0);
+    const dbDateStr = existingTx.date instanceof Date ? existingTx.date.toISOString().split('T')[0] : existingTx.date;
 
-    // It's a collision if:
-    // 1. Names are significantly different (not just case/whitespace)
-    // 2. OR prices are different
-    // 3. OR dates are different
     const isCollision = (normalizedDbName !== normalizedNewName && !normalizedDbName.includes(normalizedNewName) && !normalizedNewName.includes(normalizedDbName)) ||
       (Math.abs(dbPrice - newPrice) > 0.01) ||
-      (new Date(dbTx.date).toISOString().split('T')[0] !== new Date(date).toISOString().split('T')[0]);
+      (dbDateStr !== newDateStr);
 
     if (isCollision) {
-      logger.warn({
-        txId,
-        vendor,
-        dbName: dbTx.name,
-        newName: description,
-        dbPrice,
-        newPrice,
-        dbDate: dbTx.date,
-        newDate: date
-      }, '[Scraper] Identifier collision detected! Generating robust fallback ID.');
-
-      // Use the robust identifier generator which combines multiple fields
+      logger.warn({ txId, vendor, dbName: existingTx.name, newName: description }, '[Scraper] Identifier collision! Fallback ID.');
       const fallbackId = generateTransactionIdentifier(transaction, vendor, accountNumber);
-
-      // Recursive call with the new ID
-      return insertTransaction(client, { ...transaction, identifier: fallbackId }, vendor, accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings, isBank, billingCycleStartDay);
+      return insertTransaction(client, { ...transaction, identifier: fallbackId }, vendor, accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings, isBank, billingCycleStartDay, historyCache);
     }
 
-    // If enabled and we have a new resolved category (from scraper OR rules OR cache)
     if (updateCategoryOnRescrape && finalCategory && finalCategory !== 'N/A' && finalCategory !== '') {
-      const currentCategory = dbTx.category;
-      const currentSource = dbTx.category_source;
-
-      // Only update if the current category is essentially empty/undefined/N/A/Uncategorized
-      // OR if it's not a manual edit (cache) and we have a better category
-      const isCurrentCategoryEmpty = !currentCategory ||
-        currentCategory === 'N/A' ||
-        currentCategory === '' ||
-        currentCategory.toLowerCase() === 'uncategorized';
-
-      // Allow update if empty, OR if not manual override (cache) and different
-      const shouldUpdate = isCurrentCategoryEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory);
-
-      if (shouldUpdate && currentCategory !== finalCategory) {
-        logger.info({
-          txId,
-          vendor,
-          oldCategory: currentCategory,
-          newCategory: finalCategory,
-          oldSource: currentSource,
-          newSource: categorySource
-        }, '[Scraper] Updating transaction category based on re-scrape');
-
-        await client.query(
-          'UPDATE transactions SET category = $1, category_source = $2, rule_matched = $3 WHERE identifier = $4 AND vendor = $5',
-          [finalCategory, categorySource, ruleDetails, txId, vendor]
-        );
-        return {
-          success: true,
-          duplicated: true,
-          updated: true,
-          newCategory: finalCategory,
-          oldCategory: currentCategory,
-          categorySource,
-          ruleMatched: ruleDetails
-        };
+      // If we only have cached info, we might need a quick DB fetch for current category
+      const fullTx = existingTx.category_source ? existingTx : (await client.query('SELECT category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2', [txId, vendor])).rows[0];
+      if (fullTx) {
+        const currentCategory = fullTx.category;
+        const currentSource = fullTx.category_source;
+        const isCurrentEmpty = !currentCategory || currentCategory === 'N/A' || currentCategory === '' || currentCategory.toLowerCase() === 'uncategorized';
+        if ((isCurrentEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory)) && currentCategory !== finalCategory) {
+          await client.query('UPDATE transactions SET category = $1, category_source = $2, rule_matched = $3 WHERE identifier = $4 AND vendor = $5', [finalCategory, categorySource, ruleDetails, txId, vendor]);
+          return { success: true, duplicated: true, updated: true, newCategory: finalCategory, categorySource, oldCategory: currentCategory };
+        }
       }
     }
-
     return { success: true, duplicated: true, updated: false };
   }
 
-  // Normalize values for business key check
   const normalizedName = (description || '').trim().toLowerCase();
   const normalizedPrice = Math.abs(chargedAmount || originalAmount || 0);
   const finalPrice = chargedAmount || originalAmount || 0;
-  const normalizedAccountNumber = accountNumber || '';
+  const currentKey = `${newDateStr}|${normalizedName}|${normalizedPrice.toFixed(2)}|${accountNumber || ''}`;
 
-  // Calculate processed_date if not provided or it's a credit card transaction that defaults to transaction date
-  let finalProcessedDate = processedDate;
-  // isBank is already passed as a parameter
-
-  if (!isBank) {
-    // For credit cards, if processedDate is missing or same as date, we might need to adjust it
-    // For credit cards, if processedDate is missing or same as date, we might need to adjust it
-    // based on the billing cycle start day
-    try {
-      // Use passed billingCycleStartDay (defaulted to 10 if not provided, though caller should provide it)
-      const billingStartDay = billingCycleStartDay || 10;
-
-      const txDate = new Date(date);
-      const txDay = txDate.getDate();
-
-      // If processedDate is null, undefined, or same as txDate, and the day is past the cutoff
-      // then we should move it to the "next" cycle (the Start Day of next month)
-      const isDateMissingOrSame = !processedDate || new Date(processedDate).getTime() === txDate.getTime();
-
-      if (isDateMissingOrSame && txDay > billingStartDay) {
-        // Move to next month's billing day
-        const nextMonthDate = new Date(txDate.getFullYear(), txDate.getMonth() + 1, billingStartDay);
-        finalProcessedDate = nextMonthDate.toISOString().split('T')[0];
-        logger.debug({ vendor, description, date, originalProcessedDate: processedDate, newProcessedDate: finalProcessedDate }, '[Scraper] Adjusted processed_date based on billing cycle cutoff');
-      } else if (!processedDate) {
-        // Just default to txDate if not setting it to next month
-        finalProcessedDate = date;
-      }
-    } catch (e) {
-      logger.error({ error: e.message }, '[Scraper] Error calculating processed_date, falling back to original');
-      finalProcessedDate = processedDate || date;
-    }
-  }
-
-  // (Category logic moved to top)
-
-  // Check business key constraint (vendor, date, name, price, account_number)
-  // Extended check: also look for ±1 day shift for timezone-related duplicates
-  const businessKeyCheck = await client.query(
-    `SELECT identifier FROM transactions 
-     WHERE vendor = $1 
-       AND date = $2
-       AND LOWER(TRIM(name)) = $3 
-       AND ABS(price) = $4 
-       AND COALESCE(account_number, '') = $5`,
-    [vendor, date, normalizedName, normalizedPrice, normalizedAccountNumber]
-  );
-
-  if (businessKeyCheck.rows.length > 0) {
-    logger.info({ vendor, description, date, price: normalizedPrice }, '[Scraper] Skipping duplicate transaction (business key match)');
+  // 3. Business Key Check
+  if (historyCache?.businessKeys.has(currentKey)) {
     return { success: true, duplicated: true };
   }
 
-  // Extra check for installments: if this is an installment, check if a "total" transaction 
-  // exists with the same name and date but different price (original_amount instead of price)
+  const businessKeyCheck = await client.query(
+    `SELECT identifier FROM transactions WHERE vendor = $1 AND date = $2 AND LOWER(TRIM(name)) = $3 AND ABS(price) = $4 AND COALESCE(account_number, '') = $5`,
+    [vendor, date, normalizedName, normalizedPrice, accountNumber || '']
+  );
+  if (businessKeyCheck.rows.length > 0) return { success: true, duplicated: true };
+
+  // 4. Installment Logic (Still DB-based as it is rarer and location-sensitive)
   if (installmentsTotal > 1) {
     const totalMatchCheck = await client.query(
-      `SELECT identifier FROM transactions 
-       WHERE vendor = $1 
-         AND ABS(date - $2) <= 1
-         AND LOWER(TRIM(name)) = $3 
-         AND (ABS(price) = $4 OR ABS(original_amount) = $4)
-         AND (installments_total IS NULL OR installments_total <= 1)`,
+      `SELECT identifier FROM transactions WHERE vendor = $1 AND ABS(date - $2) <= 1 AND LOWER(TRIM(name)) = $3 AND (ABS(price) = $4 OR ABS(original_amount) = $4) AND (installments_total IS NULL OR installments_total <= 1)`,
       [vendor, date, normalizedName, Math.abs(originalAmount || chargedAmount)]
     );
+    if (totalMatchCheck.rows.length > 0) return { success: true, duplicated: true };
+  }
 
-    if (totalMatchCheck.rows.length > 0) {
-      logger.info({ vendor, description, date }, '[Scraper] Found matching total transaction for installment, skipping as duplicate');
-      return { success: true, duplicated: true };
+  // 5. Build Processed Date
+  let finalProcessedDate = processedDate || date;
+  if (!isBank && (!processedDate || new Date(processedDate).getTime() === new Date(date).getTime())) {
+    const billingStartDay = billingCycleStartDay || 10;
+    if (new Date(date).getDate() > billingStartDay) {
+      const d = new Date(date);
+      finalProcessedDate = new Date(d.getFullYear(), d.getMonth() + 1, billingStartDay).toISOString().split('T')[0];
     }
   }
 
-  // Insert transaction matching the actual database schema
-  // Use ON CONFLICT to handle race conditions gracefully
+  // 6. Final Insert
   const transactionType = isBank ? 'bank' : 'credit_card';
-
   try {
     await client.query(
-      `INSERT INTO transactions (
-        identifier, vendor, date, name, price, category, type,
-        processed_date, original_amount, original_currency, 
-        charged_currency, memo, status, 
-        installments_number, installments_total, account_number,
-        category_source, rule_matched, transaction_type
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-      ON CONFLICT (identifier, vendor) DO NOTHING`,
-      [
-        txId, vendor, date, description || '', finalPrice,
-        finalCategory, type, finalProcessedDate, originalAmount, originalCurrency,
-        defaultCurrency, memo, status || 'completed',
-        installmentsNumber, installmentsTotal, accountNumber,
-        categorySource, ruleDetails, transactionType
-      ]
+      `INSERT INTO transactions (identifier, vendor, date, name, price, category, type, processed_date, original_amount, original_currency, charged_currency, memo, status, installments_number, installments_total, account_number, category_source, rule_matched, transaction_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) ON CONFLICT (identifier, vendor) DO NOTHING`,
+      [txId, vendor, date, description || '', finalPrice, finalCategory, type, finalProcessedDate, originalAmount, originalCurrency, defaultCurrency, memo, status || 'completed', installmentsNumber, installmentsTotal, accountNumber, categorySource, ruleDetails, transactionType]
     );
-  } catch (err) {
-    // Handle business key constraint violation
-    if (err.code === '23505' && err.constraint === 'idx_transactions_business_key') {
-      return { success: true, duplicated: true };
+    if (historyCache) {
+      historyCache.idMap.set(txId, { name: description, price: finalPrice, date: newDateStr });
+      historyCache.businessKeys.add(currentKey);
     }
-    // Re-throw other errors
+  } catch (err) {
+    if (err.code === '23505') return { success: true, duplicated: true };
     throw err;
   }
 
-  return {
-    success: true,
-    duplicated: false,
-    category: finalCategory,
-    categorySource,
-    ruleMatched: ruleDetails
-  };
+  return { success: true, duplicated: false, category: finalCategory, categorySource, ruleMatched: ruleDetails };
 }
 
 /**
@@ -710,6 +611,8 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
   // Check if we should use smart scraping for Isracard/Amex
   const isSmartVendor = ['isracard', 'amex'].includes(scraperOptions.companyId);
+  const isracardScrapeCategories = isSmartVendor ? await getIsracardScrapeCategoriesSetting(client) : true;
+
   // For these vendors, we ALWAYS want to use the 3-phase smart scraping to avoid blocking
   // and ensure categories are fetched efficiently. We ignore the generic setting for them.
   const useSmartScraping = isSmartVendor && client;
@@ -801,13 +704,16 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
         let categorizedLocal = 0;
 
         for (const account of result.accounts) {
-          const accountIdx = result.accounts.indexOf(account); // Needed for API call
+          const accountIdx = (account.index !== undefined) ? account.index : result.accounts.indexOf(account);
+          logger.info({ accountNumber: account.accountNumber, cardIndex: accountIdx }, '[Scraper] Processing account categorization');
+
           for (const txn of account.txns || []) {
-            const desc = txn.description || '';
+            const desc = (txn.description || '').trim();
 
             // 1. Cache
             const cached = lookupCachedCategory(desc);
             if (cached && cached !== 'N/A') {
+              logger.info({ desc, category: cached }, '[Scraper] Phase 1 Match: Cache');
               txn.category = cached;
               categorizedLocal++;
               continue;
@@ -816,6 +722,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
             // 2. Rules
             const ruleMatch = matchCategoryRule(desc, rules);
             if (ruleMatch) {
+              logger.info({ desc, category: ruleMatch.category }, '[Scraper] Phase 2 Match: Rule');
               txn.category = ruleMatch.category;
               categorizedLocal++;
               continue;
@@ -830,7 +737,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
         // Phase 3: Selective API calls (only for Isracard/Amex, not Leumi)
         const supportsCategoryAPI = scraperOptions.companyId === 'isracard' || scraperOptions.companyId === 'amex';
-        if (supportsCategoryAPI && needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
+        if (supportsCategoryAPI && isracardScrapeCategories && needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
           logger.info('[Scraper] Starting Phase 3: Selective API Calls');
 
           // Deduplicate
@@ -843,37 +750,47 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
           const MAX_CALLS = 200; // Increased for historical 12-month fetches
           let calls = 0;
-          const DELAY = 3000;
+          const DELAY = 1000;
+          const BATCH_SIZE = 5;
 
-          for (const [desc, item] of uniqueMerchants) {
-            if (calls >= MAX_CALLS) break;
-            calls++;
+          const merchantEntries = Array.from(uniqueMerchants.entries());
 
-            // Calculate date param
-            const txnDate = new Date(item.txn.date || item.txn.processedDate);
-            const moedChiuv = `${String(txnDate.getMonth() + 1).padStart(2, '0')}${txnDate.getFullYear()}`;
+          for (let i = 0; i < merchantEntries.length && calls < MAX_CALLS; i += BATCH_SIZE) {
+            const chunk = merchantEntries.slice(i, i + BATCH_SIZE);
 
-            try {
-              if (onProgress) {
-                onProgress(scraperOptions.companyId, {
-                  type: 'fetchingCategory',
-                  message: `Fetching category: ${desc.substring(0, 20)}...`
-                });
-              }
-              const { category } = await fetchCategoryFromIsracard(scraper.page, item.txn, item.accountIndex, moedChiuv);
+            await Promise.all(chunk.map(async ([desc, item]) => {
+              // Calculate moedChiuv (billing month)
+              // Prioritize processedDate as it usually represents the billing date in Isracard
+              const billingDate = new Date(item.txn.processedDate || item.txn.date);
+              const moedChiuv = `${String(billingDate.getMonth() + 1).padStart(2, '0')}${billingDate.getFullYear()}`;
 
-              if (category) {
-                // Apply to all matchers
-                for (const t of needsApiCall) {
-                  if (t.txn.description === desc) t.txn.category = category;
+              try {
+                if (onProgress) {
+                  onProgress(scraperOptions.companyId, {
+                    type: 'fetchingCategory',
+                    message: `Fetching category: ${desc.substring(0, 20)}...`
+                  });
                 }
+                const { category } = await fetchCategoryFromIsracard(scraper.page, item.txn, item.accountIndex, moedChiuv);
+
+                if (category) {
+                  logger.info({ desc, category }, '[Scraper] Phase 3 Match: API');
+                  // Apply to all matchers
+                  for (const t of needsApiCall) {
+                    if (t.txn.description === desc) t.txn.category = category;
+                  }
+                } else {
+                  logger.debug({ desc }, '[Scraper] Phase 3: API returned no category');
+                }
+              } catch (e) {
+                logger.warn({ error: e.message, desc }, '[Scraper] API Fetch failed');
               }
+            }));
 
-            } catch (e) {
-              logger.warn({ error: e.message, desc }, '[Scraper] API Fetch failed');
+            calls += chunk.length;
+            if (i + BATCH_SIZE < merchantEntries.length) {
+              await sleep(DELAY);
             }
-
-            await sleep(DELAY);
           }
           logger.info({ callsMade: calls }, '[Scraper] Phase 3 Complete');
         }
@@ -914,6 +831,11 @@ export async function getFetchCategoriesSetting(client) {
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
+export async function getIsracardScrapeCategoriesSetting(client) {
+  const result = await client.query("SELECT value FROM app_settings WHERE key = 'isracard_scrape_categories'");
+  return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
+}
+
 export async function getUpdateCategoryOnRescrapeSetting(client) {
   const result = await client.query("SELECT value FROM app_settings WHERE key = 'update_category_on_rescrape'");
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
@@ -937,6 +859,57 @@ export async function getBillingCycleStartDay(client) {
 /**
  * Consolidate transaction processing logic from scrape handlers
  */
+/**
+ * Helper to warm up history cache (Identifiers + Business Keys) for a vendor.
+ * Includes data from ALL cards to allow cross-card category matching while keeping deduplication per-card.
+ */
+async function fetchHistoryCache(client, vendor) {
+  try {
+    const result = await client.query(
+      `SELECT identifier, name, price, date, category, category_source, account_number 
+       FROM transactions 
+       WHERE vendor = $1 
+       AND date >= CURRENT_DATE - INTERVAL '120 days'
+       ORDER BY date DESC LIMIT 3000`,
+      [vendor]
+    );
+
+    const idMap = new Map(); // identifier -> { name, price, date, category, category_source }
+    const businessKeys = new Set(); // date|name|price|account_number
+    const nameToCategory = new Map(); // name -> category (most recent)
+
+    for (const row of result.rows) {
+      const dateStr = row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0];
+      const name = (row.name || '').trim().toLowerCase();
+      const priceVal = Math.abs(row.price || 0);
+      const priceStr = priceVal.toFixed(2);
+      const accNum = row.account_number || '';
+
+      if (row.identifier) {
+        idMap.set(row.identifier, {
+          name,
+          price: priceVal,
+          date: dateStr,
+          category: row.category,
+          category_source: row.category_source
+        });
+      }
+
+      businessKeys.add(`${dateStr}|${name}|${priceStr}|${accNum}`);
+
+      // Build name -> category map (skipping uncategorized)
+      if (row.category && row.category !== 'N/A' && row.category !== '' && row.category.toLowerCase() !== 'uncategorized' && !nameToCategory.has(name)) {
+        nameToCategory.set(name, row.category);
+      }
+    }
+
+    return { idMap, businessKeys, nameToCategory };
+  } catch (err) {
+    logger.error({ error: err.message, vendor }, '[History Cache] Failed to fetch history');
+    return { idMap: new Map(), businessKeys: new Set(), nameToCategory: new Map() };
+  }
+}
+
 export async function processScrapedAccounts({
   client,
   accounts,
@@ -958,12 +931,20 @@ export async function processScrapedAccounts({
     updatedTransactions: 0,
     bankTransactions: 0,
     cachedCategories: 0,
+    ruleCategories: 0,
+    scraperCategories: 0,
     skippedCards: 0,
     processedTransactions: []
   };
 
   if (!accounts || !Array.isArray(accounts)) return stats;
   stats.accounts = accounts.length;
+
+  // Ensure global category cache is loaded
+  await loadCategoryCache(client);
+
+  // Warm up history for ALL cards of this vendor (Identifier Map + Business Keys + Name-to-Category map)
+  const historyCache = await fetchHistoryCache(client, companyId);
 
   for (const account of accounts) {
     if (onAccountStarted && onAccountStarted(account) === false) break;
@@ -1001,7 +982,8 @@ export async function processScrapedAccounts({
         updateCategoryOnRescrape,
         categoryMappings,
         isBank,
-        billingCycleStartDay
+        billingCycleStartDay,
+        historyCache
       );
 
       const reportItem = {
@@ -1015,7 +997,8 @@ export async function processScrapedAccounts({
         cardLast4: account.accountNumber,
         isUpdate: !!insertResult.updated,
         isDuplicate: !!insertResult.duplicated && !insertResult.updated,
-        isBank: isBank
+        isBank: isBank,
+        oldCategory: insertResult.oldCategory
       };
 
       if (insertResult.updated) {
@@ -1027,6 +1010,8 @@ export async function processScrapedAccounts({
       }
 
       if (insertResult.categorySource === 'cache') stats.cachedCategories++;
+      if (insertResult.categorySource === 'rule') stats.ruleCategories++;
+      if (insertResult.categorySource === 'scraper') stats.scraperCategories++;
 
       stats.processedTransactions.push(reportItem);
 

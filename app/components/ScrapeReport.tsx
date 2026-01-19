@@ -23,31 +23,63 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
     const [activeTab, setActiveTab] = useState(0);
     const theme = useTheme();
 
-    if (!report || report.length === 0) {
+    const reportData = report || [];
+
+    const counts = {
+        all: reportData.length,
+        new: reportData.filter(t => !t.isDuplicate && !t.isUpdate).length,
+        updated: reportData.filter(t => t.isUpdate).length,
+        duplicates: reportData.filter(t => t.isDuplicate).length
+    };
+
+    // Calculate categorization stats from report if not provided in summary
+    const reportStats = {
+        cachedCategories: reportData.filter(t => t.source === 'cache').length,
+        ruleCategories: reportData.filter(t => t.source === 'rule').length,
+        scraperCategories: reportData.filter(t => (t.source === 'scraper' || !t.source)).length,
+    };
+
+    // Use passed summary or calculate from items
+    const stats = {
+        savedTransactions: summary?.savedTransactions ?? counts.new,
+        updatedTransactions: summary?.updatedTransactions ?? counts.updated,
+        duplicateTransactions: summary?.duplicateTransactions ?? counts.duplicates,
+        durationSeconds: summary?.durationSeconds ?? summary?.duration_seconds ?? 0,
+        cachedCategories: summary?.cachedCategories ?? reportStats.cachedCategories,
+        ruleCategories: summary?.ruleCategories ?? reportStats.ruleCategories,
+        scraperCategories: summary?.scraperCategories ?? reportStats.scraperCategories,
+    };
+
+    const formatDuration = (seconds: number) => {
+        if (!seconds) return '--';
+        const min = Math.floor(seconds / 60);
+        const sec = Math.round(seconds % 60);
+        return `${min}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    if (reportData.length === 0) {
         return (
             <Box sx={{ width: '100%' }}>
-                {summary && (
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3 }}>
-                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.3)' : '#bbf7d0'}`, borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 700, mb: 0.5 }}>0</Typography>
-                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>New</Typography>
-                        </Paper>
-                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe'}`, borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#1e40af', fontWeight: 700, mb: 0.5 }}>0</Typography>
-                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#1e40af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Updated</Typography>
-                        </Paper>
-                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.15)' : '#fff7ed', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.3)' : '#fed7aa'}`, borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 700, mb: 0.5 }}>{summary.duplicateTransactions || 0}</Typography>
-                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Duplicates</Typography>
-                        </Paper>
-                        <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.15)' : '#f5f3ff', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.3)' : '#ddd6fe'}`, borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 700, mb: 0.5 }}>
-                                {summary.durationSeconds ? `${Math.floor(summary.durationSeconds / 60)}:${(summary.durationSeconds % 60).toString().padStart(2, '0')}` : '--'}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Time</Typography>
-                        </Paper>
-                    </Box>
-                )}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3 }}>
+                    <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.3)' : '#bbf7d0'}`, borderRadius: 3, textAlign: 'center' }}>
+                        <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 700, mb: 0.5 }}>0</Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>New</Typography>
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe'}`, borderRadius: 3, textAlign: 'center' }}>
+                        <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#1e40af', fontWeight: 700, mb: 0.5 }}>0</Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#60a5fa' : '#1e40af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Updated</Typography>
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.15)' : '#fff7ed', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.3)' : '#fed7aa'}`, borderRadius: 3, textAlign: 'center' }}>
+                        <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 700, mb: 0.5 }}>{stats.duplicateTransactions}</Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#9a3412', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Duplicates</Typography>
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.15)' : '#f5f3ff', border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(167, 139, 250, 0.3)' : '#ddd6fe'}`, borderRadius: 3, textAlign: 'center' }}>
+                        <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 700, mb: 0.5 }}>
+                            {formatDuration(stats.durationSeconds)}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Time</Typography>
+                    </Paper>
+                </Box>
                 <Box sx={{ p: 4, textAlign: 'center', color: '#9ca3af', border: `1px dashed ${theme.palette.divider}`, borderRadius: 3 }}>
                     <Typography variant="body1" sx={{ mb: 1, fontWeight: 500 }}>No transactions found for this period.</Typography>
                     <Typography variant="body2">The bank or credit card company returned no transaction data for the selected dates.</Typography>
@@ -60,33 +92,19 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
     const getFilteredTransactions = () => {
         switch (activeTab) {
             case 0: // All
-                return report;
+                return reportData;
             case 1: // New
-                return report.filter(t => !t.isDuplicate && !t.isUpdate);
+                return reportData.filter(t => !t.isDuplicate && !t.isUpdate);
             case 2: // Updated
-                return report.filter(t => t.isUpdate);
+                return reportData.filter(t => t.isUpdate);
             case 3: // Duplicates
-                return report.filter(t => t.isDuplicate);
+                return reportData.filter(t => t.isDuplicate);
             default:
-                return report;
+                return reportData;
         }
     };
 
     const filteredTransactions = getFilteredTransactions();
-
-    const counts = {
-        all: report.length,
-        new: report.filter(t => !t.isDuplicate && !t.isUpdate).length,
-        updated: report.filter(t => t.isUpdate).length,
-        duplicates: report.filter(t => t.isDuplicate).length
-    };
-
-    // Use passed summary or calculate from items
-    const stats = summary || {
-        savedTransactions: counts.new,
-        updatedTransactions: counts.updated,
-        duplicateTransactions: counts.duplicates
-    };
 
     return (
         <Box sx={{ width: '100%' }}>
@@ -142,10 +160,65 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                     textAlign: 'center'
                 }}>
                     <Typography variant="h4" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 700, mb: 0.5 }}>
-                        {stats.durationSeconds ? `${Math.floor(stats.durationSeconds / 60)}:${(stats.durationSeconds % 60).toString().padStart(2, '0')}` : '--'}
+                        {formatDuration(stats.durationSeconds)}
                     </Typography>
                     <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#a78bfa' : '#5b21b6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         Time
+                    </Typography>
+                </Paper>
+            </Box>
+
+            {/* Categorization Summary */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 3 }}>
+                <Paper elevation={0} sx={{
+                    p: 1.5,
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(168, 85, 247, 0.05)' : '#faf5ff',
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff'}`,
+                    borderRadius: 3,
+                    textAlign: 'center'
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+                        <StorageIcon sx={{ fontSize: 16, color: theme.palette.mode === 'dark' ? '#a855f7' : '#6b21a8' }} />
+                        <Typography variant="h6" sx={{ color: theme.palette.mode === 'dark' ? '#a855f7' : '#6b21a8', fontWeight: 700 }}>
+                            {stats.cachedCategories || 0}
+                        </Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#a855f7' : '#6b21a8', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: 0.5 }}>
+                        From Cache
+                    </Typography>
+                </Paper>
+                <Paper elevation={0} sx={{
+                    p: 1.5,
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(14, 165, 233, 0.05)' : '#f0f9ff',
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(14, 165, 233, 0.2)' : '#e0f2fe'}`,
+                    borderRadius: 3,
+                    textAlign: 'center'
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+                        <RuleIcon sx={{ fontSize: 16, color: theme.palette.mode === 'dark' ? '#0ea5e9' : '#0369a1' }} />
+                        <Typography variant="h6" sx={{ color: theme.palette.mode === 'dark' ? '#0ea5e9' : '#0369a1', fontWeight: 700 }}>
+                            {stats.ruleCategories || 0}
+                        </Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#0ea5e9' : '#0369a1', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: 0.5 }}>
+                        From Rules
+                    </Typography>
+                </Paper>
+                <Paper elevation={0} sx={{
+                    p: 1.5,
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.05)' : '#f0fdf4',
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7'}`,
+                    borderRadius: 3,
+                    textAlign: 'center'
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+                        <AutorenewIcon sx={{ fontSize: 16, color: theme.palette.mode === 'dark' ? '#4ade80' : '#15803d' }} />
+                        <Typography variant="h6" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#15803d', fontWeight: 700 }}>
+                            {stats.scraperCategories || 0}
+                        </Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#4ade80' : '#15803d', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: 0.5 }}>
+                        From Scraper
                     </Typography>
                 </Paper>
             </Box>
@@ -191,17 +264,23 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                             <Typography variant="body2">No transactions found in this category.</Typography>
                         </Box>
                     ) : (
-                        <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'fixed' }}>
-                            <Box component="thead" sx={{ position: 'sticky', top: 0, bgcolor: theme.palette.background.paper, zIndex: 1, boxShadow: `0 1px 2px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)'}` }}>
-                                <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, textAlign: 'left', color: theme.palette.text.secondary }}>
-                                    <th style={{ padding: '8px 12px', fontWeight: 600, width: '90px' }}>Date</th>
-                                    <th style={{ padding: '8px 12px', fontWeight: 600, width: '120px' }}>Account</th>
-                                    <th style={{ padding: '8px 12px', fontWeight: 600, width: '200px' }}>Description</th>
-                                    <th style={{ padding: '8px 12px', fontWeight: 600, textAlign: 'right', width: '100px' }}>Amount</th>
-                                    <th style={{ padding: '8px 12px', fontWeight: 600, width: '150px' }}>Category</th>
-                                    <th style={{ padding: '8px 12px', fontWeight: 600, width: '100px' }}>Status</th>
+                        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.8rem', tableLayout: 'fixed' }}>
+                            <thead style={{
+                                position: 'sticky',
+                                top: 0,
+                                backgroundColor: theme.palette.background.paper,
+                                zIndex: 10,
+                                boxShadow: `0 2px 4px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.08)'}`
+                            }}>
+                                <tr style={{ color: theme.palette.text.secondary }}>
+                                    <th style={{ padding: '10px 12px', fontWeight: 600, width: '90px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Date</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: 600, width: '120px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Account</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: 600, width: '200px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Description</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right', width: '100px', borderBottom: `1px solid ${theme.palette.divider}` }}>Amount</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: 600, width: '150px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Category</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: 600, width: '100px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Status</th>
                                 </tr>
-                            </Box>
+                            </thead>
                             <tbody>
                                 {filteredTransactions.map((tx, idx) => (
                                     <tr key={idx} style={{
@@ -278,24 +357,30 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                                             </Box>
                                         </td>
                                         <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
-                                            {tx.isUpdate ? (
-                                                <Chip size="small" label="Updated" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#dbeafe', color: '#1e40af' }} />
-                                            ) : tx.isDuplicate ? (
-                                                <Chip size="small" label="Duplicate" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#f3f4f6', color: '#6b7280' }} />
-                                            ) : tx.source === 'rule' ? (
-                                                <Tooltip title={tx.rule ? `Rule: ${tx.rule}` : 'Rule'}>
-                                                    <Chip size="small" label="Rule" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#e0f2fe', color: '#0369a1' }} />
-                                                </Tooltip>
-                                            ) : tx.source === 'cache' ? (
-                                                <Chip size="small" label="Cache" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#f3e8ff', color: '#6b21a8' }} />
-                                            ) : (
-                                                <Chip size="small" label="Saved" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#dcfce7', color: '#15803d' }} />
-                                            )}
+                                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'nowrap', alignItems: 'center' }}>
+                                                {tx.isUpdate ? (
+                                                    <Chip size="small" label="Updated" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#dbeafe', color: '#1e40af' }} />
+                                                ) : tx.isDuplicate ? (
+                                                    <Chip size="small" label="Duplicate" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#f3f4f6', color: '#6b7280' }} />
+                                                ) : null}
+
+                                                {tx.source === 'rule' ? (
+                                                    <Tooltip title={tx.rule ? `Rule: ${tx.rule}` : 'Rule match'}>
+                                                        <Chip size="small" label="Rule" icon={<RuleIcon sx={{ fontSize: '10px !important' }} />} sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#e0f2fe', color: '#0369a1', '& .MuiChip-icon': { color: 'inherit' } }} />
+                                                    </Tooltip>
+                                                ) : tx.source === 'cache' ? (
+                                                    <Chip size="small" label="Cache" icon={<StorageIcon sx={{ fontSize: '10px !important' }} />} sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#f3e8ff', color: '#6b21a8', '& .MuiChip-icon': { color: 'inherit' } }} />
+                                                ) : tx.source === 'scraper' ? (
+                                                    <Chip size="small" label="Scraper" icon={<AutorenewIcon sx={{ fontSize: '10px !important' }} />} sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#dcfce7', color: '#15803d', '& .MuiChip-icon': { color: 'inherit' } }} />
+                                                ) : (!tx.isUpdate && !tx.isDuplicate) && (
+                                                    <Chip size="small" label="Saved" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#f3f4f6', color: '#6b7280' }} />
+                                                )}
+                                            </Box>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
-                        </Box>
+                        </table>
                     )}
                 </Box>
                 <Box sx={{ p: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.3)' : '#f9fafb', borderTop: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'center' }}>
