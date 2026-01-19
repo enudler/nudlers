@@ -126,6 +126,6 @@ USER pptruser
 EXPOSE 3000
 
 # Use tini as the entrypoint to handle signals and zombie processes
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 CMD ["/app/scripts/start.sh"]
