@@ -1244,8 +1244,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
               </Box>
             )}
 
-            {/* Main Status Display - Hidden when syncing or initializing */}
-            {!isSyncing && !isInitializing && (
+            {/* Main Status Display - Hidden when syncing, initializing, or idle */}
+            {!isSyncing && !isInitializing && healthDisplay.description !== 'System is idle' && (
               <StatusCard sx={{
                 background: `linear-gradient(135deg, ${healthDisplay.color}10 0%, ${healthDisplay.color}05 100%)`,
                 borderColor: `${healthDisplay.color}40`

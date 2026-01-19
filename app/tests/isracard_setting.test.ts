@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runScraper } from '../pages/api/utils/scraperUtils';
+import { runScraper, resetCategoryCache } from '../pages/api/utils/scraperUtils';
 import * as israeliBankScrapers from 'israeli-bank-scrapers';
 
 // Mock the database module
@@ -28,7 +28,7 @@ describe('Isracard Scrape Setting', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-
+        resetCategoryCache();
         mockClient = {
             query: vi.fn(),
             release: vi.fn()

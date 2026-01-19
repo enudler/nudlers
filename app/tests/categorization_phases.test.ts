@@ -24,7 +24,8 @@ import {
     matchCategoryRule,
     lookupCachedCategory,
     loadCategoryCache,
-    insertTransaction
+    insertTransaction,
+    resetCategoryCache
 } from '../pages/api/utils/scraperUtils';
 
 describe('3-Phase Categorization Logic', () => {
@@ -32,6 +33,7 @@ describe('3-Phase Categorization Logic', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        resetCategoryCache();
         mockClient = {
             query: vi.fn()
         };
@@ -52,7 +54,13 @@ describe('3-Phase Categorization Logic', () => {
             expect(result).toBe('Shopping');
         });
 
-        it('should handle case insensitivity in cache', () => {
+        it('should handle case insensitivity in cache', async () => {
+            mockClient.query.mockResolvedValueOnce({ rows: [] });
+            mockClient.query.mockResolvedValueOnce({
+                rows: [{ description: 'AMAZON', category: 'Shopping' }]
+            });
+            await loadCategoryCache(mockClient);
+
             const result = lookupCachedCategory('amazon');
             expect(result).toBe('Shopping');
         });

@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "NODE_OPTIONS=--max-old-space-size=6144 vitest run",
+    "test": "NODE_OPTIONS=--max-old-space-size=4096 vitest run --logHeapUsage",
     "scrape": "ts-node --esm scrapers/index.ts"
   },
   "dependencies": {

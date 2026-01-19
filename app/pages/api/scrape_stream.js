@@ -45,8 +45,13 @@ const CompanyTypes = {
 
 // Helper to send SSE messages
 function sendSSE(res, event, data) {
-  res.write(`event: ${event}\n`);
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  if (res.destroyed || res.finished || res.writableEnded) return;
+  try {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  } catch (err) {
+    // Ignore errors if client disconnected
+  }
 }
 
 async function handler(req, res) {
@@ -301,11 +306,11 @@ async function handler(req, res) {
       success: null
     });
 
-    // Track cancellation
-    let isCancelled = false;
+    // Track client connection (for SSE purposes)
+    let clientDisconnected = false;
     res.on('close', () => {
-      isCancelled = true;
-      logger.info({ vendor: options.companyId }, '[Scrape Stream] Client disconnected, cancelling scrape');
+      clientDisconnected = true;
+      logger.info({ vendor: options.companyId }, '[Scrape Stream] Client disconnected, continuing in background');
     });
 
     const accumulatedStats = {
@@ -330,8 +335,8 @@ async function handler(req, res) {
         success: true
       });
 
-      // Pass abortion check to stop scraper if client disconnects
-      result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => isCancelled);
+      // Note: We don't pass isCancelled to runScraper anymore as we want it to continue in background
+      result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => false);
 
       if (!result.success) {
         throw new Error(result.errorMessage || 'Scraper failed');
@@ -362,17 +367,15 @@ async function handler(req, res) {
         billingCycleStartDay,
         updateCategoryOnRescrape,
         isBank,
-        onAccountStarted: () => !isCancelled,
+        onAccountStarted: () => true,
         onTransactionProcessed: (reportItem, insertResult, txn) => {
-          if (isCancelled) return false;
-          // If reportItem is null, it's the pre-processing check
-          if (!reportItem) return true;
-          return true; // Continue
+          // Continue processing even if client disconnected
+          return true;
         }
       });
 
-      if (isCancelled) {
-        logger.warn({ vendor: options.companyId }, '[Scrape Stream] Scrape cancelled during saving');
+      if (clientDisconnected) {
+        logger.info({ vendor: options.companyId }, '[Scrape Stream] Scrape reached saving phase but client is gone (continuing)');
       } else {
         sendSSE(res, 'progress', {
           step: 'endScraping',
@@ -428,40 +431,36 @@ async function handler(req, res) {
         durationSeconds: Math.floor((Date.now() - startTime) / 1000)
       };
 
-      if (isCancelled) {
-        logger.info({ vendor: options.companyId }, '[Scrape Stream] Scrape was cancelled, updating audit');
-        await updateScrapeAudit(client, auditId, 'cancelled', `Cancelled by user. Saved ${accumulatedStats.savedTransactions} txns.`, summary);
-      } else {
-        logger.info({ vendor: options.companyId }, '[Scrape Stream] Updating audit as success');
-        await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): fetched=${accumulatedStats.transactions}, saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
+      // Since we removed auto-cancellation, this will mostly be success or failure
+      logger.info({ vendor: options.companyId }, '[Scrape Stream] Updating audit as success');
+      await updateScrapeAudit(client, auditId, 'success', `Success (Chunked): fetched=${accumulatedStats.transactions}, saved=${accumulatedStats.savedTransactions}, updated=${accumulatedStats.updatedTransactions}`, summary);
 
-        // Update last_synced_at
-        sendSSE(res, 'progress', {
-          step: 'updating_timestamp',
-          message: 'Updating last sync timestamp...',
-          percent: 95,
-          phase: 'saving',
-          success: null
-        });
+      // Update last_synced_at
+      sendSSE(res, 'progress', {
+        step: 'updating_timestamp',
+        message: 'Updating last sync timestamp...',
+        percent: 95,
+        phase: 'saving',
+        success: null
+      });
 
-        logger.info({ vendor: options.companyId, credentialId }, '[Scrape Stream] Updating last synced timestamp for credential');
-        await updateCredentialLastSynced(client, credentialId);
+      logger.info({ vendor: options.companyId, credentialId }, '[Scrape Stream] Updating last synced timestamp for credential');
+      await updateCredentialLastSynced(client, credentialId);
 
-        sendSSE(res, 'progress', {
-          step: 'updating_timestamp',
-          message: '✓ Timestamp updated',
-          percent: 98,
-          phase: 'saving',
-          success: true
-        });
+      sendSSE(res, 'progress', {
+        step: 'updating_timestamp',
+        message: '✓ Timestamp updated',
+        percent: 98,
+        phase: 'saving',
+        success: true
+      });
 
-        logger.info({ vendor: options.companyId }, '[Scrape Stream] Sending complete event');
-        sendSSE(res, 'complete', {
-          message: '✓ Scraping completed successfully!',
-          percent: 100,
-          summary: summary
-        });
-      }
+      logger.info({ vendor: options.companyId }, '[Scrape Stream] Sending complete event');
+      sendSSE(res, 'complete', {
+        message: '✓ Scraping completed successfully!',
+        percent: 100,
+        summary: summary
+      });
     } catch (finalError) {
       logger.error({ error: finalError.message }, '[Scrape Stream] Error during finalization steps');
       if (!res.finished) {

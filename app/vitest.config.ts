@@ -11,8 +11,8 @@ export default defineConfig({
                 singleFork: true,
             },
         },
-        // Disable isolation to save memory by not reloading modules for each test file
-        isolate: false,
+        // Enable isolation to ensure memory is cleared between test files
+        isolate: true,
         // Increase timeout for scraper-related tests
         testTimeout: 60000,
     },
