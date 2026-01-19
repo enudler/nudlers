@@ -8,6 +8,10 @@ const pool = new Pool({
   password: process.env.NUDLERS_DB_PASSWORD,
   port: process.env.NUDLERS_DB_PORT ? parseInt(process.env.NUDLERS_DB_PORT) : 5432,
   ssl: false,
+  // Optimization for Docker/Low Resource environments
+  max: process.env.LOW_RESOURCES_MODE === 'true' ? 5 : 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 export async function getDB() {
