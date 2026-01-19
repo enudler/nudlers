@@ -1,0 +1,53 @@
+diff --git a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+index e1db751..4ed7c29 100644
+--- a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
++++ b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+@@ -246,18 +246,36 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+     const [cards, xSiteId, Authorization] = await Promise.all([this.getCards(), this.getXSiteId(), this.getAuthorizationHeader()]);
+     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
+     debug('fetch frames (misgarot) of cards');
+-    const frames = await (0, _fetch.fetchPost)(FRAMES_REQUEST_ENDPOINT, {
+-      cardsForFrameData: cards.map(({
+-        cardUniqueId
+-      }) => ({
+-        cardUniqueId
+-      }))
+-    }, {
+-      Authorization,
+-      'X-Site-Id': xSiteId,
+-      'Content-Type': 'application/json',
+-      ...apiHeaders
+-    });
++    let frames;
++    try {
++      const fetchPromise = (0, _fetch.fetchPost)(FRAMES_REQUEST_ENDPOINT, {
++        cardsForFrameData: cards.map(({
++          cardUniqueId
++        }) => ({
++          cardUniqueId
++        }))
++      }, {
++        Authorization,
++        'X-Site-Id': xSiteId,
++        'Content-Type': 'application/json',
++        ...apiHeaders
++      });
++
++      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Frames fetch timeout')), 10000));
++      frames = await Promise.race([fetchPromise, timeoutPromise]);
++      console.log('[VISA-CAL-PATCH] Successfully fetched frames via API');
++    } catch (e) {
++      console.log(`[VISA-CAL-PATCH] Frames fetch failed (${e.message}), using fallback synthesis`);
++      frames = {
++        result: {
++          bankIssuedCards: {
++            cardLevelFrames: cards.map(c => ({
++              cardUniqueId: c.cardUniqueId
++            }))
++          }
++        }
++      };
++    }
+     const accounts = await Promise.all(cards.map(async card => {
+       const finalMonthToFetchMoment = (0, _moment.default)().add(futureMonthsToScrape, 'month');
+       const months = finalMonthToFetchMoment.diff(startMoment, 'months');
