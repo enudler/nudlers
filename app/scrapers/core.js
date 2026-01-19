@@ -4,7 +4,7 @@
  */
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal', 'leumi'];
+export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
 
 
 /**
@@ -15,25 +15,20 @@ export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const LOW_RESOURCES_MODE = process.env.LOW_RESOURCES_MODE === 'true';
 
 /**
- * Get Chromium executable path based on OS/Environment
+ * Get Chromium/Chrome executable path based on OS/Environment.
+ * Returning undefined allows Puppeteer to find its bundled "Chrome for Testing".
  */
 export function getChromePath() {
+    // 1. If explicitly set via environment variable (e.g., in Docker), use it.
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
         return process.env.PUPPETEER_EXECUTABLE_PATH;
     }
 
-    if (process.platform === 'win32') {
-        return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-    } else if (process.platform === 'darwin') {
-        return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    } else {
-        // Alpine Linux often uses chromium-browser specifically
-        const fs = require('fs');
-        if (fs.existsSync('/usr/bin/chromium-browser')) {
-            return '/usr/bin/chromium-browser';
-        }
-        return '/usr/bin/chromium';
-    }
+    // 2. Default: Return undefined. 
+    // Puppeteer 22+ will automatically look in ~/.cache/puppeteer for the 
+    // bundled "Chrome for Testing" binary. This is the most reliable way 
+    // to "make sure it's Chrome for Testing" across macOS, Windows, and Linux.
+    return undefined;
 }
 
 /**
@@ -107,6 +102,24 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     }
 
     let timeout = options.timeout || 60000;
+
+    if (companyId === 'leumi') {
+        // For Leumi, use minimal options to match the library's default behavior
+        return {
+            companyId,
+            startDate,
+            combineInstallments: false,
+            additionalTransactionInformation: fetchCategories,
+            showBrowser,
+            headless: showBrowser ? false : 'new',
+            verbose: options.verbose ?? true,
+            timeout,
+            executablePath: getChromePath(),
+            // No custom args or viewport overrides for Leumi - STRICTLY default
+            // args: [], // Puppeteer usage of undefined args uses defaults
+            ...options
+        };
+    }
 
     return {
         companyId,
@@ -340,9 +353,9 @@ export function getPreparePage(options = {}) {
             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
             Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
             Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
-            
+
             // Additional anti-detection for Leumi and other banks
-            if (options.companyId === 'leumi' || options.companyId === 'hapoalim' || options.companyId === 'discount') {
+            if (options.companyId === 'hapoalim' || options.companyId === 'discount') {
                 // Override connection API
                 if (navigator.connection) {
                     Object.defineProperty(navigator, 'connection', {
@@ -354,7 +367,7 @@ export function getPreparePage(options = {}) {
                         })
                     });
                 }
-                
+
                 // Add more realistic browser properties
                 Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
                 Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
@@ -407,6 +420,6 @@ export function getPreparePage(options = {}) {
                 return originalGoto(url, options);
             };
         }
-        
+
     };
 }

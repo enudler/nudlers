@@ -10,6 +10,11 @@ const nextConfig = {
   env: {
     PORT: '6969',
   },
+  serverExternalPackages: ['puppeteer', 'israeli-bank-scrapers'],
+  webpack: (config) => {
+    config.externals = [...(config.externals || []), 'bufferutil', 'utf-8-validate'];
+    return config;
+  },
 };
 
 export default nextConfig;

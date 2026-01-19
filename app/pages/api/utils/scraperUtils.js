@@ -678,11 +678,14 @@ export async function stopAllScrapers(client) {
       // macOS: target Chrome/Chromium with headless or automation flags
       await execAsync("pkill -f 'Google Chrome.*headless' || true");
       await execAsync("pkill -f 'Chromium.*headless' || true");
+      await execAsync("pkill -f 'Chrome for Testing.*headless' || true");
       await execAsync("pkill -f 'Google Chrome.*remote-debugging-port=9223' || true");
+      await execAsync("pkill -f 'Chrome for Testing.*remote-debugging-port=9223' || true");
     } else {
       // Linux/others
       await execAsync("pkill -f 'chromium.*headless' || true");
       await execAsync("pkill -f 'chrome.*headless' || true");
+      await execAsync("pkill -f 'Chrome for Testing.*headless' || true");
     }
     logger.info('[Scraper Utils] Browser processes killed');
   } catch (err) {
@@ -706,15 +709,18 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   const isRateLimited = RATE_LIMITED_VENDORS.includes(scraperOptions.companyId);
 
   // Check if we should use smart scraping for Isracard/Amex
-  const isSmartVendor = ['isracard', 'amex', 'leumi'].includes(scraperOptions.companyId);
+  const isSmartVendor = ['isracard', 'amex'].includes(scraperOptions.companyId);
   // For these vendors, we ALWAYS want to use the 3-phase smart scraping to avoid blocking
   // and ensure categories are fetched efficiently. We ignore the generic setting for them.
   const useSmartScraping = isSmartVendor && client;
 
+  // Use a simpler config for Leumi (same as the package)
+  const isLeumi = scraperOptions.companyId === 'leumi';
+
   let options = {
     ...scraperOptions,
     startDate,
-    preparePage: getPreparePage({
+    preparePage: isLeumi ? null : getPreparePage({
       companyId: scraperOptions.companyId,
       timeout: scraperOptions.timeout,
       isRateLimited,
