@@ -39,7 +39,10 @@ describe('3-Phase Categorization Logic', () => {
 
     describe('Phase 1: Cache (Exact Match)', () => {
         it('should prioritize cached categories over others', async () => {
-            // Warm up cache
+            // Warm up cache - mock both queries
+            // 1. Transaction history query (Implicit) - return empty if we want to test explicit
+            mockClient.query.mockResolvedValueOnce({ rows: [] });
+            // 2. Explicit overrides query
             mockClient.query.mockResolvedValueOnce({
                 rows: [{ description: 'AMAZON', category: 'Shopping' }]
             });
@@ -132,8 +135,8 @@ describe('3-Phase Categorization Logic', () => {
     describe('Double-Spend / Duplicate Protection (with History Cache)', () => {
         it('should skip DB query if transaction is in historyCache', async () => {
             const historyCache = {
-                idMap: new Map([['tx123', { name: 'TEST', price: 100, date: '2023-01-01' }]]),
-                businessKeys: new Set(['2023-01-01|test|100.00'])
+                idMap: new Map([['tx123', { name: 'TEST', price: 100, date: '2023-01-01', category: 'Misc', category_source: 'scraper' }]]),
+                businessKeys: new Map([['2023-01-01|test|100.00', { category: 'Misc', category_source: 'scraper' }]])
             };
 
             const transaction = {

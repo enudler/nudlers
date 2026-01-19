@@ -33,6 +33,13 @@ export {
 let categoryCache = null;
 
 /**
+ * Reset category cache (for testing)
+ */
+export function resetCategoryCache() {
+  categoryCache = null;
+}
+
+/**
  * Load category cache from database for known description -> category mappings
  * Builds cache from existing transactions if transaction_categories table doesn't exist
  */
@@ -41,47 +48,57 @@ export async function loadCategoryCache(client) {
 
   categoryCache = {};
 
+  // 1. Always try to build recent history cache first (Implicit Knowledge)
   try {
-    // Try to load from transaction_categories table if it exists
+    const historyResult = await client.query(
+      `SELECT name, category FROM (
+        SELECT name, category, MAX(date) as last_seen 
+        FROM transactions 
+        WHERE category IS NOT NULL 
+          AND category != '' 
+          AND category != 'N/A'
+          AND LOWER(category) != 'uncategorized'
+          AND (transaction_type IS NULL OR transaction_type != 'bank')
+          AND date >= CURRENT_DATE - INTERVAL '120 days'
+        GROUP BY name, category
+      ) t ORDER BY last_seen DESC LIMIT 300`
+    );
+
+    for (const row of historyResult.rows) {
+      if (row.name && row.category) {
+        categoryCache[row.name.toLowerCase()] = row.category;
+      }
+    }
+    logger.info({ count: Object.keys(categoryCache).length }, '[Category Cache] Built recent-merchants cache from transactions');
+  } catch (err) {
+    logger.warn({ error: err.message }, '[Category Cache] Failed to load transaction history');
+  }
+
+  // 2. Load explicit/manual overrides from transaction_categories if it exists (Explicit Knowledge)
+  try {
     const result = await client.query(
       `SELECT description, category FROM transaction_categories`
     );
 
+    let explicitCount = 0;
     for (const row of result.rows) {
-      if (row.description && row.category) {
+      // Filter out uncategorized, empty, and N/A categories
+      if (row.description && row.category &&
+        row.category !== 'N/A' &&
+        row.category !== '' &&
+        row.category.toLowerCase() !== 'uncategorized') {
+        // Overwrite history with manual setting
         categoryCache[row.description.toLowerCase()] = row.category;
+        explicitCount++;
       }
     }
+    if (explicitCount > 0) {
+      logger.info({ count: explicitCount }, '[Category Cache] Applied explicit category mappings');
+    }
   } catch (err) {
-    // If table doesn't exist, build cache from transactions table
-    if (err.message && err.message.includes('does not exist')) {
-      logger.info('[Category Cache] transaction_categories table not found, building cache from transactions');
-      try {
-        const result = await client.query(
-          `SELECT name, category FROM (
-            SELECT name, category, MAX(date) as last_seen 
-            FROM transactions 
-            WHERE category IS NOT NULL AND category != '' 
-            AND date >= CURRENT_DATE - INTERVAL '120 days'
-            GROUP BY name, category
-          ) t ORDER BY last_seen DESC LIMIT 300`
-        );
-
-        for (const row of result.rows) {
-          if (row.name && row.category) {
-            categoryCache[row.name.toLowerCase()] = row.category;
-          }
-        }
-        logger.info({ count: Object.keys(categoryCache).length }, '[Category Cache] Built recent-merchants cache from transactions (120 days / 300 limit)');
-      } catch (fallbackErr) {
-        logger.error({ error: fallbackErr.message }, '[Category Cache] Failed to build cache from transactions');
-        // Return empty cache if both fail
-        return categoryCache;
-      }
-    } else {
-      logger.error({ error: err.message }, '[Category Cache] Error loading category cache');
-      // Return empty cache on error
-      return categoryCache;
+    // Ignore if table doesn't exist, otherwise log error
+    if (!err.message || !err.message.includes('does not exist')) {
+      logger.error({ error: err.message }, '[Category Cache] Error loading transaction_categories');
     }
   }
 
@@ -99,7 +116,10 @@ export async function loadCategorizationRules(client) {
       WHERE is_active = true 
       ORDER BY id
     `);
-    return res.rows;
+    return res.rows.map(row => ({
+      ...row,
+      lowerPattern: row.name_pattern ? row.name_pattern.toLowerCase() : ''
+    }));
   } catch (err) {
     // Table might not exist yet or other error
     if (!err.message.includes('does not exist')) {
@@ -117,7 +137,8 @@ export function matchCategoryRule(description, rules) {
   const lowerDesc = description.toLowerCase();
 
   for (const rule of rules) {
-    if (rule.name_pattern && lowerDesc.includes(rule.name_pattern.toLowerCase())) {
+    const pattern = rule.lowerPattern || (rule.name_pattern ? rule.name_pattern.toLowerCase() : null);
+    if (pattern && lowerDesc.includes(pattern)) {
       return { category: rule.target_category, match: rule.name_pattern };
     }
   }
@@ -259,13 +280,17 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     category: scraperCategory
   } = transaction;
 
-  // 1. Determine local categorization
+  // 1. Determine local categorization with correct priority
+  // Priority: Rule > Cache > Scraper (for transactions without category)
+  // Priority: Rule > Scraper (for transactions with category)
+
   let finalCategory = scraperCategory || null;
   if (finalCategory === 'N/A') finalCategory = null;
 
   let categorySource = finalCategory ? 'scraper' : null;
   let ruleDetails = null;
 
+  // STEP 1: Check Rules (highest priority)
   if (categorizationRules?.length > 0) {
     const ruleMatch = matchCategoryRule(description, categorizationRules);
     if (ruleMatch) {
@@ -275,12 +300,30 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     }
   }
 
-  const cachedCategory = lookupCachedCategory(description) || historyCache?.nameToCategory?.get(description.toLowerCase());
-  if (cachedCategory && cachedCategory !== 'N/A') {
-    finalCategory = cachedCategory;
-    categorySource = 'cache';
+  // STEP 2: Check Cache
+  // Priority depends on vendor:
+  // - Isracard/Amex: Cache > Scraper (Cache overrides scraper)
+  // - Others: Scraper > Cache (Cache used only if scraper is empty)
+  if (categorySource !== 'rule') {
+    const isIsracardOrAmex = vendor === 'isracard' || vendor === 'amex';
+    const shouldCacheOverrideScraper = isIsracardOrAmex;
+
+    const historyCached = historyCache?.nameToCategory?.get(description.toLowerCase());
+    const globalCached = lookupCachedCategory(description);
+    const cachedCategory = historyCached || globalCached;
+
+    if (cachedCategory && cachedCategory !== 'N/A') {
+      // Use cache if:
+      // 1. We are allowed to override scraper (Isracard/Amex)
+      // 2. OR we don't have a category yet (Scraper returned null/empty)
+      if (shouldCacheOverrideScraper || !finalCategory) {
+        finalCategory = cachedCategory;
+        categorySource = 'cache';
+      }
+    }
   }
 
+  // STEP 3: Apply category mappings if needed
   if (finalCategory && categoryMappings && Object.keys(categoryMappings).length > 0) {
     const mappedCategory = applyCategoryMappings(finalCategory, categoryMappings);
     if (mappedCategory !== finalCategory) {
@@ -343,7 +386,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
         }
       }
     }
-    return { success: true, duplicated: true, updated: false };
+    return { success: true, duplicated: true, updated: false, category: existingTx.category, categorySource: existingTx.category_source };
   }
 
   const normalizedName = (description || '').trim().toLowerCase();
@@ -353,22 +396,29 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
   // 3. Business Key Check
   if (historyCache?.businessKeys.has(currentKey)) {
-    return { success: true, duplicated: true };
+    const cachedInfo = historyCache.businessKeys.get(currentKey);
+    return { success: true, duplicated: true, category: cachedInfo.category, categorySource: cachedInfo.category_source };
   }
 
   const businessKeyCheck = await client.query(
-    `SELECT identifier FROM transactions WHERE vendor = $1 AND date = $2 AND LOWER(TRIM(name)) = $3 AND ABS(price) = $4 AND COALESCE(account_number, '') = $5`,
+    `SELECT identifier, category, category_source FROM transactions WHERE vendor = $1 AND date = $2 AND LOWER(TRIM(name)) = $3 AND ABS(price) = $4 AND COALESCE(account_number, '') = $5`,
     [vendor, date, normalizedName, normalizedPrice, accountNumber || '']
   );
-  if (businessKeyCheck.rows.length > 0) return { success: true, duplicated: true };
+  if (businessKeyCheck.rows.length > 0) {
+    const match = businessKeyCheck.rows[0];
+    return { success: true, duplicated: true, category: match.category, categorySource: match.category_source };
+  }
 
   // 4. Installment Logic (Still DB-based as it is rarer and location-sensitive)
   if (installmentsTotal > 1) {
     const totalMatchCheck = await client.query(
-      `SELECT identifier FROM transactions WHERE vendor = $1 AND ABS(date - $2) <= 1 AND LOWER(TRIM(name)) = $3 AND (ABS(price) = $4 OR ABS(original_amount) = $4) AND (installments_total IS NULL OR installments_total <= 1)`,
+      `SELECT identifier, category, category_source FROM transactions WHERE vendor = $1 AND ABS(date - $2) <= 1 AND LOWER(TRIM(name)) = $3 AND (ABS(price) = $4 OR ABS(original_amount) = $4) AND (installments_total IS NULL OR installments_total <= 1)`,
       [vendor, date, normalizedName, Math.abs(originalAmount || chargedAmount)]
     );
-    if (totalMatchCheck.rows.length > 0) return { success: true, duplicated: true };
+    if (totalMatchCheck.rows.length > 0) {
+      const match = totalMatchCheck.rows[0];
+      return { success: true, duplicated: true, category: match.category, categorySource: match.category_source };
+    }
   }
 
   // 5. Build Processed Date
@@ -389,11 +439,14 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       [txId, vendor, date, description || '', finalPrice, finalCategory, type, finalProcessedDate, originalAmount, originalCurrency, defaultCurrency, memo, status || 'completed', installmentsNumber, installmentsTotal, accountNumber, categorySource, ruleDetails, transactionType]
     );
     if (historyCache) {
-      historyCache.idMap.set(txId, { name: description, price: finalPrice, date: newDateStr });
-      historyCache.businessKeys.add(currentKey);
+      historyCache.idMap.set(txId, { name: description, price: finalPrice, date: newDateStr, category: finalCategory, category_source: categorySource });
+      historyCache.businessKeys.set(currentKey, { category: finalCategory, category_source: categorySource });
     }
   } catch (err) {
-    if (err.code === '23505') return { success: true, duplicated: true };
+    if (err.code === '23505') {
+      // In case of race condition returning duplicate
+      return { success: true, duplicated: true };
+    }
     throw err;
   }
 
@@ -601,7 +654,7 @@ export async function stopAllScrapers(client) {
  * @param {Object} credentials - Scraper credentials
  * @param {Function} onProgress - Progress callback
  */
-export async function runScraper(client, scraperOptions, credentials, onProgress) {
+export async function runScraper(client, scraperOptions, credentials, onProgress, checkCancelled = null) {
   logger.info({ companyId: scraperOptions.companyId }, '[Scraper] Starting Direct Scrape');
 
   // Fix non-serializable options
@@ -710,16 +763,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
           for (const txn of account.txns || []) {
             const desc = (txn.description || '').trim();
 
-            // 1. Cache
-            const cached = lookupCachedCategory(desc);
-            if (cached && cached !== 'N/A') {
-              logger.info({ desc, category: cached }, '[Scraper] Phase 1 Match: Cache');
-              txn.category = cached;
-              categorizedLocal++;
-              continue;
-            }
-
-            // 2. Rules
+            // 1. Rules (highest priority)
             const ruleMatch = matchCategoryRule(desc, rules);
             if (ruleMatch) {
               logger.info({ desc, category: ruleMatch.category }, '[Scraper] Phase 2 Match: Rule');
@@ -728,7 +772,16 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
               continue;
             }
 
-            // 3. Needs API
+            // 2. Cache (second priority)
+            const cached = lookupCachedCategory(desc);
+            if (cached && cached !== 'N/A') {
+              logger.info({ desc, category: cached }, '[Scraper] Phase 2 Match: Cache');
+              txn.category = cached;
+              categorizedLocal++;
+              continue;
+            }
+
+            // 3. Needs API (lowest priority)
             needsApiCall.push({ txn, accountIndex: accountIdx });
           }
         }
@@ -756,6 +809,11 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
           const merchantEntries = Array.from(uniqueMerchants.entries());
 
           for (let i = 0; i < merchantEntries.length && calls < MAX_CALLS; i += BATCH_SIZE) {
+            if (checkCancelled && checkCancelled()) {
+              logger.info('[Scraper] Phase 3 cancelled by user');
+              break;
+            }
+
             const chunk = merchantEntries.slice(i, i + BATCH_SIZE);
 
             await Promise.all(chunk.map(async ([desc, item]) => {
@@ -875,7 +933,7 @@ async function fetchHistoryCache(client, vendor) {
     );
 
     const idMap = new Map(); // identifier -> { name, price, date, category, category_source }
-    const businessKeys = new Set(); // date|name|price|account_number
+    const businessKeys = new Map(); // date|name|price|account_number -> { category, category_source }
     const nameToCategory = new Map(); // name -> category (most recent)
 
     for (const row of result.rows) {
@@ -895,7 +953,10 @@ async function fetchHistoryCache(client, vendor) {
         });
       }
 
-      businessKeys.add(`${dateStr}|${name}|${priceStr}|${accNum}`);
+      businessKeys.set(`${dateStr}|${name}|${priceStr}|${accNum}`, {
+        category: row.category,
+        category_source: row.category_source
+      });
 
       // Build name -> category map (skipping uncategorized)
       if (row.category && row.category !== 'N/A' && row.category !== '' && row.category.toLowerCase() !== 'uncategorized' && !nameToCategory.has(name)) {
@@ -906,7 +967,7 @@ async function fetchHistoryCache(client, vendor) {
     return { idMap, businessKeys, nameToCategory };
   } catch (err) {
     logger.error({ error: err.message, vendor }, '[History Cache] Failed to fetch history');
-    return { idMap: new Map(), businessKeys: new Set(), nameToCategory: new Map() };
+    return { idMap: new Map(), businessKeys: new Map(), nameToCategory: new Map() };
   }
 }
 
@@ -986,13 +1047,15 @@ export async function processScrapedAccounts({
         historyCache
       );
 
+      const effectiveSource = insertResult.categorySource || 'scraper';
+
       const reportItem = {
         description: txn.description,
         amount: txn.chargedAmount || txn.originalAmount,
         currency: txn.chargedCurrency || txn.originalCurrency || 'ILS',
         date: txn.date,
         category: insertResult.newCategory || insertResult.category || (insertResult.duplicated ? (txn.category || 'Uncategorized') : 'Uncategorized'),
-        source: insertResult.categorySource || 'scraper',
+        source: effectiveSource,
         rule: insertResult.ruleMatched,
         cardLast4: account.accountNumber,
         isUpdate: !!insertResult.updated,
@@ -1009,9 +1072,9 @@ export async function processScrapedAccounts({
         stats.savedTransactions++;
       }
 
-      if (insertResult.categorySource === 'cache') stats.cachedCategories++;
-      if (insertResult.categorySource === 'rule') stats.ruleCategories++;
-      if (insertResult.categorySource === 'scraper') stats.scraperCategories++;
+      if (effectiveSource === 'cache') stats.cachedCategories++;
+      else if (effectiveSource === 'rule') stats.ruleCategories++;
+      else stats.scraperCategories++;
 
       stats.processedTransactions.push(reportItem);
 

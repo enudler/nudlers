@@ -388,6 +388,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   // Reset report when opening
   useEffect(() => {
     if (open) {
+      // Clear any stale report data when opening the modal
+      setSessionReport([]);
+      setSessionSummary(null);
+      setShowReport(false);
       fetchStatus();
       // Poll every 5 seconds while open to keep status up to date
       const interval = setInterval(fetchStatus, 5000);
@@ -497,6 +501,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
     setIsInitializing(true);
     // Don't set isSyncing yet - keep the button green while initializing
+    // Clear previous session report to start fresh
+    setSessionReport([]);
+    setSessionSummary(null);
+    setShowReport(false);
     setSyncStartTime(Date.now());
     setSyncProgress({ current: 0, total: 0, currentAccount: null });
 
@@ -704,6 +712,10 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     if (isSyncing || isInitializing) return;
 
     setIsInitializing(true);
+    // Clear previous session report to start fresh
+    setSessionReport([]);
+    setSessionSummary(null);
+    setShowReport(false);
     setSyncStartTime(Date.now());
     setSyncProgress({ current: 0, total: 1, currentAccount: null });
 

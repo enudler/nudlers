@@ -330,7 +330,8 @@ async function handler(req, res) {
         success: true
       });
 
-      result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler);
+      // Pass abortion check to stop scraper if client disconnects
+      result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => isCancelled);
 
       if (!result.success) {
         throw new Error(result.errorMessage || 'Scraper failed');

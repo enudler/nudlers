@@ -423,6 +423,14 @@ export function getPreparePage(options = {}) {
                 }
 
                 await randomDelay(delayMs / 2, delayMs);
+
+                if (onProgress) {
+                    onProgress('network', {
+                        type: 'rateLimitFinished',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
                 return originalGoto(url, options);
             };
         }

@@ -83,7 +83,7 @@ interface ScrapeResult {
 }
 
 interface NetworkLogEntry {
-  type: 'httpRequest' | 'httpResponse' | 'rateLimitWait' | 'retryWait';
+  type: 'httpRequest' | 'httpResponse' | 'rateLimitWait' | 'retryWait' | 'rateLimitFinished';
   method?: string;
   url?: string;
   status?: number;
@@ -330,11 +330,13 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
             if (currentEvent === 'network') {
               const logEntry: NetworkLogEntry = data;
 
-              // Update network logs (keep last 50)
-              setNetworkLogs(prev => {
-                const newLogs = [logEntry, ...prev].slice(0, 50);
-                return newLogs;
-              });
+              // Update network logs (keep last 50) - skip internal events
+              if (logEntry.type !== 'rateLimitFinished') {
+                setNetworkLogs(prev => {
+                  const newLogs = [logEntry, ...prev].slice(0, 50);
+                  return newLogs;
+                });
+              }
 
               // Handle rate limit state
               if (logEntry.type === 'rateLimitWait' && logEntry.seconds) {
@@ -351,8 +353,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                   totalSeconds: logEntry.seconds,
                   startTime: Date.now()
                 });
-              } else if (logEntry.type === 'httpRequest') {
-                // Clear waiting state on new request
+              } else if (logEntry.type === 'httpRequest' || logEntry.type === 'rateLimitFinished') {
+                // Clear waiting state on new request or explicit finish
                 setRateLimitState(null);
               }
             } else if (currentEvent === 'progress') {
