@@ -342,8 +342,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       };
       updateTimer();
       interval = setInterval(updateTimer, 1000);
-    } else {
-      setElapsedSeconds(0);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -408,8 +406,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       if (pollingInterval) clearInterval(pollingInterval);
       if (!isTabVisible) return;
 
-      // Speed up polling during active sync (3s), slow down when idle (10s)
-      const intervalTime = isSyncing ? 3000 : 10000;
+      // Poll every 10 seconds to reduce CPU usage
+      const intervalTime = 10000;
 
       pollingInterval = setInterval(async () => {
         await fetchStatus();
@@ -543,6 +541,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     setSessionSummary(null);
     setShowReport(false);
     setSyncStartTime(Date.now());
+    setElapsedSeconds(0);
     setSyncQueue([]);
     setSyncProgress({ current: 0, total: 0, currentAccount: null });
 
@@ -669,6 +668,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     setSessionSummary(null);
     setShowReport(false);
     setSyncStartTime(Date.now());
+    setElapsedSeconds(0);
     setSyncQueue([]);
     setSyncProgress({ current: 0, total: 1, currentAccount: null });
 
@@ -806,8 +806,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         await fetchStatus();
         setSyncProgress(null);
         setIsSyncing(false);
+        const finalDuration = syncStartTime ? Math.floor((Date.now() - syncStartTime) / 1000) : elapsedSeconds;
         setSessionSummary({
-          durationSeconds: elapsedSeconds
+          durationSeconds: finalDuration
         });
         setSyncStartTime(null);
         setShowReport(true);

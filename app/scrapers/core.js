@@ -445,6 +445,11 @@ export function getPreparePage(options = {}) {
 
                 if (onProgress) {
                     onProgress('network', {
+                        type: 'progress',
+                        message: 'Navigating to page...',
+                        phase: 'network'
+                    });
+                    onProgress('network', {
                         type: 'rateLimitFinished',
                         timestamp: new Date().toISOString()
                     });

@@ -139,8 +139,8 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
 
   useEffect(() => {
     fetchStatus();
-    // Refresh status more frequently if syncing
-    const intervalTime = status?.syncHealth === 'syncing' ? 5000 : 10000;
+    // Poll every 10 seconds to reduce CPU usage
+    const intervalTime = 10000;
     const interval = setInterval(fetchStatus, intervalTime);
     return () => clearInterval(interval);
   }, [fetchStatus, status?.syncHealth]);

@@ -21,14 +21,15 @@ import {
 } from './utils/scraperUtils';
 import { BANK_VENDORS } from '../../utils/constants';
 
-// Helper to send SSE messages
+// Helper to send SSE messages to the local client
 function sendSSE(res, event, data) {
-    if (res.destroyed || res.finished || res.writableEnded) return;
-    try {
-        res.write(`event: ${event}\n`);
-        res.write(`data: ${JSON.stringify(data)}\n\n`);
-    } catch (err) {
-        // Ignore errors if client disconnected
+    if (res && !res.destroyed && !res.finished && !res.writableEnded) {
+        try {
+            res.write(`event: ${event}\n`);
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        } catch (err) {
+            // Ignore if client disconnected
+        }
     }
 }
 
@@ -93,10 +94,12 @@ export default async function handler(req, res) {
             }
         }));
 
-        // Send initial queue to UI
-        sendSSE(res, 'queue', {
+        const queueData = {
+            total: accounts.length,
             accounts: accounts.map(a => ({ id: a.id, nickname: a.nickname, vendor: a.vendor }))
-        });
+        };
+
+        sendSSE(res, 'queue', queueData);
 
         const { daysBack = 30 } = req.body;
         const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
@@ -109,8 +112,6 @@ export default async function handler(req, res) {
         // 2. Loop through accounts
         for (let i = 0; i < accounts.length; i++) {
             const account = accounts[i];
-            logger.info({ vendor: account.vendor, nickname: account.nickname }, '[Sync All Stream] Starting account sync');
-
             sendSSE(res, 'account_start', {
                 index: i,
                 id: account.id,
