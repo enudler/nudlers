@@ -51,6 +51,16 @@ USER root
 # Install Xvfb and Tini (used in start.sh and entrypoint)
 RUN apt-get update && apt-get install -y xvfb tini && rm -rf /var/lib/apt/lists/*
 
+# Locate the installed Chrome and set up the environment
+# The base image installs IT in ~/.cache/puppeteer, but the path depends on the version.
+# We find it and link it to a stable path.
+RUN CHROME_BIN=$(find /home/pptruser/.cache/puppeteer -name chrome -type f -executable | head -n 1) \
+    && echo "Detected Chrome at: $CHROME_BIN" \
+    && ln -s "$CHROME_BIN" /usr/bin/google-chrome \
+    && chmod 755 /usr/bin/google-chrome
+
+ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/google-chrome"
+
 # Copy standalone build
 # Note: usage of chown to match the pptruser in the base image
 COPY --from=builder --chown=pptruser:pptruser /app/.next/standalone ./
