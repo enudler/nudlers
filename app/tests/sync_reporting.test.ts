@@ -45,9 +45,13 @@ vi.mock('../pages/api/utils/scraperUtils', async (importOriginal) => {
 });
 
 // Mock constants
-vi.mock('../utils/constants', () => ({
-    BANK_VENDORS: ['hapoalim']
-}));
+vi.mock('../utils/constants', async (importOriginal) => {
+    const actual = await importOriginal<any>();
+    return {
+        ...actual,
+        BANK_VENDORS: ['hapoalim']
+    };
+});
 
 describe('Sync Reporting and Audit', () => {
     let mockClient: any;

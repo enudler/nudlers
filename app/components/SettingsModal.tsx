@@ -27,6 +27,9 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SendIcon from '@mui/icons-material/Send';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteAllTransactionsDialog from './DeleteAllTransactionsDialog';
+import ScreenshotViewer from './ScreenshotViewer';
+import ImageIcon from '@mui/icons-material/Image';
+import BugReportIcon from '@mui/icons-material/BugReport';
 
 interface SettingsModalProps {
   open: boolean;
@@ -151,6 +154,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
   // Delete all transactions dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [screenshotViewerOpen, setScreenshotViewerOpen] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -578,6 +582,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               </SettingRow>
             </SettingSection>
 
+            {/* Debug Settings */}
+            <SettingSection>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <BugReportIcon sx={{ color: '#f43f5e' }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Debugging Tools
+                </Typography>
+              </Box>
+
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Puppeteer Screenshots</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    View captured screenshots from scraper sessions
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ImageIcon />}
+                  onClick={() => setScreenshotViewerOpen(true)}
+                  sx={{ borderColor: theme.palette.divider, color: theme.palette.text.primary }}
+                >
+                  View Screenshots
+                </Button>
+              </SettingRow>
+            </SettingSection>
+
             {/* AI Configuration */}
             <SettingSection>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -909,6 +941,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           setResult({ type: 'success', message: 'All transactions deleted successfully' });
           window.dispatchEvent(new CustomEvent('dataRefresh'));
         }}
+      />
+
+      <ScreenshotViewer
+        open={screenshotViewerOpen}
+        onClose={() => setScreenshotViewerOpen(false)}
       />
     </StyledDialog>
   );

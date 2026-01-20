@@ -34,6 +34,10 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import dynamic from 'next/dynamic';
 const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
+import ImageIcon from '@mui/icons-material/Image';
+import CloseIcon from '@mui/icons-material/Close';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
 
 interface SyncStatusModalProps {
   open: boolean;
@@ -259,6 +263,12 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         accountName?: string;
       }>;
     };
+    latestScreenshot?: {
+      url: string;
+      filename: string;
+      stepName: string;
+      timestamp: string;
+    } | null;
   } | null>(null);
 
   const [syncStartTime, setSyncStartTime] = useState<number | null>(null);
@@ -280,6 +290,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   const [isStopping, setIsStopping] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [stopStatus, setStopStatus] = useState<string | null>(null);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   interface QueueItem {
     id: number | string;
     accountName: string;
@@ -616,6 +627,18 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   }));
                   break;
 
+                case 'screenshot':
+                  setSyncProgress(prev => ({
+                    ...prev!,
+                    latestScreenshot: {
+                      url: eventData.url,
+                      filename: eventData.filename,
+                      stepName: eventData.stepName,
+                      timestamp: eventData.timestamp
+                    }
+                  }));
+                  break;
+
                 case 'account_complete':
                   setSyncQueue(prev => prev.map(item =>
                     item.id === eventData.id ? { ...item, status: 'completed', summary: eventData.summary } : item
@@ -748,15 +771,26 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   const eventData = JSON.parse(line.slice(6));
 
                   if (currentEvent === 'progress') {
-                    setSyncProgress({
+                    setSyncProgress(prev => ({
                       current: 0,
                       total: 1,
                       currentAccount: account.nickname || account.vendor,
                       currentStep: eventData.message || '',
                       percent: eventData.percent || 0,
                       phase: eventData.phase || '',
-                      success: eventData.success
-                    });
+                      success: eventData.success,
+                      latestScreenshot: prev?.latestScreenshot
+                    }));
+                  } else if (currentEvent === 'screenshot') {
+                    setSyncProgress(prev => ({
+                      ...prev!,
+                      latestScreenshot: {
+                        url: eventData.url,
+                        filename: eventData.filename,
+                        stepName: eventData.stepName,
+                        timestamp: eventData.timestamp
+                      }
+                    }));
                   } else if (currentEvent === 'error') {
                     throw new Error(eventData.message || 'Sync failed');
                   } else if (currentEvent === 'complete') {
@@ -1116,6 +1150,28 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                                   }
                                 }}
                               />
+                              {syncProgress?.latestScreenshot && (
+                                <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center' }}>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<ImageIcon />}
+                                    onClick={() => setSelectedScreenshot(syncProgress.latestScreenshot?.url || null)}
+                                    sx={{
+                                      fontSize: '10px',
+                                      py: 0.5,
+                                      borderColor: 'rgba(96, 165, 250, 0.3)',
+                                      color: '#60a5fa',
+                                      '&:hover': {
+                                        borderColor: '#60a5fa',
+                                        backgroundColor: 'rgba(96, 165, 250, 0.1)'
+                                      }
+                                    }}
+                                  >
+                                    View Browser Screenshot
+                                  </Button>
+                                </Box>
+                              )}
                             </Box>
                           )}
 
@@ -1396,6 +1452,49 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
           </>
         )}
       </Box>
+
+      {/* Screenshot Overlay Viewer */}
+      <Dialog
+        open={!!selectedScreenshot}
+        onClose={() => setSelectedScreenshot(null)}
+        maxWidth="xl"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'transparent',
+            boxShadow: 'none'
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0, position: 'relative', bgcolor: 'black', overflow: 'hidden' }}>
+          <IconButton
+            onClick={() => setSelectedScreenshot(null)}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: 16,
+              color: 'white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              zIndex: 10,
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          {selectedScreenshot && (
+            <Box
+              component="img"
+              src={selectedScreenshot}
+              sx={{
+                width: '100%',
+                display: 'block',
+                maxHeight: '90vh',
+                objectFit: 'contain'
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </StyledDrawer >
   );
 };

@@ -14,6 +14,8 @@ import {
     getScraperTimeout,
     checkScraperConcurrency
 } from '../pages/api/utils/scraperUtils.js';
+import { APP_SETTINGS_KEYS, FETCH_SETTING_SQL } from '../utils/constants.js';
+
 
 // Standalone DB connection for the script
 const pool = new Pool({
@@ -43,7 +45,7 @@ async function runBackgroundSync() {
         }
 
         // Check if sync is enabled
-        const syncEnabledRes = await client.query("SELECT value FROM app_settings WHERE key = 'sync_enabled'");
+        const syncEnabledRes = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SYNC_ENABLED]);
         const syncEnabled = syncEnabledRes.rows[0]?.value === true || syncEnabledRes.rows[0]?.value === 'true';
 
         if (!syncEnabled) {
@@ -52,7 +54,7 @@ async function runBackgroundSync() {
         }
 
         // Get sync days back
-        const daysBackRes = await client.query("SELECT value FROM app_settings WHERE key = 'sync_days_back'");
+        const daysBackRes = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SYNC_DAYS_BACK]);
         const daysBack = parseInt(daysBackRes.rows[0]?.value) || 30;
 
         // Get all active accounts

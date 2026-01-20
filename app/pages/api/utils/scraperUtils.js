@@ -6,7 +6,19 @@
  * - scrape_stream.js
  */
 
-import { BANK_VENDORS } from '../../../utils/constants.js';
+import {
+  BANK_VENDORS,
+  APP_SETTINGS_KEYS,
+  FETCH_SETTING_SQL,
+  DEFAULT_SCRAPER_TIMEOUT,
+  SCRAPER_PHASE3_MAX_CALLS,
+  SCRAPER_PHASE3_DELAY,
+  SCRAPER_PHASE3_BATCH_SIZE,
+  STANDARD_BANK_VENDORS,
+  BEINLEUMI_GROUP_VENDORS,
+  CREDIT_CARD_VENDORS,
+  ALL_VENDORS
+} from '../../../utils/constants.js';
 import { generateTransactionIdentifier } from './transactionUtils.js';
 import { createScraper } from 'israeli-bank-scrapers';
 import logger from '../../../utils/logger.js';
@@ -19,7 +31,8 @@ import {
   getScraperOptions,
   getPreparePage,
   sleep,
-  RATE_LIMITED_VENDORS
+  RATE_LIMITED_VENDORS,
+  clearActiveSession
 } from '../../../scrapers/core.js';
 
 export {
@@ -215,9 +228,8 @@ export function prepareCredentials(vendor, rawCredentials) {
     const hapoalimUserCode = userCode || username || id || rawCredentials.id_number || '';
     credentials.userCode = String(hapoalimUserCode);
     credentials.password = String(password || '');
-  } else if (vendor === 'mizrahi' || vendor === 'yahav' || vendor === 'beinleumi' ||
-    vendor === 'otsarHahayal' || vendor === 'mercantile' || vendor === 'leumi' ||
-    vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
+  } else if (STANDARD_BANK_VENDORS.includes(vendor) || BEINLEUMI_GROUP_VENDORS.includes(vendor) || vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
+    // Standard bank login (username + password, sometimes num)
     credentials.username = username;
     credentials.password = password;
     // Include account number (num) if provided for banks that require it
@@ -660,30 +672,31 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   // Fix non-serializable options
   const startDate = new Date(scraperOptions.startDate);
   const logRequests = scraperOptions.logRequests ?? false;
-  const isRateLimited = RATE_LIMITED_VENDORS.includes(scraperOptions.companyId);
+  const isRateLimited = scraperOptions.isRateLimited ?? false;
 
   // Check if we should use smart scraping for Isracard/Amex
   const isSmartVendor = ['isracard', 'amex'].includes(scraperOptions.companyId);
-  const isracardScrapeCategories = isSmartVendor ? await getIsracardScrapeCategoriesSetting(client) : true;
 
   // For these vendors, we ALWAYS want to use the 3-phase smart scraping to avoid blocking
   // and ensure categories are fetched efficiently. We ignore the generic setting for them.
   const useSmartScraping = isSmartVendor && client;
 
-  // Use a simpler config for Leumi (same as the package)
-  const isLeumi = scraperOptions.companyId === 'leumi';
+  // Honor vendor-specific detailed category scraping setting if available
+  const shouldFetchDetailedCategories = (isSmartVendor && client)
+    ? await getIsracardScrapeCategoriesSetting(client)
+    : true;
 
   let options = {
     ...scraperOptions,
     startDate,
-    preparePage: isLeumi ? null : getPreparePage({
+    preparePage: getPreparePage({
       companyId: scraperOptions.companyId,
       timeout: scraperOptions.timeout,
       isRateLimited,
       logRequests,
       onProgress,
       forceSlowMode: scraperOptions.forceSlowMode ?? false,
-      skipInterception: scraperOptions.companyId === 'max'
+      skipInterception: scraperOptions.skipInterception ?? false
     }),
   };
 
@@ -715,7 +728,15 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
     throw new Error(`Missing companyId in scraper options. Received: ${JSON.stringify(options)}`);
   }
 
-  const scraper = createScraper(options);
+  let scraper;
+  if (options.companyId === 'visaCal') {
+    const { default: CustomVisaCalScraper } = await import('../../../scrapers/CustomVisaCalScraper.js');
+    // We need to manually initialize it similar to how createScraper does? 
+    // createScraper code: return new Scraper(options);
+    scraper = new CustomVisaCalScraper(options);
+  } else {
+    scraper = createScraper(options);
+  }
 
   if (scraper && typeof scraper.on === 'function') {
     scraper.on('progress', (companyId, progress) => {
@@ -788,9 +809,9 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
         logger.info({ categorizedLocal, needsApi: needsApiCall.length }, '[Scraper] Phase 2 Complete');
 
-        // Phase 3: Selective API calls (only for Isracard/Amex, not Leumi)
+        // Phase 3: Selective API calls (only for supported vendors)
         const supportsCategoryAPI = scraperOptions.companyId === 'isracard' || scraperOptions.companyId === 'amex';
-        if (supportsCategoryAPI && isracardScrapeCategories && needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
+        if (supportsCategoryAPI && shouldFetchDetailedCategories && needsApiCall.length > 0 && scraper.page && !scraper.page.isClosed()) {
           logger.info('[Scraper] Starting Phase 3: Selective API Calls');
 
           // Deduplicate
@@ -801,10 +822,10 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
             }
           }
 
-          const MAX_CALLS = 200; // Increased for historical 12-month fetches
+          const MAX_CALLS = SCRAPER_PHASE3_MAX_CALLS;
           let calls = 0;
-          const DELAY = 1000;
-          const BATCH_SIZE = 5;
+          const DELAY = SCRAPER_PHASE3_DELAY;
+          const BATCH_SIZE = SCRAPER_PHASE3_BATCH_SIZE;
 
           const merchantEntries = Array.from(uniqueMerchants.entries());
 
@@ -864,6 +885,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
       }
     }
 
+    clearActiveSession();
     return result;
   } catch (err) {
     // ... existing error handling ...
@@ -876,6 +898,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
     // Ensure we close if error happened during smart scrape
     if (originalTerminate) await originalTerminate();
+    clearActiveSession();
 
     throw err;
   }
@@ -885,34 +908,35 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
 
 export async function getFetchCategoriesSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'fetch_categories_from_scrapers'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.FETCH_CATEGORIES]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
 export async function getIsracardScrapeCategoriesSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'isracard_scrape_categories'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.ISRACARD_SCRAPE_CATEGORIES]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
 export async function getUpdateCategoryOnRescrapeSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'update_category_on_rescrape'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.UPDATE_CATEGORY_ON_RESCRAPE]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
 }
 
 export async function getLogHttpRequestsSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_log_http_requests'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.LOG_HTTP_REQUESTS]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
 }
 
 export async function getScraperTimeout(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout'");
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPER_TIMEOUT]);
+  return result.rows.length > 0 ? parseInt(result.rows[0].value) || DEFAULT_SCRAPER_TIMEOUT : DEFAULT_SCRAPER_TIMEOUT;
 }
 
 export async function getBillingCycleStartDay(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.BILLING_CYCLE_START_DAY]);
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 10 : 10;
 }
+
 
 /**
  * Consolidate transaction processing logic from scrape handlers
