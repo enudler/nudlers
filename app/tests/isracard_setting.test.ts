@@ -73,7 +73,8 @@ describe('Isracard Scrape Setting', () => {
 
         // Verify that the setting was fetched
         expect(mockClient.query).toHaveBeenCalledWith(
-            expect.stringContaining("WHERE key = 'isracard_scrape_categories'")
+            "SELECT value FROM app_settings WHERE key = $1",
+            ["isracard_scrape_categories"]
         );
     });
 
@@ -103,7 +104,8 @@ describe('Isracard Scrape Setting', () => {
 
         // Verify that the setting was fetched
         expect(mockClient.query).toHaveBeenCalledWith(
-            expect.stringContaining("WHERE key = 'isracard_scrape_categories'")
+            "SELECT value FROM app_settings WHERE key = $1",
+            ["isracard_scrape_categories"]
         );
 
         // In the logs it would show if Phase 3 was skipped, but we can also verify by the absence of further calls
