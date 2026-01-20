@@ -51,6 +51,7 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
+        '--disable-http2',
     ];
 
     const LOW_RESOURCE_FLAGS = [
@@ -134,6 +135,7 @@ export function getScraperOptions(companyId, startDate, options = {}) {
             headless: showBrowser ? false : 'new',
             verbose: options.verbose ?? true,
             timeout,
+            defaultTimeout: timeout,
             executablePath: getChromePath(),
             args: leumiArgs,
             ...options

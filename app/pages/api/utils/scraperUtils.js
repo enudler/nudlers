@@ -684,14 +684,14 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   let options = {
     ...scraperOptions,
     startDate,
-    preparePage: isLeumi ? null : getPreparePage({
+    preparePage: getPreparePage({
       companyId: scraperOptions.companyId,
       timeout: scraperOptions.timeout,
       isRateLimited,
       logRequests,
       onProgress,
       forceSlowMode: scraperOptions.forceSlowMode ?? false,
-      skipInterception: scraperOptions.companyId === 'max'
+      skipInterception: scraperOptions.companyId === 'max' || isLeumi
     }),
   };
 

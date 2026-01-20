@@ -11,7 +11,7 @@ import { BaseScraperWithBrowser, LoginResults } from 'israeli-bank-scrapers/lib/
 import _ from 'lodash';
 
 const apiHeaders = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6834.83 Safari/537.36',
     Origin: 'https://digital-web.cal-online.co.il',
     Referer: 'https://digital-web.cal-online.co.il',
     'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',

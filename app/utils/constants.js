@@ -18,7 +18,7 @@ export const CHROME_VERSION = '132.0.6834.83';
 export const DEFAULT_USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
 
 // Timeout Settings
-export const DEFAULT_SCRAPER_TIMEOUT = 60000;
+export const DEFAULT_SCRAPER_TIMEOUT = 90000;
 export const RATE_LIMIT_DELAY_MIN = 1000;
 export const RATE_LIMIT_DELAY_MAX = 4000;
 export const RATE_LIMIT_SLOW_DELAY_MIN = 5000;
