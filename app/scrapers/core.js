@@ -180,12 +180,37 @@ export function getPreparePage(options = {}) {
             await page.setRequestInterception(true);
         }
 
-        page.on('request', (request) => {
+        page.on('request', async (request) => {
             try {
+                const url = request.url();
+                if (url.includes('Frames/api/Frames')) {
+                    console.log('!!! SEEN REQUEST IN LISTENER !!!', url, 'Handled:', request.isInterceptResolutionHandled());
+                }
+
                 // If it's already handled by another listener (like the library's internal one), stop here.
                 if (request.isInterceptResolutionHandled()) return;
 
-                const url = request.url();
+                // Fix for Cal Scraper Crash: The Frames API often returns HTML or invalid JSON, causing the scraper to crash.
+                // We intercept this specific request and return a valid empty JSON response to keep the scraper alive.
+                // Fix for Cal Scraper Crash: The Frames API often returns HTML or invalid JSON, causing the scraper to crash.
+                // We intercept this specific request and return a valid empty JSON response to keep the scraper alive.
+                if (options.companyId === 'visaCal' && url.includes('Frames/api/Frames')) {
+                    console.log('!!! INTERCEPTOR DETECTED TARGET URL !!!', url);
+                    try {
+                        console.log('!!! RESPONDING WITH MOCK JSON !!!');
+                        await request.respond({
+                            status: 200,
+                            contentType: 'application/json',
+                            body: '{}'
+                        });
+                        console.log('!!! RESPONDED SUCCESS !!!');
+                        return;
+                    } catch (e) {
+                        console.error('!!! INTERCEPTOR ERROR !!!', e.message);
+                        // Ignore if already handled
+                        return;
+                    }
+                }
 
                 // Block Google Analytics and Tag Manager to prevent timeouts
                 if (!skipInterception) {

@@ -715,7 +715,15 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
     throw new Error(`Missing companyId in scraper options. Received: ${JSON.stringify(options)}`);
   }
 
-  const scraper = createScraper(options);
+  let scraper;
+  if (options.companyId === 'visaCal') {
+    const { default: CustomVisaCalScraper } = await import('../../../scrapers/CustomVisaCalScraper.js');
+    // We need to manually initialize it similar to how createScraper does? 
+    // createScraper code: return new Scraper(options);
+    scraper = new CustomVisaCalScraper(options);
+  } else {
+    scraper = createScraper(options);
+  }
 
   if (scraper && typeof scraper.on === 'function') {
     scraper.on('progress', (companyId, progress) => {
