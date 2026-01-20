@@ -6,7 +6,15 @@
  * - scrape_stream.js
  */
 
-import { BANK_VENDORS } from '../../../utils/constants.js';
+import {
+  BANK_VENDORS,
+  APP_SETTINGS_KEYS,
+  FETCH_SETTING_SQL,
+  DEFAULT_SCRAPER_TIMEOUT,
+  SCRAPER_PHASE3_MAX_CALLS,
+  SCRAPER_PHASE3_DELAY,
+  SCRAPER_PHASE3_BATCH_SIZE
+} from '../../../utils/constants.js';
 import { generateTransactionIdentifier } from './transactionUtils.js';
 import { createScraper } from 'israeli-bank-scrapers';
 import logger from '../../../utils/logger.js';
@@ -809,10 +817,10 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
             }
           }
 
-          const MAX_CALLS = 200; // Increased for historical 12-month fetches
+          const MAX_CALLS = SCRAPER_PHASE3_MAX_CALLS;
           let calls = 0;
-          const DELAY = 1000;
-          const BATCH_SIZE = 5;
+          const DELAY = SCRAPER_PHASE3_DELAY;
+          const BATCH_SIZE = SCRAPER_PHASE3_BATCH_SIZE;
 
           const merchantEntries = Array.from(uniqueMerchants.entries());
 
@@ -893,34 +901,35 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
 
 export async function getFetchCategoriesSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'fetch_categories_from_scrapers'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.FETCH_CATEGORIES]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
 export async function getIsracardScrapeCategoriesSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'isracard_scrape_categories'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.ISRACARD_SCRAPE_CATEGORIES]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : true;
 }
 
 export async function getUpdateCategoryOnRescrapeSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'update_category_on_rescrape'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.UPDATE_CATEGORY_ON_RESCRAPE]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
 }
 
 export async function getLogHttpRequestsSetting(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_log_http_requests'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.LOG_HTTP_REQUESTS]);
   return result.rows.length > 0 ? result.rows[0].value === true || result.rows[0].value === 'true' : false;
 }
 
 export async function getScraperTimeout(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'scraper_timeout'");
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 60000 : 60000;
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPER_TIMEOUT]);
+  return result.rows.length > 0 ? parseInt(result.rows[0].value) || DEFAULT_SCRAPER_TIMEOUT : DEFAULT_SCRAPER_TIMEOUT;
 }
 
 export async function getBillingCycleStartDay(client) {
-  const result = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.BILLING_CYCLE_START_DAY]);
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 10 : 10;
 }
+
 
 /**
  * Consolidate transaction processing logic from scrape handlers

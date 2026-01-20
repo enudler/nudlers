@@ -1,10 +1,13 @@
-/**
- * Core Scraper logic that doesn't depend on DB or heavy utils.
- * Safe to import in standalone scripts/workers.
- */
+import {
+    CHROME_VERSION,
+    DEFAULT_USER_AGENT,
+    DEFAULT_SCRAPER_TIMEOUT,
+    CREDIT_CARD_VENDORS
+} from '../utils/constants.js';
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
+export const RATE_LIMITED_VENDORS = CREDIT_CARD_VENDORS;
+
 
 
 /**
@@ -38,8 +41,8 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     const showBrowser = options.showBrowser ?? false;
     const fetchCategories = options.fetchCategories ?? true;
 
-    const chromeVersion = '132.0.6834.83';
-    const userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
+    const chromeVersion = CHROME_VERSION;
+    const userAgent = DEFAULT_USER_AGENT;
 
     // Essential flags for Docker/Container environments
     const DOCKER_FLAGS = [
@@ -110,7 +113,7 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         baseArgs.push('--headless=new');
     }
 
-    let timeout = options.timeout || 60000;
+    let timeout = options.timeout || DEFAULT_SCRAPER_TIMEOUT;
 
     if (companyId === 'leumi') {
         // Leumi needs a minimal set of args to work correctly, but MUST include:
@@ -162,7 +165,7 @@ export function getPreparePage(options = {}) {
     const onProgress = options.onProgress;
     const forceSlowMode = options.forceSlowMode;
     const isRateLimited = options.isRateLimited ?? false;
-    const timeout = options.timeout ?? 60000;
+    const timeout = options.timeout ?? DEFAULT_SCRAPER_TIMEOUT;
 
     return async (page) => {
         // Set higher navigation and execution timeouts to avoid defaults
@@ -405,7 +408,7 @@ export function getPreparePage(options = {}) {
         }, options);
 
         // Set comprehensive headers to avoid bot detection
-        const chromeVersion = '132.0.6834.83';
+        const chromeVersion = CHROME_VERSION;
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
             'Sec-CH-UA': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not=A?Brand";v="8"`,
