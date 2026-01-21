@@ -6,3 +6,5 @@ app/scripts/debug/
 node_modules/
 *.tsbuildinfo
 .antigravity/
+
+app/public/debug/
