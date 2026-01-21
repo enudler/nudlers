@@ -1,5 +1,5 @@
 import { getDB } from "../db";
-import logger from '../../utils/logger.js';
+import logger from '../../../utils/logger.js';
 
 export default async function handler(req, res) {
   const client = await getDB();
