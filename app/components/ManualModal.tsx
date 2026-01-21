@@ -79,7 +79,7 @@ const ManualModal: React.FC<ManualModalProps> = ({ open, onClose, onSave }) => {
     const fetchCategories = async () => {
       setLoadingCategories(true);
       try {
-        const response = await fetch('/api/get_all_categories');
+        const response = await fetch('/api/categories');
         if (response.ok) {
           const data = await response.json();
           // Filter out 'Bank' category for expenses since it's used for income

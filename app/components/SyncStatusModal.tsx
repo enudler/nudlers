@@ -367,7 +367,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const fetchStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/sync_status');
+      const response = await fetch('/api/scrapers/status');
       if (response.ok) {
         const data = await response.json();
         setStatus(data);
@@ -457,7 +457,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
-      const response = await fetch(`/api/last_transaction_date?vendor=${encodeURIComponent(vendor)}`);
+      const response = await fetch(`/api/scrapers/last-transaction-date?vendor=${encodeURIComponent(vendor)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.lastDate) {
@@ -522,7 +522,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       // Stop all server-side scrapers
       try {
         setStopStatus('Sending stop command...');
-        const response = await fetch('/api/stop_scrapers', { method: 'POST' });
+        const response = await fetch('/api/scrapers/stop', { method: 'POST' });
         const data = await response.json();
         if (data.success) {
           setStopStatus('Successfully stopped all processes.');
@@ -560,7 +560,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       abortControllerRef.current = new AbortController();
 
       try {
-        const response = await fetch('/api/sync_all_stream', {
+        const response = await fetch('/api/scrapers/sync-all-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ daysBack: status?.settings?.daysBack || 30 }),
@@ -741,7 +741,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             credentialId: account.id
           };
 
-          const syncResponse = await fetch('/api/scrape_stream', {
+          const syncResponse = await fetch('/api/scrapers/run-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
@@ -874,7 +874,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/get_scrape_report?id=${event.id}`);
+      const response = await fetch(`/api/scrape-events/${event.id}/report`);
       if (response.ok) {
         const data = await response.json();
         // Handle both formats: direct transactions array or nested in processedTransactions

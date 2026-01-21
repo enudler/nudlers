@@ -15,8 +15,8 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 import { getDB } from '../pages/api/db';
-import exportHandler from '../pages/api/database/export';
-import importHandler from '../pages/api/database/import';
+import exportHandler from '../pages/api/maintenance/database/export';
+import importHandler from '../pages/api/maintenance/database/import';
 
 describe('Backup and Restore APIs', () => {
     let mockClient: {

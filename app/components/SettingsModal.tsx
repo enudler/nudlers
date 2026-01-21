@@ -253,7 +253,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     setWhatsappTestResult(null);
 
     try {
-      const response = await fetch('/api/whatsapp_test', {
+      const response = await fetch('/api/whatsapp-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });

@@ -94,7 +94,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
           if (categoryChanged) {
             if (applyToAll) {
               // Apply to ALL matching transactions and create rule
-              const response = await fetch('/api/update_category_by_description', {
+              const response = await fetch('/api/categories/update-by-description', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

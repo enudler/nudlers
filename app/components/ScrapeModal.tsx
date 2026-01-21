@@ -217,7 +217,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
-      const response = await fetch(`/api/last_transaction_date?vendor=${encodeURIComponent(vendor)}`);
+      const response = await fetch(`/api/scrapers/last-transaction-date?vendor=${encodeURIComponent(vendor)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.lastDate) {
@@ -257,7 +257,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const handleKillScrapers = async () => {
     setIsKilling(true);
     try {
-      const response = await fetch('/api/stop_scrapers', { method: 'POST' });
+      const response = await fetch('/api/scrapers/stop', { method: 'POST' });
       const data = await response.json();
       if (data.success) {
         showNotification('All scrapers stopped successfully.', 'success');
@@ -292,7 +292,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch('/api/scrape_stream', {
+      const response = await fetch('/api/scrapers/run-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

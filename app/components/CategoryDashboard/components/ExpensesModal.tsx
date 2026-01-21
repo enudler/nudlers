@@ -230,7 +230,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           if (categoryChanged) {
             if (applyToAll) {
               // Apply to ALL matching transactions and create rule
-              const response = await fetch('/api/update_category_by_description', {
+              const response = await fetch('/api/categories/update-by-description', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -426,49 +426,12 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           });
         }
       } else {
-        // Fallback to name-based delete for backward compatibility
-        const response = await fetch(`/api/transactions/delete_transaction`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: expense.name,
-            date: expense.date,
-            price: expense.price,
-            category: isBankView ? 'Bank' : (expense.category || data.type)
-          }),
+        logger.error('Cannot delete transaction: missing identifier or vendor', expense);
+        setSnackbar({
+          open: true,
+          message: 'Cannot delete transaction: missing identifier or vendor',
+          severity: 'error'
         });
-
-        if (response.ok) {
-          // Remove the transaction from the local data
-          const updatedData = data.data.filter((item: Expense) =>
-            !(item.name === expense.name &&
-              item.date === expense.date &&
-              item.price === expense.price)
-          );
-
-          // Update the modal data if setModalData is provided
-          setModalData?.({
-            ...data,
-            data: updatedData
-          });
-
-          setSnackbar({
-            open: true,
-            message: 'Transaction deleted successfully',
-            severity: 'success'
-          });
-
-          // Trigger a refresh of the dashboard data
-          window.dispatchEvent(new CustomEvent('dataRefresh'));
-        } else {
-          setSnackbar({
-            open: true,
-            message: 'Failed to delete transaction',
-            severity: 'error'
-          });
-        }
       }
     } catch (error) {
       logger.error('Error deleting transaction', error as Error);

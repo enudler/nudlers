@@ -130,7 +130,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
     }, 45000); // 45 second timeout
 
     try {
-      const response = await fetch('/api/ai_chat_stream', {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

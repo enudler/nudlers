@@ -131,7 +131,7 @@ const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode
 
 // Helper function to fetch all transactions for a date range
 const fetchAllTransactions = async (startDate: string, endDate: string, billingCycle?: string) => {
-  const url = new URL("/api/category_expenses", window.location.origin);
+  const url = new URL("/api/reports/category-expenses", window.location.origin);
 
   if (billingCycle) {
     // In billing mode, use billingCycle parameter (filters by processed_date)
@@ -242,7 +242,7 @@ const CategoryDashboard: React.FC = () => {
   // Fetch budget data
   const fetchBudgetData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     try {
-      const url = new URL("/api/budget_vs_actual", window.location.origin);
+      const url = new URL("/api/reports/budget-vs-actual", window.location.origin);
 
       if (billingCycle) {
         url.searchParams.append("billingCycle", billingCycle);
@@ -306,7 +306,7 @@ const CategoryDashboard: React.FC = () => {
 
   const fetchData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     try {
-      const url = new URL("/api/month_by_categories", window.location.origin);
+      const url = new URL("/api/reports/month-by-categories", window.location.origin);
 
       if (billingCycle) {
         url.searchParams.append("billingCycle", billingCycle);
@@ -608,7 +608,7 @@ const CategoryDashboard: React.FC = () => {
   const handleCategoryClick = async (category: string) => {
     try {
       setLoadingCategory(category);
-      const url = new URL("/api/category_expenses", window.location.origin);
+      const url = new URL("/api/reports/category-expenses", window.location.origin);
 
       if (dateRangeMode === 'billing') {
         // In billing mode, use billingCycle parameter (filters by processed_date)
@@ -1189,6 +1189,9 @@ const CategoryDashboard: React.FC = () => {
                 border: '1px solid rgba(139, 92, 246, 0.2)'
               }}>
                 💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                <span style={{ opacity: 0.7, marginLeft: '8px', fontSize: '13px' }}>
+                  ({new Date(startDate).toLocaleDateString('en-GB')} - {new Date(endDate).toLocaleDateString('en-GB')})
+                </span>
               </span>
             </div>
           ) : null}

@@ -180,7 +180,7 @@ const BudgetDashboard: React.FC = () => {
   const fetchSpendingData = useCallback(async (year: string, month: string, mode: DateRangeMode, budgetList: Budget[]) => {
     setLoading(true);
     try {
-      const url = new URL('/api/budget_vs_actual', window.location.origin);
+      const url = new URL('/api/reports/budget-vs-actual', window.location.origin);
 
       if (mode === 'billing') {
         url.searchParams.append('billingCycle', `${year}-${month}`);
@@ -225,7 +225,7 @@ const BudgetDashboard: React.FC = () => {
 
   const fetchAllCategories = useCallback(async () => {
     try {
-      const response = await fetch('/api/get_all_categories');
+      const response = await fetch('/api/categories');
       const categories = await response.json();
       setAllCategories(categories.filter((c: string) => c !== 'Bank'));
     } catch (error) {
@@ -236,7 +236,7 @@ const BudgetDashboard: React.FC = () => {
   const fetchBurndownData = useCallback(async (year: string, month: string, mode: DateRangeMode) => {
     setBurndownLoading(true);
     try {
-      const url = new URL('/api/daily_spending', window.location.origin);
+      const url = new URL('/api/reports/daily-spending', window.location.origin);
 
       if (mode === 'billing') {
         url.searchParams.append('cycle', `${year}-${month}`);
@@ -387,7 +387,7 @@ const BudgetDashboard: React.FC = () => {
 
     setSavingTotalBudget(true);
     try {
-      const response = await fetch('/api/total_budget', {
+      const response = await fetch('/api/reports/total-budget', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -417,7 +417,7 @@ const BudgetDashboard: React.FC = () => {
     if (!confirm('Are you sure you want to remove the total credit card budget?')) return;
 
     try {
-      const response = await fetch('/api/total_budget', {
+      const response = await fetch('/api/reports/total-budget', {
         method: 'DELETE'
       });
 

@@ -125,7 +125,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
 
   const fetchStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/sync_status');
+      const response = await fetch('/api/scrapers/status');
       if (response.ok) {
         const data = await response.json();
         setStatus(data);

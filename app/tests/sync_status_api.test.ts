@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getDB } from '../pages/api/db';
-import syncStatusHandler from '../pages/api/sync_status';
+import syncStatusHandler from '../pages/api/scrapers/status';
 
 // Mock the database module
 vi.mock('../pages/api/db', () => ({
@@ -8,7 +8,7 @@ vi.mock('../pages/api/db', () => ({
 }));
 
 // Mock the logger
-vi.mock('../../utils/logger.js', () => ({
+vi.mock('../utils/logger.js', () => ({
     default: {
         info: vi.fn(),
         error: vi.fn(),

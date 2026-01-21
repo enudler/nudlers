@@ -85,7 +85,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
     setResult(null);
 
     try {
-      const response = await fetch('/api/database/export');
+      const response = await fetch('/api/maintenance/database/export');
 
       if (!response.ok) {
         throw new Error('Export failed');
@@ -150,7 +150,7 @@ const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({ open, onClose
         throw new Error('Invalid backup file format');
       }
 
-      const response = await fetch('/api/database/import', {
+      const response = await fetch('/api/maintenance/database/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -230,7 +230,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
   const fetchCards = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/card_vendors');
+      const response = await fetch('/api/cards');
       if (!response.ok) {
         throw new Error('Failed to fetch cards');
       }
@@ -278,7 +278,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
   const handleSave = async (last4_digits: string) => {
     try {
       // Save card vendor info
-      const cardResponse = await fetch('/api/card_vendors', {
+      const cardResponse = await fetch('/api/cards', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -319,7 +319,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
           payload.custom_bank_account_nickname = null;
         }
 
-        const bankResponse = await fetch(`/api/card_ownership/${card.card_ownership_id}`, {
+        const bankResponse = await fetch(`/api/cards/ownerships/${card.card_ownership_id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

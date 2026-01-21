@@ -191,115 +191,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /transactions/delete_all_transactions:
-    delete:
-      tags:
-        - Transactions
-      summary: Delete all transactions
-      description: Delete all transactions with confirmation
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - confirm
-              properties:
-                confirm:
-                  type: boolean
-                  description: Must be true to confirm deletion
-      responses:
-        '200':
-          description: Transactions deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  deleted:
-                    type: integer
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
 
-  /manual_transaction:
-    post:
-      tags:
-        - Transactions
-      summary: Create a manual transaction
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - name
-                - price
-                - date
-              properties:
-                name:
-                  type: string
-                  description: Transaction description
-                price:
-                  type: number
-                  description: Transaction amount
-                date:
-                  type: string
-                  format: date
-                  description: Transaction date
-                category:
-                  type: string
-                  description: Transaction category
-      responses:
-        '200':
-          description: Transaction created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-        '500':
-          $ref: '#/components/responses/InternalError'
 
-  /search_transactions:
-    get:
-      tags:
-        - Transactions
-      summary: Search transactions
-      parameters:
-        - name: q
-          in: query
-          description: Search query
-          schema:
-            type: string
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: Search results
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Transaction'
-
-  /monthly_summary:
+  /reports/monthly-summary:
     get:
       tags:
         - Reports
@@ -349,7 +243,7 @@ paths:
                     net_balance:
                       type: number
 
-  /budget_vs_actual:
+  /reports/budget-vs-actual:
     get:
       tags:
         - Reports
@@ -389,7 +283,7 @@ paths:
                     remaining:
                       type: number
 
-  /daily_spending:
+  /reports/daily-spending:
     get:
       tags:
         - Reports
@@ -426,7 +320,7 @@ paths:
                     total:
                       type: number
 
-  /category_expenses:
+  /reports/category-expenses:
     get:
       tags:
         - Reports
@@ -459,7 +353,7 @@ paths:
                     count:
                       type: integer
 
-  /recurring_payments:
+  /reports/recurring-payments:
     get:
       tags:
         - Reports
@@ -588,10 +482,10 @@ paths:
                   success:
                     type: boolean
 
-  /total_budget:
+  /reports/total-budget:
     get:
       tags:
-        - Budgets
+        - Reports
       summary: Get total budget limit
       responses:
         '200':
@@ -629,7 +523,7 @@ paths:
                   success:
                     type: boolean
 
-  /get_all_categories:
+  /categories:
     get:
       tags:
         - Categories
@@ -644,7 +538,7 @@ paths:
                 items:
                   type: string
 
-  /categorization_rules:
+  /categories/rules:
     get:
       tags:
         - Categories
@@ -686,7 +580,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CategorizationRule'
 
-  /category_mappings:
+  /categories/mappings:
     get:
       tags:
         - Categories
@@ -727,91 +621,7 @@ paths:
         '200':
           description: Mapping created
 
-  /rename_category:
-    post:
-      tags:
-        - Categories
-      summary: Rename a category
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - oldName
-                - newName
-              properties:
-                oldName:
-                  type: string
-                newName:
-                  type: string
-      responses:
-        '200':
-          description: Category renamed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  updated:
-                    type: integer
 
-  /merge_categories:
-    post:
-      tags:
-        - Categories
-      summary: Merge categories
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - sourceCategories
-                - targetCategory
-              properties:
-                sourceCategories:
-                  type: array
-                  items:
-                    type: string
-                targetCategory:
-                  type: string
-      responses:
-        '200':
-          description: Categories merged
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  updated:
-                    type: integer
-
-  /delete_category:
-    post:
-      tags:
-        - Categories
-      summary: Delete a category
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - category
-              properties:
-                category:
-                  type: string
-      responses:
-        '200':
-          description: Category deleted
 
   /credentials:
     get:
@@ -896,12 +706,12 @@ paths:
         '200':
           description: Credential deleted
 
-  /scrape:
+  /scrapers/run:
     post:
       tags:
         - Scraping
-      summary: Scrape transactions (sync)
-      description: Synchronously scrape transactions from a bank or credit card
+      summary: Run scraper (sync)
+      description: Synchronously run a scraper
       requestBody:
         required: true
         content:
@@ -934,13 +744,13 @@ paths:
                   error:
                     type: string
 
-  /scrape_stream:
+  /scrapers/run-stream:
     post:
       tags:
         - Scraping
-      summary: Scrape transactions (streaming)
+      summary: Run scraper (streaming)
       description: |
-        Scrape transactions with Server-Sent Events for progress updates.
+        Run scraper with Server-Sent Events for progress updates.
         Returns SSE stream with events: progress, complete, error
       requestBody:
         required: true
@@ -956,30 +766,32 @@ paths:
               schema:
                 type: string
 
-  /sync_all:
+  /scrapers/sync-all-stream:
     post:
       tags:
         - Scraping
-      summary: Sync all credentials
-      description: Trigger scrape for all active credentials
+      summary: Sync all credentials (streaming)
+      description: |
+        Trigger scrape for all active credentials with Server-Sent Events progress updates.
+        Returns SSE stream with events: queue, account_start, progress, account_complete, account_error, complete, error
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncAllRequest'
       responses:
         '200':
-          description: Sync initiated
+          description: SSE stream of sync progress
           content:
-            application/json:
+            text/event-stream:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
+                type: string
 
-  /sync_status:
+  /scrapers/status:
     get:
       tags:
         - Scraping
-      summary: Get sync status
+      summary: Get current scraping status
       description: Get overall sync health, settings, latest scrape, and history.
       responses:
         '200':
@@ -989,7 +801,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SyncStatusResponse'
 
-  /sync_all_stream:
+  /scrapers/sync-all-stream:
     post:
       tags:
         - Scraping
@@ -1030,14 +842,14 @@ paths:
                 items:
                   $ref: '#/components/schemas/ScrapeEvent'
 
-  /get_scrape_report:
+  /scrape-events/{id}/report:
     get:
       tags:
         - Scraping
       summary: Get detailed scrape report
       parameters:
         - name: id
-          in: query
+          in: path
           required: true
           description: Scrape event ID
           schema:
@@ -1052,11 +864,11 @@ paths:
         '404':
           description: Scrape report not found
 
-  /last_transaction_date:
+  /scrapers/last-transaction-date:
     get:
       tags:
-        - Transactions
-      summary: Get last transaction date
+        - Scraping
+      summary: Get last transaction date for a vendor
       parameters:
         - name: vendor
           in: query
@@ -1075,10 +887,10 @@ paths:
                     type: string
                     format: date-time
 
-  /ai_chat:
+  /chat/message:
     post:
       tags:
-        - Reports
+        - AI Chat
       summary: Chat with financial AI assistant
       requestBody:
         required: true
@@ -1094,10 +906,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AIChatResponse'
 
-  /ai_chat_stream:
+  /chat/stream:
     post:
       tags:
-        - Reports
+        - AI Chat
       summary: Chat with financial AI assistant (streaming)
       requestBody:
         required: true
@@ -1113,7 +925,7 @@ paths:
               schema:
                 type: string
 
-  /stop_scrapers:
+  /scrapers/stop:
     post:
       tags:
         - Scraping
@@ -1159,31 +971,9 @@ paths:
         '200':
           description: Settings updated
 
-  /available_vendors:
-    get:
-      tags:
-        - Scraping
-      summary: Get available vendors
-      description: List of supported bank and credit card vendors
-      responses:
-        '200':
-          description: Available vendors
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    vendor:
-                      type: string
-                    vendor_nickname:
-                      type: string
-                    vendor_type:
-                      type: string
-                      enum: [bank, card]
 
-  /available_months:
+
+  /reports/available-months:
     get:
       tags:
         - Reports
@@ -1216,7 +1006,7 @@ paths:
                     type: string
                     example: ok
 
-  /month_by_categories:
+  /reports/month-by-categories:
     get:
       tags:
         - Reports
@@ -1253,7 +1043,7 @@ paths:
                     count:
                       type: integer
 
-  /box_panel_data:
+  /reports/box-panel:
     get:
       tags:
         - Reports
@@ -1290,77 +1080,9 @@ paths:
                   savings_rate:
                     type: number
 
-  /transactions_by_description:
-    get:
-      tags:
-        - Transactions
-      summary: Get transactions by description
-      parameters:
-        - name: description
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: billingCycle
-          in: query
-          schema:
-            type: string
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: List of transactions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Transaction'
 
-  /transactions_by_last4:
-    get:
-      tags:
-        - Transactions
-      summary: Get transactions by card last 4 digits
-      parameters:
-        - name: last4digits
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: billingCycle
-          in: query
-          schema:
-            type: string
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: List of transactions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Transaction'
 
-  /uncategorized_descriptions:
+  /categories/uncategorized:
     get:
       tags:
         - Categories
@@ -1382,7 +1104,7 @@ paths:
                     totalAmount:
                       type: number
 
-  /apply_categorization_rules:
+  /categories/apply-rules:
     post:
       tags:
         - Categories
@@ -1402,11 +1124,11 @@ paths:
                   transactionsUpdated:
                     type: integer
 
-  /update_category_by_description:
+  /categories/update-by-description:
     post:
       tags:
         - Categories
-      summary: Update category by description
+      summary: Update category for all transactions with a specific description
       requestBody:
         required: true
         content:
@@ -1434,7 +1156,7 @@ paths:
                   success:
                     type: boolean
 
-  /card_ownership:
+  /cards/ownerships:
     get:
       tags:
         - Credentials
@@ -1449,7 +1171,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/CardOwnership'
 
-  /card_ownership/{id}:
+  /cards/ownerships/{id}:
     patch:
       tags:
         - Credentials
@@ -1476,14 +1198,14 @@ paths:
         '200':
           description: Updated successfully
 
-  /card_vendors:
+  /cards:
     get:
       tags:
         - Credentials
-      summary: Get card vendors
+      summary: Get card vendors and details
       responses:
         '200':
-          description: List of card vendors
+          description: List of cards
           content:
             application/json:
               schema:
@@ -1493,7 +1215,7 @@ paths:
     post:
       tags:
         - Credentials
-      summary: create card vendor
+      summary: Create or update card vendor
       requestBody:
         required: true
         content:
@@ -1502,11 +1224,11 @@ paths:
               $ref: '#/components/schemas/CardVendor'
       responses:
         '200':
-          description: Created
+          description: Created/Updated
     delete:
       tags:
         - Credentials
-      summary: delete card vendor
+      summary: Delete card vendor
       requestBody:
         required: true
         content:
@@ -1591,7 +1313,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/ChatMessage'
 
-  /database/export:
+  /maintenance/database/export:
     get:
       tags:
         - Settings
@@ -1604,7 +1326,7 @@ paths:
               schema:
                 type: object
 
-  /database/import:
+  /maintenance/database/import:
     post:
       tags:
         - Settings

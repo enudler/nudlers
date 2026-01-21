@@ -83,8 +83,8 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
       setError(null);
 
       const [descriptionsRes, categoriesRes] = await Promise.all([
-        fetch('/api/uncategorized_descriptions'),
-        fetch('/api/get_all_categories')
+        fetch('/api/categories/uncategorized'),
+        fetch('/api/categories')
       ]);
 
       if (!descriptionsRes.ok || !categoriesRes.ok) {
@@ -117,7 +117,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
     try {
       setIsLoadingTransactions(true);
       const response = await fetch(
-        `/api/transactions_by_description?description=${encodeURIComponent(description)}&uncategorizedOnly=true`
+        `/api/transactions?description=${encodeURIComponent(description)}&uncategorizedOnly=true`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
@@ -150,7 +150,7 @@ const QuickCategoryModal: React.FC<QuickCategoryModalProps> = ({
       setIsSaving(true);
       setError(null);
 
-      const response = await fetch('/api/update_category_by_description', {
+      const response = await fetch('/api/categories/update-by-description', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

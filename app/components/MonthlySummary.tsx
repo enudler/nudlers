@@ -101,6 +101,25 @@ interface BankAccountSummary {
   total_expenses: number;
 }
 
+interface ScrapedBankSummary {
+  bank_account_id: number | null;
+  bank_account_nickname: string;
+  bank_account_number: string | null;
+  bank_account_vendor: string | null;
+  net_flow: number; // Income - Expenses
+  income: number;
+  expenses: number;
+}
+
+interface BankCCSummary {
+  bank_account_id: number | null;
+  bank_account_nickname: string;
+  bank_account_number: string | null;
+  bank_account_vendor: string | null;
+  total_cc_expenses: number;
+  card_count: number;
+}
+
 type GroupByType = 'vendor' | 'description' | 'last4digits';
 // DateRangeMode imported from context
 type SortField = 'name' | 'count' | 'card_expenses';
@@ -171,7 +190,9 @@ const MonthlySummary: React.FC = () => {
   // Sorting
   const [sortField, setSortField] = useState<SortField>('card_expenses');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [bankAccountSummary, setBankAccountSummary] = useState<BankAccountSummary[]>([]);
+  // Removed old bankAccountSummary in favor of separated states
+  const [scrapedBankSummary, setScrapedBankSummary] = useState<ScrapedBankSummary[]>([]);
+  const [creditCardBankSummary, setCreditCardBankSummary] = useState<BankCCSummary[]>([]);
 
   // Category editing
   const [editingDescription, setEditingDescription] = useState<string | null>(null);
@@ -282,7 +303,7 @@ const MonthlySummary: React.FC = () => {
 
   const fetchCardVendors = useCallback(async () => {
     try {
-      const response = await fetch('/api/card_vendors');
+      const response = await fetch('/api/cards');
       if (response.ok) {
         const data = await response.json();
         const vendorMap: Record<string, string> = {};
@@ -322,7 +343,7 @@ const MonthlySummary: React.FC = () => {
     const existingNickname = cardNicknameMap[selectedCardForVendor] || null;
 
     try {
-      const response = await fetch('/api/card_vendors', {
+      const response = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -364,7 +385,7 @@ const MonthlySummary: React.FC = () => {
     const existingVendor = cardVendorMap[last4digits] || null;
 
     try {
-      const response = await fetch('/api/card_vendors', {
+      const response = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -418,11 +439,11 @@ const MonthlySummary: React.FC = () => {
       let cardUrl: string;
 
       if (billingCycle) {
-        url = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
-        cardUrl = `/api/monthly_summary?billingCycle=${billingCycle}&groupBy=last4digits`;
+        url = `/api/reports/monthly-summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
+        cardUrl = `/api/reports/monthly-summary?billingCycle=${billingCycle}&groupBy=last4digits`;
       } else {
-        url = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
-        cardUrl = `/api/monthly_summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
+        url = `/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
+        cardUrl = `/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
       }
 
       // Fetch both main data and card summary in parallel
@@ -451,6 +472,9 @@ const MonthlySummary: React.FC = () => {
           custom_bank_account_number?: string | null;
           custom_bank_account_nickname?: string | null;
           transaction_vendor?: string | null;
+          card_nickname?: string | null;
+          total_income?: string | number;
+          total_outflow?: string | number;
         }
         const cardResult: CardAPIResponse[] = await cardResponse.json();
         // Filter to include cards with expenses OR bank activity
@@ -472,60 +496,110 @@ const MonthlySummary: React.FC = () => {
           }));
         setCardSummary(cards);
 
-        // Process bank account summary from card data
-        const bankSummaryMap = new Map<string, BankAccountSummary>();
+        // Process Bank Accounts (Scraped) vs Credit Cards (Linked)
+        const scrapedBankMap = new Map<string, ScrapedBankSummary>();
+        const ccBankMap = new Map<string, BankCCSummary>();
 
-        cards.forEach((card) => {
-          const cardVendor = cardResult.find(r => r.last4digits === card.last4digits)?.transaction_vendor || cardVendorMap[card.last4digits];
-          const isBank = cardVendor && BANK_VENDORS.includes(cardVendor);
+        // Helper to get bank key
+        const getBankKey = (id: number | null, nickname: string | null, vendor: string | null) => {
+          if (id) return `id-${id}`;
+          if (nickname) return `nick-${nickname}`;
+          return `vendor-${vendor || 'unknown'}`;
+        };
 
-          let key = 'unassigned';
-          let nickname = 'Unassigned Cards';
-          let acctNumber: string | null = null;
-          let vendor: string | null = null;
-          let id: number | null = null;
+        const allCards = cardResult; // Use original result to access all fields
 
-          if (card.bank_account_id) {
-            // Linked Account
-            key = `id-${card.bank_account_id}`;
-            id = card.bank_account_id;
-            nickname = card.bank_account_nickname || 'Unknown Bank';
-            acctNumber = card.bank_account_number || null;
-            vendor = card.bank_account_vendor || null;
-          } else if (card.custom_bank_account_number || card.custom_bank_account_nickname) {
-            // Custom Account
-            const customKey = card.custom_bank_account_number || card.custom_bank_account_nickname || 'custom-unknown';
-            key = `custom-${customKey}`;
-            nickname = card.custom_bank_account_nickname || 'Custom Bank Account';
-            acctNumber = card.custom_bank_account_number || null;
-            vendor = 'Custom';
-          } else if (isBank || card.bank_expenses > 0 || card.bank_income > 0) {
-            // Unassigned Bank Account
-            const bankVendor = card.transaction_vendor || 'Other Bank';
-            key = `bank-${bankVendor}`;
-            nickname = bankVendor;
-            vendor = bankVendor;
+        allCards.forEach((item) => {
+          const transVendor = item.transaction_vendor;
+          const isBank = (transVendor && BANK_VENDORS.includes(transVendor));
+
+          // Determine if this item ITSELF is a bank account (scraped source) or a credit card
+          // Detailed logic: If it's in BANK_VENDORS, it's a bank account. 
+          // Note: Some cards might be scraped from bank site, but usually they are separated or have card_expenses.
+          // We will treat items with 'bank_income' or matches BANK_VENDORS as Bank Account Sources.
+
+          // However, we need to be careful. The user wants "Bank Account Data" (scraped) vs linked CC data.
+
+          const bankIncome = Number(item.bank_income || 0);
+          const bankExpenses = Number(item.bank_expenses || 0);
+          const cardExpenses = Number(item.card_expenses || 0);
+          const totalIncome = Number(item.total_income || 0);
+          const totalOutflow = Number(item.total_outflow || 0);
+
+          // 1. Is it a Bank Account Source?
+          if (isBank) {
+            const key = getBankKey(item.bank_account_id || null, item.bank_account_nickname || null, transVendor || null);
+            // Ideally we use the item's own identifiers if it IS the bank account.
+            // But 'item' here is a "card/account" node. 
+            // If transaction_vendor is bank, this node IS the bank account (usually).
+
+            // Check if we already have this bank account in our map
+            if (!scrapedBankMap.has(key)) {
+              scrapedBankMap.set(key, {
+                bank_account_id: item.bank_account_id || null,
+                bank_account_nickname: item.bank_account_nickname || item.card_nickname || transVendor || 'Unknown Bank',
+                bank_account_number: item.bank_account_number || item.last4digits,
+                bank_account_vendor: transVendor,
+                net_flow: 0,
+                income: 0,
+                expenses: 0
+              });
+            }
+
+            const summary = scrapedBankMap.get(key)!;
+            summary.income += totalIncome;
+            summary.expenses += totalOutflow;
+            summary.net_flow = summary.income - summary.expenses;
           }
 
-          if (!bankSummaryMap.has(key)) {
-            bankSummaryMap.set(key, {
-              bank_account_id: id,
-              bank_account_nickname: nickname,
-              bank_account_number: acctNumber,
-              bank_account_vendor: vendor || 'Unknown',
-              total_expenses: 0
-            });
-          }
+          // 2. Is it a Credit Card? (Logic: Has card_expenses OR vendor is CC vendor)
+          // Even (and especially) if it is linked to a bank, it's a card.
+          const isCC = !isBank || cardExpenses > 0; // Simplified check
 
-          const summary = bankSummaryMap.get(key)!;
-          summary.total_expenses += (card.card_expenses + card.bank_expenses);
+          if (isCC && (cardExpenses > 0)) {
+            // It's a card with expenses. Attribute to its linked bank.
+            let bankKey = 'unassigned';
+            let bankName = 'Unassigned Cards';
+            let bankId: number | null = null;
+            let bankVendor: string | null = null;
+            let bankNumber: string | null = null;
+
+            if (item.bank_account_id) {
+              bankKey = `id-${item.bank_account_id}`;
+              bankId = item.bank_account_id;
+              bankName = item.bank_account_nickname || 'Unknown Bank';
+              bankVendor = item.bank_account_vendor || null;
+              bankNumber = item.bank_account_number || null;
+            } else if (item.custom_bank_account_nickname || item.custom_bank_account_number) {
+              // Custom bank
+              bankKey = `custom-${item.custom_bank_account_nickname || item.custom_bank_account_number}`;
+              bankName = item.custom_bank_account_nickname || 'Custom Bank';
+              bankNumber = item.custom_bank_account_number || null;
+            } else {
+              // If it's unassigned, we might still want to show it under "Unassigned" or similar?
+              // The requirement is "show under each bank account... data coming from the attached credit card"
+              // So unassigned cards go to 'Unassigned' bucket or separate.
+            }
+
+            if (!ccBankMap.has(bankKey)) {
+              ccBankMap.set(bankKey, {
+                bank_account_id: bankId,
+                bank_account_nickname: bankName,
+                bank_account_number: bankNumber,
+                bank_account_vendor: bankVendor || null,
+                total_cc_expenses: 0,
+                card_count: 0
+              });
+            }
+
+            const ccSummary = ccBankMap.get(bankKey)!;
+            ccSummary.total_cc_expenses += cardExpenses;
+            ccSummary.card_count += 1;
+          }
         });
 
-        // Convert map to array and sort by expenses descending
-        const bankSummaryArray = Array.from(bankSummaryMap.values())
-          .sort((a, b) => b.total_expenses - a.total_expenses);
-
-        setBankAccountSummary(bankSummaryArray);
+        setScrapedBankSummary(Array.from(scrapedBankMap.values()).sort((a, b) => b.net_flow - a.net_flow));
+        setCreditCardBankSummary(Array.from(ccBankMap.values()).sort((a, b) => b.total_cc_expenses - a.total_cc_expenses));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -607,9 +681,9 @@ const MonthlySummary: React.FC = () => {
 
       let url: string;
       if (billingCycle) {
-        url = `/api/category_expenses?billingCycle=${billingCycle}&all=true`;
+        url = `/api/reports/category-expenses?billingCycle=${billingCycle}&all=true`;
       } else {
-        url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        url = `/api/reports/category-expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
       }
 
       const response = await fetch(url);
@@ -658,7 +732,7 @@ const MonthlySummary: React.FC = () => {
     }
 
     try {
-      const response = await fetch('/api/update_category_by_description', {
+      const response = await fetch('/api/categories/update-by-description', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -730,12 +804,12 @@ const MonthlySummary: React.FC = () => {
 
       let url: string;
       if (dateRangeMode === 'custom') {
-        url = `/api/transactions_by_description?startDate=${customStartDate}&endDate=${customEndDate}&description=${encodeURIComponent(description)}`;
+        url = `/api/transactions?startDate=${customStartDate}&endDate=${customEndDate}&description=${encodeURIComponent(description)}`;
       } else if (dateRangeMode === 'billing') {
         const billingCycle = `${selectedYear}-${selectedMonth}`;
-        url = `/api/transactions_by_description?billingCycle=${billingCycle}&description=${encodeURIComponent(description)}`;
+        url = `/api/transactions?billingCycle=${billingCycle}&description=${encodeURIComponent(description)}`;
       } else {
-        url = `/api/transactions_by_description?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
+        url = `/api/transactions?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
       }
 
       const response = await fetch(url);
@@ -774,7 +848,7 @@ const MonthlySummary: React.FC = () => {
         queryParams += `&startDate=${startDate}&endDate=${endDate}`;
       }
 
-      const response = await fetch(`/api/search_transactions?${queryParams}`);
+      const response = await fetch(`/api/transactions?${queryParams}`);
       if (response.ok) {
         const results = await response.json();
         setModalData({
@@ -795,7 +869,7 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
-  const handleBankAccountClick = async (bank: BankAccountSummary) => {
+  const handleBankAccountClick = async (bank: ScrapedBankSummary) => {
     if (dateRangeMode === 'custom') {
       if (!customStartDate || !customEndDate) return;
     } else {
@@ -805,57 +879,100 @@ const MonthlySummary: React.FC = () => {
     try {
       setLoading(true);
 
-      let url: string;
+      const params = new URLSearchParams();
+
+      if (dateRangeMode === 'custom') {
+        params.set('startDate', customStartDate);
+        params.set('endDate', customEndDate);
+      } else if (dateRangeMode === 'billing') {
+        params.set('billingCycle', `${selectedYear}-${selectedMonth}`);
+      } else {
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
+      }
+
       if (bank.bank_account_id) {
-        // If we have an ID, we could potentially fetch by ID if API supported it.
-        // For now, let's use the account number or vendor if ID is linked.
-        if (dateRangeMode === 'custom') {
-          url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
-        } else if (dateRangeMode === 'billing') {
-          url = `/api/category_expenses?billingCycle=${selectedYear}-${selectedMonth}&all=true`;
-        } else {
-          url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        params.set('bankAccountId', String(bank.bank_account_id));
+        if (bank.bank_account_number) {
+          params.set('bankAccountNumber', bank.bank_account_number);
         }
       } else {
-        // Unassigned - fetch by vendor
-        const vendor = bank.bank_account_vendor || 'Other';
-        if (dateRangeMode === 'custom') {
-          url = `/api/category_expenses?startDate=${customStartDate}&endDate=${customEndDate}&all=true`;
-        } else if (dateRangeMode === 'billing') {
-          url = `/api/category_expenses?billingCycle=${selectedYear}-${selectedMonth}&all=true`;
-        } else {
-          url = `/api/category_expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
-        }
+        params.set('bankVendor', bank.bank_account_vendor || 'Other');
       }
+
+      const url = `/api/transactions?${params.toString()}`;
 
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
 
-      const allTransactions = await response.json();
+      const transactions = await response.json();
 
-      // Filter the transactions locally to match this bank account
-      const filteredTransactions = allTransactions.filter((t: any) => {
-        if (bank.bank_account_id) {
-          // This is tricky because transactions might not have bank_account_id directly
-          // We match by account number if available, or vendor + category 'Bank'
-          const isSameAccount = bank.bank_account_number && String(t.account_number).endsWith(bank.bank_account_number);
-          const isSameVendor = t.vendor && t.vendor.toLowerCase() === bank.bank_account_vendor?.toLowerCase();
-          return isSameAccount || (isSameVendor && isBankTransaction(t));
-        } else {
-          // Unassigned - match by vendor/source
-          return t.vendor && t.vendor.toLowerCase() === bank.bank_account_vendor?.toLowerCase() && isBankTransaction(t);
-        }
-      });
+      // Filter: Show ONLY bank transactions (scraped from bank)
+      const bankTransactions = transactions.filter((t: any) => isBankTransaction(t));
 
       setModalData({
-        type: bank.bank_account_nickname,
-        data: filteredTransactions
+        type: `${bank.bank_account_nickname} (Bank Activity)`,
+        data: bankTransactions
       });
       setIsModalOpen(true);
     } catch (err) {
       logger.error('Error fetching bank transactions', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBankCCClick = async (bank: BankCCSummary) => {
+    if (dateRangeMode === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+    } else {
+      if (!selectedYear || !selectedMonth) return;
+    }
+
+    try {
+      setLoading(true);
+
+      const params = new URLSearchParams();
+
+      if (dateRangeMode === 'custom') {
+        params.set('startDate', customStartDate);
+        params.set('endDate', customEndDate);
+      } else if (dateRangeMode === 'billing') {
+        params.set('billingCycle', `${selectedYear}-${selectedMonth}`);
+      } else {
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
+      }
+
+      if (bank.bank_account_id) {
+        params.set('bankAccountId', String(bank.bank_account_id));
+      } else {
+        // Fallback or unassigned logic
+        // If unassigned, we might fetch all and filter by NO bank account ID? 
+        // For now, assume linked.
+      }
+
+      const url = `/api/transactions?${params.toString()}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      const transactions = await response.json();
+
+      // Filter: Show ONLY Credit Card transactions (Exclude bank self-txns)
+      const ccTransactions = transactions.filter((t: any) => !isBankTransaction(t));
+
+      setModalData({
+        type: `Cards linked to ${bank.bank_account_nickname}`,
+        data: ccTransactions
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      logger.error('Error fetching linked card transactions', err);
     } finally {
       setLoading(false);
     }
@@ -873,12 +990,12 @@ const MonthlySummary: React.FC = () => {
 
       let url: string;
       if (dateRangeMode === 'custom') {
-        url = `/api/transactions_by_last4?startDate=${customStartDate}&endDate=${customEndDate}&last4digits=${encodeURIComponent(last4digits)}`;
+        url = `/api/transactions?startDate=${customStartDate}&endDate=${customEndDate}&last4digits=${encodeURIComponent(last4digits)}`;
       } else if (dateRangeMode === 'billing') {
         const billingCycle = `${selectedYear}-${selectedMonth}`;
-        url = `/api/transactions_by_last4?billingCycle=${billingCycle}&last4digits=${encodeURIComponent(last4digits)}`;
+        url = `/api/transactions?billingCycle=${billingCycle}&last4digits=${encodeURIComponent(last4digits)}`;
       } else {
-        url = `/api/transactions_by_last4?startDate=${startDate}&endDate=${endDate}&last4digits=${encodeURIComponent(last4digits)}`;
+        url = `/api/transactions?startDate=${startDate}&endDate=${endDate}&last4digits=${encodeURIComponent(last4digits)}`;
       }
 
       const response = await fetch(url);
@@ -1650,66 +1767,147 @@ const MonthlySummary: React.FC = () => {
                     );
                   })}
 
-                {/* Bank Account Summary Section */}
-                <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
-                  <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
-                    By Bank Account
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                    {bankAccountSummary.map((bank) => (
-                      <Box
-                        key={bank.bank_account_id || bank.bank_account_nickname || 'unassigned'}
-                        onClick={() => handleBankAccountClick(bank)}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1.5,
-                          p: 1.5,
-                          borderRadius: '12px',
-                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
-                          border: `1px solid ${theme.palette.divider}`,
-                          minWidth: '200px',
-                          flex: '1 1 auto',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease-in-out',
-                          '&:hover': {
-                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
-                            borderColor: 'primary.main',
-                            transform: 'translateY(-2px)'
-                          }
-                        }}
-                      >
+                {/* 1. Bank Accounts Section (Scraped Data) */}
+                {scrapedBankSummary.length > 0 && (
+                  <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
+                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
+                      Bank Accounts (Net Flow)
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                      {scrapedBankSummary.map((bank) => (
                         <Box
+                          key={bank.bank_account_id ? `id-${bank.bank_account_id}` : `vend-${bank.bank_account_vendor}`}
+                          onClick={() => handleBankAccountClick(bank)}
                           sx={{
-                            width: 36,
-                            height: 36,
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(241, 245, 249, 0.8)',
-                            borderRadius: '10px',
-                            color: 'text.secondary'
+                            gap: 1.5,
+                            p: 1.5,
+                            borderRadius: '12px',
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+                            border: `1px solid ${theme.palette.divider}`,
+                            minWidth: '220px',
+                            flex: '1 1 auto',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease-in-out',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            '&:hover': {
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+                              borderColor: 'primary.main',
+                              transform: 'translateY(-2px)'
+                            }
                           }}
                         >
-                          <AccountBalanceIcon sx={{ fontSize: 20 }} />
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
-                            {bank.bank_account_nickname}
-                          </Typography>
-                          {(bank.bank_account_number || bank.bank_account_vendor) && (
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
-                              {bank.bank_account_vendor} {bank.bank_account_number ? `• ${bank.bank_account_number}` : ''}
+                          {/* Accent bar based on net flow */}
+                          <Box sx={{
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: '4px',
+                            backgroundColor: bank.net_flow >= 0 ? '#10B981' : '#F43F5E'
+                          }} />
+
+                          <Box
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(241, 245, 249, 0.8)',
+                              borderRadius: '10px',
+                              color: 'text.secondary',
+                              ml: 1
+                            }}
+                          >
+                            <AccountBalanceIcon sx={{ fontSize: 20 }} />
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
+                              {bank.bank_account_nickname}
                             </Typography>
-                          )}
+                            {(bank.bank_account_number || bank.bank_account_vendor) && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
+                                {bank.bank_account_vendor} {bank.bank_account_number ? `• ${bank.bank_account_number}` : ''}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="body2" sx={{
+                              fontWeight: 700,
+                              color: bank.net_flow >= 0 ? '#10B981' : '#F43F5E'
+                            }}>
+                              {bank.net_flow >= 0 ? '+' : ''}₪{formatNumber(bank.net_flow)}
+                            </Typography>
+                          </Box>
                         </Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                          ₪{formatNumber(bank.total_expenses)}
-                        </Typography>
-                      </Box>
-                    ))}
+                      ))}
+                    </Box>
                   </Box>
-                </Box>
+                )}
+
+                {/* 2. Credit Card Expenses by Bank Section */}
+                {creditCardBankSummary.length > 0 && (
+                  <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 2 }}>
+                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
+                      Credit Card Usage by Linked Bank
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                      {creditCardBankSummary.map((bank) => (
+                        <Box
+                          key={bank.bank_account_id ? `cc-id-${bank.bank_account_id}` : `cc-nick-${bank.bank_account_nickname}`}
+                          onClick={() => handleBankCCClick(bank)}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            p: 1.5,
+                            borderRadius: '12px',
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+                            border: `1px solid ${theme.palette.divider}`,
+                            minWidth: '200px',
+                            flex: '1 1 auto',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': {
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+                              borderColor: 'primary.main',
+                              transform: 'translateY(-2px)'
+                            }
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              borderRadius: '10px',
+                              color: '#3B82F6'
+                            }}
+                          >
+                            <CreditCardIcon sx={{ fontSize: 20 }} />
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
+                              {bank.bank_account_nickname}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
+                              {bank.card_count} {bank.card_count === 1 ? 'card' : 'cards'} linked
+                            </Typography>
+                          </Box>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                            ₪{formatNumber(bank.total_cc_expenses)}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
 
                 {/* Vendor Selection Menu */}
                 <Menu

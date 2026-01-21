@@ -161,7 +161,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const fetchUncategorizedDescriptions = async () => {
     try {
       setIsLoadingQuick(true);
-      const response = await fetch('/api/uncategorized_descriptions');
+      const response = await fetch('/api/categories/uncategorized');
       if (!response.ok) throw new Error('Failed to fetch uncategorized descriptions');
       const data = await response.json();
       setUncategorizedDescriptions(data);
@@ -182,7 +182,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     try {
       setIsLoadingQuickTransactions(true);
       const response = await fetch(
-        `/api/transactions_by_description?description=${encodeURIComponent(description)}&uncategorizedOnly=true`
+        `/api/transactions?description=${encodeURIComponent(description)}&uncategorizedOnly=true`
       );
       if (!response.ok) throw new Error('Failed to fetch transactions');
       const data = await response.json();
@@ -203,7 +203,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsSavingQuick(true);
       setError(null);
 
-      const response = await fetch('/api/update_category_by_description', {
+      const response = await fetch('/api/categories/update-by-description', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -286,7 +286,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch('/api/get_all_categories');
+      const response = await fetch('/api/categories');
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
@@ -299,7 +299,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       const categoriesWithCounts = await Promise.all(
         categoryNames.map(async (name: string) => {
           try {
-            const countResponse = await fetch(`/api/category_expenses?all=true&category=${encodeURIComponent(name)}`);
+            const countResponse = await fetch(`/api/reports/category-expenses?all=true&category=${encodeURIComponent(name)}`);
             if (!countResponse.ok) {
               logger.warn(`Failed to fetch count for category "${name}": ${countResponse.status}`);
               return { name, count: 0 };
@@ -329,7 +329,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const fetchRules = async () => {
     try {
       setIsLoadingRules(true);
-      const response = await fetch('/api/categorization_rules');
+      const response = await fetch('/api/categories/rules');
       if (!response.ok) throw new Error('Failed to fetch rules');
 
       const rulesData = await response.json();
@@ -345,7 +345,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   const fetchMappings = async () => {
     try {
       setIsLoadingMappings(true);
-      const response = await fetch('/api/category_mappings');
+      const response = await fetch('/api/categories/mappings');
       if (!response.ok) throw new Error('Failed to fetch mappings');
 
       const data = await response.json();
@@ -363,7 +363,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/category_mappings', {
+      const response = await fetch('/api/categories/mappings', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -393,7 +393,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/category_mappings', {
+      const response = await fetch('/api/categories/mappings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -428,7 +428,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/category_mappings', {
+      const response = await fetch('/api/categories/mappings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -481,7 +481,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setError(null);
 
       // Call the merge API
-      const response = await fetch('/api/merge_categories', {
+      const response = await fetch('/api/categories/merge', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -569,13 +569,12 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/rename_category', {
-        method: 'POST',
+      const response = await fetch(`/api/categories/${encodeURIComponent(renamingCategory)}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          oldName: renamingCategory,
           newName: renameNewName.trim()
         }),
       });
@@ -635,13 +634,12 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/delete_category', {
-        method: 'POST',
+      const response = await fetch(`/api/categories/${encodeURIComponent(deletingCategory)}`, {
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          categoryName: deletingCategory,
           deleteRules: deleteOptions.deleteRules,
           deleteBudget: deleteOptions.deleteBudget
         }),
@@ -689,7 +687,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/categorization_rules', {
+      const response = await fetch('/api/categories/rules', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -728,7 +726,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/categorization_rules', {
+      const response = await fetch('/api/categories/rules', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -764,7 +762,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/categorization_rules', {
+      const response = await fetch('/api/categories/rules', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -799,7 +797,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       setIsApplyingRules(true);
       setError(null);
 
-      const response = await fetch('/api/apply_categorization_rules', {
+      const response = await fetch('/api/categories/apply-rules', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

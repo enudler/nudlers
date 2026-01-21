@@ -37,7 +37,7 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
     const fetchEvents = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/scrape_events');
+            const res = await fetch('/api/scrape-events');
             if (res.ok) {
                 const data = await res.json();
                 setEvents(data);
@@ -63,7 +63,7 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
         if (!event.report_json || !event.report_json.processedTransactions) {
             setReportLoading(true);
             try {
-                const res = await fetch(`/api/get_scrape_report?id=${event.id}`);
+                const res = await fetch(`/api/scrape-events/${event.id}/report`);
                 if (res.ok) {
                     const reportData = await res.json();
                     setSelectedEvent((prev: any) => prev && prev.id === event.id ? { ...prev, report_json: reportData } : prev);

@@ -216,7 +216,7 @@ const ChatView: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/ai_chat_stream', {
+            const response = await fetch('/api/chat/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
