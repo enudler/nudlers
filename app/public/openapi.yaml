@@ -224,6 +224,12 @@ paths:
           schema:
             type: string
             enum: [description, last4digits]
+        - name: excludeBankTransactions
+          in: query
+          description: Exclude bank transactions (category = 'Bank') from results. Only applicable when groupBy is 'description'. In the UI, bank transactions are excluded by default unless the user enables "Show Bank Transactions".
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Monthly summary data

@@ -23,6 +23,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Box from '@mui/material/Box';
 import ExpensesModal from './CategoryDashboard/components/ExpensesModal';
 import Typography from '@mui/material/Typography';
@@ -76,6 +78,7 @@ interface MonthlySummaryData {
   last4digits?: string;
   transaction_count?: number;
   card_expenses: number;
+  amount?: number; // Amount with original sign (positive = income, negative = expense)
 }
 
 interface CardSummary {
@@ -198,6 +201,10 @@ const MonthlySummary: React.FC = () => {
   const [editingDescription, setEditingDescription] = useState<string | null>(null);
   const [editCategory, setEditCategory] = useState<string>('');
   const { categories: availableCategories } = useCategories();
+
+  // Filter for showing/hiding bank transactions in breakdown by description
+  // By default, bank transactions are hidden (showBankTransactions = false)
+  const [showBankTransactions, setShowBankTransactions] = useState<boolean>(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -422,7 +429,7 @@ const MonthlySummary: React.FC = () => {
 
   // fetchAvailableMonths removed
 
-  const fetchMonthlySummary = useCallback(async () => {
+  const fetchMonthlySummary = useCallback(async (skipLoadingState = false) => {
     // For custom mode, we need custom dates; for other modes, we need year/month
     if (dateRangeMode === 'custom') {
       if (!customStartDate || !customEndDate) return;
@@ -430,19 +437,28 @@ const MonthlySummary: React.FC = () => {
       if (!selectedYear || !selectedMonth) return;
     }
 
-    try {
-      setLoading(true);
+    // Preserve scroll position when refetching due to filter toggle
+    const scrollY = window.scrollY;
 
-      setLoading(true);
+    try {
+      if (!skipLoadingState) {
+        setLoading(true);
+      }
 
       let url: string;
       let cardUrl: string;
 
       if (billingCycle) {
         url = `/api/reports/monthly-summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
+        if (groupBy === 'description' && !showBankTransactions) {
+          url += '&excludeBankTransactions=true';
+        }
         cardUrl = `/api/reports/monthly-summary?billingCycle=${billingCycle}&groupBy=last4digits`;
       } else {
         url = `/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
+        if (groupBy === 'description' && !showBankTransactions) {
+          url += '&excludeBankTransactions=true';
+        }
         cardUrl = `/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
       }
 
@@ -552,11 +568,11 @@ const MonthlySummary: React.FC = () => {
             summary.net_flow = summary.income - summary.expenses;
           }
 
-          // 2. Is it a Credit Card? (Logic: Has card_expenses OR vendor is CC vendor)
-          // Even (and especially) if it is linked to a bank, it's a card.
-          const isCC = !isBank || cardExpenses > 0; // Simplified check
+          // 2. Is it a Credit Card? (Logic: NOT a bank AND has card_expenses)
+          // Bank transactions should never be counted as credit cards
+          const isCC = !isBank && cardExpenses > 0;
 
-          if (isCC && (cardExpenses > 0)) {
+          if (isCC) {
             // It's a card with expenses. Attribute to its linked bank.
             let bankKey = 'unassigned';
             let bankName = 'Unassigned Cards';
@@ -604,9 +620,16 @@ const MonthlySummary: React.FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      setLoading(false);
+      if (!skipLoadingState) {
+        setLoading(false);
+      }
+
+      // Restore scroll position after render
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions]);
 
   useEffect(() => {
     if (dateRangeMode === 'custom') {
@@ -617,6 +640,17 @@ const MonthlySummary: React.FC = () => {
       fetchMonthlySummary();
     }
   }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
+
+  // Separate useEffect for filter toggle - skip loading state to prevent flicker
+  useEffect(() => {
+    if (dateRangeMode === 'custom') {
+      if (customStartDate && customEndDate) {
+        fetchMonthlySummary(true); // skipLoadingState = true
+      }
+    } else if (startDate && endDate) {
+      fetchMonthlySummary(true); // skipLoadingState = true
+    }
+  }, [showBankTransactions]); // Only trigger when filter changes
 
   useEffect(() => {
     const handleDataRefresh = () => {
@@ -948,11 +982,9 @@ const MonthlySummary: React.FC = () => {
 
       if (bank.bank_account_id) {
         params.set('bankAccountId', String(bank.bank_account_id));
-      } else {
-        // Fallback or unassigned logic
-        // If unassigned, we might fetch all and filter by NO bank account ID? 
-        // For now, assume linked.
       }
+      // For unassigned cards, we don't add bankAccountId filter
+      // We'll filter client-side based on which cards are unassigned
 
       const url = `/api/transactions?${params.toString()}`;
 
@@ -964,7 +996,20 @@ const MonthlySummary: React.FC = () => {
       const transactions = await response.json();
 
       // Filter: Show ONLY Credit Card transactions (Exclude bank self-txns)
-      const ccTransactions = transactions.filter((t: any) => !isBankTransaction(t));
+      let ccTransactions = transactions.filter((t: any) => !isBankTransaction(t));
+
+      // If unassigned, filter to only show transactions from unassigned cards
+      if (!bank.bank_account_id) {
+        // Get list of unassigned card last4digits from cardSummary
+        const unassignedCards = cardSummary
+          .filter(card => !card.bank_account_id && !card.custom_bank_account_nickname && !card.custom_bank_account_number)
+          .map(card => card.last4digits);
+
+        ccTransactions = ccTransactions.filter((t: any) => {
+          const txnLast4 = t.account_number ? String(t.account_number).slice(-4) : null;
+          return txnLast4 && unassignedCards.includes(txnLast4);
+        });
+      }
 
       setModalData({
         type: `Cards linked to ${bank.bank_account_nickname}`,
@@ -1104,7 +1149,12 @@ const MonthlySummary: React.FC = () => {
           comparison = (a.transaction_count || 0) - (b.transaction_count || 0);
           break;
         case 'card_expenses':
-          comparison = Number(a.card_expenses) - Number(b.card_expenses);
+          if (groupBy === 'description') {
+            // For description grouping, sort by absolute value of amount
+            comparison = Math.abs(Number(a.amount || 0)) - Math.abs(Number(b.amount || 0));
+          } else {
+            comparison = Number(a.card_expenses) - Number(b.card_expenses);
+          }
           break;
       }
 
@@ -2019,17 +2069,50 @@ const MonthlySummary: React.FC = () => {
                 marginBottom: { xs: '16px', md: '24px' },
                 gap: { xs: '12px', md: '16px' }
               }}>
-                <Box component="h2" sx={{
-                  fontSize: { xs: '16px', md: '20px' },
-                  fontWeight: 700,
-                  margin: 0,
-                  color: 'text.primary'
-                }}>
-                  {groupBy === 'description'
-                    ? 'Breakdown by Description'
-                    : groupBy === 'last4digits'
-                      ? 'Breakdown by Last 4 Digits'
-                      : 'Breakdown by Card / Account'}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box component="h2" sx={{
+                    fontSize: { xs: '16px', md: '20px' },
+                    fontWeight: 700,
+                    margin: 0,
+                    color: 'text.primary'
+                  }}>
+                    {groupBy === 'description'
+                      ? 'Breakdown by Description'
+                      : groupBy === 'last4digits'
+                        ? 'Breakdown by Last 4 Digits'
+                        : 'Breakdown by Card / Account'}
+                  </Box>
+
+                  {/* Filter toggle for excluding bank transactions - only show for description view */}
+                  {groupBy === 'description' && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={showBankTransactions}
+                          onChange={(e) => setShowBankTransactions(e.target.checked)}
+                          size="small"
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#3b82f6',
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: '#3b82f6',
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography sx={{
+                          fontSize: '12px',
+                          color: 'text.secondary',
+                          fontWeight: 500
+                        }}>
+                          Show Bank Transactions
+                        </Typography>
+                      }
+                      sx={{ margin: 0 }}
+                    />
+                  )}
                 </Box>
 
                 {/* Sorting Controls */}
@@ -2346,9 +2429,16 @@ const MonthlySummary: React.FC = () => {
                             <td style={{
                               padding: '16px 12px',
                               textAlign: 'right',
-                              color: '#3B82F6',
+                              color: groupBy === 'description'
+                                ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
+                                : '#3B82F6',
                               fontWeight: 600
-                            }}>₪{formatNumber(row.card_expenses)}</td>
+                            }}>
+                              {groupBy === 'description' && row.amount !== undefined
+                                ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+                                : `₪${formatNumber(row.card_expenses)}`
+                              }
+                            </td>
                           </tr>
                         );
                       })}
@@ -2384,10 +2474,20 @@ const MonthlySummary: React.FC = () => {
                         <td style={{
                           padding: '16px 12px',
                           textAlign: 'right',
-                          color: '#3B82F6',
+                          color: groupBy === 'description'
+                            ? (sortedData.reduce((sum, row) => sum + Number(row.amount || 0), 0) >= 0 ? '#10B981' : '#F43F5E')
+                            : '#3B82F6',
                           fontWeight: 700,
                           fontSize: '15px'
-                        }}>₪{formatNumber(totals.card_expenses)}</td>
+                        }}>
+                          {groupBy === 'description'
+                            ? (() => {
+                              const total = sortedData.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+                              return `${total >= 0 ? '+' : ''}₪${formatNumber(Math.abs(total))}`;
+                            })()
+                            : `₪${formatNumber(totals.card_expenses)}`
+                          }
+                        </td>
                       </tr>
                     </tfoot>
                   </Box>

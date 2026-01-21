@@ -4,7 +4,7 @@ import { getBillingCycleSql } from "../../../utils/transaction_logic";
 
 const handler = createApiHandler({
   query: async (req) => {
-    const { startDate, endDate, vendor, groupBy, billingCycle } = req.query;
+    const { startDate, endDate, vendor, groupBy, billingCycle, excludeBankTransactions } = req.query;
 
     // Build WHERE clause based on filters
     let whereClause = '';
@@ -48,6 +48,15 @@ const handler = createApiHandler({
       paramIndex++;
     }
 
+    // Add filter to exclude bank transactions if requested
+    if (excludeBankTransactions === 'true') {
+      if (whereClause) {
+        whereClause += ` AND t.category != 'Bank'`;
+      } else {
+        whereClause = `WHERE t.category != 'Bank'`;
+      }
+    }
+
     // Join with card_ownership to get the correct credential for each card
     // This prevents duplicate rows when multiple credentials exist for the same vendor
     const credentialJoin = `
@@ -63,32 +72,14 @@ const handler = createApiHandler({
             t.name as description,
             t.category,
             COUNT(DISTINCT (t.identifier, t.vendor)) as transaction_count,
-            -- Bank transactions (business): positive = income, negative = expense
-            COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) as bank_income,
-            COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) as bank_expenses,
-            -- Credit card transactions (excluding Bank and Income categories)
-            -- Note: price is already the per-installment amount (combineInstallments: false)
-            COALESCE(SUM(
-              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
-            ), 0)::numeric as card_expenses,
-            (
-              COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) -
-              COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) -
-              COALESCE(SUM(
-                CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
-              ), 0)
-            )::numeric as net_balance
+            -- Sum all transactions with their original sign
+            -- Positive = income, Negative = expense
+            COALESCE(SUM(t.price), 0)::numeric as amount
           FROM transactions t
           ${credentialJoin}
           ${whereClause}
           GROUP BY t.name, t.category
-          ORDER BY (
-            COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) +
-            COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) +
-            COALESCE(SUM(
-              CASE WHEN COALESCE(t.category, 'Uncategorized') NOT IN ('Bank', 'Income') THEN ABS(t.price) ELSE 0 END
-            ), 0)
-          ) DESC, t.name
+          ORDER BY ABS(COALESCE(SUM(t.price), 0)) DESC, t.name
         `,
         params
       };
