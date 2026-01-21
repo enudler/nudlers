@@ -138,6 +138,7 @@ describe('3-Phase Categorization Logic', () => {
             expect(result.category).toBe('Scraper-Category');
             expect(result.categorySource).toBe('scraper');
         });
+
     });
 
     describe('Double-Spend / Duplicate Protection (with History Cache)', () => {

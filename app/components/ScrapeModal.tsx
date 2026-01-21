@@ -12,6 +12,8 @@ import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
+import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
@@ -21,6 +23,8 @@ import ErrorIcon from '@mui/icons-material/Error';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import TimerIcon from '@mui/icons-material/Timer';
+import ImageIcon from '@mui/icons-material/Image';
+import CloseIcon from '@mui/icons-material/Close';
 import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
 import { useTheme } from '@mui/material/styles';
@@ -115,6 +119,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { showNotification } = useNotification();
+  const [latestScreenshot, setLatestScreenshot] = useState<{ url: string, filename: string, stepName: string, timestamp: string } | null>(null);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -130,6 +137,10 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   }, [isLoading]);
   const todayStr = new Date().toISOString().split('T')[0];
   const clampDateString = (value: string) => (value > todayStr ? todayStr : value);
+  const formatDateForInput = (date: Date) => {
+    if (!date || isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
   const defaultConfig: ScraperConfig = {
     options: {
       companyId: 'isracard',
@@ -169,6 +180,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       setRateLimitState(null);
       setErrorType(null);
       setIsKilling(false);
+      setLatestScreenshot(null);
+      setSelectedScreenshot(null);
+      setIsCapturing(false);
       // Abort any ongoing scrape when modal closes
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -270,6 +284,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     setStepHistory([]);
     setNetworkLogs([]);
     setRateLimitState(null);
+    setLatestScreenshot(null);
     // Dispatch refresh event so global indicators (like header/sidebar) know it started
     window.dispatchEvent(new CustomEvent('dataRefresh'));
 
@@ -386,6 +401,13 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
                   return prev;
                 });
               }
+            } else if (currentEvent === 'screenshot') {
+              setLatestScreenshot({
+                url: data.url,
+                filename: data.filename,
+                stepName: data.stepName,
+                timestamp: data.timestamp
+              });
             } else if (currentEvent === 'complete') {
               setProgress({
                 step: 'complete',
@@ -428,6 +450,22 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
+    }
+  };
+
+  const handleTakeManualScreenshot = async () => {
+    setIsCapturing(true);
+    try {
+      const response = await fetch('/api/debug/take_screenshot', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Failed to take screenshot');
+      }
+      showNotification('Screenshot request sent', 'success');
+    } catch (err) {
+      logger.error('Failed to take manual screenshot', err as Error);
+      showNotification('Failed to take screenshot', 'error');
+    } finally {
+      setIsCapturing(false);
     }
   };
 
@@ -542,10 +580,12 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       <TextField
         label="Start Date"
         type="date"
-        value={config.options.startDate.toISOString().split('T')[0]}
+        value={formatDateForInput(config.options.startDate)}
         onChange={(e) => {
           const v = clampDateString(e.target.value);
-          handleConfigChange('options.startDate', new Date(v));
+          if (v) {
+            handleConfigChange('options.startDate', new Date(v));
+          }
         }}
         InputLabelProps={{
           shrink: true,
@@ -625,10 +665,12 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       <TextField
         label="Start Date"
         type="date"
-        value={config.options.startDate.toISOString().split('T')[0]}
+        value={formatDateForInput(config.options.startDate)}
         onChange={(e) => {
           const v = clampDateString(e.target.value);
-          handleConfigChange('options.startDate', new Date(v));
+          if (v) {
+            handleConfigChange('options.startDate', new Date(v));
+          }
         }}
         InputLabelProps={{
           shrink: true,
@@ -860,6 +902,52 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           </Box>
         )}
 
+        {/* Screenshot Debug Tools */}
+        {isLoading && !scrapeResult && (
+          <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'center' }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleTakeManualScreenshot}
+              disabled={isCapturing}
+              startIcon={isCapturing ? <CircularProgress size={16} color="inherit" /> : <ImageIcon />}
+              sx={{
+                fontSize: '10px',
+                py: 0.5,
+                borderColor: 'rgba(96, 165, 250, 0.3)',
+                color: '#60a5fa',
+                '&:hover': {
+                  borderColor: '#60a5fa',
+                  backgroundColor: 'rgba(96, 165, 250, 0.1)'
+                }
+              }}
+            >
+              {isCapturing ? 'Capturing...' : 'Take Debug Screenshot'}
+            </Button>
+
+            {latestScreenshot && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ImageIcon />}
+                onClick={() => setSelectedScreenshot(latestScreenshot.url)}
+                sx={{
+                  fontSize: '10px',
+                  py: 0.5,
+                  borderColor: 'rgba(34, 197, 94, 0.3)',
+                  color: '#22c55e',
+                  '&:hover': {
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)'
+                  }
+                }}
+              >
+                View Latest Screenshot
+              </Button>
+            )}
+          </Box>
+        )}
+
         {scrapeResult && (
           <Fade in={true}>
             <Box sx={{ mt: 3 }}>
@@ -1070,6 +1158,49 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           </>
         )}
       </DialogActions>
+
+      {/* Manual Screenshot Viewer Dialog */}
+      <Dialog
+        open={!!selectedScreenshot}
+        onClose={() => setSelectedScreenshot(null)}
+        maxWidth="xl"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'transparent',
+            boxShadow: 'none'
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0, position: 'relative', bgcolor: 'black', overflow: 'hidden' }}>
+          <IconButton
+            onClick={() => setSelectedScreenshot(null)}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: 16,
+              color: 'white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              zIndex: 10,
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          {selectedScreenshot && (
+            <Box
+              component="img"
+              src={selectedScreenshot}
+              sx={{
+                width: '100%',
+                display: 'block',
+                maxHeight: '90vh',
+                objectFit: 'contain'
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

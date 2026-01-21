@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev -p 6969",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_OPTIONS=--max-old-space-size=4096 next start",
     "lint": "next lint",
     "test": "NODE_OPTIONS=--max-old-space-size=4096 vitest run --logHeapUsage",
     "scrape": "ts-node --esm scrapers/index.ts"

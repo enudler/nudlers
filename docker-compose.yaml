@@ -23,8 +23,7 @@ services:
       retries: 5
 
   nudlers-app:
-    build:
-      context: ./app
+    image: ghcr.io/enudler/nudlers:latest
     env_file:
       - .env
     environment:

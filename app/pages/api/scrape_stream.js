@@ -159,6 +159,11 @@ async function handler(req, res) {
         return;
       }
 
+      if (payload?.type === 'screenshot') {
+        sendSSE(res, 'screenshot', payload);
+        return;
+      }
+
       const stepMessages = {
         'initializing': { message: 'Initializing scraper...', percent: 5, phase: 'initialization', success: true },
         'startScraping': { message: 'Starting scrape process...', percent: 10, phase: 'initialization', success: true },

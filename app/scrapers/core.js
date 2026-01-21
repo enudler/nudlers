@@ -1,16 +1,96 @@
-/**
- * Core Scraper logic that doesn't depend on DB or heavy utils.
- * Safe to import in standalone scripts/workers.
- */
+import {
+    CHROME_VERSION,
+    DEFAULT_USER_AGENT,
+    DEFAULT_SCRAPER_TIMEOUT,
+    DEFAULT_PROTOCOL_TIMEOUT,
+    CREDIT_CARD_VENDORS,
+    SCRAPER_DOCKER_FLAGS,
+    SCRAPER_LOW_RESOURCE_FLAGS
+} from '../utils/constants.js';
+import path from 'path';
+import fs from 'fs/promises';
+import { existsSync } from 'fs';
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
-export const RATE_LIMITED_VENDORS = ['isracard', 'amex', 'max', 'visaCal'];
-
+export const RATE_LIMITED_VENDORS = CREDIT_CARD_VENDORS;
 
 /**
  * Shared sleep helper
  */
 export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+
+// Active session tracking for manual screenshots (using global to survive HMR/isolation)
+if (!global.scraperActiveSession) {
+    global.scraperActiveSession = {
+        page: null,
+        onProgress: null,
+        companyId: null
+    };
+}
+
+/**
+ * Register the active scraper session
+ */
+export function registerActiveSession(page, companyId, onProgress) {
+    global.scraperActiveSession = { page, companyId, onProgress };
+}
+
+/**
+ * Clear the active scraper session
+ */
+export function clearActiveSession() {
+    global.scraperActiveSession = { page: null, companyId: null, onProgress: null };
+}
+
+/**
+ * Take a screenshot of the currently active session
+ */
+export async function takeManualScreenshot() {
+    if (!global.scraperActiveSession.page) {
+        throw new Error('No active scraper session found');
+    }
+    return await saveScreenshot(
+        global.scraperActiveSession.page,
+        global.scraperActiveSession.companyId || 'manual',
+        'manual-trigger',
+        global.scraperActiveSession.onProgress
+    );
+}
+
+/**
+ * Save a screenshot from a Puppeteer page
+ */
+export async function saveScreenshot(page, companyId, stepName, onProgress = null) {
+    try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `${companyId}-${stepName}-${timestamp}.png`;
+        const screenshotsDir = path.join(process.cwd(), 'public', 'debug', 'screenshots');
+
+        if (!existsSync(screenshotsDir)) {
+            await fs.mkdir(screenshotsDir, { recursive: true });
+        }
+
+        const filePath = path.join(screenshotsDir, filename);
+        await page.screenshot({ path: filePath, fullPage: true });
+        console.log(`[Scraper] Screenshot saved: ${filename}`);
+
+        if (onProgress) {
+            onProgress(companyId, {
+                type: 'screenshot',
+                filename,
+                url: `/api/debug/view_image?file=${filename}`,
+                stepName,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        return filename;
+    } catch (err) {
+        console.error('[Scraper] Failed to save screenshot:', err.message);
+        return null;
+    }
+}
 
 const LOW_RESOURCES_MODE = process.env.LOW_RESOURCES_MODE === 'true';
 
@@ -32,113 +112,51 @@ export function getChromePath() {
 }
 
 /**
- * Get scraper options with anti-detection measures
+ * Get scraper options with generic defaults
  */
 export function getScraperOptions(companyId, startDate, options = {}) {
     const showBrowser = options.showBrowser ?? false;
     const fetchCategories = options.fetchCategories ?? true;
+    const userAgent = DEFAULT_USER_AGENT;
 
-    const chromeVersion = '132.0.6834.83';
-    const userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
+    // Use minimalist args as the default for all vendors
+    const args = [...SCRAPER_DOCKER_FLAGS];
 
-    const baseArgs = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=IsolateOrigins,site-per-process',
-        '--window-size=1920,1080',
-        // Removed --disable-web-security as it can trigger security warnings
-        `--user-agent=${userAgent}`,
-        '--disable-infobars',
-        '--disable-extensions',
-        '--lang=he-IL,he,en-US,en',
-        '--disable-background-networking',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-breakpad',
-        '--disable-component-update',
-        '--disable-default-apps',
-        '--disable-hang-monitor',
-        '--disable-ipc-flooding-protection',
-        '--disable-popup-blocking',
-        '--disable-prompt-on-repost',
-        '--disable-renderer-backgrounding',
-        '--disable-sync',
-        '--metrics-recording-only',
-        '--no-first-run',
-        '--password-store=basic',
-        '--use-mock-keychain',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-    ];
+    // Specific flag for Visa Cal to avoid net::ERR_HTTP2_PROTOCOL_ERROR
+    if (companyId === 'visaCal') {
+        args.push('--disable-http2');
+    }
 
     if (LOW_RESOURCES_MODE) {
-        baseArgs.push(
-            '--disable-gl-drawing-for-tests',
-            '--mute-audio',
-            '--no-zygote',
-            '--disable-accelerated-2d-canvas',
-            '--disable-canvas-aa',
-            '--disable-2d-canvas-clip-aa',
-            '--disable-dev-shm-usage',
-            '--disable-notifications',
-            '--disable-offer-store-unmasked-wallet-cards',
-            '--disable-offer-upload-credit-cards',
-            '--disable-print-preview',
-            '--disable-speech-api',
-            '--disable-wake-on-wifi',
-            '--disk-cache-size=0', // Disable disk cache to save IO
-            '--disable-background-timer-throttling',
-            '--disable-breakpad',
-            '--disable-client-side-phishing-detection',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-datasaver-prompt',
-            '--disable-features=TranslateUI',
-            '--disable-hang-monitor',
-            '--disable-ipc-flooding-protection',
-            '--disable-popup-blocking',
-            '--disable-prompt-on-repost',
-            '--disable-renderer-backgrounding',
-            '--disable-sync',
-            '--force-color-profile=srgb',
-            '--metrics-recording-only',
-            '--no-first-run',
-            '--password-store=basic',
-            '--use-mock-keychain'
-        );
+        args.push(...SCRAPER_LOW_RESOURCE_FLAGS);
     }
+
+    // Add safe standard args for all vendors
+    args.push(
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1920,1080',
+        `--user-agent=${userAgent}`,
+        '--lang=he-IL,he,en-US,en',
+        '--disable-background-networking',
+        '--disable-component-update',
+        '--disable-default-apps',
+        '--disable-sync'
+    );
 
     if (showBrowser) {
-        // Use a configurable port or default to 9223 to avoid conflicts with existing Chrome instances
-        // Port 9222 is commonly used by other Chrome instances
         const debugPort = options.debugPort || 9223;
-        baseArgs.push(`--remote-debugging-port=${debugPort}`);
-        // Use localhost only to reduce detection surface
-        baseArgs.push('--remote-debugging-address=127.0.0.1');
+        args.push(`--remote-debugging-port=${debugPort}`);
+        args.push('--remote-debugging-address=127.0.0.1');
     } else {
-        baseArgs.push('--headless=new');
+        args.push('--headless=new');
     }
 
-    let timeout = options.timeout || 60000;
+    const isRateLimited = RATE_LIMITED_VENDORS.includes(companyId);
 
-    if (companyId === 'leumi') {
-        // For Leumi, use minimal options to match the library's default behavior
-        return {
-            companyId,
-            startDate,
-            combineInstallments: false,
-            additionalTransactionInformation: fetchCategories,
-            showBrowser,
-            headless: showBrowser ? false : 'new',
-            verbose: options.verbose ?? true,
-            timeout,
-            executablePath: getChromePath(),
-            // No custom args or viewport overrides for Leumi - STRICTLY default
-            // args: [], // Puppeteer usage of undefined args uses defaults
-            ...options
-        };
-    }
+    // Default timeout
+    const timeout = options.timeout || DEFAULT_SCRAPER_TIMEOUT;
+
+    const skipInterception = companyId === 'max' || options.skipInterception === true;
 
     return {
         companyId,
@@ -149,10 +167,13 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         headless: showBrowser ? false : 'new',
         verbose: options.verbose ?? true,
         timeout,
-        executablePath: getChromePath(),
-        args: baseArgs,
-        viewportSize: { width: 1920, height: 1080 },
         defaultTimeout: timeout,
+        protocolTimeout: options.protocolTimeout || DEFAULT_PROTOCOL_TIMEOUT,
+        executablePath: getChromePath(),
+        args,
+        viewportSize: { width: 1920, height: 1080 },
+        isRateLimited,
+        skipInterception,
         ...options
     };
 }
@@ -165,12 +186,18 @@ export function getPreparePage(options = {}) {
     const onProgress = options.onProgress;
     const forceSlowMode = options.forceSlowMode;
     const isRateLimited = options.isRateLimited ?? false;
-    const timeout = options.timeout ?? 60000;
+    const timeout = options.timeout ?? DEFAULT_SCRAPER_TIMEOUT;
 
     return async (page) => {
         // Set higher navigation and execution timeouts to avoid defaults
         await page.setDefaultNavigationTimeout(timeout);
         await page.setDefaultTimeout(timeout);
+
+        // Inject screenshot helper into page object
+        page.takeScreenshot = (stepName) => saveScreenshot(page, options.companyId || 'unknown', stepName, onProgress);
+
+        // Register session for manual trigger
+        registerActiveSession(page, options.companyId, onProgress);
 
         const randomDelay = (min, max) => new Promise(resolve =>
             setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
@@ -182,13 +209,13 @@ export function getPreparePage(options = {}) {
             // Enable request interception to block analytics and prevent hangs
             await page.setRequestInterception(true);
         }
-
-        page.on('request', (request) => {
+        page.on('request', async (request) => {
             try {
                 // If it's already handled by another listener (like the library's internal one), stop here.
                 if (request.isInterceptResolutionHandled()) return;
 
                 const url = request.url();
+
 
                 // Block Google Analytics and Tag Manager to prevent timeouts
                 if (!skipInterception) {
@@ -312,8 +339,7 @@ export function getPreparePage(options = {}) {
                     const url = typeof args[0] === 'string' ? args[0] : args[0].url;
                     if (url && (url.includes('DashboardMonth') || url.includes('CardsTransactionsList'))) {
                         const delay = 1000;
-                        // Use CSS-styled log if in browser console, or simple log
-                        console.log(`%c[Throttler] Throttling fetch for ${url.split('reqName=')[1]?.split('&')[0] || 'data'} (${delay}ms)`, 'color: orange; font-weight: bold;');
+                        // Throttled fetch
                         await new Promise(r => setTimeout(r, delay));
                     }
                     return originalFetch.apply(this, args);
@@ -329,7 +355,7 @@ export function getPreparePage(options = {}) {
                 XMLHttpRequest.prototype.send = function (...args) {
                     const url = this._url || '';
                     if (url && (url.includes('DashboardMonth') || url.includes('CardsTransactionsList'))) {
-                        console.log(`[Throttler] XHR detected for ${url}`);
+                        // Throttled XHR
                     }
                     return originalSend.apply(this, args);
                 };
@@ -386,7 +412,7 @@ export function getPreparePage(options = {}) {
             Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
             Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
 
-            // Additional anti-detection for Leumi and other banks
+            // Additional anti-detection for specific banks
             if (options.companyId === 'hapoalim' || options.companyId === 'discount') {
                 // Override connection API
                 if (navigator.connection) {
@@ -408,7 +434,7 @@ export function getPreparePage(options = {}) {
         }, options);
 
         // Set comprehensive headers to avoid bot detection
-        const chromeVersion = '132.0.6834.83';
+        const chromeVersion = CHROME_VERSION;
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
             'Sec-CH-UA': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not=A?Brand";v="8"`,
@@ -419,7 +445,7 @@ export function getPreparePage(options = {}) {
             'Sec-CH-UA-Model': '""',
         });
 
-        // Add navigation delays for rate-limited vendors (including Leumi)
+        // Add navigation delays for rate-limited vendors
         if (isRateLimited) {
             const originalGoto = page.goto.bind(page);
             page.goto = async (url, options) => {
