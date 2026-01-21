@@ -1189,6 +1189,9 @@ const CategoryDashboard: React.FC = () => {
                 border: '1px solid rgba(139, 92, 246, 0.2)'
               }}>
                 💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                <span style={{ opacity: 0.7, marginLeft: '8px', fontSize: '13px' }}>
+                  ({new Date(startDate).toLocaleDateString('en-GB')} - {new Date(endDate).toLocaleDateString('en-GB')})
+                </span>
               </span>
             </div>
           ) : null}
