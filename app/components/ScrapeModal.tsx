@@ -456,7 +456,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
   const handleTakeManualScreenshot = async () => {
     setIsCapturing(true);
     try {
-      const response = await fetch('/api/debug/take-screenshot', { method: 'POST' });
+      const response = await fetch('/api/debug/take_screenshot', { method: 'POST' });
       if (!response.ok) {
         throw new Error('Failed to take screenshot');
       }

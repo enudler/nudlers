@@ -25,7 +25,7 @@ export default async function handler(req, res) {
 
                         return {
                             filename: file,
-                            url: `/api/debug/view-image?file=${file}`,
+                            url: `/api/debug/view_image?file=${file}`,
                             companyId,
                             stepName,
                             timestamp: stats.mtime,
