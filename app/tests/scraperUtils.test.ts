@@ -30,10 +30,14 @@ vi.mock('../scrapers/core.js', () => ({
 }));
 
 // Mock constants
-vi.mock('../utils/constants.js', () => ({
-    BANK_VENDORS: ['hapoalim', 'leumi', 'discount', 'mizrahi', 'yahav', 'beinleumi'],
-    BEINLEUMI_GROUP_VENDORS: ['beinleumi', 'massad', 'igud', 'mercantile']
-}));
+vi.mock('../utils/constants.js', async (importOriginal) => {
+    const actual = await importOriginal<any>();
+    return {
+        ...actual,
+        BANK_VENDORS: ['hapoalim', 'leumi', 'discount', 'mizrahi', 'yahav', 'beinleumi'],
+        BEINLEUMI_GROUP_VENDORS: ['beinleumi', 'massad', 'igud', 'mercantile', 'otsarHahayal']
+    };
+});
 
 // Mock transactionUtils
 vi.mock('../pages/api/utils/transactionUtils.js', () => ({

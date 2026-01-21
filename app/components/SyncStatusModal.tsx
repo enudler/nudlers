@@ -34,6 +34,10 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import dynamic from 'next/dynamic';
 const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
+import ImageIcon from '@mui/icons-material/Image';
+import CloseIcon from '@mui/icons-material/Close';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
 
 interface SyncStatusModalProps {
   open: boolean;
@@ -259,6 +263,12 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         accountName?: string;
       }>;
     };
+    latestScreenshot?: {
+      url: string;
+      filename: string;
+      stepName: string;
+      timestamp: string;
+    } | null;
   } | null>(null);
 
   const [syncStartTime, setSyncStartTime] = useState<number | null>(null);
@@ -280,6 +290,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   const [isStopping, setIsStopping] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [stopStatus, setStopStatus] = useState<string | null>(null);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   interface QueueItem {
     id: number | string;
     accountName: string;
@@ -356,7 +367,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const fetchStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/sync_status');
+      const response = await fetch('/api/scrapers/status');
       if (response.ok) {
         const data = await response.json();
         setStatus(data);
@@ -446,7 +457,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
-      const response = await fetch(`/api/last_transaction_date?vendor=${encodeURIComponent(vendor)}`);
+      const response = await fetch(`/api/scrapers/last-transaction-date?vendor=${encodeURIComponent(vendor)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.lastDate) {
@@ -511,7 +522,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       // Stop all server-side scrapers
       try {
         setStopStatus('Sending stop command...');
-        const response = await fetch('/api/stop_scrapers', { method: 'POST' });
+        const response = await fetch('/api/scrapers/stop', { method: 'POST' });
         const data = await response.json();
         if (data.success) {
           setStopStatus('Successfully stopped all processes.');
@@ -549,7 +560,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       abortControllerRef.current = new AbortController();
 
       try {
-        const response = await fetch('/api/sync_all_stream', {
+        const response = await fetch('/api/scrapers/sync-all-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ daysBack: status?.settings?.daysBack || 30 }),
@@ -613,6 +624,18 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                     percent: eventData.percent || prev?.percent,
                     phase: eventData.phase || prev?.phase,
                     success: eventData.success
+                  }));
+                  break;
+
+                case 'screenshot':
+                  setSyncProgress(prev => ({
+                    ...prev!,
+                    latestScreenshot: {
+                      url: eventData.url,
+                      filename: eventData.filename,
+                      stepName: eventData.stepName,
+                      timestamp: eventData.timestamp
+                    }
                   }));
                   break;
 
@@ -718,7 +741,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             credentialId: account.id
           };
 
-          const syncResponse = await fetch('/api/scrape_stream', {
+          const syncResponse = await fetch('/api/scrapers/run-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
@@ -748,15 +771,26 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   const eventData = JSON.parse(line.slice(6));
 
                   if (currentEvent === 'progress') {
-                    setSyncProgress({
+                    setSyncProgress(prev => ({
                       current: 0,
                       total: 1,
                       currentAccount: account.nickname || account.vendor,
                       currentStep: eventData.message || '',
                       percent: eventData.percent || 0,
                       phase: eventData.phase || '',
-                      success: eventData.success
-                    });
+                      success: eventData.success,
+                      latestScreenshot: prev?.latestScreenshot
+                    }));
+                  } else if (currentEvent === 'screenshot') {
+                    setSyncProgress(prev => ({
+                      ...prev!,
+                      latestScreenshot: {
+                        url: eventData.url,
+                        filename: eventData.filename,
+                        stepName: eventData.stepName,
+                        timestamp: eventData.timestamp
+                      }
+                    }));
                   } else if (currentEvent === 'error') {
                     throw new Error(eventData.message || 'Sync failed');
                   } else if (currentEvent === 'complete') {
@@ -840,7 +874,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/get_scrape_report?id=${event.id}`);
+      const response = await fetch(`/api/scrape-events/${event.id}/report`);
       if (response.ok) {
         const data = await response.json();
         // Handle both formats: direct transactions array or nested in processedTransactions
@@ -1116,6 +1150,28 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                                   }
                                 }}
                               />
+                              {syncProgress?.latestScreenshot && (
+                                <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center' }}>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<ImageIcon />}
+                                    onClick={() => setSelectedScreenshot(syncProgress.latestScreenshot?.url || null)}
+                                    sx={{
+                                      fontSize: '10px',
+                                      py: 0.5,
+                                      borderColor: 'rgba(96, 165, 250, 0.3)',
+                                      color: '#60a5fa',
+                                      '&:hover': {
+                                        borderColor: '#60a5fa',
+                                        backgroundColor: 'rgba(96, 165, 250, 0.1)'
+                                      }
+                                    }}
+                                  >
+                                    View Browser Screenshot
+                                  </Button>
+                                </Box>
+                              )}
                             </Box>
                           )}
 
@@ -1396,6 +1452,49 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
           </>
         )}
       </Box>
+
+      {/* Screenshot Overlay Viewer */}
+      <Dialog
+        open={!!selectedScreenshot}
+        onClose={() => setSelectedScreenshot(null)}
+        maxWidth="xl"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'transparent',
+            boxShadow: 'none'
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0, position: 'relative', bgcolor: 'black', overflow: 'hidden' }}>
+          <IconButton
+            onClick={() => setSelectedScreenshot(null)}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: 16,
+              color: 'white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              zIndex: 10,
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          {selectedScreenshot && (
+            <Box
+              component="img"
+              src={selectedScreenshot}
+              sx={{
+                width: '100%',
+                display: 'block',
+                maxHeight: '90vh',
+                objectFit: 'contain'
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </StyledDrawer >
   );
 };

@@ -131,7 +131,7 @@ const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode
 
 // Helper function to fetch all transactions for a date range
 const fetchAllTransactions = async (startDate: string, endDate: string, billingCycle?: string) => {
-  const url = new URL("/api/category_expenses", window.location.origin);
+  const url = new URL("/api/reports/category-expenses", window.location.origin);
 
   if (billingCycle) {
     // In billing mode, use billingCycle parameter (filters by processed_date)
@@ -242,7 +242,7 @@ const CategoryDashboard: React.FC = () => {
   // Fetch budget data
   const fetchBudgetData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     try {
-      const url = new URL("/api/budget_vs_actual", window.location.origin);
+      const url = new URL("/api/reports/budget-vs-actual", window.location.origin);
 
       if (billingCycle) {
         url.searchParams.append("billingCycle", billingCycle);
@@ -306,7 +306,7 @@ const CategoryDashboard: React.FC = () => {
 
   const fetchData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     try {
-      const url = new URL("/api/month_by_categories", window.location.origin);
+      const url = new URL("/api/reports/month-by-categories", window.location.origin);
 
       if (billingCycle) {
         url.searchParams.append("billingCycle", billingCycle);
@@ -608,7 +608,7 @@ const CategoryDashboard: React.FC = () => {
   const handleCategoryClick = async (category: string) => {
     try {
       setLoadingCategory(category);
-      const url = new URL("/api/category_expenses", window.location.origin);
+      const url = new URL("/api/reports/category-expenses", window.location.origin);
 
       if (dateRangeMode === 'billing') {
         // In billing mode, use billingCycle parameter (filters by processed_date)

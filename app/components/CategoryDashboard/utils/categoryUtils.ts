@@ -245,7 +245,7 @@ export const findBestMatchingIcon = (categoryName: string): SvgIconComponent => 
 // Function to fetch categories from the API
 export const fetchCategories = async (): Promise<string[]> => {
   try {
-    const response = await fetch('/api/get_all_categories');
+    const response = await fetch('/api/categories');
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
       const errorMessage = `Failed to fetch categories: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;

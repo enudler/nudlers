@@ -191,11 +191,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /transactions/delete_all_transactions:
+  /transactions/delete-all:
     delete:
+      deprecated: true
       tags:
         - Transactions
-      summary: Delete all transactions
+      summary: (Deprecated) Delete all transactions. Use DELETE /transactions instead.
       description: Delete all transactions with confirmation
       requestBody:
         required: true
@@ -226,11 +227,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /manual_transaction:
+  /transactions/manual:
     post:
+      deprecated: true
       tags:
         - Transactions
-      summary: Create a manual transaction
+      summary: (Deprecated) Create manual transaction. Use POST /transactions instead.
       requestBody:
         required: true
         content:
@@ -299,7 +301,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Transaction'
 
-  /monthly_summary:
+  /reports/monthly-summary:
     get:
       tags:
         - Reports
@@ -349,7 +351,7 @@ paths:
                     net_balance:
                       type: number
 
-  /budget_vs_actual:
+  /reports/budget-vs-actual:
     get:
       tags:
         - Reports
@@ -389,7 +391,7 @@ paths:
                     remaining:
                       type: number
 
-  /daily_spending:
+  /reports/daily-spending:
     get:
       tags:
         - Reports
@@ -426,7 +428,7 @@ paths:
                     total:
                       type: number
 
-  /category_expenses:
+  /reports/category-expenses:
     get:
       tags:
         - Reports
@@ -459,7 +461,7 @@ paths:
                     count:
                       type: integer
 
-  /recurring_payments:
+  /reports/recurring-payments:
     get:
       tags:
         - Reports
@@ -588,10 +590,10 @@ paths:
                   success:
                     type: boolean
 
-  /total_budget:
+  /reports/total-budget:
     get:
       tags:
-        - Budgets
+        - Reports
       summary: Get total budget limit
       responses:
         '200':
@@ -629,7 +631,7 @@ paths:
                   success:
                     type: boolean
 
-  /get_all_categories:
+  /categories:
     get:
       tags:
         - Categories
@@ -644,7 +646,7 @@ paths:
                 items:
                   type: string
 
-  /categorization_rules:
+  /categories/rules:
     get:
       tags:
         - Categories
@@ -686,7 +688,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CategorizationRule'
 
-  /category_mappings:
+  /categories/mappings:
     get:
       tags:
         - Categories
@@ -975,11 +977,11 @@ paths:
                   message:
                     type: string
 
-  /sync_status:
+  /scrapers/status:
     get:
       tags:
         - Scraping
-      summary: Get sync status
+      summary: Get current scraping status
       description: Get overall sync health, settings, latest scrape, and history.
       responses:
         '200':
@@ -989,7 +991,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SyncStatusResponse'
 
-  /sync_all_stream:
+  /scrapers/sync-all-stream:
     post:
       tags:
         - Scraping
@@ -1052,11 +1054,11 @@ paths:
         '404':
           description: Scrape report not found
 
-  /last_transaction_date:
+  /scrapers/last-transaction-date:
     get:
       tags:
-        - Transactions
-      summary: Get last transaction date
+        - Scraping
+      summary: Get last transaction date for a vendor
       parameters:
         - name: vendor
           in: query
@@ -1075,10 +1077,10 @@ paths:
                     type: string
                     format: date-time
 
-  /ai_chat:
+  /chat/message:
     post:
       tags:
-        - Reports
+        - AI Chat
       summary: Chat with financial AI assistant
       requestBody:
         required: true
@@ -1094,10 +1096,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AIChatResponse'
 
-  /ai_chat_stream:
+  /chat/stream:
     post:
       tags:
-        - Reports
+        - AI Chat
       summary: Chat with financial AI assistant (streaming)
       requestBody:
         required: true
@@ -1113,7 +1115,7 @@ paths:
               schema:
                 type: string
 
-  /stop_scrapers:
+  /scrapers/stop:
     post:
       tags:
         - Scraping
@@ -1159,7 +1161,7 @@ paths:
         '200':
           description: Settings updated
 
-  /available_vendors:
+  /scrapers/vendors:
     get:
       tags:
         - Scraping
@@ -1183,7 +1185,7 @@ paths:
                       type: string
                       enum: [bank, card]
 
-  /available_months:
+  /reports/available-months:
     get:
       tags:
         - Reports
@@ -1216,7 +1218,7 @@ paths:
                     type: string
                     example: ok
 
-  /month_by_categories:
+  /reports/month-by-categories:
     get:
       tags:
         - Reports
@@ -1253,7 +1255,7 @@ paths:
                     count:
                       type: integer
 
-  /box_panel_data:
+  /reports/box-panel:
     get:
       tags:
         - Reports
@@ -1290,11 +1292,12 @@ paths:
                   savings_rate:
                     type: number
 
-  /transactions_by_description:
+  /transactions/by-description:
     get:
+      deprecated: true
       tags:
         - Transactions
-      summary: Get transactions by description
+      summary: (Deprecated) Get transactions by description. Use GET /transactions instead.
       parameters:
         - name: description
           in: query
@@ -1325,11 +1328,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/Transaction'
 
-  /transactions_by_last4:
+  /transactions/by-last4:
     get:
+      deprecated: true
       tags:
         - Transactions
-      summary: Get transactions by card last 4 digits
+      summary: (Deprecated) Get transactions by card last 4 digits. Use GET /transactions instead.
       parameters:
         - name: last4digits
           in: query
@@ -1360,7 +1364,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Transaction'
 
-  /uncategorized_descriptions:
+  /categories/uncategorized:
     get:
       tags:
         - Categories
@@ -1382,7 +1386,7 @@ paths:
                     totalAmount:
                       type: number
 
-  /apply_categorization_rules:
+  /categories/apply-rules:
     post:
       tags:
         - Categories
@@ -1402,11 +1406,11 @@ paths:
                   transactionsUpdated:
                     type: integer
 
-  /update_category_by_description:
+  /categories/update-by-description:
     post:
       tags:
         - Categories
-      summary: Update category by description
+      summary: Update category for all transactions with a specific description
       requestBody:
         required: true
         content:
@@ -1591,7 +1595,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/ChatMessage'
 
-  /database/export:
+  /maintenance/database/export:
     get:
       tags:
         - Settings
@@ -1604,7 +1608,7 @@ paths:
               schema:
                 type: object
 
-  /database/import:
+  /maintenance/database/import:
     post:
       tags:
         - Settings

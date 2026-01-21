@@ -186,7 +186,7 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
     try {
       const formattedDate = transactionData.date.toISOString().split('T')[0];
 
-      const response = await fetch("/api/manual_transaction", {
+      const response = await fetch("/api/transactions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

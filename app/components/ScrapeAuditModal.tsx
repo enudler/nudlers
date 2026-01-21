@@ -32,7 +32,7 @@ export default function ScrapeAuditModal({ open, onClose }: Props) {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/scrape_events?limit=200');
+      const res = await fetch('/api/scrape-events?limit=200');
       const data = await res.json();
       setEvents(data);
     } catch (e) {

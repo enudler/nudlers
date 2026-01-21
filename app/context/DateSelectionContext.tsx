@@ -135,7 +135,7 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
             }
 
             // 3. Fetch Available Months
-            const response = await fetch("/api/available_months");
+            const response = await fetch("/api/reports/available-months");
             const transactionsData = await response.json();
             setAllAvailableDates(transactionsData);
 

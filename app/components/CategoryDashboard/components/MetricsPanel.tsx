@@ -130,7 +130,7 @@ const MetricsPanel: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const response = await fetch("/api/box_panel_data");
+      const response = await fetch("/api/reports/box-panel");
       const result = await response.json();
       setData(result as BoxPanelData);
     } catch (error) {

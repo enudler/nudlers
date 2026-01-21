@@ -93,7 +93,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/recurring_payments');
+      const response = await fetch('/api/reports/recurring-payments');
       if (!response.ok) {
         throw new Error('Failed to fetch recurring payments');
       }

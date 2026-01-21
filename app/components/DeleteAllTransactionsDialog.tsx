@@ -54,7 +54,7 @@ const DeleteAllTransactionsDialog: React.FC<DeleteAllTransactionsDialogProps> = 
         setError(null);
 
         try {
-            const response = await fetch('/api/database/export');
+            const response = await fetch('/api/maintenance/database/export');
             if (!response.ok) {
                 throw new Error('Failed to export database');
             }
@@ -95,9 +95,10 @@ const DeleteAllTransactionsDialog: React.FC<DeleteAllTransactionsDialogProps> = 
         setError(null);
 
         try {
-            const response = await fetch('/api/transactions/delete_all_transactions', {
+            const response = await fetch('/api/transactions', {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirm: true })
             });
 
             if (!response.ok) {

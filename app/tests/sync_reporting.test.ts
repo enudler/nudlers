@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getDB } from '../pages/api/db';
 import * as scraperUtils from '../pages/api/utils/scraperUtils';
-import scrapeEventsHandler from '../pages/api/scrape_events';
-import getScrapeReportHandler from '../pages/api/get_scrape_report';
-import scrapeHandler from '../pages/api/scrape';
+import scrapeEventsHandler from '../pages/api/scrape-events/index';
+import getScrapeReportHandler from '../pages/api/scrape-events/[id]/report';
+import scrapeHandler from '../pages/api/scrapers/run';
 
 // Mock the database module
 vi.mock('../pages/api/db', () => ({
@@ -45,9 +45,13 @@ vi.mock('../pages/api/utils/scraperUtils', async (importOriginal) => {
 });
 
 // Mock constants
-vi.mock('../utils/constants', () => ({
-    BANK_VENDORS: ['hapoalim']
-}));
+vi.mock('../utils/constants', async (importOriginal) => {
+    const actual = await importOriginal<any>();
+    return {
+        ...actual,
+        BANK_VENDORS: ['hapoalim']
+    };
+});
 
 describe('Sync Reporting and Audit', () => {
     let mockClient: any;

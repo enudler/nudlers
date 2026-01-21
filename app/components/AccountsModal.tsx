@@ -199,7 +199,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
 
   const fetchCardOwnership = async () => {
     try {
-      const response = await fetch('/api/card_ownership');
+      const response = await fetch('/api/cards/ownerships');
       if (response.ok) {
         const data = await response.json();
         setCardOwnership(data);
@@ -223,7 +223,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   // Update card's linked bank account
   const handleUpdateCardBankAccount = async (cardId: number, bankAccountId: number | null) => {
     try {
-      const response = await fetch(`/api/card_ownership/${cardId}`, {
+      const response = await fetch(`/api/cards/ownerships/${cardId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

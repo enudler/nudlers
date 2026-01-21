@@ -230,7 +230,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           if (categoryChanged) {
             if (applyToAll) {
               // Apply to ALL matching transactions and create rule
-              const response = await fetch('/api/update_category_by_description', {
+              const response = await fetch('/api/categories/update-by-description', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -427,7 +427,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         }
       } else {
         // Fallback to name-based delete for backward compatibility
-        const response = await fetch(`/api/transactions/delete_transaction`, {
+        const response = await fetch(`/api/transactions/delete-transaction`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',

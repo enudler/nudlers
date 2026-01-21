@@ -11,7 +11,7 @@ export const useCategories = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/get_all_categories');
+        const response = await fetch('/api/categories');
         if (response.ok) {
           const data = await response.json();
           setCategories(data);
