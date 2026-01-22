@@ -124,7 +124,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     date_format: 'DD/MM/YYYY',
     billing_cycle_start_day: 10,
     // fetch_categories_from_scrapers removed
-    scraper_timeout: 60000,
+    scraper_timeout: 90000,
     scraper_log_http_requests: false,
     update_category_on_rescrape: false,
     scrape_retries: 3,
@@ -170,7 +170,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           date_format: (data.settings.date_format || 'DD/MM/YYYY').replace(/"/g, ''),
           billing_cycle_start_day: parseInt(data.settings.billing_cycle_start_day) || 10,
           // fetch_categories_from_scrapers removed
-          scraper_timeout: parseInt(data.settings.scraper_timeout) || parseInt(data.settings.scraper_timeout_standard) || 60000,
+          scraper_timeout: parseInt(data.settings.scraper_timeout) || parseInt(data.settings.scraper_timeout_standard) || 90000,
           scraper_log_http_requests: data.settings.scraper_log_http_requests === undefined
             ? false // Default to false if not set (matches backend behavior)
             : parseBool(data.settings.scraper_log_http_requests),
@@ -520,13 +520,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 <Box>
                   <Typography variant="body1">Scraper Timeout (ms)</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Maximum duration for scraping operations (default: 60000ms)
+                    Maximum duration for scraping operations (default: 90000ms = 90 seconds)
                   </Typography>
                 </Box>
                 <StyledTextField
                   type="number"
                   value={settings.scraper_timeout}
-                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 60000 })}
+                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 90000 })}
                   size="small"
                   sx={{ width: '120px' }}
                   inputProps={{ min: 1000, step: 1000 }}
