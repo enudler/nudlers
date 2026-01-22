@@ -17,6 +17,7 @@ import {
 
   getFetchCategoriesSetting,
   getScraperTimeout,
+  getScrapeRetries,
   runScraper,
   loadCategorizationRules,
   loadCategoryMappings,
@@ -99,46 +100,92 @@ async function handler(req, res) {
     const triggeredBy = credentials?.username || credentials?.id || credentials?.nickname || 'unknown';
     auditId = await insertScrapeAudit(client, triggeredBy, options.companyId, new Date(options.startDate));
 
+    // Get retry settings
+    const maxRetries = await getScrapeRetries(client);
+    logger.info({ maxRetries }, '[Scraper Handler] Retry settings loaded');
+
     let result;
-    try {
-      logger.info({ companyId: options.companyId, fetchCategories: fetchCategoriesSetting }, '[Scraper Handler] Starting scrape');
+    let lastError = null;
+    let attempt = 0;
 
-      const onProgress = (type, data) => {
-        logger.info({ ...data, vendor: options.companyId }, `[Scraper Progress] ${data.message || data.type}`);
-      };
+    // Retry loop
+    for (attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Calculate exponential backoff: 5s, 10s, 20s, etc.
+          const retryDelay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          logger.info({
+            attempt,
+            maxRetries,
+            retryDelay,
+            previousError: lastError
+          }, '[Scraper Handler] Retrying scrape after delay');
 
-      result = await runScraper(client, scraperOptions, scraperCredentials, onProgress);
-
-    } catch (scrapeError) {
-      const errorMessage = scrapeError.message || 'Scraper exception';
-      await updateScrapeAudit(client, auditId, 'failed', errorMessage);
-
-      // Handle common scraper errors
-      if (errorMessage.includes('JSON') || errorMessage.includes('Unexpected end of JSON') || errorMessage.includes('invalid json') || errorMessage.includes('GetFrameStatus') || errorMessage.includes('frame') || errorMessage.includes('timeout')) {
-        if (options.companyId === 'visaCal') {
-          throw new Error(`VisaCal API Error: The Cal website returned an invalid response. This may be due to temporary service issues or website changes. Try again in a few minutes. Error: ${errorMessage}`);
+          await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        } else {
+          logger.info({ companyId: options.companyId, fetchCategories: fetchCategoriesSetting }, '[Scraper Handler] Starting scrape');
         }
-        throw new Error(`API Error: Invalid response from ${options.companyId}. Try again later. Error: ${errorMessage}`);
-      }
 
-      throw new Error(errorMessage);
+        const onProgress = (type, data) => {
+          logger.info({ ...data, vendor: options.companyId }, `[Scraper Progress] ${data.message || data.type}`);
+        };
+
+        result = await runScraper(client, scraperOptions, scraperCredentials, onProgress);
+
+        // Success - break out of retry loop
+        if (result.success) {
+          if (attempt > 0) {
+            logger.info({ attempt }, '[Scraper Handler] Scrape succeeded after retry');
+          }
+          break;
+        } else {
+          // Scraper returned unsuccessful result - treat as error for retry
+          const errorType = result.errorType || 'GENERIC';
+          const errorMsg = result.errorMessage || errorType || 'Scraping failed';
+          lastError = errorMsg;
+
+          if (attempt < maxRetries) {
+            logger.warn({ attempt, maxRetries, error: errorMsg }, '[Scraper Handler] Scrape unsuccessful, will retry');
+            continue;
+          } else {
+            // Final attempt failed
+            throw new Error(`${errorType}: ${errorMsg}`);
+          }
+        }
+
+      } catch (scrapeError) {
+        lastError = scrapeError.message || 'Scraper exception';
+
+        if (attempt < maxRetries) {
+          logger.warn({
+            attempt,
+            maxRetries,
+            error: lastError
+          }, '[Scraper Handler] Scrape failed, will retry');
+          continue;
+        } else {
+          // Final attempt - update audit and throw
+          await updateScrapeAudit(client, auditId, 'failed', lastError);
+
+          // Handle common scraper errors
+          if (lastError.includes('JSON') || lastError.includes('Unexpected end of JSON') || lastError.includes('invalid json') || lastError.includes('GetFrameStatus') || lastError.includes('frame') || lastError.includes('timeout')) {
+            if (options.companyId === 'visaCal') {
+              throw new Error(`VisaCal API Error: The Cal website returned an invalid response. This may be due to temporary service issues or website changes. Try again in a few minutes. Error: ${lastError}`);
+            }
+            throw new Error(`API Error: Invalid response from ${options.companyId}. Try again later. Error: ${lastError}`);
+          }
+
+          throw new Error(lastError);
+        }
+      }
     }
 
-    if (!result.success) {
-      const errorType = result.errorType || 'GENERIC';
-      const errorMsg = result.errorMessage || errorType || 'Scraping failed';
-      await updateScrapeAudit(client, auditId, 'failed', errorMsg);
-
-      // Handle JSON parsing errors (common with VisaCal API)
-      if (errorMsg.includes('JSON') || errorMsg.includes('Unexpected end of JSON') || errorMsg.includes('invalid json') || errorMsg.includes('GetFrameStatus') || errorMsg.includes('frame') || errorMsg.includes('timeout')) {
-        if (options.companyId === 'visaCal') {
-          throw new Error(`VisaCal API Error: The Cal website returned an invalid response (${errorMsg}). This may be due to temporary service issues, rate limiting, or website changes. Please try again in a few minutes.`);
-        }
-        throw new Error(`API Error: Invalid JSON response from ${options.companyId} (${errorMsg}). This may be a temporary issue. Please try again later.`);
-      }
-
-      throw new Error(`${errorType}: ${errorMsg}`);
+    // At this point, result should be successful (otherwise we would have thrown in the retry loop)
+    if (!result) {
+      throw new Error('[Scraper Handler] Unexpected error: result is undefined after retry loop');
     }
+
 
     // Load rules and settings for processing
     const categorizationRules = await loadCategorizationRules(client);

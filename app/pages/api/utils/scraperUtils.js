@@ -11,6 +11,7 @@ import {
   APP_SETTINGS_KEYS,
   FETCH_SETTING_SQL,
   DEFAULT_SCRAPER_TIMEOUT,
+  DEFAULT_SCRAPE_RETRIES,
   SCRAPER_PHASE3_MAX_CALLS,
   SCRAPER_PHASE3_DELAY,
   SCRAPER_PHASE3_BATCH_SIZE,
@@ -728,7 +729,15 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
     throw new Error(`Missing companyId in scraper options. Received: ${JSON.stringify(options)}`);
   }
 
-  let scraper = createScraper(options);
+  let scraper;
+  if (options.companyId === 'visaCal') {
+    const { default: CustomVisaCalScraper } = await import('../../../scrapers/CustomVisaCalScraper.js');
+    // We need to manually initialize it similar to how createScraper does
+    // createScraper code: return new Scraper(options);
+    scraper = new CustomVisaCalScraper(options);
+  } else {
+    scraper = createScraper(options);
+  }
 
   if (scraper && typeof scraper.on === 'function') {
     scraper.on('progress', (companyId, progress) => {
@@ -928,6 +937,24 @@ export async function getBillingCycleStartDay(client) {
   const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.BILLING_CYCLE_START_DAY]);
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 10 : 10;
 }
+
+export async function getScrapeRetries(client) {
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPE_RETRIES]);
+  const value = result.rows.length > 0 ? parseInt(result.rows[0].value) : DEFAULT_SCRAPE_RETRIES;
+
+  // Validate: must be >= 0 and <= 10 (reasonable upper limit)
+  if (isNaN(value) || value < 0) {
+    logger.warn({ value }, '[Scraper Utils] Invalid scrape_retries value, using default');
+    return DEFAULT_SCRAPE_RETRIES;
+  }
+  if (value > 10) {
+    logger.warn({ value }, '[Scraper Utils] scrape_retries too high (max 10), capping at 10');
+    return 10;
+  }
+
+  return value;
+}
+
 
 
 /**

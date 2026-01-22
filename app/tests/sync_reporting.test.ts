@@ -25,13 +25,14 @@ vi.mock('../pages/api/utils/scraperUtils', async (importOriginal) => {
     const actual: any = await importOriginal();
     return {
         ...actual,
-        runScraper: vi.fn(),
+        runScraper: vi.fn().mockResolvedValue({ success: true, accounts: [] }),
         processScrapedAccounts: vi.fn(),
         updateScrapeAudit: vi.spyOn(actual, 'updateScrapeAudit'), // Spy on the actual implementation
         insertScrapeAudit: vi.fn().mockResolvedValue(123),
         updateCredentialLastSynced: vi.fn(),
         getFetchCategoriesSetting: vi.fn().mockResolvedValue(true),
         getScraperTimeout: vi.fn().mockResolvedValue(60000),
+        getScrapeRetries: vi.fn().mockResolvedValue(3),
         getScraperOptions: vi.fn().mockReturnValue({}),
         getLogHttpRequestsSetting: vi.fn().mockResolvedValue(false),
         loadCategorizationRules: vi.fn().mockResolvedValue([]),
@@ -67,6 +68,10 @@ describe('Sync Reporting and Audit', () => {
         };
 
         (getDB as any).mockResolvedValue(mockClient);
+
+        // Reset mocks to default values
+        (scraperUtils.runScraper as any).mockResolvedValue({ success: true, accounts: [] });
+        (scraperUtils.processScrapedAccounts as any).mockResolvedValue({ savedTransactions: 0, processedTransactions: [] });
 
         mockRes = {
             status: vi.fn().mockReturnThis(),
@@ -197,6 +202,8 @@ describe('Sync Reporting and Audit', () => {
                 }
             };
 
+            // Set retries to 0 to avoid retry loop complexity in test
+            (scraperUtils.getScrapeRetries as any).mockResolvedValue(0);
             (scraperUtils.runScraper as any).mockResolvedValue({ success: true, accounts: [] });
             (scraperUtils.processScrapedAccounts as any).mockResolvedValue(mockStats);
             (scraperUtils.insertScrapeAudit as any).mockResolvedValue(123);
