@@ -10,6 +10,7 @@ import {
   updateCredentialLastSynced,
   getFetchCategoriesSetting,
   getScraperTimeout,
+  getScrapeRetries,
   runScraper,
   loadCategorizationRules,
   loadCategoryMappings,
@@ -231,22 +232,129 @@ async function handler(req, res) {
       processedTransactions: []
     };
 
+    // Get retry settings
+    const maxRetries = await getScrapeRetries(client);
+    logger.info({ maxRetries }, '[Scrape Stream] Retry settings loaded');
+
     let result;
-    try {
-      sendSSE(res, 'progress', {
-        step: 'startScraping',
-        message: 'Starting scrape process...',
-        percent: 10,
-        phase: 'initialization',
-        success: true
-      });
+    let lastError = null;
+    let attempt = 0;
 
-      result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => false);
+    // Retry loop with UI feedback
+    for (attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Calculate exponential backoff: 5s, 10s, 20s, etc.
+          const retryDelay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          logger.info({
+            attempt,
+            maxRetries,
+            retryDelay,
+            previousError: lastError
+          }, '[Scrape Stream] Retrying scrape after delay');
 
-      if (!result.success) {
-        throw new Error(result.errorMessage || 'Scraper failed');
+          await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+
+          // Send retry message to UI
+          sendSSE(res, 'progress', {
+            step: 'retry',
+            message: `⏳ Retrying scrape in ${retryDelay / 1000}s (attempt ${attempt}/${maxRetries})...`,
+            percent: 15,
+            phase: 'retry',
+            success: null,
+            attemptNumber: attempt,
+            maxRetries: maxRetries,
+            retryDelay: retryDelay
+          });
+
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+          // Update message after wait
+          sendSSE(res, 'progress', {
+            step: 'retryStart',
+            message: `🔄 Starting retry attempt ${attempt}/${maxRetries}...`,
+            percent: 20,
+            phase: 'retry',
+            success: null,
+            attemptNumber: attempt,
+            maxRetries: maxRetries
+          });
+        } else {
+          logger.info({ companyId: options.companyId }, '[Scrape Stream] Starting initial scrape attempt');
+        }
+
+        sendSSE(res, 'progress', {
+          step: 'startScraping',
+          message: 'Starting scrape process...',
+          percent: 10,
+          phase: 'initialization',
+          success: true
+        });
+
+        result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => false);
+
+        if (!result.success) {
+          throw new Error(result.errorMessage || 'Scraper failed');
+        }
+
+        // Success - break out of retry loop
+        if (attempt > 0) {
+          logger.info({ attempt }, '[Scrape Stream] Scrape succeeded after retry');
+          sendSSE(res, 'progress', {
+            step: 'retrySuccess',
+            message: `✓ Retry successful on attempt ${attempt + 1}!`,
+            percent: 20,
+            phase: 'retry',
+            success: true,
+            attemptNumber: attempt
+          });
+        }
+        break;
+
+      } catch (scrapeError) {
+        lastError = scrapeError.message;
+        logger.error({
+          attempt,
+          maxRetries,
+          error: scrapeError.message
+        }, '[Scrape Stream] Scrape attempt failed');
+
+        // If this was the last attempt, give up
+        if (attempt >= maxRetries) {
+          logger.error({
+            totalAttempts: attempt + 1,
+            maxRetries
+          }, '[Scrape Stream] All retry attempts exhausted');
+
+          if (auditId) {
+            await updateScrapeAudit(client, auditId, 'failed', `Failed after ${attempt + 1} attempts: ${scrapeError.message}`);
+          }
+
+          if (!res.finished) {
+            sendSSE(res, 'error', {
+              message: `Scrape Failed: ${scrapeError.message}`,
+              hint: `Tried ${attempt + 1} time(s). Please try again later or check your credentials.`,
+              attemptsMade: attempt + 1
+            });
+            res.end();
+          }
+          return;
+        }
+
+        // Otherwise, we'll retry (continue loop)
+        logger.info({
+          attempt,
+          remainingRetries: maxRetries - attempt
+        }, '[Scrape Stream] Will retry after delay...');
       }
+    }
 
+    // At this point, result should be successful
+    if (!result) {
+      throw new Error('[Scrape Stream] Unexpected error: result is undefined after retry loop');
+    }
+
+    try {
       // --- SAVING LOGIC ---
       sendSSE(res, 'progress', {
         step: 'saving',
