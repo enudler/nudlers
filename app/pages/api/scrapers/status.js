@@ -189,6 +189,7 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
+      dbStatus: 'ok',
       syncHealth,
       settings: {
         enabled: settings.sync_enabled === true || settings.sync_enabled === 'true',
@@ -202,7 +203,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Sync status error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ dbStatus: 'error', error: error.message });
   } finally {
     client.release();
   }

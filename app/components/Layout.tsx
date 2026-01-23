@@ -9,6 +9,7 @@ import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import Footer from "./Footer";
 import { Box } from "@mui/material";
+import { useSyncStatus } from "../context/SyncStatusContext";
 
 type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat';
 
@@ -71,37 +72,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [screenContext, setScreenContext] = useState<ScreenContext>({ view: 'summary' });
   const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
   const [syncDrawerWidth, setSyncDrawerWidth] = useState(600);
-  const [dbError, setDbError] = useState(false);
+
+  const { dbConnected, loading, refreshStatus } = useSyncStatus();
   const [isRetrying, setIsRetrying] = useState(false);
-  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
-  const checkConnection = async () => {
-    try {
-      setIsRetrying(true);
-      const response = await fetch('/api/ping');
-      if (response.ok) {
-        const data = await response.json();
-        // A successful 200 OK means DB is up
-        setDbError(data.status !== 'ok');
-      } else {
-        // 500 or network error
-        setDbError(true);
-      }
-    } catch (e) {
-      setDbError(true);
-    } finally {
-      setIsRetrying(false);
-      setInitialCheckDone(true);
-    }
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await refreshStatus();
+    setIsRetrying(false);
   };
-
-  // Check on mount
-  useEffect(() => {
-    checkConnection();
-    // Poll every 30s as fallback health check
-    const interval = setInterval(checkConnection, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Load saved width on mount
   React.useEffect(() => {
@@ -142,13 +121,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   // If DB check failed, block UI
-  // We wait for initial check to avoid flashing error screen on first load before ping returns.
-  if (dbError && initialCheckDone) {
-    return <DatabaseErrorScreen onRetry={checkConnection} isRetrying={isRetrying} />;
+  if (!dbConnected && !loading) {
+    return <DatabaseErrorScreen onRetry={handleRetry} isRetrying={isRetrying} />;
   }
 
   // Show nothing or a loader until we know the DB status to prevent children from crashing
-  if (!initialCheckDone) {
+  if (loading && !dbConnected) {
     return null; // Or a centralized loading spinner
   }
 

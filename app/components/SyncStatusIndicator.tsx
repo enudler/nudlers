@@ -8,28 +8,7 @@ import WarningIcon from '@mui/icons-material/Warning';
 import SyncIcon from '@mui/icons-material/Sync';
 import SyncDisabledIcon from '@mui/icons-material/SyncDisabled';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
-
-interface SyncStatus {
-  syncHealth: string;
-  settings: {
-    enabled: boolean;
-    syncHour: number;
-    daysBack: number;
-  };
-  activeAccounts: number;
-  latestScrape: {
-    triggered_by: string;
-    vendor: string;
-    status: string;
-    created_at: string;
-  } | null;
-  accountSyncStatus: Array<{
-    id: number;
-    nickname: string;
-    vendor: string;
-    last_synced_at: string | null;
-  }>;
-}
+import { useSyncStatus, SyncStatus } from '../context/SyncStatusContext';
 
 const spin = keyframes`
   0% { transform: rotate(0deg); }
@@ -119,38 +98,9 @@ interface SyncStatusIndicatorProps {
   onClick?: () => void;
 }
 
+
 const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) => {
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/scrapers/status');
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
-      }
-    } catch (error) {
-      logger.error('Failed to fetch sync status', error as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStatus();
-    // Poll every 10 seconds to reduce CPU usage
-    const intervalTime = 10000;
-    const interval = setInterval(fetchStatus, intervalTime);
-    return () => clearInterval(interval);
-  }, [fetchStatus, status?.syncHealth]);
-
-  // Also refresh when a data refresh event is dispatched
-  useEffect(() => {
-    const handleRefresh = () => fetchStatus();
-    window.addEventListener('dataRefresh', handleRefresh);
-    return () => window.removeEventListener('dataRefresh', handleRefresh);
-  }, [fetchStatus]);
+  const { status, loading } = useSyncStatus();
 
   // Update browser tab title based on sync status
   useEffect(() => {

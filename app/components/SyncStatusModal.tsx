@@ -19,6 +19,7 @@ import {
 import { logger } from '../utils/client-logger';
 import { styled, keyframes } from '@mui/material/styles';
 import SyncIcon from '@mui/icons-material/Sync';
+import { useSyncStatus } from '../context/SyncStatusContext';
 
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -47,39 +48,6 @@ interface SyncStatusModalProps {
   onSyncSuccess?: () => void;
 }
 
-interface SyncStatus {
-  syncHealth: string;
-  settings: {
-    enabled: boolean;
-    syncHour: number;
-    daysBack: number;
-  };
-  activeAccounts: number;
-  latestScrape: {
-    id: number;
-    triggered_by: string;
-    vendor: string;
-    status: string;
-    message: string;
-    created_at: string;
-    duration_seconds?: number;
-  } | null;
-  history: Array<{
-    id: number;
-    triggered_by: string;
-    vendor: string;
-    status: string;
-    message: string;
-    created_at: string;
-    duration_seconds?: number;
-  }>;
-  accountSyncStatus: Array<{
-    id: number;
-    nickname: string;
-    vendor: string;
-    last_synced_at: string | null;
-  }>;
-}
 
 const spin = keyframes`
   0% { transform: rotate(0deg); }
@@ -236,12 +204,13 @@ const getVendorIcon = (vendor: string) => {
 import { useTheme } from '@mui/material/styles';
 import { useNotification } from './NotificationContext';
 
+
 const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange, onSyncSuccess }) => {
   const theme = useTheme();
   const { showNotification } = useNotification();
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { status, loading: statusLoading, refreshStatus } = useSyncStatus();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [syncProgress, setSyncProgress] = useState<{
     current: number;
@@ -366,20 +335,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/scrapers/status');
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
-      }
-    } catch (error) {
-      logger.error('Failed to fetch sync status', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   // Sync state recovery on mount or status change
   useEffect(() => {
     if (status && status.syncHealth === 'syncing' && !isSyncing) {
@@ -403,58 +358,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       setSyncProgress(null);
       setSyncStartTime(null);
     }
-  }, [status, isSyncing]); // Removed syncProgress from dependencies to avoid loop
-
-
-
-  // Smart Polling Strategy
-  useEffect(() => {
-    if (!open) return;
-
-    let pollingInterval: NodeJS.Timeout | null = null;
-    let isTabVisible = true;
-
-    const startPolling = () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-      if (!isTabVisible) return;
-
-      // Poll every 10 seconds to reduce CPU usage
-      const intervalTime = 10000;
-
-      pollingInterval = setInterval(async () => {
-        await fetchStatus();
-        // If syncing state changed during poll, restart with new interval
-      }, intervalTime);
-    };
-
-    const handleVisibilityChange = () => {
-      isTabVisible = document.visibilityState === 'visible';
-      if (isTabVisible) {
-        fetchStatus();
-        startPolling();
-      } else {
-        if (pollingInterval) clearInterval(pollingInterval);
-      }
-    };
-
-    // Initial fetch and start
-    fetchStatus();
-    startPolling();
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [open, fetchStatus, isSyncing]);
-
-  // Also refresh when a data refresh event is dispatched
-  useEffect(() => {
-    const handleRefresh = () => fetchStatus();
-    window.addEventListener('dataRefresh', handleRefresh);
-    return () => window.removeEventListener('dataRefresh', handleRefresh);
-  }, [fetchStatus]);
+  }, [status, isSyncing, isInitializing, isStopping]);
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
@@ -532,7 +436,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             setSyncProgress(null);
             setSyncStartTime(null);
             setStopStatus(null);
-            await fetchStatus();
+            await refreshStatus();
           }, 2000);
         } else {
           setStopStatus('Failed to stop some processes.');
@@ -669,7 +573,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   setSyncProgress(null);
                   setSyncStartTime(null);
                   setShowReport(true);
-                  await fetchStatus();
+                  await refreshStatus();
                   if (onSyncSuccess) onSyncSuccess();
                   return;
 
@@ -842,7 +746,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
           }
         }
 
-        await fetchStatus();
+        await refreshStatus();
         setSyncProgress(null);
         setIsSyncing(false);
         setSyncStartTime(null);
@@ -886,7 +790,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       return;
     }
 
-    setLoading(true);
+    setReportLoading(true);
     try {
       const response = await fetch(`/api/scrape-events/${event.id}/report`);
       if (response.ok) {
@@ -902,7 +806,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     } catch (err) {
       logger.error('Failed to fetch report', err, { eventId: event.id });
     } finally {
-      setLoading(false);
+      setReportLoading(false);
     }
   };
 
@@ -1061,7 +965,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
               </Button>
             </Box>
           </Box>
-        ) : loading ? (
+        ) : (statusLoading || reportLoading) ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress sx={{ color: '#60a5fa' }} />
           </Box>

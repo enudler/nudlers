@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { styled } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import StorageIcon from '@mui/icons-material/Storage';
 import CircularProgress from '@mui/material/CircularProgress';
+import { useSyncStatus } from '../context/SyncStatusContext';
 
 const Indicator = styled('div')(({ theme }) => ({
   display: 'flex',
@@ -32,37 +33,16 @@ const LoadingSpinner = styled(CircularProgress)({
 });
 
 const DatabaseIndicator: React.FC = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/ping');
-        const data = await response.json();
-        setIsConnected(response.ok && data.status === 'ok');
-      } catch (error) {
-        setIsConnected(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+  const { dbConnected, loading } = useSyncStatus();
 
   return (
-    <Tooltip title={isLoading ? "Checking connection..." : (isConnected ? "Database Connected" : "Database Disconnected")}>
+    <Tooltip title={loading ? "Checking connection..." : (dbConnected ? "Database Connected" : "Database Disconnected")}>
       <Indicator>
         <StorageIcon sx={{ fontSize: '16px', color: '#fff' }} />
-        {isLoading ? <LoadingSpinner /> : <StatusDot connected={isConnected} />}
+        {loading ? <LoadingSpinner /> : <StatusDot connected={dbConnected} />}
       </Indicator>
     </Tooltip>
   );
 };
 
-export default DatabaseIndicator; 
+export default DatabaseIndicator;
