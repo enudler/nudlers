@@ -169,7 +169,20 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     const isBank = item.transaction_type === 'bank' || (item.vendor && ['hapoalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'otsarHahayal', 'beinleumi', 'massad', 'pagi'].includes(item.vendor));
 
     if (isBank) {
-      const bankName = item.bank_nickname || 'Bank Account';
+      const bankNames: Record<string, string> = {
+        'hapoalim': 'Bank Hapoalim',
+        'leumi': 'Bank Leumi',
+        'mizrahi': 'Mizrahi Tefahot',
+        'discount': 'Discount Bank',
+        'yahav': 'Bank Yahav',
+        'union': 'Union Bank',
+        'otsarHahayal': 'Otsar HaHayal',
+        'beinleumi': 'International Bank',
+        'massad': 'Massad Bank',
+        'pagi': 'Bank Pagi'
+      };
+
+      const bankName = bankNames[item.vendor] || item.bank_nickname || 'Bank Account';
       const bankAccount = item.bank_account_display || item.account_number;
 
       return (
