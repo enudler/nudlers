@@ -28,6 +28,10 @@ export default async function handler(req, res) {
       latest_installments AS (
         SELECT 
           *,
+          CASE 
+            WHEN installments_number >= installments_total AND date <= CURRENT_DATE THEN 'completed'
+            ELSE 'active'
+          END as status,
           ROW_NUMBER() OVER (
             PARTITION BY 
               LOWER(TRIM(name)), 
@@ -50,12 +54,9 @@ export default async function handler(req, res) {
         date as last_charge_date,
         processed_date as last_billing_date,
         original_purchase_date,
+        status,
         CASE 
-          WHEN installments_number >= installments_total AND date <= CURRENT_DATE THEN 'completed'
-          ELSE 'active'
-        END as status,
-        CASE 
-          WHEN installments_number >= installments_total AND date <= CURRENT_DATE THEN NULL
+          WHEN status = 'completed' THEN NULL
           WHEN date >= CURRENT_DATE THEN date
           ELSE (date + '1 month'::interval)::date
         END as next_payment_date,
