@@ -103,7 +103,7 @@ const AccountDisplay: React.FC<AccountDisplayProps> = ({ transaction, vendorOver
     if (transaction.account_number) {
         const last4 = transaction.account_number.slice(-4);
         const nickname = getCardNickname(transaction.account_number);
-        const vendor = getCardVendor(transaction.account_number) || transaction.vendor;
+        const vendor = getCardVendor(transaction.account_number) || transaction.vendor || null;
 
         return (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

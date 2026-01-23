@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectRecurringPayments } from '../pages/api/utils/recurringDetection';
+import { detectRecurringPayments } from '../utils/recurringDetection';
 
 interface MockTransaction {
     date: string;
@@ -43,24 +43,24 @@ describe('Recurring Payment Detection', () => {
         const result = detectRecurringPayments(mockTransactions);
         const netflix = result.find((r: any) => r.name.toLowerCase().includes('netflix'));
         expect(netflix).toBeDefined();
-        expect(netflix.frequency).toBe('monthly');
-        expect(netflix.month_count).toBe(3);
+        expect(netflix!.frequency).toBe('monthly');
+        expect(netflix!.month_count).toBe(3);
     });
 
     it('should detect monthly recurring payments with fuzzy amounts', () => {
         const result = detectRecurringPayments(mockTransactions);
         const electric = result.find((r: any) => r.name.toLowerCase().includes('electric'));
         expect(electric).toBeDefined();
-        expect(electric.frequency).toBe('monthly');
-        expect(electric.monthly_amount).toBeCloseTo(101, 0); // Average of 100, 105, 98 is 101
+        expect(electric!.frequency).toBe('monthly');
+        expect(electric!.monthly_amount).toBeCloseTo(101, 0); // Average of 100, 105, 98 is 101
     });
 
     it('should detect bi-monthly recurring payments', () => {
         const result = detectRecurringPayments(mockTransactions);
         const water = result.find((r: any) => r.name.toLowerCase().includes('water'));
         expect(water).toBeDefined();
-        expect(water.frequency).toBe('bi-monthly');
-        expect(water.month_count).toBe(3);
+        expect(water!.frequency).toBe('bi-monthly');
+        expect(water!.month_count).toBe(3);
     });
 
     it('should separate recurring payments by account number', () => {
