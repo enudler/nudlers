@@ -99,8 +99,8 @@ describe('Sync Reporting and Audit', () => {
             await scraperUtils.updateScrapeAudit(mockClient, auditId, status, message, report);
 
             expect(mockClient.query).toHaveBeenCalledWith(
-                expect.stringMatching(/UPDATE scrape_events\s+SET status = \$1,\s+message = \$2,\s+report_json = \$3,\s+duration_seconds = EXTRACT\(EPOCH FROM \(CURRENT_TIMESTAMP - created_at\)\)\s+WHERE id = \$4/),
-                [status, message, report, auditId]
+                expect.stringMatching(/UPDATE scrape_events\s+SET status = \$1,\s+message = \$2,\s+report_json = \$3,\s+duration_seconds = COALESCE\(\$6, EXTRACT\(EPOCH FROM \(CURRENT_TIMESTAMP - created_at\)\)\),\s+retry_count = COALESCE\(\$5, retry_count\)\s+WHERE id = \$4/),
+                [status, message, report, auditId, null, null]
             );
         });
 
@@ -112,8 +112,8 @@ describe('Sync Reporting and Audit', () => {
             await scraperUtils.updateScrapeAudit(mockClient, auditId, status, message);
 
             expect(mockClient.query).toHaveBeenCalledWith(
-                expect.stringMatching(/UPDATE scrape_events\s+SET status = \$1,\s+message = \$2,\s+duration_seconds = EXTRACT\(EPOCH FROM \(CURRENT_TIMESTAMP - created_at\)\)\s+WHERE id = \$3/),
-                [status, message, auditId]
+                expect.stringMatching(/UPDATE scrape_events\s+SET status = \$1,\s+message = \$2,\s+duration_seconds = COALESCE\(\$5, EXTRACT\(EPOCH FROM \(CURRENT_TIMESTAMP - created_at\)\)\),\s+retry_count = COALESCE\(\$4, retry_count\)\s+WHERE id = \$3/),
+                [status, message, auditId, null, null]
             );
         });
     });
@@ -216,7 +216,9 @@ describe('Sync Reporting and Audit', () => {
                 123,
                 'success',
                 expect.stringContaining('saved=10'),
-                mockStats
+                mockStats,
+                0,
+                expect.any(Number)
             );
             expect(mockRes.status).toHaveBeenCalledWith(200);
         });
