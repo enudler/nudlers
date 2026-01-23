@@ -24,6 +24,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import { fetchCategories } from './CategoryDashboard/utils/categoryUtils';
 import CategoryAutocomplete from './CategoryAutocomplete';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 interface Installment {
   name: string;
@@ -100,6 +102,11 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   const [categories, setCategories] = useState<string[]>([]);
   const [editingItem, setEditingItem] = useState<{ type: 'installment' | 'recurring', index: number, item: Installment | RecurringTransaction } | null>(null);
   const [editCategory, setEditCategory] = useState('');
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   const theme = useTheme();
   const { getCardVendor, getCardNickname } = useCardVendors();
@@ -310,6 +317,8 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
 
       if (!response.ok) throw new Error('Failed to update category');
 
+      const result = await response.json();
+
       // Update local state and categories list if it's new
       if (editCategory && !categories.includes(editCategory)) {
         setCategories(prev => [...prev, editCategory].sort());
@@ -327,11 +336,31 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
         setRecurring(newRecurring);
       }
 
+      // Show success message
+      const message = result.transactionsUpdated > 1
+        ? `Updated ${result.transactionsUpdated} transactions with "${editingItem.item.name}" to "${editCategory}". Rule saved.`
+        : `Category updated to "${editCategory}". Rule saved.`;
+
+      setSnackbar({
+        open: true,
+        message,
+        severity: 'success'
+      });
+
+      // Trigger global refresh for other components
+      window.dispatchEvent(new CustomEvent('dataRefresh'));
+
     } catch (err) {
       logger.error('Error updating category', err as Error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to update category',
+        severity: 'error'
+      });
     } finally {
       handleCancelCategory();
     }
+
   };
 
   const handleCancelCategory = () => {
@@ -1125,6 +1154,16 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
           </>
         )}
       </DialogContent>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 };
