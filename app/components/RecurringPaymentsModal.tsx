@@ -347,6 +347,9 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
         severity: 'success'
       });
 
+      // Refresh local data to catch ALL updates (since one rule might update multiple rows/groups)
+      fetchData();
+
       // Trigger global refresh for other components
       window.dispatchEvent(new CustomEvent('dataRefresh'));
 
