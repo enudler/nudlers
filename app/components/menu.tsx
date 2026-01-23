@@ -42,7 +42,6 @@ import { useColorMode } from '../context/ThemeContext';
 import Image from 'next/image';
 
 const ScrapeModal = dynamic(() => import('./ScrapeModal'), { ssr: false });
-const ManualModal = dynamic(() => import('./ManualModal'), { ssr: false });
 const AccountsModal = dynamic(() => import('./AccountsModal'), { ssr: false });
 const CategoryManagementModal = dynamic(() => import('./CategoryDashboard/components/CategoryManagementModal'), { ssr: false });
 const ScrapeAuditModal = dynamic(() => import('./ScrapeAuditModal'), { ssr: false });
@@ -105,7 +104,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
   const [desktopDrawerOpen, setDesktopDrawerOpen] = React.useState(true); // Persistent drawer for desktop
   const [isScrapeModalOpen, setIsScrapeModalOpen] = React.useState(false);
-  const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
   const [isAccountsModalOpen, setIsAccountsModalOpen] = React.useState(false);
   const [isCategoryManagementOpen, setIsCategoryManagementOpen] = React.useState(false);
   const [isAuditOpen, setIsAuditOpen] = React.useState(false);
@@ -161,7 +159,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   const actionMenuItems = [
     { label: 'Audit', icon: <HistoryIcon />, action: () => setIsAuditOpen(true) },
     { label: 'Recurring', icon: <RepeatIcon />, action: () => setIsRecurringOpen(true) },
-    { label: 'Manual', icon: <EditIcon />, action: () => setIsManualModalOpen(true) },
   ];
 
   const settingsMenuItems = [
@@ -173,42 +170,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   ];
 
 
-
-  const handleAddManualTransaction = async (transactionData: {
-    name: string;
-    amount: number;
-    date: Date;
-    type: 'income' | 'expense';
-    category?: string;
-  }) => {
-    try {
-      const formattedDate = transactionData.date.toISOString().split('T')[0];
-
-      const response = await fetch("/api/transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: transactionData.name,
-          amount: transactionData.amount,
-          date: formattedDate,
-          type: transactionData.type,
-          category: transactionData.category
-        }),
-      });
-
-      if (response.ok) {
-        setIsManualModalOpen(false);
-        // Dispatch a custom event to trigger data refresh
-        window.dispatchEvent(new CustomEvent('dataRefresh'));
-      } else {
-        logger.error('Failed to add manual transaction');
-      }
-    } catch (error) {
-      logger.error('Error adding manual transaction', error as Error);
-    }
-  };
 
   const handleScrapeSuccess = () => {
     showNotification('Scraping process completed successfully!', 'success');
@@ -470,11 +431,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
         isOpen={isScrapeModalOpen}
         onClose={() => setIsScrapeModalOpen(false)}
         onSuccess={handleScrapeSuccess}
-      />
-      <ManualModal
-        open={isManualModalOpen}
-        onClose={() => setIsManualModalOpen(false)}
-        onSave={handleAddManualTransaction}
       />
       <AccountsModal
         isOpen={isAccountsModalOpen}
