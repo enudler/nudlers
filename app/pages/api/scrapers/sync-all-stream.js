@@ -111,6 +111,15 @@ export default async function handler(req, res) {
         const billingCycleStartDay = await getBillingCycleStartDay(client);
         const maxRetries = await getScrapeRetries(client);
 
+        const totalStats = {
+            savedTransactions: 0,
+            updatedTransactions: 0,
+            duplicateTransactions: 0,
+            cachedCategories: 0,
+            ruleCategories: 0,
+            scraperCategories: 0
+        };
+
         logger.info({ maxRetries }, '[Sync All Stream] Retry settings loaded');
 
         // 2. Loop through accounts
@@ -160,7 +169,7 @@ export default async function handler(req, res) {
                         sendSSE(res, 'progress', {
                             accountId: account.id,
                             type: 'retryWait',
-                            message: `Retrying in ${retryDelay / 1000}s (attempt ${attempt}/${maxRetries})...`,
+                            message: `Retrying in ${retryDelay / 1000}s (retry ${attempt}/${maxRetries})...`,
                             seconds: retryDelay / 1000
                         });
                         await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -204,6 +213,13 @@ export default async function handler(req, res) {
                         retriedAttempts: attempt
                     });
 
+                    totalStats.savedTransactions += stats.savedTransactions || 0;
+                    totalStats.updatedTransactions += stats.updatedTransactions || 0;
+                    totalStats.duplicateTransactions += stats.duplicateTransactions || 0;
+                    totalStats.cachedCategories += stats.cachedCategories || 0;
+                    totalStats.ruleCategories += stats.ruleCategories || 0;
+                    totalStats.scraperCategories += stats.scraperCategories || 0;
+
                     accountResult = { success: true, stats };
                     break; // Success - exit retry loop
 
@@ -239,7 +255,10 @@ export default async function handler(req, res) {
 
         sendSSE(res, 'complete', {
             message: '✓ All accounts synced successfully',
-            durationSeconds: Math.floor((Date.now() - startTime) / 1000)
+            summary: {
+                ...totalStats,
+                durationSeconds: Math.floor((Date.now() - startTime) / 1000)
+            }
         });
 
     } catch (error) {

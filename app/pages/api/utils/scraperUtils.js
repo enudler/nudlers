@@ -509,26 +509,32 @@ export async function insertScrapeAudit(client, triggeredBy, vendor, startDate, 
 /**
  * Update a scrape audit row
  */
-export async function updateScrapeAudit(client, auditId, status, message, report = null) {
+export async function updateScrapeAudit(client, auditId, status, message, report = null, retryCount = null, durationSeconds = null) {
   if (!auditId) return;
+
+  // If durationSeconds is not provided but we have a report, try to extract it from report
+  const finalDuration = durationSeconds ?? report?.durationSeconds ?? report?.duration_seconds ?? null;
+
   if (report) {
     await client.query(
       `UPDATE scrape_events 
        SET status = $1, 
            message = $2, 
            report_json = $3,
-           duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+           duration_seconds = COALESCE($6, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))),
+           retry_count = COALESCE($5, retry_count)
        WHERE id = $4`,
-      [status, message, report, auditId]
+      [status, message, report, auditId, retryCount, finalDuration]
     );
   } else {
     await client.query(
       `UPDATE scrape_events 
        SET status = $1, 
            message = $2,
-           duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+           duration_seconds = COALESCE($5, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))),
+           retry_count = COALESCE($4, retry_count)
        WHERE id = $3`,
-      [status, message, auditId]
+      [status, message, auditId, retryCount, finalDuration]
     );
   }
 }
@@ -758,8 +764,19 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
   logger.info('[Scraper] Starting scrape execution');
 
+  // Wrap the entire scrape process in a global timeout
+  const globalTimeoutMs = options.timeout || DEFAULT_SCRAPER_TIMEOUT;
+
+  const scrapePromise = scraper.scrape(credentials);
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Scraping timed out after ${globalTimeoutMs}ms (full process limit reached)`));
+    }, globalTimeoutMs);
+  });
+
   try {
-    const result = await scraper.scrape(credentials);
+    // Race between the scrape process and the global timeout
+    const result = await Promise.race([scrapePromise, timeoutPromise]);
     logger.info({ success: result?.success }, '[Scraper] Base scrape completed');
 
     if (result.success && result.accounts && !Array.isArray(result.accounts)) {
@@ -930,7 +947,11 @@ export async function getLogHttpRequestsSetting(client) {
 
 export async function getScraperTimeout(client) {
   const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPER_TIMEOUT]);
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || DEFAULT_SCRAPER_TIMEOUT : DEFAULT_SCRAPER_TIMEOUT;
+  if (result.rows.length === 0 || result.rows[0].value === null || result.rows[0].value === undefined || result.rows[0].value === '') {
+    return DEFAULT_SCRAPER_TIMEOUT;
+  }
+  const val = parseInt(result.rows[0].value);
+  return isNaN(val) ? DEFAULT_SCRAPER_TIMEOUT : val;
 }
 
 export async function getBillingCycleStartDay(client) {

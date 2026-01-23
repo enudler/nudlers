@@ -305,6 +305,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   }
   const [syncQueue, setSyncQueue] = useState<QueueItem[]>([]);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  const [selectedErrorEvent, setSelectedErrorEvent] = useState<SyncEvent | null>(null);
 
   // Resizing state
   const [isResizing, setIsResizing] = useState(false);
@@ -547,14 +548,16 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       return;
     }
 
-    setIsInitializing(true);
+    // Optimistic UI update - set state immediately for instant feedback
+    setIsSyncing(true);
+    setIsInitializing(false);
     setSessionReport([]);
     setSessionSummary(null);
     setShowReport(false);
     setSyncStartTime(Date.now());
     setElapsedSeconds(0);
     setSyncQueue([]);
-    setSyncProgress({ current: 0, total: 0, currentAccount: null });
+    setSyncProgress({ current: 0, total: 0, currentAccount: 'Initializing...', currentStep: 'Preparing to sync...', percent: 0, phase: 'initialization' });
 
     const runSync = async () => {
       abortControllerRef.current = new AbortController();
@@ -567,9 +570,13 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
           signal: abortControllerRef.current.signal
         });
 
-        if (!response.ok) throw new Error('Failed to start batch sync');
-        setIsSyncing(true);
-        setIsInitializing(false);
+        if (!response.ok) {
+          // Reset state on error
+          setIsSyncing(false);
+          setSyncProgress(null);
+          setSyncStartTime(null);
+          throw new Error('Failed to start batch sync');
+        }
 
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
@@ -656,7 +663,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
                 case 'complete':
                   setIsSyncing(false);
-                  setSessionSummary({ durationSeconds: eventData.durationSeconds });
+                  // Preserve total batch summary if server sends one, or create from eventData
+                  const batchSummary = eventData.summary || { durationSeconds: eventData.durationSeconds };
+                  setSessionSummary(batchSummary);
+                  setSyncProgress(null);
+                  setSyncStartTime(null);
                   setShowReport(true);
                   await fetchStatus();
                   if (onSyncSuccess) onSyncSuccess();
@@ -672,10 +683,9 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         if (err instanceof Error && err.name === 'AbortError') return;
         logger.error('Batch sync failed', err);
         setIsSyncing(false);
+        setSyncProgress(null);
         setSyncStartTime(null);
         setShowReport(true);
-      } finally {
-        setIsInitializing(false);
       }
     };
 
@@ -685,174 +695,173 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   const handleSyncSingle = async (accountId: number) => {
     if (isSyncing || isInitializing) return;
 
-    setIsInitializing(true);
-    // Clear previous session report to start fresh
+    // Fetch account details first (quickly, from local API)
+    let account;
+    try {
+      const response = await fetch(`/api/credentials/${accountId}`);
+      if (!response.ok) throw new Error('Failed to fetch account credentials');
+      account = await response.json();
+    } catch (err) {
+      logger.error('Failed to fetch account credentials', err);
+      showNotification('Failed to start sync: Could not fetch account details', 'error');
+      return;
+    }
+
+    // Optimistic UI update - set state immediately for instant feedback
+    setIsSyncing(true);
+    setIsInitializing(false);
     setSessionReport([]);
     setSessionSummary(null);
     setShowReport(false);
     setSyncStartTime(Date.now());
     setElapsedSeconds(0);
-    setSyncQueue([]);
-    setSyncProgress({ current: 0, total: 1, currentAccount: null });
+    setSyncQueue([{
+      id: account.id,
+      accountName: account.nickname || account.vendor,
+      vendor: account.vendor,
+      status: 'active'
+    }]);
+    window.dispatchEvent(new CustomEvent('dataRefresh'));
 
     const runSingle = async () => {
-      try {
-        // Fetch full credentials for this specific account
-        const response = await fetch(`/api/credentials/${accountId}`);
-        if (!response.ok) throw new Error('Failed to fetch account credentials');
-        const account = await response.json();
+      abortControllerRef.current = new AbortController();
 
-        setIsSyncing(true);
-        setIsInitializing(false);
-        setSyncQueue([{
-          id: account.id,
-          accountName: account.nickname || account.vendor,
-          vendor: account.vendor,
-          status: 'active'
-        }]);
-        setSyncProgress({
-          current: 0,
-          total: 1,
-          currentAccount: account.nickname || account.vendor,
-          currentStep: 'Initializing...'
+      try {
+        const lastDate = await fetchLastTransactionDate(account.vendor);
+        const startDate = lastDate ? new Date(lastDate) : new Date();
+        const daysBack = status?.settings?.daysBack || 30;
+        startDate.setDate(startDate.getDate() - daysBack);
+
+        const credentials = prepareCredentials(account, account.vendor);
+        const config = {
+          options: {
+            companyId: account.vendor,
+            startDate: startDate.toISOString().split('T')[0],
+            combineInstallments: false,
+            showBrowser: false,
+            additionalTransactionInformation: true
+          },
+          credentials: credentials,
+          credentialId: account.id
+        };
+
+        const syncResponse = await fetch('/api/scrapers/run-stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config),
+          signal: abortControllerRef.current.signal
         });
 
-        // Trigger global refresh so header knows we started
-        window.dispatchEvent(new CustomEvent('dataRefresh'));
+        if (!syncResponse.ok) throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
 
-        abortControllerRef.current = new AbortController();
+        const reader = syncResponse.body?.getReader();
+        const decoder = new TextDecoder();
 
-        try {
-          const lastDate = await fetchLastTransactionDate(account.vendor);
-          const startDate = lastDate ? new Date(lastDate) : new Date();
-          const daysBack = status?.settings?.daysBack || 30;
-          startDate.setDate(startDate.getDate() - daysBack);
+        if (reader) {
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          const credentials = prepareCredentials(account, account.vendor);
-          const config = {
-            options: {
-              companyId: account.vendor,
-              startDate: startDate.toISOString().split('T')[0],
-              combineInstallments: false,
-              showBrowser: false,
-              additionalTransactionInformation: true
-            },
-            credentials: credentials,
-            credentialId: account.id
-          };
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-          const syncResponse = await fetch('/api/scrapers/run-stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config),
-            signal: abortControllerRef.current.signal
-          });
+            let currentEvent = '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                currentEvent = line.slice(7);
+              } else if (line.startsWith('data: ')) {
+                const eventData = JSON.parse(line.slice(6));
 
-          if (!syncResponse.ok) throw new Error(`Failed to sync ${account.nickname || account.vendor}`);
-
-          const reader = syncResponse.body?.getReader();
-          const decoder = new TextDecoder();
-
-          if (reader) {
-            let buffer = '';
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
-
-              let currentEvent = '';
-              for (const line of lines) {
-                if (line.startsWith('event: ')) {
-                  currentEvent = line.slice(7);
-                } else if (line.startsWith('data: ')) {
-                  const eventData = JSON.parse(line.slice(6));
-
-                  if (currentEvent === 'progress') {
-                    setSyncProgress(prev => ({
-                      current: 0,
-                      total: 1,
-                      currentAccount: account.nickname || account.vendor,
-                      currentStep: eventData.message || '',
-                      percent: eventData.percent || 0,
-                      phase: eventData.phase || '',
-                      success: eventData.success,
-                      latestScreenshot: prev?.latestScreenshot
-                    }));
-                  } else if (currentEvent === 'screenshot') {
-                    setSyncProgress(prev => ({
-                      ...prev!,
-                      latestScreenshot: {
-                        url: eventData.url,
-                        filename: eventData.filename,
-                        stepName: eventData.stepName,
-                        timestamp: eventData.timestamp
-                      }
-                    }));
-                  } else if (currentEvent === 'error') {
-                    throw new Error(eventData.message || 'Sync failed');
-                  } else if (currentEvent === 'complete') {
-                    setSyncProgress({
-                      current: 0,
-                      total: 1,
-                      currentAccount: account.nickname || account.vendor,
-                      currentStep: '✓ Completed successfully',
-                      percent: 100,
-                      phase: 'complete',
-                      success: true,
-                      summary: eventData.summary
-                    });
-
-                    if (eventData.summary && eventData.summary.processedTransactions) {
-                      setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
-                        ...t,
-                        accountName: account.nickname || account.vendor,
-                        source: t.source,
-                        rule: t.rule,
-                        oldCategory: t.oldCategory
-                      }))]);
+                if (currentEvent === 'progress') {
+                  setSyncProgress(prev => ({
+                    current: 0,
+                    total: 1,
+                    currentAccount: account.nickname || account.vendor,
+                    currentStep: eventData.message || '',
+                    percent: eventData.percent || 0,
+                    phase: eventData.phase || '',
+                    success: eventData.success,
+                    latestScreenshot: prev?.latestScreenshot
+                  }));
+                } else if (currentEvent === 'screenshot') {
+                  setSyncProgress(prev => ({
+                    ...prev!,
+                    latestScreenshot: {
+                      url: eventData.url,
+                      filename: eventData.filename,
+                      stepName: eventData.stepName,
+                      timestamp: eventData.timestamp
                     }
-                    setSyncQueue(prev => prev.map(item =>
-                      item.id === account.id ? { ...item, status: 'completed', summary: eventData.summary } : item
-                    ));
-                    if (onSyncSuccess) onSyncSuccess();
-                    break;
+                  }));
+                } else if (currentEvent === 'error') {
+                  throw new Error(eventData.message || 'Sync failed');
+                } else if (currentEvent === 'complete') {
+                  const finalSummary = eventData.summary || {};
+                  const finalDuration = finalSummary.durationSeconds ?? (syncStartTime ? Math.floor((Date.now() - syncStartTime) / 1000) : elapsedSeconds);
+
+                  setSessionSummary({
+                    ...finalSummary,
+                    durationSeconds: finalDuration
+                  });
+
+                  setSyncProgress({
+                    current: 0,
+                    total: 1,
+                    currentAccount: account.nickname || account.vendor,
+                    currentStep: '✓ Completed successfully',
+                    percent: 100,
+                    phase: 'complete',
+                    success: true,
+                    summary: {
+                      ...finalSummary,
+                      durationSeconds: finalDuration
+                    }
+                  });
+
+                  if (eventData.summary && eventData.summary.processedTransactions) {
+                    setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
+                      ...t,
+                      accountName: account.nickname || account.vendor,
+                      source: t.source,
+                      rule: t.rule,
+                      oldCategory: t.oldCategory
+                    }))]);
                   }
+
+                  setSyncQueue(prev => prev.map(item =>
+                    item.id === account.id ? { ...item, status: 'completed', summary: { ...finalSummary, durationSeconds: finalDuration } } : item
+                  ));
+
+                  if (onSyncSuccess) onSyncSuccess();
+                  break;
                 }
               }
             }
           }
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') {
-            setIsSyncing(false);
-            setSyncProgress(null);
-            setIsInitializing(false);
-            return;
-          }
-          logger.error('Failed to sync account', err, { account: account.nickname || account.vendor });
-          setSyncQueue(prev => prev.map(item =>
-            item.id === account.id ? { ...item, status: 'failed', error: err instanceof Error ? err.message : String(err) } : item
-          ));
         }
 
         await fetchStatus();
         setSyncProgress(null);
         setIsSyncing(false);
-        const finalDuration = syncStartTime ? Math.floor((Date.now() - syncStartTime) / 1000) : elapsedSeconds;
-        setSessionSummary({
-          durationSeconds: finalDuration
-        });
         setSyncStartTime(null);
         setShowReport(true);
       } catch (err) {
-        logger.error('Single sync failed', err);
-        setSyncProgress(null);
+        if (err instanceof Error && err.name === 'AbortError') {
+          setIsSyncing(false);
+          setSyncProgress(null);
+          return;
+        }
+        logger.error('Failed to sync account', err, { account: account.nickname || account.vendor });
+        setSyncQueue(prev => prev.map(item =>
+          item.id === account.id ? { ...item, status: 'failed', error: err instanceof Error ? err.message : String(err) } : item
+        ));
+        // Reset state on error
         setIsSyncing(false);
+        setSyncProgress(null);
         setSyncStartTime(null);
-      } finally {
-        setIsInitializing(false);
+        setShowReport(true);
       }
     };
 
@@ -867,10 +876,15 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     message: string;
     created_at: string;
     duration_seconds?: number;
+    retry_count?: number;
   }
 
   const handleHistoryClick = async (event: SyncEvent) => {
-    // if (event.status !== 'completed') return; // Allow viewing partial reports or errors if data exists
+    // If it's a failed event, show error details modal instead of report
+    if (event.status === 'failed') {
+      setSelectedErrorEvent(event);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -1494,6 +1508,128 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             />
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Error Details Modal */}
+      <Dialog
+        open={!!selectedErrorEvent}
+        onClose={() => setSelectedErrorEvent(null)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)'
+              : 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '12px',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <ErrorIcon sx={{ color: '#ef4444', fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#ef4444' }}>
+                Scrape Failed
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setSelectedErrorEvent(null)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {selectedErrorEvent && (
+            <>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mb: 0.5 }}>
+                  Vendor
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                  {selectedErrorEvent.vendor}
+                </Typography>
+              </Box>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mb: 0.5 }}>
+                  Error Message
+                </Typography>
+                <Box sx={{
+                  p: 2,
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)'
+                }}>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.primary, wordBreak: 'break-word' }}>
+                    {selectedErrorEvent.message}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mb: 0.5 }}>
+                    Retry Attempts
+                  </Typography>
+                  <Box sx={{
+                    p: 1.5,
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                    border: '1px solid rgba(96, 165, 250, 0.2)',
+                    textAlign: 'center'
+                  }}>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#60a5fa' }}>
+                      {selectedErrorEvent.retry_count !== undefined ? selectedErrorEvent.retry_count + 1 : 1}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {selectedErrorEvent.duration_seconds && (
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mb: 0.5 }}>
+                      Duration
+                    </Typography>
+                    <Box sx={{
+                      p: 1.5,
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                      border: '1px solid rgba(167, 139, 250, 0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#a78bfa' }}>
+                        {formatTime(Math.round(selectedErrorEvent.duration_seconds))}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.disabled, display: 'block', mb: 0.5 }}>
+                  Timestamp
+                </Typography>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  {formatDateTime(selectedErrorEvent.created_at)}
+                </Typography>
+              </Box>
+
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => setSelectedErrorEvent(null)}
+                  sx={{
+                    borderColor: 'rgba(148, 163, 184, 0.3)',
+                    color: theme.palette.text.secondary
+                  }}
+                >
+                  Close
+                </Button>
+              </Box>
+            </>
+          )}
+        </Box>
       </Dialog>
     </StyledDrawer >
   );

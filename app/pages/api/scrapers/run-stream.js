@@ -258,7 +258,7 @@ async function handler(req, res) {
           // Send network event for countdown timer in UI
           sendSSE(res, 'network', {
             type: 'retryWait',
-            message: `Retrying in ${retryDelay / 1000}s (attempt ${attempt}/${maxRetries})...`,
+            message: `Retrying in ${retryDelay / 1000}s (retry ${attempt}/${maxRetries})...`,
             seconds: retryDelay / 1000,
             timestamp: new Date().toISOString()
           });
@@ -266,7 +266,7 @@ async function handler(req, res) {
           // Send retry message to UI
           sendSSE(res, 'progress', {
             step: 'retry',
-            message: `⏳ Retrying scrape in ${retryDelay / 1000}s (attempt ${attempt}/${maxRetries})...`,
+            message: `⏳ Retrying scrape in ${retryDelay / 1000}s (retry ${attempt}/${maxRetries})...`,
             percent: 15,
             phase: 'retry',
             success: null,
@@ -286,7 +286,7 @@ async function handler(req, res) {
           // Update message after wait
           sendSSE(res, 'progress', {
             step: 'retryStart',
-            message: `🔄 Starting retry attempt ${attempt}/${maxRetries}...`,
+            message: `🔄 Starting retry ${attempt}/${maxRetries}...`,
             percent: 20,
             phase: 'retry',
             success: null,
@@ -341,7 +341,7 @@ async function handler(req, res) {
           }, '[Scrape Stream] All retry attempts exhausted');
 
           if (auditId) {
-            await updateScrapeAudit(client, auditId, 'failed', `Failed after ${attempt + 1} attempts: ${scrapeError.message}`);
+            await updateScrapeAudit(client, auditId, 'failed', `Failed after ${attempt + 1} attempts: ${scrapeError.message}`, null, attempt);
           }
 
           if (!res.finished) {
@@ -428,7 +428,7 @@ async function handler(req, res) {
       durationSeconds: Math.floor((Date.now() - startTime) / 1000)
     };
 
-    await updateScrapeAudit(client, auditId, 'success', `Success: fetched=${accumulatedStats.transactions}, saved=${accumulatedStats.savedTransactions}`, summary);
+    await updateScrapeAudit(client, auditId, 'success', `Success: fetched=${accumulatedStats.transactions}, saved=${accumulatedStats.savedTransactions}`, summary, attempt, summary.durationSeconds);
     await updateCredentialLastSynced(client, credentialId);
 
     sendSSE(res, 'complete', {

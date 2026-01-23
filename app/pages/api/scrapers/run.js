@@ -121,7 +121,7 @@ async function handler(req, res) {
             previousError: lastError
           }, '[Scraper Handler] Retrying scrape after delay');
 
-          await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+          await updateScrapeAudit(client, auditId, 'started', `Retry ${attempt}/${maxRetries} after ${retryDelay}ms`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         } else {
           logger.info({ companyId: options.companyId, fetchCategories: fetchCategoriesSetting }, '[Scraper Handler] Starting scrape');
@@ -213,15 +213,16 @@ async function handler(req, res) {
       logger.info({ skippedCards: stats.skippedCards }, '[Card Ownership] Skipped cards owned by other credentials');
     }
 
+    // Calculate duration
+    const endTime = new Date();
+    const durationSeconds = Math.floor((endTime - startTime) / 1000);
+
     // Update audit as success
-    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${stats.accounts}, saved=${stats.savedTransactions}, updated=${stats.updatedTransactions}`, stats);
+    await updateScrapeAudit(client, auditId, 'success', `Success: accounts=${stats.accounts}, saved=${stats.savedTransactions}, updated=${stats.updatedTransactions}`, stats, attempt, durationSeconds);
 
     // Update last_synced_at
     await updateCredentialLastSynced(client, credentialId);
 
-    // Calculate duration
-    const endTime = new Date();
-    const durationSeconds = (endTime - startTime) / 1000;
     const durationFormatted = `${Math.floor(durationSeconds / 60)}m ${Math.floor(durationSeconds % 60)}s`;
 
     logger.info({
@@ -237,18 +238,16 @@ async function handler(req, res) {
       durationSeconds
     });
   } catch (error) {
-    const endTime = new Date();
-    const durationSeconds = (endTime - startTime) / 1000;
-
     logger.error({
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      durationSeconds
+      durationSeconds: Math.floor((new Date() - startTime) / 1000)
     }, 'Scraping failed');
 
     if (auditId) {
       try {
-        await updateScrapeAudit(client, auditId, 'failed', error instanceof Error ? error.message : 'Unknown error');
+        const currentDuration = Math.floor((new Date() - startTime) / 1000);
+        await updateScrapeAudit(client, auditId, 'failed', error instanceof Error ? error.message : 'Unknown error', null, attempt, currentDuration);
       } catch (e) {
         // noop - avoid masking original error
       }
