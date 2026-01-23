@@ -83,6 +83,11 @@ export default async function handler(req, res) {
 
     // Query 2: Get candidate transactions for smart recurring detection
     const candidatesResult = await client.query(`
+      WITH known_installments AS (
+        SELECT DISTINCT LOWER(TRIM(name)) as name
+        FROM transactions 
+        WHERE installments_total > 1
+      )
       SELECT 
         t.name, t.price, t.category, t.vendor, t.account_number, t.date, t.transaction_type,
         vc.nickname as bank_nickname,
@@ -91,11 +96,8 @@ export default async function handler(req, res) {
       LEFT JOIN vendor_credentials vc ON t.account_number = vc.bank_account_number AND t.transaction_type = 'bank'
       WHERE t.price < 0
         AND (t.installments_total IS NULL OR t.installments_total <= 1)
-        AND (t.installments_number IS NULL OR t.installments_number <= 1)
         AND t.category NOT IN ('Bank', 'Income')
-        AND t.name !~ '\d+[\/\\]\d+'
-        AND t.name !~* '(payment|tashlum|p)\s+\d+\s+(of|mitoch)\s+\d+'
-        AND t.name !~* 'tashlum\s+\d+'
+        AND LOWER(TRIM(t.name)) NOT IN (SELECT name FROM known_installments)
       ORDER BY t.date DESC
     `);
 
