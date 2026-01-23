@@ -35,20 +35,26 @@ Personal finance management application for tracking credit card expenses and ba
 Connect Nudlers to your AI assistant using the **Model Context Protocol**.
 
 ### Quick Setup
-1. **Build**: `cd mcp && npm install && npm run build`
+Nudlers has native MCP support. No local files are required to connect.
+
+1. **Ensure Nudlers is running**: Make sure your app is accessible (e.g., http://localhost:6969).
 2. **Configure**: Add the following to your Claude/Cursor MCP settings:
 ```json
 {
   "mcpServers": {
     "nudlers": {
-      "command": "node",
-      "args": ["/ABS_PATH_TO_NUDLERS/mcp/build/index.js"],
-      "env": { "NUDLERS_API_URL": "http://localhost:6969" }
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway@latest",
+        "--sse",
+        "http://localhost:6969/api/mcp"
+      ]
     }
   }
 }
 ```
-*Note: Replace `/ABS_PATH_TO_NUDLERS` with your actual path.*
+*Note: Replace `localhost:6969` with your actual server URL if running on a NAS or VPS.*
 
 ### Use Cases
 - "What was my total grocery spend in January?"

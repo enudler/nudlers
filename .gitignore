@@ -8,3 +8,4 @@ node_modules/
 .antigravity/
 
 app/public/debug/
+.agent/

@@ -11,12 +11,10 @@ const BANK_VENDORS = [...STANDARD_BANK_VENDORS, ...BEINLEUMI_GROUP_VENDORS];
 const handler = async (req, res) => {
     if (req.method === 'GET') {
         return getTransactions(req, res);
-    } else if (req.method === 'POST') {
-        return createManualTransaction(req, res);
     } else if (req.method === 'DELETE') {
         return deleteAllTransactions(req, res);
     } else {
-        res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'DELETE']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
 };
@@ -218,45 +216,6 @@ const getTransactions = createApiHandler({
         }));
     }
 });
-
-/**
- * POST /api/transactions
- * Create a manual transaction
- */
-const createManualTransaction = async (req, res) => {
-    const { name, amount, date, type, category } = req.body;
-
-    if (!name || amount === undefined || !date || !type) {
-        return res.status(400).json({ error: "Name, amount, date, and type are required" });
-    }
-    if (type === 'expense' && !category) {
-        return res.status(400).json({ error: "Category is required for expense transactions" });
-    }
-
-    const client = await getDB();
-    try {
-        const identifier = `manual_${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const vendor = type === 'income' ? 'manual_income' : 'manual_expense';
-        const transactionCategory = type === 'income' ? 'Bank' : category;
-        const price = type === 'expense' ? -Math.abs(amount) : Math.abs(amount);
-
-        const sql = `
-      INSERT INTO transactions (
-        identifier, vendor, date, name, price, category, type, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `;
-        const result = await client.query(sql, [
-            identifier, vendor, new Date(date), name, price, transactionCategory, type, 'completed'
-        ]);
-
-        res.status(201).json(result.rows[0]);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    } finally {
-        client.release();
-    }
-};
 
 /**
  * DELETE /api/transactions

@@ -8,7 +8,7 @@ const handler = createApiHandler({
         vc.nickname as vendor_nickname,
         CASE 
           WHEN t.vendor LIKE '%bank%' OR t.vendor LIKE '%hapoalim%' OR t.vendor LIKE '%leumi%' 
-               OR t.vendor LIKE '%discount%' OR t.vendor LIKE '%mizrahi%' OR t.vendor = 'manual_income'
+               OR t.vendor LIKE '%discount%' OR t.vendor LIKE '%mizrahi%'
           THEN 'bank'
           ELSE 'card'
         END as vendor_type

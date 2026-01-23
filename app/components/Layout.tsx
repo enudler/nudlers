@@ -5,12 +5,14 @@ import { NotificationProvider } from "./NotificationContext";
 import MonthlySummary from "./MonthlySummary";
 import BudgetDashboard from "./BudgetDashboard";
 import AIAssistant from "./AIAssistant";
+import ScrapeAuditView from "./ScrapeAuditView";
+import RecurringPaymentsView from "./RecurringPaymentsView";
 import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import Footer from "./Footer";
 import { Box } from "@mui/material";
 
-type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat';
+type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring';
 
 // Screen context for AI Assistant
 interface ScreenContext {
@@ -136,6 +138,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         return <BudgetDashboard />;
       case 'chat':
         return <ChatView />;
+      case 'audit':
+        return <ScrapeAuditView />;
+      case 'recurring':
+        return <RecurringPaymentsView />;
       default:
         return children;
     }

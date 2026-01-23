@@ -42,12 +42,9 @@ import { useColorMode } from '../context/ThemeContext';
 import Image from 'next/image';
 
 const ScrapeModal = dynamic(() => import('./ScrapeModal'), { ssr: false });
-const ManualModal = dynamic(() => import('./ManualModal'), { ssr: false });
 const AccountsModal = dynamic(() => import('./AccountsModal'), { ssr: false });
 const CategoryManagementModal = dynamic(() => import('./CategoryDashboard/components/CategoryManagementModal'), { ssr: false });
-const ScrapeAuditModal = dynamic(() => import('./ScrapeAuditModal'), { ssr: false });
 const CardVendorsModal = dynamic(() => import('./CardVendorsModal'), { ssr: false });
-const RecurringPaymentsModal = dynamic(() => import('./RecurringPaymentsModal'), { ssr: false });
 const DatabaseBackupModal = dynamic(() => import('./DatabaseBackupModal'), { ssr: false });
 const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
 const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false });
@@ -55,8 +52,8 @@ const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false 
 
 
 interface ResponsiveAppBarProps {
-  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat';
-  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat') => void;
+  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring';
+  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring') => void;
 }
 
 
@@ -105,12 +102,9 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
   const [desktopDrawerOpen, setDesktopDrawerOpen] = React.useState(true); // Persistent drawer for desktop
   const [isScrapeModalOpen, setIsScrapeModalOpen] = React.useState(false);
-  const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
   const [isAccountsModalOpen, setIsAccountsModalOpen] = React.useState(false);
   const [isCategoryManagementOpen, setIsCategoryManagementOpen] = React.useState(false);
-  const [isAuditOpen, setIsAuditOpen] = React.useState(false);
   const [isCardVendorsOpen, setIsCardVendorsOpen] = React.useState(false);
-  const [isRecurringOpen, setIsRecurringOpen] = React.useState(false);
   const [isBackupOpen, setIsBackupOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
@@ -155,14 +149,11 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
     { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: '#3b82f6' },
     { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: '#3b82f6' },
     { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: '#3b82f6' },
+    { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: '#3b82f6' },
+    { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: '#3b82f6' },
     { label: 'Chat', icon: <ForumIcon />, view: 'chat' as const, color: '#3b82f6' },
   ];
 
-  const actionMenuItems = [
-    { label: 'Audit', icon: <HistoryIcon />, action: () => setIsAuditOpen(true) },
-    { label: 'Recurring', icon: <RepeatIcon />, action: () => setIsRecurringOpen(true) },
-    { label: 'Manual', icon: <EditIcon />, action: () => setIsManualModalOpen(true) },
-  ];
 
   const settingsMenuItems = [
     { label: 'Categories', icon: <SettingsIcon />, action: () => setIsCategoryManagementOpen(true) },
@@ -173,42 +164,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   ];
 
 
-
-  const handleAddManualTransaction = async (transactionData: {
-    name: string;
-    amount: number;
-    date: Date;
-    type: 'income' | 'expense';
-    category?: string;
-  }) => {
-    try {
-      const formattedDate = transactionData.date.toISOString().split('T')[0];
-
-      const response = await fetch("/api/transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: transactionData.name,
-          amount: transactionData.amount,
-          date: formattedDate,
-          type: transactionData.type,
-          category: transactionData.category
-        }),
-      });
-
-      if (response.ok) {
-        setIsManualModalOpen(false);
-        // Dispatch a custom event to trigger data refresh
-        window.dispatchEvent(new CustomEvent('dataRefresh'));
-      } else {
-        logger.error('Failed to add manual transaction');
-      }
-    } catch (error) {
-      logger.error('Error adding manual transaction', error as Error);
-    }
-  };
 
   const handleScrapeSuccess = () => {
     showNotification('Scraping process completed successfully!', 'success');
@@ -282,44 +237,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
                       },
                     }}
                   />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-
-        <Divider sx={{ my: 0.5 }} />
-
-        {/* Actions Section */}
-        <Box sx={{ p: 1, pb: 0 }}>
-          <Typography sx={{ px: 2, py: 0.5, fontSize: '10px', color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Actions
-          </Typography>
-          <List disablePadding>
-            {actionMenuItems.map((item) => (
-              <ListItem key={item.label} disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    item.action();
-                    if (isMobile) {
-                      handleDrawerToggle();
-                    }
-                  }}
-                  sx={{
-                    borderRadius: '8px',
-                    mx: 1,
-                    mb: 0.25,
-                    py: 0.5,
-                    minHeight: 32,
-                    '&:hover': {
-                      backgroundColor: theme.palette.action.hover,
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'text.secondary', minWidth: 32, '& .MuiSvgIcon-root': { fontSize: 18 } }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={item.label} sx={{ m: 0, '& .MuiTypography-root': { fontSize: '0.8125rem', fontWeight: 500, color: 'text.secondary' } }} />
                 </ListItemButton>
               </ListItem>
             ))}
@@ -471,11 +388,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
         onClose={() => setIsScrapeModalOpen(false)}
         onSuccess={handleScrapeSuccess}
       />
-      <ManualModal
-        open={isManualModalOpen}
-        onClose={() => setIsManualModalOpen(false)}
-        onSave={handleAddManualTransaction}
-      />
       <AccountsModal
         isOpen={isAccountsModalOpen}
         onClose={() => setIsAccountsModalOpen(false)}
@@ -488,14 +400,9 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
           window.dispatchEvent(new CustomEvent('dataRefresh'));
         }}
       />
-      <ScrapeAuditModal open={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
       <CardVendorsModal
         isOpen={isCardVendorsOpen}
         onClose={() => setIsCardVendorsOpen(false)}
-      />
-      <RecurringPaymentsModal
-        open={isRecurringOpen}
-        onClose={() => setIsRecurringOpen(false)}
       />
       <DatabaseBackupModal
         open={isBackupOpen}
