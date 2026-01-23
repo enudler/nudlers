@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '../utils/client-logger';
-import { Box, Tooltip, Typography, Chip } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';

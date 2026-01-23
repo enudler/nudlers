@@ -14,7 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import SearchIcon from '@mui/icons-material/Search';
-import Divider from '@mui/material/Divider';
+
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
@@ -39,7 +39,15 @@ import { CREDIT_CARD_VENDORS, BANK_VENDORS } from '../utils/constants';
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
 
-const isBankTransaction = (transaction: any) => {
+interface BankCheckTransaction {
+  card6_digits?: string;
+  account_number?: string | number;
+  installments_total?: number;
+  vendor?: string;
+  category?: string;
+}
+
+const isBankTransaction = (transaction: BankCheckTransaction) => {
   // 1. Check for Credit Card signals FIRST
   const hasCardSignals =
     Boolean(transaction.card6_digits) ||
@@ -96,13 +104,7 @@ interface CardSummary {
   transaction_vendor?: string | null;
 }
 
-interface BankAccountSummary {
-  bank_account_id: number | null;
-  bank_account_nickname: string;
-  bank_account_number: string | null;
-  bank_account_vendor: string | null;
-  total_expenses: number;
-}
+
 
 interface ScrapedBankSummary {
   bank_account_id: number | null;
@@ -132,23 +134,13 @@ type SortDirection = 'asc' | 'desc';
 // getDateRange removed (handled by context)
 
 // Helper to format date range for display
-const formatDateRangeDisplay = (startDate: string, endDate: string) => {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${startStr} - ${endStr}`;
-};
+
 
 const formatNumber = (num: number): string => {
   return new Intl.NumberFormat('he-IL').format(Math.round(num));
 };
 
-const formatMonth = (monthStr: string): string => {
-  const [year, month] = monthStr.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-};
+
 
 
 
@@ -167,14 +159,13 @@ const MonthlySummary: React.FC = () => {
     customStartDate, setCustomStartDate,
     customEndDate, setCustomEndDate,
     uniqueYears,
+
     uniqueMonths,
-    startDate, endDate, billingCycle,
-    allAvailableDates,
-    billingStartDay
+    startDate, endDate, billingCycle
   } = useDateSelection();
 
   // Grouping
-  const [groupBy, setGroupBy] = useState<GroupByType>('description');
+  const [groupBy] = useState<GroupByType>('description');
 
   // Date range error (local validation for custom range UI feedback if needed, 
   // though context handles valid start/end dates for fetching)
@@ -288,26 +279,6 @@ const MonthlySummary: React.FC = () => {
     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
   };
 
-  useEffect(() => {
-    // Initialize state from local storage and settings
-    const init = async () => {
-      // Load persistence first
-      const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
-      if (persistedMode && ['billing', 'calendar'].includes(persistedMode)) {
-        setDateRangeMode(persistedMode);
-      }
-
-      // Settings loaded by context
-
-
-      // Fetch available dates and initialize selection
-      fetchCardVendors();
-      fetchCardVendors();
-    }
-
-    init();
-  }, []);
-
   const fetchCardVendors = useCallback(async () => {
     try {
       const response = await fetch('/api/cards');
@@ -330,6 +301,28 @@ const MonthlySummary: React.FC = () => {
       logger.error('Error fetching card vendors', error);
     }
   }, []);
+
+  useEffect(() => {
+    // Initialize state from local storage and settings
+    const init = async () => {
+      // Load persistence first
+      const persistedMode = localStorage.getItem('monthlySummary_mode') as DateRangeMode | null;
+      if (persistedMode && ['billing', 'calendar'].includes(persistedMode)) {
+        setDateRangeMode(persistedMode);
+      }
+
+      // Settings loaded by context
+
+
+      // Fetch available dates and initialize selection
+      fetchCardVendors();
+
+    }
+
+    init();
+  }, [fetchCardVendors, setDateRangeMode]);
+
+
 
   const handleVendorMenuOpen = (event: React.MouseEvent<HTMLElement>, last4digits: string) => {
     event.stopPropagation();
@@ -536,8 +529,7 @@ const MonthlySummary: React.FC = () => {
 
           // However, we need to be careful. The user wants "Bank Account Data" (scraped) vs linked CC data.
 
-          const bankIncome = Number(item.bank_income || 0);
-          const bankExpenses = Number(item.bank_expenses || 0);
+
           const cardExpenses = Number(item.card_expenses || 0);
           const totalIncome = Number(item.total_income || 0);
           const totalOutflow = Number(item.total_outflow || 0);
@@ -629,7 +621,7 @@ const MonthlySummary: React.FC = () => {
         window.scrollTo(0, scrollY);
       });
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions, selectedYear, selectedMonth]);
 
   useEffect(() => {
     if (dateRangeMode === 'custom') {
@@ -639,7 +631,7 @@ const MonthlySummary: React.FC = () => {
     } else if (startDate && endDate) {
       fetchMonthlySummary();
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate, selectedYear, selectedMonth]);
 
   // Separate useEffect for filter toggle - skip loading state to prevent flicker
   useEffect(() => {
@@ -650,7 +642,7 @@ const MonthlySummary: React.FC = () => {
     } else if (startDate && endDate) {
       fetchMonthlySummary(true); // skipLoadingState = true
     }
-  }, [showBankTransactions]); // Only trigger when filter changes
+  }, [showBankTransactions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleDataRefresh = () => {
@@ -727,7 +719,7 @@ const MonthlySummary: React.FC = () => {
 
       const transactions = await response.json();
       // Filter to only credit card transactions (not Bank)
-      const cardTransactions = transactions.filter((t: any) => !isBankTransaction(t));
+      const cardTransactions = transactions.filter((t: BankCheckTransaction) => !isBankTransaction(t));
 
       setModalData({
         type: 'All Card Expenses',
@@ -944,7 +936,7 @@ const MonthlySummary: React.FC = () => {
       const transactions = await response.json();
 
       // Filter: Show ONLY bank transactions (scraped from bank)
-      const bankTransactions = transactions.filter((t: any) => isBankTransaction(t));
+      const bankTransactions = transactions.filter((t: BankCheckTransaction) => isBankTransaction(t));
 
       setModalData({
         type: `${bank.bank_account_nickname} (Bank Activity)`,
@@ -996,7 +988,7 @@ const MonthlySummary: React.FC = () => {
       const transactions = await response.json();
 
       // Filter: Show ONLY Credit Card transactions (Exclude bank self-txns)
-      let ccTransactions = transactions.filter((t: any) => !isBankTransaction(t));
+      let ccTransactions = transactions.filter((t: BankCheckTransaction) => !isBankTransaction(t));
 
       // If unassigned, filter to only show transactions from unassigned cards
       if (!bank.bank_account_id) {
@@ -1005,7 +997,7 @@ const MonthlySummary: React.FC = () => {
           .filter(card => !card.bank_account_id && !card.custom_bank_account_nickname && !card.custom_bank_account_number)
           .map(card => card.last4digits);
 
-        ccTransactions = ccTransactions.filter((t: any) => {
+        ccTransactions = ccTransactions.filter((t: BankCheckTransaction) => {
           const txnLast4 = t.account_number ? String(t.account_number).slice(-4) : null;
           return txnLast4 && unassignedCards.includes(txnLast4);
         });
@@ -1112,7 +1104,7 @@ const MonthlySummary: React.FC = () => {
         categories: categorySummary
       }
     });
-  }, [data, totals.card_expenses, dateRangeMode, selectedYear, selectedMonth, customStartDate, customEndDate, setScreenContext]);
+  }, [data, totals.card_expenses, dateRangeMode, selectedYear, selectedMonth, customStartDate, customEndDate, setScreenContext, startDate, endDate]);
 
   // Sorting handler
   const handleSortChange = (field: SortField) => {

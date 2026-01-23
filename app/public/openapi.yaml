@@ -807,24 +807,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SyncStatusResponse'
 
-  /scrapers/sync-all-stream:
-    post:
-      tags:
-        - Scraping
-      summary: Sync all accounts (streaming)
-      description: Trigger scrape for all active credentials with SSE progress updates.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SyncAllRequest'
-      responses:
-        '200':
-          description: SSE stream of sync progress
-          content:
-            text/event-stream:
-              schema:
-                type: string
+
 
   /scrape_events:
     get:
@@ -1208,7 +1191,7 @@ paths:
     get:
       tags:
         - Credentials
-      summary: Get card vendors and details
+      summary: Get credit card vendors and details (excludes bank accounts)
       responses:
         '200':
           description: List of cards

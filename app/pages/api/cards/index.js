@@ -17,6 +17,7 @@ export default async function handler(req, res) {
           WHERE account_number IS NOT NULL 
             AND account_number != ''
             AND LENGTH(account_number) >= 4
+            AND (transaction_type IS NULL OR transaction_type != 'bank')
           GROUP BY RIGHT(account_number, 4)
         )
         SELECT 

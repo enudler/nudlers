@@ -52,7 +52,7 @@ import {
     validateCredentials,
     insertTransaction
 } from '../pages/api/utils/scraperUtils';
-import { sleep } from '../scrapers/core.js';
+
 
 describe('ScraperUtils', () => {
     let mockClient: {
@@ -509,10 +509,10 @@ describe('ScraperUtils', () => {
         });
 
         it('should NOT mark transactions on consecutive days as duplicates', async () => {
-            const date1 = new Date('2023-01-01');
+            // const date1 = new Date('2023-01-01');
             const date2 = new Date('2023-01-02');
 
-            const tx1 = { ...mockTransaction, date: date1.toISOString(), identifier: 'tx1' };
+            // const tx1 = { ...mockTransaction, date: date1.toISOString(), identifier: 'tx1' };
             const tx2 = { ...mockTransaction, date: date2.toISOString(), identifier: 'tx2' };
 
             // First call for tx2: identifier check (tx2) -> empty

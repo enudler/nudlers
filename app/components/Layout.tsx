@@ -87,7 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         // 500 or network error
         setDbError(true);
       }
-    } catch (e) {
+    } catch {
       setDbError(true);
     } finally {
       setIsRetrying(false);

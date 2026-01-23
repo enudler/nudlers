@@ -6,7 +6,7 @@ export async function register() {
     // Intercept Next.js request logs and redirect through our JSON logger
     const stripAnsi = (str: string) => str.replace(/[\u001b\u009b][[[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
 
-    const handleLog = (chunk: any, originalWrite: Function) => {
+    const handleLog = (chunk: unknown, originalWrite: Function) => {
       const rawMessage = chunk?.toString() || '';
 
       // If no request log is present, just write it as is
@@ -62,10 +62,10 @@ export async function register() {
     };
 
     const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = (chunk: any) => handleLog(chunk, originalStdoutWrite) as any;
+    process.stdout.write = (chunk: unknown) => handleLog(chunk, originalStdoutWrite) as boolean;
 
     const originalStderrWrite = process.stderr.write.bind(process.stderr);
-    process.stderr.write = (chunk: any) => handleLog(chunk, originalStderrWrite) as any;
+    process.stderr.write = (chunk: unknown) => handleLog(chunk, originalStderrWrite) as boolean;
 
     logger.info('[startup] Running database migrations');
 
@@ -80,8 +80,9 @@ export async function register() {
         logger.error({ error: result.error }, '[startup] Database migrations failed');
         // Don't exit - let the app start anyway, migrations can be run manually
       }
-    } catch (error: any) {
-      logger.error({ error: error.message, stack: error.stack }, '[startup] Failed to run migrations');
+    } catch (error: unknown) {
+      const err = error as Error;
+      logger.error({ error: err.message, stack: err.stack }, '[startup] Failed to run migrations');
     }
 
 
@@ -106,7 +107,7 @@ export async function register() {
                              'whatsapp_twilio_from', 'whatsapp_to')`
             );
 
-            const settings: Record<string, any> = {};
+            const settings: Record<string, unknown> = {};
             for (const row of settingsResult.rows) {
               settings[row.key] = row.value;
             }
@@ -119,7 +120,7 @@ export async function register() {
             // Check if we're at the right hour
             const now = new Date();
             const currentHour = now.getHours();
-            const targetHour = parseInt(settings.whatsapp_hour || '8', 10);
+            const targetHour = parseInt((settings.whatsapp_hour as string) || '8', 10);
 
             if (currentHour !== targetHour) {
               return;
@@ -145,16 +146,16 @@ export async function register() {
             const { sendWhatsAppMessage } = await import('./utils/whatsapp.js');
             const sid = typeof settings.whatsapp_twilio_sid === 'string'
               ? settings.whatsapp_twilio_sid.replace(/"/g, '')
-              : settings.whatsapp_twilio_sid;
+              : settings.whatsapp_twilio_sid as string;
             const authToken = typeof settings.whatsapp_twilio_auth_token === 'string'
               ? settings.whatsapp_twilio_auth_token.replace(/"/g, '')
-              : settings.whatsapp_twilio_auth_token;
+              : settings.whatsapp_twilio_auth_token as string;
             const from = typeof settings.whatsapp_twilio_from === 'string'
               ? settings.whatsapp_twilio_from.replace(/"/g, '')
-              : settings.whatsapp_twilio_from;
+              : settings.whatsapp_twilio_from as string;
             const to = typeof settings.whatsapp_to === 'string'
               ? settings.whatsapp_to.replace(/"/g, '')
-              : settings.whatsapp_to;
+              : settings.whatsapp_to as string;
 
             await sendWhatsAppMessage({
               sid,
@@ -178,27 +179,31 @@ export async function register() {
             );
 
             logger.info('[whatsapp-cron] Daily summary sent successfully');
-          } catch (error: any) {
-            logger.error({ error: error.message, stack: error.stack }, '[whatsapp-cron] Error sending daily summary');
+          } catch (error: unknown) {
+            const err = error as Error;
+            logger.error({ error: err.message, stack: err.stack }, '[whatsapp-cron] Error sending daily summary');
 
             // Log failure to audit
-            const today = new Date().toISOString().split('T')[0];
+            const errorMsg = (error as Error).message;
+            const todayDate = new Date().toISOString().split('T')[0];
             await client.query(
               `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
                VALUES ($1, $2, $3, $4, $5)`,
-              ['whatsapp_cron', 'whatsapp_summary', today, 'failed', error.message]
+              ['whatsapp_cron', 'whatsapp_summary', todayDate, 'failed', errorMsg]
             ).catch(() => { }); // Ignore if this fails
           } finally {
             client.release();
           }
-        } catch (error: any) {
-          logger.error({ error: error.message }, '[whatsapp-cron] Failed to execute cron job');
+        } catch (error: unknown) {
+          const err = error as Error;
+          logger.error({ error: err.message }, '[whatsapp-cron] Failed to execute cron job');
         }
       });
 
       logger.info('[startup] WhatsApp cron job initialized');
-    } catch (error: any) {
-      logger.warn({ error: error.message }, '[startup] WhatsApp cron job initialization failed');
+    } catch (error: unknown) {
+      const err = error as Error;
+      logger.warn({ error: err.message }, '[startup] WhatsApp cron job initialization failed');
     }
 
     // Initialize Background Sync cron job
@@ -221,7 +226,7 @@ export async function register() {
                WHERE key IN ('sync_enabled', 'sync_hour', 'sync_last_run_at')`
             );
 
-            const settings: Record<string, any> = {};
+            const settings: Record<string, unknown> = {};
             for (const row of settingsResult.rows) {
               settings[row.key] = row.value;
             }
@@ -234,7 +239,7 @@ export async function register() {
             // Check if we're at the right hour
             const now = new Date();
             const currentHour = now.getHours();
-            const targetHour = parseInt(settings.sync_hour || '3', 10);
+            const targetHour = parseInt((settings.sync_hour as string) || '3', 10);
 
             if (currentHour !== targetHour) {
               return;
@@ -265,19 +270,22 @@ export async function register() {
             );
 
             logger.info('[sync-cron] Background sync completed and last run time updated');
-          } catch (error: any) {
-            logger.error({ error: error.message, stack: error.stack }, '[sync-cron] Error during background sync');
+          } catch (error: unknown) {
+            const err = error as Error;
+            logger.error({ error: err.message, stack: err.stack }, '[sync-cron] Error during background sync');
           } finally {
             client.release();
           }
-        } catch (error: any) {
-          logger.error({ error: error.message }, '[sync-cron] Failed to execute sync cron job');
+        } catch (error: unknown) {
+          const err = error as Error;
+          logger.error({ error: err.message }, '[sync-cron] Failed to execute sync cron job');
         }
       });
 
       logger.info('[startup] Background Sync cron job initialized');
-    } catch (error: any) {
-      logger.warn({ error: error.message }, '[startup] Background Sync cron job initialization failed');
+    } catch (error: unknown) {
+      const err = error as Error;
+      logger.warn({ error: err.message }, '[startup] Background Sync cron job initialization failed');
     }
   }
 }

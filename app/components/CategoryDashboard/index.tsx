@@ -45,11 +45,18 @@ interface BudgetInfo {
 // Date range mode type imported from context
 
 // Maximum date range in years
-const MAX_YEARS_RANGE = 5;
+// Maximum date range in years
+// const MAX_YEARS_RANGE = 5;
 
 // Known Israeli bank vendors (to distinguish from credit cards)
 const BANK_VENDORS = IMPORTED_BANK_VENDORS;
-const isBankTransaction = (transaction: any) => {
+const isBankTransaction = (transaction: {
+  card6_digits?: string;
+  account_number?: string | number;
+  installments_total?: number;
+  vendor?: string;
+  category?: string;
+}) => {
   // 1. Check for Credit Card signals FIRST (Priority over category)
   // If it has card signals, it is a Card transaction, regardless of category (e.g. 'Bank' fees on card)
   const hasCardSignals =
@@ -82,45 +89,15 @@ const isBankTransaction = (transaction: any) => {
 
 // Helper function to calculate date range based on mode
 // This will be redefined inside component to access billingStartDay
+// getDateRangeBase removed as it's unused
+/*
 const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): { startDate: string; endDate: string } => {
-  const y = parseInt(year);
-  const m = parseInt(month);
-
-  if (mode === 'calendar') {
-    // Full calendar month: 1st to last day of month
-    const startDate = `${year}-${month}-01`;
-    const lastDay = new Date(y, m, 0).getDate(); // Get last day of month
-    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  } else {
-    // Billing cycle: (Start Day + 1) of previous month to (Start Day) of selected month
-    // Example: Start Day = 10. Range: 11th Prev to 10th Curr.
-    // This matches MonthlySummary logic
-    let prevMonth = m - 1;
-    let prevYear = y;
-    if (prevMonth === 0) {
-      prevMonth = 12;
-      prevYear = y - 1;
-    }
-
-    const startDayVal = billingStartDay + 1;
-    const endDayVal = billingStartDay;
-
-    const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
-    const endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
-    return { startDate, endDate };
-  }
+  ...
 };
+*/
 
-// Helper to format date range for display
-const formatDateRangeDisplay = (year: string, month: string, mode: DateRangeMode): string => {
-  const { startDate, endDate } = getDateRangeBase(year, month, mode);
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${startStr} - ${endStr}`;
-};
+// getDateRangeBase moved inside component if needed or used via props/context
+// formatDateRangeDisplay removed as it's unused
 
 // Common styles
 
@@ -177,7 +154,7 @@ const CategoryDashboard: React.FC = () => {
   const [loadingBankTransactions, setLoadingBankTransactions] = React.useState(false);
   const [modalData, setModalData] = React.useState<ModalData>();
   const [showTransactionsTable, setShowTransactionsTable] = React.useState(false);
-  const [transactions, setTransactions] = React.useState<any[]>([]);
+  const [transactions, setTransactions] = React.useState<Expense[]>([]);
   const [loadingTransactions, setLoadingTransactions] = React.useState(false);
 
   const categoryIcons = useCategoryIcons();
@@ -188,7 +165,7 @@ const CategoryDashboard: React.FC = () => {
   const [budgetMap, setBudgetMap] = React.useState<Map<string, BudgetInfo>>(new Map());
 
   // Date range error (local validation)
-  const [dateRangeError, setDateRangeError] = React.useState<string>('');
+  const [dateRangeError] = React.useState<string>('');
 
   // Budget modal state
   const [isBudgetModalOpen, setIsBudgetModalOpen] = React.useState(false);
@@ -215,29 +192,7 @@ const CategoryDashboard: React.FC = () => {
     currentCustomEndDateRef.current = customEndDate;
   }, [selectedYear, selectedMonth, dateRangeMode, customStartDate, customEndDate]);
 
-  // Validate date range (max 5 years)
-  const validateDateRange = (start: string, end: string): boolean => {
-    if (!start || !end) return false;
-
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-
-    if (startDate > endDate) {
-      setDateRangeError('Start date must be before end date');
-      return false;
-    }
-
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365);
-
-    if (diffYears > MAX_YEARS_RANGE) {
-      setDateRangeError(`Date range cannot exceed ${MAX_YEARS_RANGE} years`);
-      return false;
-    }
-
-    setDateRangeError('');
-    return true;
-  };
+  // validateDateRange removed as it's unused
 
   // Fetch budget data
   const fetchBudgetData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
@@ -276,17 +231,24 @@ const CategoryDashboard: React.FC = () => {
         month: selectedMonth
       });
     }
-  }, []);
+  }, [selectedYear, selectedMonth]);
 
   // Helper moved up
   const fetchTransactionsWithRange = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     setLoadingTransactions(true);
     try {
       const transactionsData = await fetchAllTransactions(startDate, endDate, billingCycle);
-      // Sort transactions by date descending (newest first)
-      const sortedTransactions = transactionsData.sort((a: any, b: any) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
+      // Map and sort transactions by date descending (newest first)
+      const sortedTransactions = transactionsData
+        .map((t: { category?: string; identifier?: string; vendor?: string;[key: string]: unknown }) => ({
+          ...t,
+          category: t.category || 'Unassigned',
+          identifier: t.identifier || 'unknown',
+          vendor: t.vendor || 'unknown'
+        }))
+        .sort((a: Expense, b: Expense) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
       setTransactions(sortedTransactions);
     } catch (error) {
       logger.error('Error fetching transactions data', error, {
@@ -298,11 +260,7 @@ const CategoryDashboard: React.FC = () => {
     }
   }, [selectedYear, selectedMonth]);
 
-  const fetchTransactions = React.useCallback(async () => {
-    if (startDate && endDate) {
-      fetchTransactionsWithRange(startDate, endDate, billingCycle);
-    }
-  }, [startDate, endDate, billingCycle, fetchTransactionsWithRange]);
+  // fetchTransactions removed as it's unused
 
   const fetchData = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
     try {
@@ -335,8 +293,8 @@ const CategoryDashboard: React.FC = () => {
       // - Credit Cards: Use billingCycle (processed_date) to match the statement.
       // - Bank: Use the calculated Date Range (e.g. 10th-10th) because Bank items don't have 'billing cycles'.
 
-      let bankData: any[] = [];
-      let cardData: any[] = [];
+      let bankData: { price: number; vendor?: string; category?: string; card6_digits?: string; account_number?: string | number; installments_total?: number; }[] = [];
+      let cardData: { price: number; vendor?: string; category?: string; card6_digits?: string; account_number?: string | number; installments_total?: number; }[] = [];
 
       if (billingCycle) {
         // Parallel fetch for speed
@@ -354,19 +312,19 @@ const CategoryDashboard: React.FC = () => {
       }
 
       const totalIncome = bankData
-        .filter((transaction: any) =>
+        .filter((transaction) =>
           isBankTransaction(transaction) && transaction.price > 0
         )
-        .reduce((acc: number, transaction: any) => acc + transaction.price, 0);
+        .reduce((acc: number, transaction) => acc + transaction.price, 0);
 
       const totalExpenses = bankData
-        .filter((transaction: any) => isBankTransaction(transaction) && transaction.price < 0)
-        .reduce((acc: number, transaction: any) => acc + Math.abs(transaction.price), 0);
+        .filter((transaction) => isBankTransaction(transaction) && transaction.price < 0)
+        .reduce((acc: number, transaction) => acc + Math.abs(transaction.price), 0);
 
       // Calculate net expenses for credit cards using cardData (Cycle based)
       const creditCardNetSum = cardData
-        .filter((transaction: any) => !isBankTransaction(transaction))
-        .reduce((acc: number, transaction: any) => acc + transaction.price, 0);
+        .filter((transaction) => !isBankTransaction(transaction))
+        .reduce((acc: number, transaction) => acc + transaction.price, 0);
 
       const creditCardExpenses = Math.abs(creditCardNetSum);
 
@@ -382,7 +340,7 @@ const CategoryDashboard: React.FC = () => {
       setBankTransactions({ income: 0, expenses: 0 });
       setCreditCardTransactions(0);
     }
-  }, [startDate, endDate, billingCycle, fetchBudgetData]);
+  }, [fetchBudgetData, selectedYear, selectedMonth, dateRangeMode]);
 
   // Theme-aware styles
   // Theme-aware styles
@@ -411,16 +369,7 @@ const CategoryDashboard: React.FC = () => {
     backgroundSize: '16px'
   };
 
-  const buttonStyle = {
-    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    padding: '14px',
-    borderRadius: '16px',
-    border: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.primary,
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-  };
+  // buttonStyle removed as it's unused
 
 
   const handleRefreshClick = () => {
@@ -445,7 +394,7 @@ const CategoryDashboard: React.FC = () => {
     };
     window.addEventListener('dataRefresh', handleRefresh);
     return () => window.removeEventListener('dataRefresh', handleRefresh);
-  }, [startDate, endDate, billingCycle]);
+  }, [startDate, endDate, billingCycle, fetchData]);
 
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedYear(event.target.value);
@@ -514,7 +463,7 @@ const CategoryDashboard: React.FC = () => {
       transactions: showTransactionsTable ? transactions.slice(0, 50).map(t => ({
         name: t.name,
         amount: t.price,
-        category: t.category,
+        category: t.category || 'Unassigned',
         date: t.date
       })) : undefined
     });
@@ -541,14 +490,27 @@ const CategoryDashboard: React.FC = () => {
       const allTransactions = await fetchAllTransactions(startDate, endDate, undefined);
 
       // Filter for Bank transactions (both positive and negative)
-      const bankTransactionsData = allTransactions.filter((transaction: any) =>
+      const bankTransactionsData = allTransactions.filter((transaction: {
+        card6_digits?: string;
+        account_number?: string | number;
+        installments_total?: number;
+        vendor?: string;
+        category?: string;
+      }) =>
         isBankTransaction(transaction)
       );
 
       // Format the data correctly - include identifier and vendor for editing/deleting
       setModalData({
         type: "Bank Transactions",
-        data: bankTransactionsData.map((transaction: any) => ({
+        data: bankTransactionsData.map((transaction: {
+          name: string;
+          price: number;
+          date: string;
+          category: string;
+          identifier: string;
+          vendor: string;
+        }) => ({
           name: transaction.name,
           price: transaction.price,
           date: transaction.date,
@@ -577,14 +539,27 @@ const CategoryDashboard: React.FC = () => {
       const allExpensesData = await fetchAllTransactions(startDate, endDate, billingCycle);
 
       // Filter for Credit Card transactions (not Bank)
-      const creditCardData = allExpensesData.filter((transaction: any) =>
+      const creditCardData = allExpensesData.filter((transaction: {
+        card6_digits?: string;
+        account_number?: string | number;
+        installments_total?: number;
+        vendor?: string;
+        category?: string;
+      }) =>
         !isBankTransaction(transaction)
       );
 
       // Format the data correctly - include identifier and vendor for editing/deleting
       setModalData({
         type: "Credit Card Expenses",
-        data: creditCardData.map((transaction: any) => ({
+        data: creditCardData.map((transaction: {
+          name: string;
+          price: number;
+          date: string;
+          category: string;
+          identifier: string;
+          vendor: string;
+        }) => ({
           name: transaction.name,
           price: transaction.price,
           date: transaction.date,
@@ -661,7 +636,7 @@ const CategoryDashboard: React.FC = () => {
   // Moved up
 
 
-  const handleDeleteTransaction = async (transaction: any) => {
+  const handleDeleteTransaction = async (transaction: Expense) => {
     try {
       const response = await fetch(`/api/transactions/${transaction.identifier}|${transaction.vendor}`, {
         method: 'DELETE',
@@ -687,9 +662,9 @@ const CategoryDashboard: React.FC = () => {
     }
   };
 
-  const handleUpdateTransaction = async (transaction: any, newPrice: number, newCategory?: string) => {
+  const handleUpdateTransaction = async (transaction: Expense, newPrice: number, newCategory?: string) => {
     try {
-      const updateData: any = { price: newPrice };
+      const updateData: Partial<Expense> = { price: newPrice };
       if (newCategory !== undefined) {
         updateData.category = newCategory;
       }

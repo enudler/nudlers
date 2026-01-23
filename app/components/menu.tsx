@@ -7,7 +7,7 @@ import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 
 import Container from "@mui/material/Container";
-import Button from "@mui/material/Button";
+
 import IconButton from "@mui/material/IconButton";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
@@ -52,9 +52,7 @@ const DatabaseBackupModal = dynamic(() => import('./DatabaseBackupModal'), { ssr
 const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
 const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false });
 
-interface StringDictionary {
-  [key: string]: string;
-}
+
 
 interface ResponsiveAppBarProps {
   currentView?: 'dashboard' | 'summary' | 'budget' | 'chat';

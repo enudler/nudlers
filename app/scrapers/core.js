@@ -10,6 +10,7 @@ import {
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
+import logger from '../utils/logger.js';
 
 // Vendors that are rate-limited and need special handling (delays, longer timeouts, etc.)
 export const RATE_LIMITED_VENDORS = CREDIT_CARD_VENDORS;
@@ -73,7 +74,7 @@ export async function saveScreenshot(page, companyId, stepName, onProgress = nul
 
         const filePath = path.join(screenshotsDir, filename);
         await page.screenshot({ path: filePath, fullPage: true });
-        console.log(`[Scraper] Screenshot saved: ${filename}`);
+        logger.info({ filename }, 'Screenshot saved');
 
         if (onProgress) {
             onProgress(companyId, {
@@ -87,7 +88,7 @@ export async function saveScreenshot(page, companyId, stepName, onProgress = nul
 
         return filename;
     } catch (err) {
-        console.error('[Scraper] Failed to save screenshot:', err.message);
+        logger.error({ err: err.message, companyId, stepName }, 'Failed to save screenshot');
         return null;
     }
 }
@@ -255,7 +256,7 @@ export function getPreparePage(options = {}) {
                             resourceType,
                             timestamp: new Date().toISOString()
                         };
-                        console.log(JSON.stringify(logData));
+                        logger.info(logData);
 
                         if (onProgress) {
                             onProgress('network', {
@@ -280,7 +281,7 @@ export function getPreparePage(options = {}) {
                 }
             } catch (err) {
                 // Prevent unhandled rejections from within the listener
-                console.error('[Scraper Interception Error]', err.message);
+                logger.error({ err: err.message }, 'Scraper Interception Error');
             }
         });
 
@@ -314,7 +315,7 @@ export function getPreparePage(options = {}) {
                         }
                     }
 
-                    console.log(JSON.stringify(logData));
+                    logger.info(logData);
 
                     if (onProgress) {
                         onProgress('network', {

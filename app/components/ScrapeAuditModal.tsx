@@ -35,7 +35,7 @@ export default function ScrapeAuditModal({ open, onClose }: Props) {
       const res = await fetch('/api/scrape-events?limit=200');
       const data = await res.json();
       setEvents(data);
-    } catch (e) {
+    } catch {
       // noop
     } finally {
       setLoading(false);
@@ -81,7 +81,7 @@ export default function ScrapeAuditModal({ open, onClose }: Props) {
                     <TableCell>{new Date(ev.start_date).toLocaleDateString()}</TableCell>
                     <TableCell>{ev.triggered_by || '-'}</TableCell>
                     <TableCell>
-                      <Chip label={ev.status} color={statusColor(ev.status) as any} size="small" />
+                      <Chip label={ev.status} color={statusColor(ev.status) as 'success' | 'error' | 'default'} size="small" />
                     </TableCell>
                     <TableCell>{ev.message || '-'}</TableCell>
                   </TableRow>

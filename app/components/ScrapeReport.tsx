@@ -13,9 +13,35 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import StorageIcon from '@mui/icons-material/Storage';
 import Tooltip from '@mui/material/Tooltip';
 
+export interface ScrapeReportTransaction {
+    date: string;
+    accountName?: string;
+    cardLast4?: string;
+    description?: string;
+    name?: string;
+    amount: number;
+    isUpdate?: boolean;
+    oldCategory?: string;
+    category?: string;
+    isDuplicate?: boolean;
+    source?: string;
+    rule?: string;
+}
+
+export interface ScrapeReportSummary {
+    savedTransactions?: number;
+    updatedTransactions?: number;
+    duplicateTransactions?: number;
+    durationSeconds?: number;
+    duration_seconds?: number;
+    cachedCategories?: number;
+    ruleCategories?: number;
+    scraperCategories?: number;
+}
+
 interface ScrapeReportProps {
-    report: any[];
-    summary?: any; // Contains counts if report is partial or if just passed for convenience
+    report: ScrapeReportTransaction[];
+    summary?: ScrapeReportSummary;
 }
 
 // Custom table components for Virtuoso to preserve styling
@@ -153,7 +179,7 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
         </tr>
     );
 
-    const renderRow = (_idx: number, tx: any) => (
+    const renderRow = (_idx: number, tx: ScrapeReportTransaction) => (
         <>
             <td style={{ padding: '6px 12px', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>
                 {new Date(tx.date).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' })}

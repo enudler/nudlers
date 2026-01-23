@@ -128,17 +128,17 @@ const MetricsPanel: React.FC = () => {
   });
   const [open, setOpen] = React.useState(true);
 
-  const fetchData = async () => {
-    try {
-      const response = await fetch("/api/reports/box-panel");
-      const result = await response.json();
-      setData(result as BoxPanelData);
-    } catch (error) {
-      logger.error('Error fetching metrics data', error as Error);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/reports/box-panel");
+        const result = await response.json();
+        setData(result as BoxPanelData);
+      } catch (error) {
+        logger.error('Error fetching metrics data', error as Error);
+      }
+    };
+
     fetchData();
   }, []);
 

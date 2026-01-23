@@ -14,12 +14,11 @@ import {
     getScraperOptions,
     getScraperTimeout,
     getScrapeRetries,
-    runScraper,
+
     resetCategoryCache
 } from '../pages/api/utils/scraperUtils';
 import { getPreparePage } from '../scrapers/core';
 import { DEFAULT_SCRAPER_TIMEOUT, DEFAULT_SCRAPE_RETRIES } from '../utils/constants';
-import logger from '../utils/logger';
 
 // Mock logger
 vi.mock('../utils/logger', () => ({
