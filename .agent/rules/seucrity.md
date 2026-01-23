@@ -1,6 +1,5 @@
 ---
 trigger: always_on
-glob:
-description:
 ---
 
+This app is sensetive as it has acccess through scrape to bank accounts. you should keep best practices for security.
