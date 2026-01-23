@@ -91,6 +91,7 @@ export default async function handler(req, res) {
       LEFT JOIN vendor_credentials vc ON t.account_number = vc.bank_account_number AND t.transaction_type = 'bank'
       WHERE t.price < 0
         AND (t.installments_total IS NULL OR t.installments_total <= 1)
+        AND (t.installments_number IS NULL OR t.installments_number <= 1)
         AND t.category NOT IN ('Bank', 'Income')
       ORDER BY t.date DESC
     `);
