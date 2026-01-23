@@ -1,7 +1,8 @@
 import nextConfig from "eslint-config-next/core-web-vitals";
+
 import tseslint from "typescript-eslint";
 
-export default [
+const eslintConfig = [
     ...nextConfig,
     {
         files: ["**/*.ts", "**/*.tsx"],
@@ -17,8 +18,17 @@ export default [
         },
     },
     {
+        files: ["**/*.test.ts", "**/*.test.tsx", "**/tests/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-explicit-any": "off"
+        }
+    },
+    {
         rules: {
             "react/no-unescaped-entities": "off",
         },
     },
+
 ];
+
+export default eslintConfig;

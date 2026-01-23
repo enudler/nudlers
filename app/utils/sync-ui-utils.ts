@@ -9,7 +9,7 @@ export interface SyncProgress {
     percent?: number;
     phase?: string;
     success?: boolean | null;
-    summary?: any;
+    summary?: unknown;
 }
 
 export const getSyncStatusLabel = (

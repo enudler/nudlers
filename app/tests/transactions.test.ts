@@ -105,7 +105,7 @@ describe('Transactions API Endpoint', () => {
 
             await handler(mockReq, mockRes);
 
-            const [sql, params] = mockClient.query.mock.calls[0];
+            const [, params] = mockClient.query.mock.calls[0];
             // Logic check: does it add params or just SQL?
             // checking implementation: conditions.push(...). No params added.
             expect(params).toEqual(['2023-01-01', '2023-01-31', 100, 0]);

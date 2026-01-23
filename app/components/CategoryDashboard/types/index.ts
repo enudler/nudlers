@@ -8,9 +8,9 @@ export interface Expense {
   name: string;
   price: number;
   date: string;
-  category?: string;
-  identifier?: string;
-  vendor?: string;
+  category: string;
+  identifier: string;
+  vendor: string;
   installments_number?: number;
   installments_total?: number;
   vendor_nickname?: string;
@@ -28,7 +28,7 @@ export interface ExpensesModalProps {
   color: string;
   setModalData?: (data: ModalData) => void;
   currentMonth?: string;
-} 
+}
 
 export interface ModalData {
   type: string;

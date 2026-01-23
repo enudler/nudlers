@@ -8,10 +8,8 @@ import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemButton from '@mui/material/ListItemButton';
-import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -20,18 +18,35 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ModalHeader from './ModalHeader';
 import dynamic from 'next/dynamic';
+import { ScrapeReportTransaction } from './ScrapeReport';
 const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
+
+interface SyncReport {
+    processedTransactions?: ScrapeReportTransaction[];
+    [key: string]: unknown;
+}
 
 interface SyncHistoryModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
+interface SyncEvent {
+    id: number;
+    vendor: string;
+    created_at: string;
+    status: string;
+    message: string;
+    triggered_by?: string;
+    report_json?: unknown;
+    duration_seconds?: number;
+}
+
 export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalProps) {
     const theme = useTheme();
     const [loading, setLoading] = useState(false);
-    const [events, setEvents] = useState<any[]>([]);
-    const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+    const [events, setEvents] = useState<SyncEvent[]>([]);
+    const [selectedEvent, setSelectedEvent] = useState<SyncEvent | null>(null);
     const [reportLoading, setReportLoading] = useState(false);
 
     const fetchEvents = async () => {
@@ -56,17 +71,17 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
         }
     }, [isOpen]);
 
-    const handleSelectEvent = async (event: any) => {
+    const handleSelectEvent = async (event: SyncEvent) => {
         setSelectedEvent(event);
 
         // Fetch detailed report if missing
-        if (!event.report_json || !event.report_json.processedTransactions) {
+        if (!event.report_json || !(event.report_json as SyncReport).processedTransactions) {
             setReportLoading(true);
             try {
                 const res = await fetch(`/api/scrape-events/${event.id}/report`);
                 if (res.ok) {
                     const reportData = await res.json();
-                    setSelectedEvent((prev: any) => prev && prev.id === event.id ? { ...prev, report_json: reportData } : prev);
+                    setSelectedEvent((prev: SyncEvent | null) => prev && prev.id === event.id ? { ...prev, report_json: reportData } : prev);
                 }
             } catch (err) {
                 logger.error('Failed to fetch detailed report', err as Error);
@@ -136,9 +151,9 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
                             </Box>
                         ) : selectedEvent.report_json ? (
                             <ScrapeReport
-                                report={selectedEvent.report_json.processedTransactions || []}
+                                report={(selectedEvent.report_json as SyncReport).processedTransactions || []}
                                 summary={{
-                                    ...selectedEvent.report_json,
+                                    ...(selectedEvent.report_json as SyncReport),
                                     duration_seconds: selectedEvent.duration_seconds
                                 }}
                             />
@@ -163,7 +178,7 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
                             </Box>
                         ) : (
                             <List>
-                                {events.map((event: any) => (
+                                {events.map((event: SyncEvent) => (
                                     <div key={event.id}>
                                         <ListItemButton
                                             onClick={() => handleSelectEvent(event)}

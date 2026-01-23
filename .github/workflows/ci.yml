@@ -13,6 +13,27 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  code-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for console.log
+        run: |
+          # Find console.log, excluding scripts (tools), node_modules, .github, and build artifacts
+          if grep -r "console.log" . --exclude-dir={node_modules,.git,.next,dist,coverage,scripts,.github} --exclude='*.min.js' --exclude='*.md' --exclude='.env_example'; then
+            echo "::error::Found console.log usage in the codebase."
+            exit 1
+          fi
+
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +51,8 @@ jobs:
         run: cd app && npm ci
 
       - name: Run unit tests
+        env:
+          NUDLERS_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
         run: cd app && npm test
 
   build-branch-image:

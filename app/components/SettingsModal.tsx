@@ -12,7 +12,7 @@ import {
   Switch,
   Alert,
   CircularProgress,
-  Chip,
+
   Select,
   MenuItem
 } from '@mui/material';
@@ -83,7 +83,7 @@ const SettingSection = styled(Box)(({ theme }) => ({
   marginBottom: '16px'
 }));
 
-const SettingRow = styled(Box)(({ theme }) => ({
+const SettingRow = styled(Box)({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
@@ -91,7 +91,7 @@ const SettingRow = styled(Box)(({ theme }) => ({
   '&:not(:last-child)': {
     borderBottom: '1px solid rgba(148, 163, 184, 0.1)'
   }
-}));
+});
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
@@ -209,6 +209,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
   const [hasInitialLoad, setHasInitialLoad] = useState(false);
 
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    // Silent save, only show errors if they happen
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings })
+      });
+
+      if (response.ok) {
+        setOriginalSettings(settings); // This might need care if settings changed during save, but for auto-save it's okay-ish
+      }
+    } catch (error) {
+      logger.error('Auto-save error', error as Error);
+      setResult({ type: 'error', message: 'Failed to auto-save settings' });
+    } finally {
+      setSaving(false);
+    }
+  }, [settings]);
+
   // Auto-save effect
   useEffect(() => {
     if (!hasInitialLoad || !originalSettings) return;
@@ -221,28 +242,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     }, 1000); // 1s debounce
 
     return () => clearTimeout(handler);
-  }, [settings, originalSettings, hasInitialLoad]);
+  }, [settings, originalSettings, hasInitialLoad, handleSave]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    // Silent save, only show errors if they happen
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings })
-      });
 
-      if (response.ok) {
-        setOriginalSettings(settings);
-      }
-    } catch (error) {
-      logger.error('Auto-save error', error as Error);
-      setResult({ type: 'error', message: 'Failed to auto-save settings' });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleClose = () => {
     onClose();

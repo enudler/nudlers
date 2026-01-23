@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { logger } from '../utils/client-logger';
 
 export type DateRangeMode = 'calendar' | 'billing' | 'custom';
@@ -50,7 +50,7 @@ const DateSelectionContext = createContext<DateSelectionContextType>({
 export const useDateSelection = () => useContext(DateSelectionContext);
 
 // Maximum date range in years
-const MAX_YEARS_RANGE = 5;
+
 
 // Helper function to calculate date range based on mode
 const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, billingStartDay: number = 10): { startDate: string; endDate: string } => {
@@ -214,7 +214,7 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [customEndDate, customStartDate]);
 
     useEffect(() => {
         init();

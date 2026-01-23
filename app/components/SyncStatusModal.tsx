@@ -33,6 +33,7 @@ import { BEINLEUMI_GROUP_VENDORS, BANK_VENDORS } from '../utils/constants';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import dynamic from 'next/dynamic';
+import { ScrapeReportSummary, ScrapeReportTransaction } from './ScrapeReport';
 const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
 import ImageIcon from '@mui/icons-material/Image';
 import CloseIcon from '@mui/icons-material/Close';
@@ -105,7 +106,7 @@ const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== 'wid
   }
 }));
 
-const ResizeHandle = styled(Box)(({ theme }) => ({
+const ResizeHandle = styled(Box)({
   position: 'absolute',
   left: 0,
   top: 0,
@@ -119,7 +120,7 @@ const ResizeHandle = styled(Box)(({ theme }) => ({
   '&:active': {
     backgroundColor: 'rgba(96, 165, 250, 0.8)',
   }
-}));
+});
 
 const StatusCard = styled(Box)(({ theme }) => ({
   padding: '16px',
@@ -129,13 +130,13 @@ const StatusCard = styled(Box)(({ theme }) => ({
   marginBottom: '12px'
 }));
 
-const AccountItem = styled(ListItem)(({ theme }) => ({
+const AccountItem = styled(ListItem)({
   borderRadius: '8px',
   marginBottom: '4px',
   '&:hover': {
     backgroundColor: 'rgba(96, 165, 250, 0.1)',
   }
-}));
+});
 
 // Helper function to parse date strings from API (now returns ISO strings with timezone)
 const parseDate = (dateStr: string | null): Date => {
@@ -285,7 +286,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   }
 
   const [sessionReport, setSessionReport] = useState<ProcessedTransaction[]>([]);
-  const [sessionSummary, setSessionSummary] = useState<any>(null);
+  const [sessionSummary, setSessionSummary] = useState<ScrapeReportSummary | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
@@ -403,7 +404,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       setSyncProgress(null);
       setSyncStartTime(null);
     }
-  }, [status, isSyncing]); // Removed syncProgress from dependencies to avoid loop
+  }, [status, isSyncing, isInitializing, isStopping]); // Removed syncProgress from dependencies to avoid loop
 
 
 
@@ -471,7 +472,18 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     return null;
   };
 
-  const prepareCredentials = (account: any, vendor: string) => {
+  interface SyncAccountCredentials {
+    id: number;
+    nickname?: string;
+    vendor: string;
+    username?: string;
+    password?: string;
+    id_number?: string;
+    bank_account_number?: string;
+    card6_digits?: string;
+  }
+
+  const prepareCredentials = (account: SyncAccountCredentials, vendor: string) => {
     // Match the logic from scraperUtils.js prepareCredentials
     // NOTE: account.id is the database row ID, account.id_number is the actual credential ID number
     if (vendor === 'visaCal' || vendor === 'max') {
@@ -600,7 +612,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
 
               switch (currentEvent) {
                 case 'queue':
-                  const initialQueue: QueueItem[] = eventData.accounts.map((acc: any) => ({
+                  const initialQueue: QueueItem[] = eventData.accounts.map((acc: { id: number; nickname: string; vendor: string }) => ({
                     id: acc.id,
                     accountName: acc.nickname,
                     vendor: acc.vendor,
@@ -821,7 +833,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                   });
 
                   if (eventData.summary && eventData.summary.processedTransactions) {
-                    setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: any) => ({
+                    setSessionReport(prev => [...prev, ...eventData.summary.processedTransactions.map((t: ProcessedTransaction) => ({
                       ...t,
                       accountName: account.nickname || account.vendor,
                       source: t.source,
@@ -1052,7 +1064,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                 No new transactions found during this sync.
               </Typography>
             ) : (
-              <ScrapeReport report={sessionReport} summary={sessionSummary} />
+              <ScrapeReport report={sessionReport as ScrapeReportTransaction[]} summary={sessionSummary || undefined} />
             )}
 
             <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>

@@ -3,12 +3,11 @@ import { logger } from '../utils/client-logger';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
-import CloseIcon from '@mui/icons-material/Close';
+
 import RepeatIcon from '@mui/icons-material/Repeat';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -16,7 +15,7 @@ import PendingIcon from '@mui/icons-material/Pending';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ModalHeader from './ModalHeader';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, Theme } from '@mui/material/styles';
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
 import { CardVendorIcon } from './CardVendorsModal';
 
@@ -768,7 +767,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   );
 };
 
-const getHeaderCellStyle = (theme: any): React.CSSProperties => ({
+const getHeaderCellStyle = (theme: Theme): React.CSSProperties => ({
   padding: '16px 12px',
   textAlign: 'left',
   color: theme.palette.text.secondary,

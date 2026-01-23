@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/client-logger';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -30,6 +30,7 @@ import ModalHeader from './ModalHeader';
 import { useTheme } from '@mui/material/styles';
 import { BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
 import dynamic from 'next/dynamic';
+import { ScrapeReportTransaction } from './ScrapeReport';
 const ScrapeReport = dynamic(() => import('./ScrapeReport'), { ssr: false });
 
 interface ScraperConfig {
@@ -66,7 +67,7 @@ interface ProgressState {
   phase?: string;
   success?: boolean | null;
   completedSteps?: string[];
-  details?: any;
+  details?: unknown;
 }
 
 interface RetryState {
@@ -141,7 +142,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
     if (!date || isNaN(date.getTime())) return '';
     return date.toISOString().split('T')[0];
   };
-  const defaultConfig: ScraperConfig = {
+  const defaultConfig: ScraperConfig = React.useMemo(() => ({
     options: {
       companyId: 'isracard',
       startDate: new Date(),
@@ -154,12 +155,13 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       card6Digits: '',
       password: '',
       username: '',
+      userCode: '',
       nickname: '',
       bankAccountNumber: ''
     }
-  };
+  }), []);
   const [config, setConfig] = useState<ScraperConfig>(initialConfig || defaultConfig);
-  const [sessionReport, setSessionReport] = useState<any[]>([]);
+  const [sessionReport, setSessionReport] = useState<ScrapeReportTransaction[]>([]);
 
   useEffect(() => {
     if (initialConfig) {
@@ -189,9 +191,9 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
         abortControllerRef.current = null;
       }
     }
-  }, [isOpen, initialConfig]);
+  }, [isOpen, initialConfig, defaultConfig]);
 
-  const handleConfigChange = (field: string, value: any) => {
+  const handleConfigChange = (field: string, value: unknown) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
       setConfig(prev => {
@@ -267,7 +269,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       } else {
         showNotification(data.message || 'Failed to stop scrapers', 'error');
       }
-    } catch (err) {
+    } catch {
       showNotification('Failed to stop scrapers', 'error');
     } finally {
       setIsKilling(false);
@@ -309,7 +311,7 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
           if (errorData.type === 'CONCURRENCY_ERROR') {
             setErrorType('CONCURRENCY_ERROR');
           }
-        } catch (e) {
+        } catch {
           // not json, stick with default
         }
         throw new Error(errorMsg);

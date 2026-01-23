@@ -35,11 +35,10 @@ export interface TransactionsTableProps {
   isLoading?: boolean;
   onDelete?: (transaction: Transaction) => void;
   onUpdate?: (transaction: Transaction, newPrice: number, newCategory?: string) => void;
-  onTransactionsUpdated?: (updatedTransactions: Transaction[]) => void;
   groupByDate?: boolean;
 }
 
-const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, onTransactionsUpdated, groupByDate }) => {
+const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, groupByDate }) => {
   const theme = useTheme();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
@@ -377,7 +376,28 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
   );
 };
 
-// Extracted TransactionRow component for cleaner code
+import { Theme } from '@mui/material/styles';
+
+interface TransactionRowProps {
+  transaction: Transaction;
+  theme: Theme;
+  editingTransaction: Transaction | null;
+  editCategory: string;
+  setEditCategory: (val: string) => void;
+  availableCategories: string[];
+  applyToAll: boolean;
+  setApplyToAll: (val: boolean) => void;
+  handleRowClick: (t: Transaction) => void;
+  handleEditClick: (t: Transaction) => void;
+  editPrice: string;
+  setEditPrice: (val: string) => void;
+  handleSaveClick: () => void;
+  handleCancelClick: () => void;
+  setConfirmDeleteTransaction: (t: Transaction) => void;
+  getCardVendor: (accountNumber: string | undefined | null) => string | null;
+  getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
+}
+
 const TransactionRow = ({
   transaction,
   theme,
@@ -396,7 +416,7 @@ const TransactionRow = ({
   setConfirmDeleteTransaction,
   getCardVendor,
   getCardNickname
-}: any) => {
+}: TransactionRowProps) => {
   return (
     <TableRow
       onClick={() => handleRowClick(transaction)}

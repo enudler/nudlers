@@ -57,7 +57,6 @@ export function useCardVendors() {
 
   useEffect(() => {
     if (!cachedVendors) {
-      setIsLoading(true);
       fetchCardVendors().then(data => {
         setVendorMap(data);
         setIsLoading(false);
