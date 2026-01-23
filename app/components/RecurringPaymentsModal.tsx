@@ -82,7 +82,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<'amount' | 'count'>('amount');
+  const [sortBy, setSortBy] = useState<'amount' | 'count'>('count');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const theme = useTheme();
@@ -137,8 +137,14 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     let comparison = 0;
     if (sortBy === 'amount') {
       comparison = Math.abs(a.price) - Math.abs(b.price);
+      if (comparison === 0) {
+        comparison = a.month_count - b.month_count;
+      }
     } else if (sortBy === 'count') {
       comparison = a.month_count - b.month_count;
+      if (comparison === 0) {
+        comparison = Math.abs(a.price) - Math.abs(b.price);
+      }
     }
     return sortOrder === 'desc' ? -comparison : comparison;
   });
