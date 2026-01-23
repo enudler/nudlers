@@ -19,6 +19,10 @@ import { useTheme, Theme } from '@mui/material/styles';
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
 import { CardVendorIcon } from './CardVendorsModal';
 import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from './CategoryDashboard/utils/tableStyles';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import EditIcon from '@mui/icons-material/Edit';
+import { fetchCategories } from './CategoryDashboard/utils/categoryUtils';
 
 interface Installment {
   name: string;
@@ -92,8 +96,24 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   const [sortBy, setSortBy] = useState<'amount' | 'count'>('count');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  const [categories, setCategories] = useState<string[]>([]);
+  const [editCategoryAnchor, setEditCategoryAnchor] = useState<null | HTMLElement>(null);
+  const [editingItem, setEditingItem] = useState<{ type: 'installment' | 'recurring', index: number, item: Installment | RecurringTransaction } | null>(null);
+
   const theme = useTheme();
   const { getCardVendor, getCardNickname } = useCardVendors();
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const cats = await fetchCategories();
+        setCategories(cats);
+      } catch (err) {
+        logger.error('Failed to load categories', err as Error);
+      }
+    };
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -265,6 +285,48 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     }
 
     return <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>;
+  };
+
+  const handleCategoryClick = (event: React.MouseEvent<HTMLElement>, item: Installment | RecurringTransaction, index: number, type: 'installment' | 'recurring') => {
+    event.stopPropagation();
+    setEditCategoryAnchor(event.currentTarget);
+    setEditingItem({ type, index, item });
+  };
+
+  const handleCategoryUpdate = async (newCategory: string) => {
+    if (!editingItem) return;
+
+    try {
+      const response = await fetch('/api/categories/update-by-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: editingItem.item.name,
+          newCategory,
+          createRule: true
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update category');
+
+      // Update local state
+      if (editingItem.type === 'installment') {
+        const newInstallments = [...installments];
+        newInstallments[editingItem.index] = { ...newInstallments[editingItem.index] as Installment, category: newCategory };
+        setInstallments(newInstallments);
+      } else {
+        const newRecurring = [...recurring];
+        newRecurring[editingItem.index] = { ...newRecurring[editingItem.index] as RecurringTransaction, category: newCategory };
+        setRecurring(newRecurring);
+      }
+
+    } catch (err) {
+      logger.error('Error updating category', err as Error);
+      // You might want to show an error snackbar here
+    } finally {
+      setEditCategoryAnchor(null);
+      setEditingItem(null);
+    }
   };
 
   return (
@@ -514,17 +576,34 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 {renderAccountInfo(item as Installment)}
                               </td>
                               <td style={getTableBodyCellStyle(theme)}>
-                                <span style={{
-                                  background: 'rgba(59, 130, 246, 0.1)',
-                                  padding: '4px 10px',
-                                  borderRadius: '6px',
-                                  fontSize: '12px',
-                                  color: '#3b82f6',
-                                  fontWeight: 700,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.5px'
-                                }}>
+                                <span
+                                  onClick={(e) => handleCategoryClick(e, item, index, 'installment')}
+                                  style={{
+                                    background: 'rgba(59, 130, 246, 0.1)',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    color: '#3b82f6',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                  }}
+                                >
                                   {item.category || 'Uncategorized'}
+                                  <EditIcon sx={{ fontSize: '12px', opacity: 0.5 }} />
                                 </span>
                               </td>
                               <td style={{ padding: '16px 12px', textAlign: 'center' }}>
@@ -814,17 +893,34 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   {renderAccountInfo(item)}
                                 </td>
                                 <td style={getTableBodyCellStyle(theme)}>
-                                  <span style={{
-                                    background: 'rgba(59, 130, 246, 0.1)',
-                                    padding: '4px 10px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    color: '#3b82f6',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.5px'
-                                  }}>
+                                  <span
+                                    onClick={(e) => handleCategoryClick(e, item, index, 'recurring')}
+                                    style={{
+                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '12px',
+                                      color: '#3b82f6',
+                                      fontWeight: 700,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.5px',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                  >
                                     {item.category || 'Uncategorized'}
+                                    <EditIcon sx={{ fontSize: '12px', opacity: 0.5 }} />
                                   </span>
                                 </td>
                                 <td style={{
@@ -967,6 +1063,27 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
           </>
         )}
       </DialogContent>
+      <Menu
+        anchorEl={editCategoryAnchor}
+        open={Boolean(editCategoryAnchor)}
+        onClose={() => setEditCategoryAnchor(null)}
+        PaperProps={{
+          style: {
+            maxHeight: 300,
+            width: '20ch',
+          },
+        }}
+      >
+        {categories.map((category) => (
+          <MenuItem
+            key={category}
+            onClick={() => handleCategoryUpdate(category)}
+            selected={editingItem ? (editingItem.item.category === category) : false}
+          >
+            {category}
+          </MenuItem>
+        ))}
+      </Menu>
     </Dialog>
   );
 };
