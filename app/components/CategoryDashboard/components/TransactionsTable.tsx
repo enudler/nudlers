@@ -13,6 +13,8 @@ import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
 import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from '../utils/tableStyles';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
+import CategoryAutocomplete from '../../CategoryAutocomplete';
+import AccountDisplay from '../../AccountDisplay';
 
 export interface Transaction {
   name: string;
@@ -434,66 +436,14 @@ const TransactionRow = ({
       <TableCell style={getTableBodyCellStyle(theme)}>
         {editingTransaction?.identifier === transaction.identifier ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <Autocomplete
+            <CategoryAutocomplete
               value={editCategory}
-              onChange={(event, newValue) => setEditCategory(newValue || '')}
-              onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-              freeSolo
+              onChange={setEditCategory}
               options={availableCategories}
-              size="small"
-              sx={{
-                minWidth: 150,
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': {
-                    borderColor: '#e2e8f0',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: '#3b82f6',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#3b82f6',
-                  },
-                },
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Enter category..."
-                  sx={{
-                    '& .MuiInputBase-input': {
-                      fontSize: '14px',
-                      padding: '8px 12px',
-                    },
-                  }}
-                />
-              )}
+              applyToAll={applyToAll}
+              onApplyToAllChange={setApplyToAll}
+              showApplyToAll={editCategory !== editingTransaction.category}
             />
-            {editCategory !== editingTransaction.category && (
-              <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={applyToAll}
-                      onChange={(e) => setApplyToAll(e.target.checked)}
-                      size="small"
-                      sx={{
-                        color: '#94a3b8',
-                        '&.Mui-checked': {
-                          color: '#3b82f6',
-                        },
-                        padding: '2px',
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography sx={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
-                      Apply to all & create rule
-                    </Typography>
-                  }
-                  sx={{ margin: 0 }}
-                />
-              </Tooltip>
-            )}
           </Box>
         ) : (
           <span
@@ -616,35 +566,7 @@ const TransactionRow = ({
         )}
       </TableCell>
       <TableCell style={{ ...getTableBodyCellStyle(theme), fontSize: '12px' }}>
-        {transaction.account_number ? (
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={24} />
-            <span style={{
-              fontWeight: '500',
-              color: '#334155',
-              backgroundColor: 'rgba(148, 163, 184, 0.1)',
-              padding: '4px 8px',
-              borderRadius: '6px'
-            }}>
-              {getCardNickname(transaction.account_number) ? (
-                <>
-                  {getCardNickname(transaction.account_number)}
-                  <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>
-                    •••• {transaction.account_number.slice(-4)}
-                  </span>
-                </>
-              ) : (
-                `•••• ${transaction.account_number.slice(-4)}`
-              )}
-            </span>
-          </Box>
-        ) : (
-          <span style={{ color: theme.palette.text.disabled }}>—</span>
-        )}
+        <AccountDisplay transaction={transaction} premium={false} />
       </TableCell>
       <TableCell style={{ ...getTableBodyCellStyle(theme), color: theme.palette.text.secondary }}>
         {dateUtils.formatDate(transaction.date)}
