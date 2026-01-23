@@ -11,6 +11,7 @@ import {
     updateCredentialLastSynced,
     getFetchCategoriesSetting,
     getScraperTimeout,
+    getScrapeRetries,
     getUpdateCategoryOnRescrapeSetting,
     getLogHttpRequestsSetting,
     getBillingCycleStartDay,
@@ -108,6 +109,18 @@ export default async function handler(req, res) {
         const categorizationRules = await loadCategorizationRules(client);
         const categoryMappings = await loadCategoryMappings(client);
         const billingCycleStartDay = await getBillingCycleStartDay(client);
+        const maxRetries = await getScrapeRetries(client);
+
+        const totalStats = {
+            savedTransactions: 0,
+            updatedTransactions: 0,
+            duplicateTransactions: 0,
+            cachedCategories: 0,
+            ruleCategories: 0,
+            scraperCategories: 0
+        };
+
+        logger.info({ maxRetries }, '[Sync All Stream] Retry settings loaded');
 
         // 2. Loop through accounts
         for (let i = 0; i < accounts.length; i++) {
@@ -135,60 +148,117 @@ export default async function handler(req, res) {
 
             const auditId = await insertScrapeAudit(client, 'sync-all-stream', account.vendor, startDate);
 
-            try {
-                const progressHandler = (vendor, payload) => {
-                    sendSSE(res, 'progress', {
-                        accountId: account.id,
-                        vendor: vendor,
-                        ...payload
+            // Retry loop for this account
+            let accountResult = null;
+            let lastError = null;
+
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        // Calculate exponential backoff: 5s, 10s, 20s, etc.
+                        const retryDelay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+                        logger.info({
+                            vendor: account.vendor,
+                            attempt,
+                            maxRetries,
+                            retryDelay,
+                            previousError: lastError
+                        }, '[Sync All Stream] Retrying account scrape after delay');
+
+                        await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+                        sendSSE(res, 'progress', {
+                            accountId: account.id,
+                            type: 'retryWait',
+                            message: `Retrying in ${retryDelay / 1000}s (retry ${attempt}/${maxRetries})...`,
+                            seconds: retryDelay / 1000
+                        });
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    }
+
+                    const progressHandler = (vendor, payload) => {
+                        sendSSE(res, 'progress', {
+                            accountId: account.id,
+                            vendor: vendor,
+                            ...payload
+                        });
+                    };
+
+                    const result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => false);
+
+                    if (!result.success) {
+                        throw new Error(result.errorMessage || 'Scraper failed');
+                    }
+
+                    const isBank = BANK_VENDORS.includes(account.vendor);
+
+                    const stats = await processScrapedAccounts({
+                        client,
+                        accounts: result.accounts,
+                        companyId: account.vendor,
+                        credentialId: account.id,
+                        categorizationRules,
+                        categoryMappings,
+                        billingCycleStartDay,
+                        updateCategoryOnRescrape,
+                        isBank,
+                        onTransactionProcessed: () => true,
                     });
-                };
 
-                const result = await runScraper(client, scraperOptions, scraperCredentials, progressHandler, () => false);
+                    await updateScrapeAudit(client, auditId, 'success', `Synced ${stats.savedTransactions} txns`, stats);
+                    await updateCredentialLastSynced(client, account.id);
 
-                if (!result.success) {
-                    throw new Error(result.errorMessage || 'Scraper failed');
+                    sendSSE(res, 'account_complete', {
+                        id: account.id,
+                        summary: stats,
+                        retriedAttempts: attempt
+                    });
+
+                    totalStats.savedTransactions += stats.savedTransactions || 0;
+                    totalStats.updatedTransactions += stats.updatedTransactions || 0;
+                    totalStats.duplicateTransactions += stats.duplicateTransactions || 0;
+                    totalStats.cachedCategories += stats.cachedCategories || 0;
+                    totalStats.ruleCategories += stats.ruleCategories || 0;
+                    totalStats.scraperCategories += stats.scraperCategories || 0;
+
+                    accountResult = { success: true, stats };
+                    break; // Success - exit retry loop
+
+                } catch (scrapeError) {
+                    lastError = scrapeError.message || 'Unknown error';
+
+                    if (attempt < maxRetries) {
+                        logger.warn({
+                            vendor: account.vendor,
+                            attempt,
+                            maxRetries,
+                            error: lastError
+                        }, '[Sync All Stream] Account scrape failed, will retry');
+                        continue; // Retry
+                    } else {
+                        // Final attempt failed
+                        logger.error({ vendor: account.vendor, error: lastError }, '[Sync All Stream] Account sync failed after all retries');
+                        if (auditId) {
+                            await updateScrapeAudit(client, auditId, 'failed', lastError);
+                        }
+                        sendSSE(res, 'account_error', {
+                            id: account.id,
+                            message: lastError,
+                            retriedAttempts: attempt
+                        });
+                        accountResult = { success: false, error: lastError };
+                        break;
+                    }
                 }
-
-                const isBank = BANK_VENDORS.includes(account.vendor);
-
-                const stats = await processScrapedAccounts({
-                    client,
-                    accounts: result.accounts,
-                    companyId: account.vendor,
-                    credentialId: account.id,
-                    categorizationRules,
-                    categoryMappings,
-                    billingCycleStartDay,
-                    updateCategoryOnRescrape,
-                    isBank,
-                    onTransactionProcessed: () => true,
-                });
-
-                await updateScrapeAudit(client, auditId, 'success', `Synced ${stats.savedTransactions} txns`, stats);
-                await updateCredentialLastSynced(client, account.id);
-
-                sendSSE(res, 'account_complete', {
-                    id: account.id,
-                    summary: stats
-                });
-
-            } catch (accountError) {
-                logger.error({ vendor: account.vendor, error: accountError.message }, '[Sync All Stream] Account sync failed');
-                if (auditId) {
-                    await updateScrapeAudit(client, auditId, 'failed', accountError.message);
-                }
-                sendSSE(res, 'account_error', {
-                    id: account.id,
-                    message: accountError.message
-                });
-                // Continue to next account
             }
+            // Continue to next account
         }
 
         sendSSE(res, 'complete', {
             message: '✓ All accounts synced successfully',
-            durationSeconds: Math.floor((Date.now() - startTime) / 1000)
+            summary: {
+                ...totalStats,
+                durationSeconds: Math.floor((Date.now() - startTime) / 1000)
+            }
         });
 
     } catch (error) {

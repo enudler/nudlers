@@ -98,7 +98,7 @@ export default async function handler(req, res) {
         message,
         CASE 
           WHEN created_at IS NOT NULL 
-          THEN to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
+          THEN to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
           ELSE NULL
         END as created_at,
         duration_seconds
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
         message,
         CASE 
           WHEN created_at IS NOT NULL 
-          THEN to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
+          THEN to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
           ELSE NULL
         END as created_at,
         duration_seconds
@@ -139,7 +139,7 @@ export default async function handler(req, res) {
         vendor,
         CASE 
           WHEN last_synced_at IS NOT NULL 
-          THEN to_char(last_synced_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') || 'Z'
+          THEN to_char(last_synced_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
           ELSE NULL
         END as last_synced_at
       FROM vendor_credentials

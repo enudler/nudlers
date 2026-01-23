@@ -11,6 +11,7 @@ import {
   APP_SETTINGS_KEYS,
   FETCH_SETTING_SQL,
   DEFAULT_SCRAPER_TIMEOUT,
+  DEFAULT_SCRAPE_RETRIES,
   SCRAPER_PHASE3_MAX_CALLS,
   SCRAPER_PHASE3_DELAY,
   SCRAPER_PHASE3_BATCH_SIZE,
@@ -508,26 +509,32 @@ export async function insertScrapeAudit(client, triggeredBy, vendor, startDate, 
 /**
  * Update a scrape audit row
  */
-export async function updateScrapeAudit(client, auditId, status, message, report = null) {
+export async function updateScrapeAudit(client, auditId, status, message, report = null, retryCount = null, durationSeconds = null) {
   if (!auditId) return;
+
+  // If durationSeconds is not provided but we have a report, try to extract it from report
+  const finalDuration = durationSeconds ?? report?.durationSeconds ?? report?.duration_seconds ?? null;
+
   if (report) {
     await client.query(
       `UPDATE scrape_events 
        SET status = $1, 
            message = $2, 
            report_json = $3,
-           duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+           duration_seconds = COALESCE($6, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))),
+           retry_count = COALESCE($5, retry_count)
        WHERE id = $4`,
-      [status, message, report, auditId]
+      [status, message, report, auditId, retryCount, finalDuration]
     );
   } else {
     await client.query(
       `UPDATE scrape_events 
        SET status = $1, 
            message = $2,
-           duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))
+           duration_seconds = COALESCE($5, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))),
+           retry_count = COALESCE($4, retry_count)
        WHERE id = $3`,
-      [status, message, auditId]
+      [status, message, auditId, retryCount, finalDuration]
     );
   }
 }
@@ -731,7 +738,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   let scraper;
   if (options.companyId === 'visaCal') {
     const { default: CustomVisaCalScraper } = await import('../../../scrapers/CustomVisaCalScraper.js');
-    // We need to manually initialize it similar to how createScraper does? 
+    // We need to manually initialize it similar to how createScraper does
     // createScraper code: return new Scraper(options);
     scraper = new CustomVisaCalScraper(options);
   } else {
@@ -757,8 +764,19 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
 
   logger.info('[Scraper] Starting scrape execution');
 
+  // Wrap the entire scrape process in a global timeout
+  const globalTimeoutMs = options.timeout || DEFAULT_SCRAPER_TIMEOUT;
+
+  const scrapePromise = scraper.scrape(credentials);
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Scraping timed out after ${globalTimeoutMs}ms (full process limit reached)`));
+    }, globalTimeoutMs);
+  });
+
   try {
-    const result = await scraper.scrape(credentials);
+    // Race between the scrape process and the global timeout
+    const result = await Promise.race([scrapePromise, timeoutPromise]);
     logger.info({ success: result?.success }, '[Scraper] Base scrape completed');
 
     if (result.success && result.accounts && !Array.isArray(result.accounts)) {
@@ -929,13 +947,35 @@ export async function getLogHttpRequestsSetting(client) {
 
 export async function getScraperTimeout(client) {
   const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPER_TIMEOUT]);
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || DEFAULT_SCRAPER_TIMEOUT : DEFAULT_SCRAPER_TIMEOUT;
+  if (result.rows.length === 0 || result.rows[0].value === null || result.rows[0].value === undefined || result.rows[0].value === '') {
+    return DEFAULT_SCRAPER_TIMEOUT;
+  }
+  const val = parseInt(result.rows[0].value);
+  return isNaN(val) ? DEFAULT_SCRAPER_TIMEOUT : val;
 }
 
 export async function getBillingCycleStartDay(client) {
   const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.BILLING_CYCLE_START_DAY]);
   return result.rows.length > 0 ? parseInt(result.rows[0].value) || 10 : 10;
 }
+
+export async function getScrapeRetries(client) {
+  const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPE_RETRIES]);
+  const value = result.rows.length > 0 ? parseInt(result.rows[0].value) : DEFAULT_SCRAPE_RETRIES;
+
+  // Validate: must be >= 0 and <= 10 (reasonable upper limit)
+  if (isNaN(value) || value < 0) {
+    logger.warn({ value }, '[Scraper Utils] Invalid scrape_retries value, using default');
+    return DEFAULT_SCRAPE_RETRIES;
+  }
+  if (value > 10) {
+    logger.warn({ value }, '[Scraper Utils] scrape_retries too high (max 10), capping at 10');
+    return 10;
+  }
+
+  return value;
+}
+
 
 
 /**

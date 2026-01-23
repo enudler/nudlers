@@ -50,6 +50,7 @@ export const SCRAPER_LOW_RESOURCE_FLAGS = [
 
 // Timeout Settings
 export const DEFAULT_SCRAPER_TIMEOUT = 90000;
+export const DEFAULT_SCRAPE_RETRIES = 3;
 export const RATE_LIMIT_DELAY_MIN = 1000;
 export const RATE_LIMIT_DELAY_MAX = 4000;
 export const RATE_LIMIT_SLOW_DELAY_MIN = 5000;
@@ -68,6 +69,7 @@ export const APP_SETTINGS_KEYS = {
     UPDATE_CATEGORY_ON_RESCRAPE: 'update_category_on_rescrape',
     LOG_HTTP_REQUESTS: 'scraper_log_http_requests',
     SCRAPER_TIMEOUT: 'scraper_timeout',
+    SCRAPE_RETRIES: 'scrape_retries',
     BILLING_CYCLE_START_DAY: 'billing_cycle_start_day',
     SYNC_ENABLED: 'sync_enabled',
     SYNC_DAYS_BACK: 'sync_days_back',
