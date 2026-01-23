@@ -48,6 +48,7 @@ interface RecurringTransaction {
   months: string[];
   frequency: 'monthly' | 'bi-monthly';
   next_payment_date: string;
+  occurrences: Array<{ date: string; amount: number }>;
 }
 
 interface RecurringPaymentsModalProps {
@@ -80,6 +81,10 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<'amount' | 'count'>('amount');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   const theme = useTheme();
   const { getCardVendor, getCardNickname } = useCardVendors();
 
@@ -117,6 +122,35 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   const completedInstallments = installments.filter(i => i.status === 'completed');
   const totalMonthlyInstallments = activeInstallments.reduce((sum, i) => sum + Math.abs(i.price), 0);
   const totalMonthlyRecurring = recurring.reduce((sum, r) => sum + Math.abs(r.price), 0);
+
+  const toggleRow = (id: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  const sortedRecurring = [...recurring].sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'amount') {
+      comparison = Math.abs(a.price) - Math.abs(b.price);
+    } else if (sortBy === 'count') {
+      comparison = a.month_count - b.month_count;
+    }
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  const handleSort = (field: 'amount' | 'count') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+  };
 
   return (
     <Dialog
@@ -606,173 +640,222 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                           <th style={getHeaderCellStyle(theme)}>Description</th>
                           <th style={getHeaderCellStyle(theme)}>Card</th>
                           <th style={getHeaderCellStyle(theme)}>Category</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Frequency</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Amount (Avg)</th>
+                          <th
+                            style={{ ...getHeaderCellStyle(theme), textAlign: 'center', cursor: 'pointer' }}
+                            onClick={() => handleSort('count')}
+                          >
+                            Frequency {sortBy === 'count' && (sortOrder === 'desc' ? '↓' : '↑')}
+                          </th>
+                          <th
+                            style={{ ...getHeaderCellStyle(theme), textAlign: 'right', cursor: 'pointer' }}
+                            onClick={() => handleSort('amount')}
+                          >
+                            Amount (Avg) {sortBy === 'amount' && (sortOrder === 'desc' ? '↓' : '↑')}
+                          </th>
                           <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Next Payment</th>
                           <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Last Charge</th>
-                          <th style={getHeaderCellStyle(theme)}>Months Active</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>History</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {recurring.map((item, index) => (
-                          <tr
-                            key={`${item.name}-${item.price}-${index}`}
-                            style={{
-                              borderBottom: `1px solid ${theme.palette.divider}`,
-                              background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)')
-                            }}
-                          >
-                            <td style={{
-                              padding: '16px 12px',
-                              fontWeight: 600,
-                              color: theme.palette.text.primary,
-                              maxWidth: '250px'
-                            }}>
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                              }}>
-                                <RepeatIcon sx={{ fontSize: '16px', color: '#3b82f6', opacity: 0.7 }} />
-                                <span style={{
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                        {sortedRecurring.map((item, index) => {
+                          const rowId = `${item.name}-${item.account_number}-${item.price}`;
+                          const isExpanded = expandedRows.has(rowId);
+
+                          return (
+                            <React.Fragment key={rowId}>
+                              <tr
+                                style={{
+                                  borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`,
+                                  background: isExpanded
+                                    ? (theme.palette.mode === 'dark' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.05)')
+                                    : (index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)')),
+                                  transition: 'background-color 0.2s ease',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => toggleRow(rowId)}
+                              >
+                                <td style={{
+                                  padding: '16px 12px',
+                                  fontWeight: 600,
+                                  color: theme.palette.text.primary,
+                                  maxWidth: '250px'
                                 }}>
-                                  {item.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td style={{ padding: '16px 12px' }}>
-                              {item.account_number ? (
-                                <Tooltip title={getCardNickname(item.account_number) || `Card ending in ${item.account_number.slice(-4)}`}>
                                   <div style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '8px',
-                                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    width: 'fit-content'
+                                    gap: '8px'
                                   }}>
-                                    <CardVendorIcon vendor={getCardVendor(item.account_number)} size={20} />
+                                    <RepeatIcon sx={{ fontSize: '16px', color: '#3b82f6', opacity: 0.7 }} />
                                     <span style={{
-                                      color: 'white',
-                                      fontFamily: 'monospace',
-                                      fontSize: '13px',
-                                      fontWeight: 600,
-                                      letterSpacing: '1px'
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
                                     }}>
-                                      •••• {item.account_number.slice(-4)}
+                                      {item.name}
                                     </span>
                                   </div>
-                                </Tooltip>
-                              ) : (
-                                <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>
-                              )}
-                            </td>
-                            <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
-                              <span style={{
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                fontSize: '13px',
-                                color: '#3b82f6',
-                                fontWeight: 500
-                              }}>
-                                {item.category || 'Uncategorized'}
-                              </span>
-                            </td>
-                            <td style={{
-                              padding: '16px 12px',
-                              textAlign: 'center'
-                            }}>
-                              <span style={{
-                                background: item.frequency === 'bi-monthly' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                                color: item.frequency === 'bi-monthly' ? '#f59e0b' : '#3b82f6',
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                textTransform: 'capitalize'
-                              }}>
-                                {item.frequency}
-                              </span>
-                            </td>
-                            <td style={{
-                              padding: '16px 12px',
-                              textAlign: 'right',
-                              fontWeight: 600,
-                              color: '#3b82f6'
-                            }}>
-                              ₪{formatNumber(item.price)}
-                            </td>
-                            <td style={{
-                              padding: '16px 12px',
-                              textAlign: 'center',
-                              fontSize: '13px'
-                            }}>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                color: '#f59e0b',
-                                fontWeight: 500
-                              }}>
-                                <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
-                                {formatDate(item.next_payment_date)}
-                              </span>
-                            </td>
-                            <td style={{
-                              padding: '16px 12px',
-                              textAlign: 'center',
-                              color: theme.palette.text.secondary,
-                              fontSize: '13px'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
-                                {formatDate(item.last_charge_date)}
-                              </div>
-                            </td>
-                            <td style={{
-                              padding: '16px 12px',
-                              color: theme.palette.text.secondary
-                            }}>
-                              <div style={{
-                                display: 'flex',
-                                gap: '4px',
-                                flexWrap: 'wrap'
-                              }}>
-                                {item.months?.slice(0, 6).map((month, idx) => (
-                                  <span
-                                    key={month}
-                                    style={{
-                                      background: idx === 0
-                                        ? 'rgba(59, 130, 246, 0.15)'
-                                        : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.15)'),
-                                      color: idx === 0 ? '#3b82f6' : theme.palette.text.secondary,
-                                      padding: '2px 6px',
-                                      borderRadius: '4px',
-                                      fontSize: '11px',
-                                      fontWeight: 500
-                                    }}
-                                  >
-                                    {formatMonth(month)}
-                                  </span>
-                                ))}
-                                {item.months && item.months.length > 6 && (
+                                </td>
+                                <td style={{ padding: '16px 12px' }}>
+                                  {item.account_number ? (
+                                    <Tooltip title={getCardNickname(item.account_number) || `Card ending in ${item.account_number.slice(-4)}`}>
+                                      <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        width: 'fit-content'
+                                      }}>
+                                        <CardVendorIcon vendor={getCardVendor(item.account_number)} size={20} />
+                                        <span style={{
+                                          color: 'white',
+                                          fontFamily: 'monospace',
+                                          fontSize: '13px',
+                                          fontWeight: 600,
+                                          letterSpacing: '1px'
+                                        }}>
+                                          •••• {item.account_number.slice(-4)}
+                                        </span>
+                                      </div>
+                                    </Tooltip>
+                                  ) : (
+                                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
                                   <span style={{
-                                    color: theme.palette.text.disabled,
-                                    fontSize: '11px',
+                                    background: 'rgba(59, 130, 246, 0.1)',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    color: '#3b82f6',
                                     fontWeight: 500
                                   }}>
-                                    +{item.months.length - 6} more
+                                    {item.category || 'Uncategorized'}
                                   </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                </td>
+                                <td style={{
+                                  padding: '16px 12px',
+                                  textAlign: 'center'
+                                }}>
+                                  <span style={{
+                                    background: item.frequency === 'bi-monthly' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                                    color: item.frequency === 'bi-monthly' ? '#f59e0b' : '#3b82f6',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'capitalize'
+                                  }}>
+                                    {item.frequency}
+                                  </span>
+                                </td>
+                                <td style={{
+                                  padding: '16px 12px',
+                                  textAlign: 'right',
+                                  fontWeight: 600,
+                                  color: '#3b82f6'
+                                }}>
+                                  ₪{formatNumber(item.price)}
+                                </td>
+                                <td style={{
+                                  padding: '16px 12px',
+                                  textAlign: 'center',
+                                  fontSize: '13px'
+                                }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    color: '#f59e0b',
+                                    fontWeight: 500
+                                  }}>
+                                    <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
+                                    {formatDate(item.next_payment_date)}
+                                  </span>
+                                </td>
+                                <td style={{
+                                  padding: '16px 12px',
+                                  textAlign: 'center',
+                                  color: theme.palette.text.secondary,
+                                  fontSize: '13px'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                    <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
+                                    {formatDate(item.last_charge_date)}
+                                  </div>
+                                </td>
+                                <td style={{
+                                  padding: '16px 12px',
+                                  textAlign: 'center',
+                                  color: '#8b5cf6'
+                                }}>
+                                  <span style={{
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    textDecoration: 'underline'
+                                  }}>
+                                    {isExpanded ? 'Hide' : `Show ${item.month_count} payments`}
+                                  </span>
+                                </td>
+                              </tr>
+
+                              {/* Expanded Row Content */}
+                              {isExpanded && (
+                                <tr style={{
+                                  background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.6)',
+                                  borderBottom: `1px solid ${theme.palette.divider}`
+                                }}>
+                                  <td colSpan={8} style={{ padding: '0 32px 24px' }}>
+                                    <div style={{
+                                      padding: '20px',
+                                      borderRadius: '12px',
+                                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'white',
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      marginTop: '-4px',
+                                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
+                                    }}>
+                                      <div style={{
+                                        fontWeight: 700,
+                                        marginBottom: '16px',
+                                        fontSize: '13px',
+                                        color: theme.palette.text.primary,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                      }}>
+                                        <CalendarTodayIcon sx={{ fontSize: '16px', color: '#8b5cf6' }} />
+                                        Payment History
+                                      </div>
+                                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
+                                        {item.occurrences?.map((occ, idx) => (
+                                          <div key={idx} style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '10px 14px',
+                                            borderRadius: '8px',
+                                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                                            border: `1px solid ${theme.palette.divider}`
+                                          }}>
+                                            <span style={{ fontSize: '13px', color: theme.palette.text.secondary }}>
+                                              {formatDate(occ.date)}
+                                            </span>
+                                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>
+                                              ₪{formatNumber(occ.amount)}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

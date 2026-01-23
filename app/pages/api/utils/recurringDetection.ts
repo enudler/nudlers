@@ -24,6 +24,7 @@ export interface DetectedRecurringPayment {
     last_charge_date: Date;
     frequency: 'monthly' | 'bi-monthly';
     months: string[];
+    occurrences: Array<{ date: Date, amount: number }>;
     next_payment_date: Date;
 }
 
@@ -117,6 +118,7 @@ export function detectRecurringPayments(transactions: DetectionTransaction[]): D
                     last_charge_date: lastItem.date,
                     frequency: frequency,
                     months: [...new Set(items.map(it => it.date.toISOString().substring(0, 7)).reverse() as string[])],
+                    occurrences: items.map(it => ({ date: it.date, amount: it.price })).reverse(),
                     next_payment_date: calculateNextPayment(lastItem.date, frequency === 'monthly' ? 1 : 2)
                 });
             }
