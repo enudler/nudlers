@@ -165,12 +165,13 @@ export default async function handler(req, res) {
                             previousError: lastError
                         }, '[Sync All Stream] Retrying account scrape after delay');
 
-                        await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+                        await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms. Previous error: ${lastError}`);
                         sendSSE(res, 'progress', {
                             accountId: account.id,
                             type: 'retryWait',
-                            message: `Retrying in ${retryDelay / 1000}s (retry ${attempt}/${maxRetries})...`,
-                            seconds: retryDelay / 1000
+                            message: `Retrying (error: ${lastError})... Next attempt in ${retryDelay / 1000}s`,
+                            seconds: retryDelay / 1000,
+                            error: lastError
                         });
                         await new Promise(resolve => setTimeout(resolve, retryDelay));
                     }

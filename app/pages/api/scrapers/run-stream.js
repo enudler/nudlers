@@ -253,7 +253,7 @@ async function handler(req, res) {
             previousError: lastError
           }, '[Scrape Stream] Retrying scrape after delay');
 
-          await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+          await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms. Previous error: ${lastError}`);
 
           // Send network event for countdown timer in UI
           sendSSE(res, 'network', {
@@ -266,13 +266,14 @@ async function handler(req, res) {
           // Send retry message to UI
           sendSSE(res, 'progress', {
             step: 'retry',
-            message: `⏳ Retrying scrape in ${retryDelay / 1000}s (retry ${attempt}/${maxRetries})...`,
+            message: `⏳ Retrying (error: ${lastError})... Next attempt in ${retryDelay / 1000}s`,
             percent: 15,
             phase: 'retry',
             success: null,
             attemptNumber: attempt,
             maxRetries: maxRetries,
-            retryDelay: retryDelay
+            retryDelay: retryDelay,
+            error: lastError
           });
 
           await new Promise(resolve => setTimeout(resolve, retryDelay));
