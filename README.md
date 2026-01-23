@@ -35,7 +35,7 @@ Personal finance management application for tracking credit card expenses and ba
 Connect Nudlers to your AI assistant using the **Model Context Protocol**.
 
 ### Quick Setup
-Nudlers has native MCP support via SSE. No local files or commands are required.
+Nudlers has native MCP support. No local files are required to connect.
 
 1. **Ensure Nudlers is running**: Make sure your app is accessible (e.g., http://localhost:6969).
 2. **Configure**: Add the following to your Claude/Cursor MCP settings:
@@ -43,8 +43,13 @@ Nudlers has native MCP support via SSE. No local files or commands are required.
 {
   "mcpServers": {
     "nudlers": {
-      "transport": "sse",
-      "url": "http://localhost:6969/api/mcp"
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway@latest",
+        "--sse",
+        "http://localhost:6969/api/mcp"
+      ]
     }
   }
 }
