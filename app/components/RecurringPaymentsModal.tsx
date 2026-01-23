@@ -34,6 +34,9 @@ interface Installment {
   next_payment_date: string | null;
   last_payment_date: string;
   status: 'active' | 'completed';
+  transaction_type?: string | null;
+  bank_nickname?: string | null;
+  bank_account_display?: string | null;
 }
 
 interface RecurringTransaction {
@@ -49,6 +52,9 @@ interface RecurringTransaction {
   frequency: 'monthly' | 'bi-monthly';
   next_payment_date: string;
   occurrences: Array<{ date: string; amount: number }>;
+  transaction_type?: string | null;
+  bank_nickname?: string | null;
+  bank_account_display?: string | null;
 }
 
 interface RecurringPaymentsModalProps {
@@ -156,6 +162,83 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       setSortBy(field);
       setSortOrder('desc');
     }
+  };
+
+  const renderAccountInfo = (item: Installment | RecurringTransaction) => {
+    const isBank = item.transaction_type === 'bank' || (item.vendor && ['hapoalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'otsarHahayal', 'beinleumi', 'massad', 'pagi'].includes(item.vendor));
+
+    if (isBank) {
+      return (
+        <Tooltip title={`${item.bank_nickname || 'Bank Account'} (${item.bank_account_display || item.account_number})`}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+            padding: '6px 12px',
+            borderRadius: '8px',
+            width: 'fit-content'
+          }}>
+            <CardVendorIcon vendor={item.vendor} size={20} />
+            <span style={{
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 600,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '120px',
+              whiteSpace: 'nowrap'
+            }}>
+              {item.bank_nickname || 'Bank Account'}
+            </span>
+          </div>
+        </Tooltip>
+      );
+    }
+
+    if (item.account_number) {
+      const last4 = item.account_number.slice(-4);
+      const nickname = getCardNickname(item.account_number);
+      const vendor = getCardVendor(item.account_number);
+
+      return (
+        <Tooltip title={nickname || `Card ending in ${last4}`}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              width: 'fit-content'
+            }}>
+              <CardVendorIcon vendor={vendor} size={20} />
+              <span style={{
+                color: 'white',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                fontWeight: 600,
+                letterSpacing: '1px'
+              }}>
+                •••• {last4}
+              </span>
+            </div>
+            {nickname && (
+              <span style={{ fontSize: '11px', color: theme.palette.text.secondary, paddingLeft: '4px' }}>
+                {nickname}
+              </span>
+            )}
+          </div>
+        </Tooltip>
+      );
+    }
+
+    return <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>;
   };
 
   return (
@@ -355,7 +438,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                       <thead>
                         <tr style={{ borderBottom: `2px solid ${theme.palette.divider}` }}>
                           <th style={getHeaderCellStyle(theme)}>Description</th>
-                          <th style={getHeaderCellStyle(theme)}>Card</th>
+                          <th style={getHeaderCellStyle(theme)}>Account</th>
                           <th style={getHeaderCellStyle(theme)}>Category</th>
                           <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Progress</th>
                           <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Monthly Amount</th>
@@ -393,32 +476,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 </div>
                               </td>
                               <td style={{ padding: '16px 12px' }}>
-                                {item.account_number ? (
-                                  <Tooltip title={getCardNickname(item.account_number) || `Card ending in ${item.account_number.slice(-4)}`}>
-                                    <div style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      width: 'fit-content'
-                                    }}>
-                                      <CardVendorIcon vendor={getCardVendor(item.account_number)} size={20} />
-                                      <span style={{
-                                        color: 'white',
-                                        fontFamily: 'monospace',
-                                        fontSize: '13px',
-                                        fontWeight: 600,
-                                        letterSpacing: '1px'
-                                      }}>
-                                        •••• {item.account_number.slice(-4)}
-                                      </span>
-                                    </div>
-                                  </Tooltip>
-                                ) : (
-                                  <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>
-                                )}
+                                {renderAccountInfo(item as Installment)}
                               </td>
                               <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
                                 <span style={{
@@ -644,7 +702,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                       <thead>
                         <tr style={{ borderBottom: `2px solid ${theme.palette.divider}` }}>
                           <th style={getHeaderCellStyle(theme)}>Description</th>
-                          <th style={getHeaderCellStyle(theme)}>Card</th>
+                          <th style={getHeaderCellStyle(theme)}>Account</th>
                           <th style={getHeaderCellStyle(theme)}>Category</th>
                           <th
                             style={{ ...getHeaderCellStyle(theme), textAlign: 'center', cursor: 'pointer' }}
@@ -703,32 +761,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   </div>
                                 </td>
                                 <td style={{ padding: '16px 12px' }}>
-                                  {item.account_number ? (
-                                    <Tooltip title={getCardNickname(item.account_number) || `Card ending in ${item.account_number.slice(-4)}`}>
-                                      <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                                        padding: '6px 12px',
-                                        borderRadius: '8px',
-                                        width: 'fit-content'
-                                      }}>
-                                        <CardVendorIcon vendor={getCardVendor(item.account_number)} size={20} />
-                                        <span style={{
-                                          color: 'white',
-                                          fontFamily: 'monospace',
-                                          fontSize: '13px',
-                                          fontWeight: 600,
-                                          letterSpacing: '1px'
-                                        }}>
-                                          •••• {item.account_number.slice(-4)}
-                                        </span>
-                                      </div>
-                                    </Tooltip>
-                                  ) : (
-                                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>
-                                  )}
+                                  {renderAccountInfo(item)}
                                 </td>
                                 <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
                                   <span style={{

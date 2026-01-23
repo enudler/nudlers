@@ -8,6 +8,9 @@ export interface DetectionTransaction {
     vendor?: string;
     account_number: string | null;
     date: string | Date;
+    transaction_type?: string | null;
+    bank_nickname?: string | null;
+    bank_account_display?: string | null;
 }
 
 /**
@@ -26,6 +29,9 @@ export interface DetectedRecurringPayment {
     months: string[];
     occurrences: Array<{ date: Date, amount: number }>;
     next_payment_date: Date;
+    transaction_type?: string | null;
+    bank_nickname?: string | null;
+    bank_account_display?: string | null;
 }
 
 /**
@@ -119,7 +125,10 @@ export function detectRecurringPayments(transactions: DetectionTransaction[]): D
                     frequency: frequency,
                     months: [...new Set(items.map(it => it.date.toISOString().substring(0, 7)).reverse() as string[])],
                     occurrences: items.map(it => ({ date: it.date, amount: it.price })).reverse(),
-                    next_payment_date: calculateNextPayment(lastItem.date, frequency === 'monthly' ? 1 : 2)
+                    next_payment_date: calculateNextPayment(lastItem.date, frequency === 'monthly' ? 1 : 2),
+                    transaction_type: lastItem.transaction_type,
+                    bank_nickname: lastItem.bank_nickname,
+                    bank_account_display: lastItem.bank_account_display
                 });
             }
         }
