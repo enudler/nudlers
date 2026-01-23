@@ -395,25 +395,23 @@ paths:
     get:
       tags:
         - Reports
-      summary: Get recurring payments analysis
+      summary: Get recurring payments (installments and smart subscriptions)
       responses:
         '200':
-          description: Recurring payments data
+          description: List of recurring payments and active installments
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    name:
-                      type: string
-                    amount:
-                      type: number
-                    frequency:
-                      type: string
-                    occurrences:
-                      type: integer
+                type: object
+                properties:
+                  installments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InstallmentDetail'
+                  recurring:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecurringPaymentDetail'
 
   /budgets:
     get:
@@ -1617,6 +1615,68 @@ components:
               last_synced_at:
                 type: string
                 format: date-time
+
+    InstallmentDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        original_amount:
+          type: number
+        original_currency:
+          type: string
+        category:
+          type: string
+        vendor:
+          type: string
+        account_number:
+          type: string
+        current_installment:
+          type: integer
+        total_installments:
+          type: integer
+        last_charge_date:
+          type: string
+          format: date
+        next_payment_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, completed]
+
+    RecurringPaymentDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        monthly_amount:
+          type: number
+        price:
+          type: number
+        category:
+          type: string
+        vendor:
+          type: string
+        account_number:
+          type: string
+        month_count:
+          type: integer
+        last_charge_date:
+          type: string
+          format: date
+        frequency:
+          type: string
+          enum: [monthly, bi-monthly]
+        months:
+          type: array
+          items:
+            type: string
+        next_payment_date:
+          type: string
+          format: date
 
     AIChatRequest:
       type: object

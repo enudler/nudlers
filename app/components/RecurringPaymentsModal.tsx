@@ -43,10 +43,11 @@ interface RecurringTransaction {
   vendor: string;
   account_number: string | null;
   month_count: number;
-  last_month: string;
   last_charge_date: string;
   last_billing_date: string | null;
   months: string[];
+  frequency: 'monthly' | 'bi-monthly';
+  next_payment_date: string;
 }
 
 interface RecurringPaymentsModalProps {
@@ -606,7 +607,8 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                           <th style={getHeaderCellStyle(theme)}>Card</th>
                           <th style={getHeaderCellStyle(theme)}>Category</th>
                           <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Frequency</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Amount</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Amount (Avg)</th>
+                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Next Payment</th>
                           <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Last Charge</th>
                           <th style={getHeaderCellStyle(theme)}>Months Active</th>
                         </tr>
@@ -686,14 +688,15 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                               textAlign: 'center'
                             }}>
                               <span style={{
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                color: '#3b82f6',
+                                background: item.frequency === 'bi-monthly' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                                color: item.frequency === 'bi-monthly' ? '#f59e0b' : '#3b82f6',
                                 padding: '4px 10px',
                                 borderRadius: '6px',
                                 fontSize: '13px',
-                                fontWeight: 600
+                                fontWeight: 600,
+                                textTransform: 'capitalize'
                               }}>
-                                {item.month_count} months
+                                {item.frequency}
                               </span>
                             </td>
                             <td style={{
@@ -703,6 +706,22 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                               color: '#3b82f6'
                             }}>
                               ₪{formatNumber(item.price)}
+                            </td>
+                            <td style={{
+                              padding: '16px 12px',
+                              textAlign: 'center',
+                              fontSize: '13px'
+                            }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#f59e0b',
+                                fontWeight: 500
+                              }}>
+                                <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
+                                {formatDate(item.next_payment_date)}
+                              </span>
                             </td>
                             <td style={{
                               padding: '16px 12px',
