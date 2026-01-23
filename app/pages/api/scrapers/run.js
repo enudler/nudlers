@@ -43,6 +43,7 @@ const CompanyTypes = {
   amex: 'amex',
   max: 'max',
   visaCal: 'visaCal',
+  oneZero: 'oneZero',
 };
 
 async function handler(req, res) {

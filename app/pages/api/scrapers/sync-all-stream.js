@@ -21,6 +21,8 @@ import {
     checkScraperConcurrency,
 } from '../utils/scraperUtils';
 import { BANK_VENDORS } from '../../../utils/constants';
+import { registerAndAwaitForOtp } from '../../../utils/otpState';
+import crypto from 'crypto';
 
 // Helper to send SSE messages to the local client
 function sendSSE(res, event, data) {
@@ -145,6 +147,27 @@ export default async function handler(req, res) {
                 }),
                 logRequests: logHttpRequests,
             };
+
+            // Prepare OTP retriever
+            const otpCodeRetriever = async () => {
+                const requestId = crypto.randomUUID();
+                logger.info({ requestId, vendor: account.vendor }, '[Sync All Stream] OTP challenge detected, signaling client');
+
+                sendSSE(res, 'progress', {
+                    accountId: account.id,
+                    type: 'loginWaitingForOTP',
+                    message: 'OTP Code Required. Please check your phone.',
+                    phase: 'authentication',
+                    requestId: requestId
+                });
+
+                return await registerAndAwaitForOtp(requestId);
+            };
+
+            // Inject OTP retriever into credentials if supported
+            if (['oneZero', 'visaCal'].includes(account.vendor)) {
+                scraperCredentials.otpCodeRetriever = otpCodeRetriever;
+            }
 
             const auditId = await insertScrapeAudit(client, 'sync-all-stream', account.vendor, startDate);
 

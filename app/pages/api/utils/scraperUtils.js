@@ -223,12 +223,14 @@ export function prepareCredentials(vendor, rawCredentials) {
 
   const credentials = { ...rest };
 
-  // Hapoalim requires userCode (not username)
   if (vendor === 'hapoalim') {
     // Use userCode if provided, otherwise fall back to username/id/id_number
     const hapoalimUserCode = userCode || username || id || rawCredentials.id_number || '';
     credentials.userCode = String(hapoalimUserCode);
     credentials.password = String(password || '');
+  } else if (vendor === 'oneZero') {
+    credentials.email = username || id || '';
+    credentials.password = password;
   } else if (STANDARD_BANK_VENDORS.includes(vendor) || BEINLEUMI_GROUP_VENDORS.includes(vendor) || vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
     // Standard bank login (username + password, sometimes num)
     credentials.username = username;
@@ -264,6 +266,10 @@ export function validateCredentials(credentials, vendor) {
   } else if (vendor === 'max' || vendor === 'visaCal') {
     if (!credentials.username || !credentials.password) {
       throw new Error(`Invalid credentials for ${vendor}: username and password are required.`);
+    }
+  } else if (vendor === 'oneZero') {
+    if (!credentials.email || !credentials.password) {
+      throw new Error(`Invalid credentials for ${vendor}: email and password are required.`);
     }
   } else {
     if (!credentials.username || !credentials.password) {

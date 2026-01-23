@@ -291,10 +291,10 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     } else if (STANDARD_BANK_VENDORS.includes(formAccount.vendor)) {
       // Standard banks need both username and account number
       if (!formAccount.username) {
-        setError('Username is required for bank accounts');
+        setError(formAccount.vendor === 'oneZero' ? 'Email is required' : 'Username is required for bank accounts');
         return false;
       }
-      if (!formAccount.bank_account_number) {
+      if (!formAccount.bank_account_number && formAccount.vendor !== 'oneZero') {
         setError('Bank account number is required for bank accounts');
         return false;
       }
@@ -917,11 +917,12 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 <MenuItem value="pagi">Pagi</MenuItem>
                 <MenuItem value="yahav">Yahav</MenuItem>
                 <MenuItem value="union">Union Bank</MenuItem>
+                <MenuItem value="oneZero">One Zero</MenuItem>
               </TextField>
               {(formAccount.vendor === 'visaCal' || formAccount.vendor === 'max' || BANK_VENDORS.includes(formAccount.vendor)) ? (
                 <TextField
                   fullWidth
-                  label="Username"
+                  label={formAccount.vendor === 'oneZero' ? "Email" : "Username"}
                   value={formAccount.username}
                   onChange={(e) => setFormAccount({ ...formAccount, username: e.target.value })}
                   margin="normal"
@@ -937,7 +938,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                   required
                 />
               )}
-              {STANDARD_BANK_VENDORS.includes(formAccount.vendor) && (
+              {STANDARD_BANK_VENDORS.includes(formAccount.vendor) && formAccount.vendor !== 'oneZero' && (
                 <TextField
                   fullWidth
                   label="Bank Account Number"

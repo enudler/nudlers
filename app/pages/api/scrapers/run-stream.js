@@ -20,6 +20,8 @@ import {
   processScrapedAccounts,
   checkScraperConcurrency,
 } from '../utils/scraperUtils';
+import { registerAndAwaitForOtp } from '../../../utils/otpState';
+import crypto from 'crypto';
 
 const CompanyTypes = {
   hapoalim: 'hapoalim',
@@ -36,6 +38,7 @@ const CompanyTypes = {
   amex: 'amex',
   max: 'max',
   visaCal: 'visaCal',
+  oneZero: 'oneZero',
 };
 
 // Helper to send SSE messages to the local client
@@ -150,6 +153,27 @@ async function handler(req, res) {
       }),
       logRequests: logHttpRequests,
     };
+
+    // Prepare OTP retriever
+    const otpCodeRetriever = async () => {
+      const requestId = crypto.randomUUID();
+      logger.info({ requestId, vendor: options.companyId }, '[Scrape Stream] OTP challenge detected, signaling client');
+
+      sendSSE(res, 'progress', {
+        type: 'loginWaitingForOTP',
+        message: 'OTP Code Required. Please check your phone.',
+        phase: 'authentication',
+        requestId: requestId // Frontend will use this to submit the code
+      });
+
+      return await registerAndAwaitForOtp(requestId);
+    };
+
+    // Inject OTP retriever into credentials if supported
+    // israeli-bank-scrapers uses it for OneZero, we use it for CustomVisaCal
+    if (['oneZero', 'visaCal'].includes(companyId)) {
+      scraperCredentials.otpCodeRetriever = otpCodeRetriever;
+    }
 
     // Track completed steps for better status reporting
     const completedSteps = new Set();

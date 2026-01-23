@@ -14,7 +14,8 @@ import {
   ListItemSecondaryAction,
   Avatar,
   Button,
-  LinearProgress
+  LinearProgress,
+  TextField
 } from '@mui/material';
 import { logger } from '../utils/client-logger';
 import { styled, keyframes } from '@mui/material/styles';
@@ -292,6 +293,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   const [isInitializing, setIsInitializing] = useState(false);
   const [stopStatus, setStopStatus] = useState<string | null>(null);
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [isSubmittingOtp, setIsSubmittingOtp] = useState(false);
   interface QueueItem {
     id: number | string;
     accountName: string;
@@ -880,6 +883,31 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     runSingle();
   };
 
+  const handleSubmitOtp = async (requestId: string) => {
+    if (!otpCode || isSubmittingOtp) return;
+
+    setIsSubmittingOtp(true);
+    try {
+      const response = await fetch('/api/scrapers/submit-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, code: otpCode })
+      });
+
+      if (response.ok) {
+        showNotification('OTP submitted successfully', 'success');
+        setOtpCode('');
+      } else {
+        const error = await response.json();
+        showNotification(error.message || 'Failed to submit OTP', 'error');
+      }
+    } catch (err) {
+      showNotification('Error submitting OTP', 'error');
+    } finally {
+      setIsSubmittingOtp(false);
+    }
+  };
+
   interface SyncEvent {
     id: number;
     triggered_by: string;
@@ -1176,6 +1204,45 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
                                   }
                                 }}
                               />
+
+                              {/* OTP Input Field */}
+                              {(syncProgress as any)?.type === 'loginWaitingForOTP' && (
+                                <Box sx={{ mt: 2, p: 2, borderRadius: '8px', border: '1px solid #60a5fa', backgroundColor: 'rgba(96, 165, 250, 0.05)' }}>
+                                  <Typography variant="caption" sx={{ color: '#60a5fa', fontWeight: 600, mb: 1, display: 'block' }}>
+                                    Enter 2FA Code
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <TextField
+                                      size="small"
+                                      value={otpCode}
+                                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtpCode(e.target.value)}
+                                      placeholder="--- ---"
+                                      autoComplete="one-time-code"
+                                      sx={{
+                                        '& .MuiInputBase-root': {
+                                          height: '32px',
+                                          fontSize: '13px',
+                                          color: 'white'
+                                        }
+                                      }}
+                                    />
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      disabled={isSubmittingOtp || !otpCode}
+                                      onClick={() => handleSubmitOtp((syncProgress as any).requestId)}
+                                      sx={{
+                                        height: '32px',
+                                        fontSize: '11px',
+                                        minWidth: '60px',
+                                        backgroundColor: '#60a5fa'
+                                      }}
+                                    >
+                                      {isSubmittingOtp ? <CircularProgress size={16} color="inherit" /> : 'Submit'}
+                                    </Button>
+                                  </Box>
+                                </Box>
+                              )}
                               {syncProgress?.latestScreenshot && (
                                 <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center' }}>
                                   <Button

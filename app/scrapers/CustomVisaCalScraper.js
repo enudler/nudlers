@@ -209,6 +209,40 @@ export default class CustomVisaCalScraper extends BaseScraperWithBrowser {
             postAction: async () => {
                 try {
                     await waitForNavigation(this.page);
+
+                    // Check for OTP challenge
+                    const frame = await getLoginFrame(this.page).catch(() => null);
+                    if (frame) {
+                        const otpSelectors = [
+                            'input[formcontrolname="otpCode"]',
+                            'input[formcontrolname="smsCode"]',
+                            'input#otp',
+                            '.otp-input input'
+                        ];
+
+                        let otpInput = null;
+                        for (const selector of otpSelectors) {
+                            if (await elementPresentOnPage(frame, selector)) {
+                                otpInput = selector;
+                                break;
+                            }
+                        }
+
+                        if (otpInput && credentials.otpCodeRetriever) {
+                            debug('OTP input detected, requesting code through retriever');
+                            const otpCode = await credentials.otpCodeRetriever();
+
+                            debug('Entering OTP code');
+                            await frame.type(otpInput, otpCode);
+
+                            debug('Submitting OTP');
+                            const submitButton = 'button[type="submit"]';
+                            await clickButton(frame, submitButton);
+
+                            await waitForNavigation(this.page);
+                        }
+                    }
+
                     const currentUrl = await getCurrentUrl(this.page);
                     if (currentUrl.endsWith('site-tutorial')) {
                         await clickButton(this.page, 'button.btn-close');

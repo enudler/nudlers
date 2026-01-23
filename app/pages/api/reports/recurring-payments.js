@@ -1,6 +1,6 @@
 import { getDB } from "../db";
 import logger from '../../../utils/logger.js';
-import { detectRecurringPayments } from "../utils/recurringDetection";
+import { detectRecurringPayments } from "../../../utils/recurringDetection";
 
 /**
  * API endpoint to get recurring payments.
