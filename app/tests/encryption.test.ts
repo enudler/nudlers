@@ -1,9 +1,17 @@
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'crypto';
 import { encrypt, decrypt } from '../pages/api/utils/encryption';
 
 describe('Encryption Utility Security', () => {
+    // Set a valid 32-byte hex key for testing
+    // 32 bytes = 64 hex characters
+    const MOCK_KEY = 'a'.repeat(64);
+
+    beforeEach(() => {
+        process.env.ENCRYPTION_KEY = MOCK_KEY;
+    });
+
     const testData = 'SensitivePassword123!';
 
     it('should encrypt and decrypt data correctly', () => {
