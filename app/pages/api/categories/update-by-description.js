@@ -22,7 +22,7 @@ const handler = createApiHandler({
             const updateResult = await client.query(`
         UPDATE transactions 
         SET category = $2
-        WHERE LOWER(name) = LOWER($1)
+        WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
       `, [description, newCategory]);
 
             let ruleCreated = false;
@@ -30,14 +30,14 @@ const handler = createApiHandler({
 
             if (createRule) {
                 const existingRule = await client.query(`
-          SELECT id FROM categorization_rules WHERE LOWER(name_pattern) = LOWER($1)
+          SELECT id FROM categorization_rules WHERE LOWER(TRIM(name_pattern)) = LOWER(TRIM($1))
         `, [description]);
 
                 if (existingRule.rows.length > 0) {
                     await client.query(`
             UPDATE categorization_rules 
             SET target_category = $2, updated_at = CURRENT_TIMESTAMP, is_active = true
-            WHERE LOWER(name_pattern) = LOWER($1)
+            WHERE LOWER(TRIM(name_pattern)) = LOWER(TRIM($1))
           `, [description, newCategory]);
                     ruleUpdated = true;
                 } else {

@@ -128,7 +128,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       setError(null);
       const response = await fetch('/api/reports/recurring-payments');
       if (!response.ok) {
-        throw new Error('Failed to fetch subscriptions');
+        throw new Error('Failed to fetch recurring payments');
       }
       const data = await response.json();
       setInstallments(data.installments || []);
@@ -361,7 +361,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       }}
     >
       <ModalHeader
-        title="Subscriptions"
+        title="Recurring Payments"
         onClose={onClose}
       />
 
@@ -408,7 +408,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                   icon: <CheckCircleIcon sx={{ fontSize: '24px', color: '#10b981' }} />
                 },
                 {
-                  title: 'Subscriptions',
+                  title: 'Recurring',
                   value: recurring.length,
                   secondary: 'Active',
                   color: '#3b82f6',
@@ -502,7 +502,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                   iconPosition="start"
                 />
                 <Tab
-                  label={`Subscriptions (${recurring.length})`}
+                  label={`Recurring (${recurring.length})`}
                   icon={<RepeatIcon sx={{ fontSize: '18px' }} />}
                   iconPosition="start"
                 />
@@ -832,9 +832,9 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                     color: theme.palette.text.secondary
                   }}>
                     <RepeatIcon sx={{ fontSize: '48px', opacity: 0.5, mb: 2 }} />
-                    <div>No subscriptions detected</div>
+                    <div>No recurring payments detected</div>
                     <div style={{ fontSize: '13px', marginTop: '8px', opacity: 0.7 }}>
-                      Subscriptions appear when the same expense occurs in 2+ months
+                      Recurring payments appear when the same expense occurs in 2+ months
                     </div>
                   </div>
                 ) : (
