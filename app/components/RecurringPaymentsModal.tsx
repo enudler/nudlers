@@ -107,7 +107,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       setError(null);
       const response = await fetch('/api/reports/recurring-payments');
       if (!response.ok) {
-        throw new Error('Failed to fetch recurring payments');
+        throw new Error('Failed to fetch subscriptions');
       }
       const data = await response.json();
       setInstallments(data.installments || []);
@@ -264,7 +264,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       }}
     >
       <ModalHeader
-        title="Recurring Payments"
+        title="Subscriptions"
         onClose={onClose}
       />
 
@@ -313,16 +313,9 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                 {
                   title: 'Subscriptions',
                   value: recurring.length,
-                  secondary: `₪${formatNumber(totalMonthlyRecurring)}/mo`,
+                  secondary: 'Active',
                   color: '#3b82f6',
                   icon: <RepeatIcon sx={{ fontSize: '24px', color: '#3b82f6' }} />
-                },
-                {
-                  title: 'Total Monthly',
-                  value: `₪${formatNumber(totalMonthlyInstallments + totalMonthlyRecurring)}`,
-                  secondary: 'Fixed commitments',
-                  color: '#f59e0b',
-                  icon: <TrendingUpIcon sx={{ fontSize: '24px', color: '#f59e0b' }} />
                 }
               ].map((card, i) => (
                 <div key={i} style={{
@@ -412,7 +405,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                   iconPosition="start"
                 />
                 <Tab
-                  label={`Recurring (${recurring.length})`}
+                  label={`Subscriptions (${recurring.length})`}
                   icon={<RepeatIcon sx={{ fontSize: '18px' }} />}
                   iconPosition="start"
                 />
@@ -699,9 +692,9 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                     color: theme.palette.text.secondary
                   }}>
                     <RepeatIcon sx={{ fontSize: '48px', opacity: 0.5, mb: 2 }} />
-                    <div>No recurring transactions detected</div>
+                    <div>No subscriptions detected</div>
                     <div style={{ fontSize: '13px', marginTop: '8px', opacity: 0.7 }}>
-                      Recurring transactions appear when the same expense occurs in 2+ months
+                      Subscriptions appear when the same expense occurs in 2+ months
                     </div>
                   </div>
                 ) : (
@@ -904,21 +897,30 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                         <CalendarTodayIcon sx={{ fontSize: '16px', color: '#8b5cf6' }} />
                                         Payment History
                                       </div>
-                                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {item.occurrences?.map((occ, idx) => (
                                           <div key={idx} style={{
                                             display: 'flex',
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            padding: '10px 14px',
-                                            borderRadius: '8px',
+                                            padding: '12px 20px',
+                                            borderRadius: '10px',
                                             background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                                            border: `1px solid ${theme.palette.divider}`
+                                            border: `1px solid ${theme.palette.divider}`,
+                                            transition: 'all 0.2s ease'
                                           }}>
-                                            <span style={{ fontSize: '13px', color: theme.palette.text.secondary }}>
-                                              {formatDate(occ.date)}
-                                            </span>
-                                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                              <div style={{
+                                                width: '8px',
+                                                height: '8px',
+                                                borderRadius: '50%',
+                                                background: '#10b981'
+                                              }} />
+                                              <span style={{ fontSize: '14px', fontWeight: 500, color: theme.palette.text.primary }}>
+                                                {formatDate(occ.date)}
+                                              </span>
+                                            </div>
+                                            <span style={{ fontSize: '14px', fontWeight: 700, color: '#10b981' }}>
                                               ₪{formatNumber(occ.amount)}
                                             </span>
                                           </div>
