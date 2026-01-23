@@ -74,6 +74,7 @@ interface Account {
   id_number?: string;
   card6_digits?: string;
   bank_account_number?: string;
+  phone_number?: string;
   nickname?: string;
   is_active: boolean;
   // SECURITY: password field removed - fetched separately when needed
@@ -163,6 +164,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     id_number: '',
     card6_digits: '',
     bank_account_number: '',
+    phone_number: '',
     password: '',
     nickname: '',
     id: 0,
@@ -251,6 +253,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
       id_number: '',
       card6_digits: '',
       bank_account_number: '',
+      phone_number: '',
       password: '',
       nickname: '',
       id: 0,
@@ -298,6 +301,10 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
         setError('Bank account number is required for bank accounts');
         return false;
       }
+      if (formAccount.vendor === 'oneZero' && !formAccount.phone_number) {
+        setError('Phone number is required for One Zero');
+        return false;
+      }
     }
 
     if (requirePassword && !formAccount.password) {
@@ -343,6 +350,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
       id_number: account.id_number || '',
       card6_digits: account.card6_digits || '',
       bank_account_number: account.bank_account_number || '',
+      phone_number: account.phone_number || '',
       password: '', // Don't pre-fill password for security
       nickname: account.nickname || '',
       id: account.id,
@@ -938,6 +946,17 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                   required
                 />
               )}
+              {formAccount.vendor === 'oneZero' && (
+                <TextField
+                  fullWidth
+                  label="Phone Number"
+                  value={formAccount.phone_number}
+                  onChange={(e) => setFormAccount({ ...formAccount, phone_number: e.target.value })}
+                  margin="normal"
+                  required
+                  helperText="Required for One Zero 2FA (e.g. 0501234567)"
+                />
+              )}
               {STANDARD_BANK_VENDORS.includes(formAccount.vendor) && formAccount.vendor !== 'oneZero' && (
                 <TextField
                   fullWidth
@@ -1047,6 +1066,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
             password: selectedAccount.password,
             username: selectedAccount.username,
             bankAccountNumber: selectedAccount.bank_account_number,
+            phoneNumber: selectedAccount.phone_number,
             nickname: selectedAccount.nickname
           },
           credentialId: selectedAccount.id

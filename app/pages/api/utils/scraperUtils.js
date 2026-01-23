@@ -218,6 +218,7 @@ export function prepareCredentials(vendor, rawCredentials) {
     card6Digits,
     nickname,
     userCode,
+    phoneNumber,
     ...rest
   } = rawCredentials;
 
@@ -231,6 +232,7 @@ export function prepareCredentials(vendor, rawCredentials) {
   } else if (vendor === 'oneZero') {
     credentials.email = username || id || '';
     credentials.password = password;
+    credentials.phoneNumber = phoneNumber;
   } else if (STANDARD_BANK_VENDORS.includes(vendor) || BEINLEUMI_GROUP_VENDORS.includes(vendor) || vendor === 'igud' || vendor === 'massad' || vendor === 'discount') {
     // Standard bank login (username + password, sometimes num)
     credentials.username = username;
@@ -268,8 +270,8 @@ export function validateCredentials(credentials, vendor) {
       throw new Error(`Invalid credentials for ${vendor}: username and password are required.`);
     }
   } else if (vendor === 'oneZero') {
-    if (!credentials.email || !credentials.password) {
-      throw new Error(`Invalid credentials for ${vendor}: email and password are required.`);
+    if (!credentials.email || !credentials.password || !credentials.phoneNumber) {
+      throw new Error(`Invalid credentials for ${vendor}: email, password and phoneNumber are required.`);
     }
   } else {
     if (!credentials.username || !credentials.password) {

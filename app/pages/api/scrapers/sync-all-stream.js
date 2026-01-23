@@ -93,7 +93,8 @@ export default async function handler(req, res) {
                 password: row.password ? decrypt(row.password) : null,
                 id: row.id_number ? decrypt(row.id_number) : null,
                 card6Digits: row.card6_digits ? decrypt(row.card6_digits) : null,
-                bank_account_number: row.bank_account_number
+                bank_account_number: row.bank_account_number,
+                phoneNumber: row.phone_number ? decrypt(row.phone_number) : null
             }
         }));
 

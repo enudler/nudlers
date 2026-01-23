@@ -48,6 +48,7 @@ interface ScraperConfig {
     username?: string;
     userCode?: string;
     bankAccountNumber?: string;
+    phoneNumber?: string;
     nickname?: string;
   };
   credentialId?: number;
@@ -157,7 +158,8 @@ export default function ScrapeModal({ isOpen, onClose, onSuccess, initialConfig 
       username: '',
       userCode: '',
       nickname: '',
-      bankAccountNumber: ''
+      bankAccountNumber: '',
+      phoneNumber: ''
     }
   }), []);
   const [config, setConfig] = useState<ScraperConfig>(initialConfig || defaultConfig);

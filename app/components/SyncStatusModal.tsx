@@ -483,6 +483,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     password?: string;
     id_number?: string;
     bank_account_number?: string;
+    phone_number?: string;
     card6_digits?: string;
   }
 
@@ -493,6 +494,12 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       return {
         username: String(account.username || ''),
         password: String(account.password || '')
+      };
+    } else if (vendor === 'oneZero') {
+      return {
+        username: String(account.username || account.id_number || ''),
+        password: String(account.password || ''),
+        phoneNumber: String(account.phone_number || '')
       };
     } else if (BEINLEUMI_GROUP_VENDORS.includes(vendor)) {
       const bankUsername = account.username || account.id_number || '';
