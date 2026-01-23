@@ -18,6 +18,7 @@ import ModalHeader from './ModalHeader';
 import { useTheme, Theme } from '@mui/material/styles';
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
 import { CardVendorIcon } from './CardVendorsModal';
+import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from './CategoryDashboard/utils/tableStyles';
 
 interface Installment {
   name: string;
@@ -249,13 +250,16 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: '24px',
+          borderRadius: '28px',
           background: theme.palette.mode === 'dark'
-            ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)'
-            : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            ? 'rgba(30, 41, 59, 0.7)'
+            : 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(30px)',
           minHeight: '80vh',
           maxHeight: '90vh',
-          border: theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : 'none'
+          border: `2px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(148,163,184,0.1)'}`,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+          fontFamily: 'Assistant, sans-serif'
         }
       }}
     >
@@ -287,97 +291,97 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
             {/* Summary Cards */}
             <div style={{
               display: 'flex',
-              gap: '16px',
+              gap: '20px',
               padding: '24px 32px',
               flexWrap: 'wrap'
             }}>
-              {/* Active Installments Card */}
-              <div style={{
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                borderRadius: '16px',
-                padding: '20px 24px',
-                minWidth: '180px',
-                boxShadow: '0 4px 16px rgba(139, 92, 246, 0.3)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <CreditScoreIcon sx={{ color: 'white', fontSize: '20px' }} />
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                    Active Installments
-                  </span>
+              {[
+                {
+                  title: 'Active Installments',
+                  value: activeInstallments.length,
+                  secondary: `₪${formatNumber(totalMonthlyInstallments)}/mo`,
+                  color: '#8b5cf6',
+                  icon: <CreditScoreIcon sx={{ fontSize: '24px', color: '#8b5cf6' }} />
+                },
+                {
+                  title: 'Completed',
+                  value: completedInstallments.length,
+                  secondary: 'Paid off',
+                  color: '#10b981',
+                  icon: <CheckCircleIcon sx={{ fontSize: '24px', color: '#10b981' }} />
+                },
+                {
+                  title: 'Subscriptions',
+                  value: recurring.length,
+                  secondary: `₪${formatNumber(totalMonthlyRecurring)}/mo`,
+                  color: '#3b82f6',
+                  icon: <RepeatIcon sx={{ fontSize: '24px', color: '#3b82f6' }} />
+                },
+                {
+                  title: 'Total Monthly',
+                  value: `₪${formatNumber(totalMonthlyInstallments + totalMonthlyRecurring)}`,
+                  secondary: 'Fixed commitments',
+                  color: '#f59e0b',
+                  icon: <TrendingUpIcon sx={{ fontSize: '24px', color: '#f59e0b' }} />
+                }
+              ].map((card, i) => (
+                <div key={i} style={{
+                  flex: '1 1 200px',
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'white',
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: '24px',
+                  padding: '24px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  border: `2px solid ${card.color}20`,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+                  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  cursor: 'default'
+                }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
+                    e.currentTarget.style.boxShadow = `0 12px 32px ${card.color}15`;
+                    e.currentTarget.style.borderColor = `${card.color}40`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.05)';
+                    e.currentTarget.style.borderColor = `${card.color}20`;
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    width: '100px',
+                    height: '100px',
+                    background: `radial-gradient(circle at top right, ${card.color}15, transparent 70%)`,
+                    filter: 'blur(20px)'
+                  }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div style={{
+                      background: `${card.color}15`,
+                      padding: '10px',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      border: `1px solid ${card.color}30`
+                    }}>
+                      {card.icon}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: theme.palette.text.secondary, fontSize: '13px', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {card.title}
+                    </div>
+                    <div style={{ fontSize: '28px', fontWeight: 800, color: theme.palette.text.primary, letterSpacing: '-0.02em', fontFamily: 'Assistant, sans-serif' }}>
+                      {card.value}
+                    </div>
+                    <div style={{ fontSize: '13px', color: card.color, fontWeight: 600, marginTop: '4px' }}>
+                      {card.secondary}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'white' }}>
-                  {activeInstallments.length}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
-                  ₪{formatNumber(totalMonthlyInstallments)}/month
-                </div>
-              </div>
-
-              {/* Completed Installments Card */}
-              <div style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                borderRadius: '16px',
-                padding: '20px 24px',
-                minWidth: '180px',
-                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <CheckCircleIcon sx={{ color: 'white', fontSize: '20px' }} />
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                    Completed
-                  </span>
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'white' }}>
-                  {completedInstallments.length}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
-                  Paid off
-                </div>
-              </div>
-
-              {/* Recurring Transactions Card */}
-              <div style={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                borderRadius: '16px',
-                padding: '20px 24px',
-                minWidth: '180px',
-                boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <RepeatIcon sx={{ color: 'white', fontSize: '20px' }} />
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                    Recurring Subscriptions
-                  </span>
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'white' }}>
-                  {recurring.length}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
-                  ₪{formatNumber(totalMonthlyRecurring)}/month
-                </div>
-              </div>
-
-              {/* Total Monthly Commitment */}
-              <div style={{
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                borderRadius: '16px',
-                padding: '20px 24px',
-                minWidth: '180px',
-                boxShadow: '0 4px 16px rgba(245, 158, 11, 0.3)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <TrendingUpIcon sx={{ color: 'white', fontSize: '20px' }} />
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                    Total Monthly
-                  </span>
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'white' }}>
-                  ₪{formatNumber(totalMonthlyInstallments + totalMonthlyRecurring)}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
-                  Fixed commitments
-                </div>
-              </div>
+              ))}
             </div>
 
             {/* Tabs */}
@@ -429,23 +433,31 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                     <div>No installment payments found</div>
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{
+                    overflowX: 'auto',
+                    background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'white',
+                    borderRadius: '24px',
+                    border: `1px solid ${theme.palette.divider}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                  }}>
                     <table style={{
                       width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: '14px'
+                      borderCollapse: 'separate',
+                      borderSpacing: 0,
+                      fontSize: '14px',
+                      fontFamily: 'Assistant, sans-serif'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: `2px solid ${theme.palette.divider}` }}>
-                          <th style={getHeaderCellStyle(theme)}>Description</th>
-                          <th style={getHeaderCellStyle(theme)}>Account</th>
-                          <th style={getHeaderCellStyle(theme)}>Category</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Progress</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Monthly Amount</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'right' }}>Original Amount</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Next Payment</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Last Payment</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Status</th>
+                        <tr>
+                          <th style={getTableHeaderCellStyle(theme)}>Description</th>
+                          <th style={getTableHeaderCellStyle(theme)}>Account</th>
+                          <th style={getTableHeaderCellStyle(theme)}>Category</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Progress</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'right' }}>Monthly</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'right' }}>Original</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Next</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>End</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -457,14 +469,19 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                             <tr
                               key={`${item.name}-${item.price}-${index}`}
                               style={{
-                                borderBottom: `1px solid ${theme.palette.divider}`,
-                                background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)')
+                                ...TABLE_ROW_HOVER_STYLE,
+                                background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(248, 250, 252, 0.5)')
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = getTableRowHoverBackground(theme);
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(248, 250, 252, 0.5)');
                               }}
                             >
                               <td style={{
-                                padding: '16px 12px',
-                                fontWeight: 600,
-                                color: theme.palette.text.primary,
+                                ...getTableBodyCellStyle(theme),
+                                fontWeight: 700,
                                 maxWidth: '250px'
                               }}>
                                 <div style={{
@@ -475,17 +492,19 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   {item.name}
                                 </div>
                               </td>
-                              <td style={{ padding: '16px 12px' }}>
+                              <td style={getTableBodyCellStyle(theme)}>
                                 {renderAccountInfo(item as Installment)}
                               </td>
-                              <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
+                              <td style={getTableBodyCellStyle(theme)}>
                                 <span style={{
                                   background: 'rgba(59, 130, 246, 0.1)',
                                   padding: '4px 10px',
                                   borderRadius: '6px',
-                                  fontSize: '13px',
+                                  fontSize: '12px',
                                   color: '#3b82f6',
-                                  fontWeight: 500
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.5px'
                                 }}>
                                   {item.category || 'Uncategorized'}
                                 </span>
@@ -538,19 +557,10 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                   </div>
                                 </Tooltip>
                               </td>
-                              <td style={{
-                                padding: '16px 12px',
-                                textAlign: 'right',
-                                fontWeight: 600,
-                                color: '#8b5cf6'
-                              }}>
+                              <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'right', fontWeight: 800, color: '#8b5cf6', fontSize: '15px' }}>
                                 ₪{formatNumber(item.price)}
                               </td>
-                              <td style={{
-                                padding: '16px 12px',
-                                textAlign: 'right',
-                                color: theme.palette.text.secondary
-                              }}>
+                              <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'right', color: theme.palette.text.secondary, fontSize: '13px' }}>
                                 {item.original_amount ? (
                                   <span>
                                     {item.original_currency !== 'ILS' && item.original_currency
@@ -621,7 +631,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                 })()}
                               </td>
                               <td style={{
-                                padding: '16px 12px',
+                                ...getTableBodyCellStyle(theme),
                                 textAlign: 'center',
                                 fontSize: '13px'
                               }}>
@@ -631,14 +641,14 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                     alignItems: 'center',
                                     gap: '4px',
                                     color: item.status === 'completed' ? '#10b981' : '#64748b',
-                                    fontWeight: 500
+                                    fontWeight: 700
                                   }}>
                                     <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
                                     {formatDate(item.last_payment_date)}
                                   </span>
                                 </Tooltip>
                               </td>
-                              <td style={{ padding: '16px 12px', textAlign: 'center' }}>
+                              <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
                                 {item.status === 'completed' ? (
                                   <span style={{
                                     display: 'inline-flex',
@@ -646,13 +656,14 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                     gap: '4px',
                                     background: 'rgba(16, 185, 129, 0.1)',
                                     color: '#10b981',
-                                    padding: '4px 10px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    fontWeight: 600
+                                    padding: '6px 12px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase'
                                   }}>
                                     <CheckCircleIcon sx={{ fontSize: '14px' }} />
-                                    Completed
+                                    Done
                                   </span>
                                 ) : (
                                   <span style={{
@@ -661,10 +672,11 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                     gap: '4px',
                                     background: 'rgba(139, 92, 246, 0.1)',
                                     color: '#8b5cf6',
-                                    padding: '4px 10px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    fontWeight: 600
+                                    padding: '6px 12px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase'
                                   }}>
                                     <PendingIcon sx={{ fontSize: '14px' }} />
                                     Active
@@ -693,32 +705,40 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                     </div>
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{
+                    overflowX: 'auto',
+                    background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'white',
+                    borderRadius: '24px',
+                    border: `1px solid ${theme.palette.divider}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                  }}>
                     <table style={{
                       width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: '14px'
+                      borderCollapse: 'separate',
+                      borderSpacing: 0,
+                      fontSize: '14px',
+                      fontFamily: 'Assistant, sans-serif'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: `2px solid ${theme.palette.divider}` }}>
-                          <th style={getHeaderCellStyle(theme)}>Description</th>
-                          <th style={getHeaderCellStyle(theme)}>Account</th>
-                          <th style={getHeaderCellStyle(theme)}>Category</th>
+                        <tr>
+                          <th style={getTableHeaderCellStyle(theme)}>Description</th>
+                          <th style={getTableHeaderCellStyle(theme)}>Account</th>
+                          <th style={getTableHeaderCellStyle(theme)}>Category</th>
                           <th
-                            style={{ ...getHeaderCellStyle(theme), textAlign: 'center', cursor: 'pointer' }}
+                            style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center', cursor: 'pointer' }}
                             onClick={() => handleSort('count')}
                           >
                             Frequency {sortBy === 'count' && (sortOrder === 'desc' ? '↓' : '↑')}
                           </th>
                           <th
-                            style={{ ...getHeaderCellStyle(theme), textAlign: 'right', cursor: 'pointer' }}
+                            style={{ ...getTableHeaderCellStyle(theme), textAlign: 'right', cursor: 'pointer' }}
                             onClick={() => handleSort('amount')}
                           >
                             Amount (Avg) {sortBy === 'amount' && (sortOrder === 'desc' ? '↓' : '↑')}
                           </th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Next Payment</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>Last Charge</th>
-                          <th style={{ ...getHeaderCellStyle(theme), textAlign: 'center' }}>History</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Next</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Last</th>
+                          <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Hist</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -730,27 +750,39 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                             <React.Fragment key={rowId}>
                               <tr
                                 style={{
-                                  borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`,
+                                  ...TABLE_ROW_HOVER_STYLE,
                                   background: isExpanded
                                     ? (theme.palette.mode === 'dark' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.05)')
-                                    : (index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)')),
-                                  transition: 'background-color 0.2s ease',
-                                  cursor: 'pointer'
+                                    : (index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(248, 250, 252, 0.5)')),
                                 }}
                                 onClick={() => toggleRow(rowId)}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = isExpanded ? (theme.palette.mode === 'dark' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)') : getTableRowHoverBackground(theme);
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = isExpanded
+                                    ? (theme.palette.mode === 'dark' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.05)')
+                                    : (index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(248, 250, 252, 0.5)'));
+                                }}
                               >
                                 <td style={{
-                                  padding: '16px 12px',
-                                  fontWeight: 600,
-                                  color: theme.palette.text.primary,
+                                  ...getTableBodyCellStyle(theme),
+                                  fontWeight: 700,
                                   maxWidth: '250px'
                                 }}>
                                   <div style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '8px'
+                                    gap: '12px'
                                   }}>
-                                    <RepeatIcon sx={{ fontSize: '16px', color: '#3b82f6', opacity: 0.7 }} />
+                                    <div style={{
+                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      padding: '8px',
+                                      borderRadius: '10px',
+                                      display: 'flex'
+                                    }}>
+                                      <RepeatIcon sx={{ fontSize: '18px', color: '#3b82f6' }} />
+                                    </div>
                                     <span style={{
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
@@ -760,83 +792,87 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
                                     </span>
                                   </div>
                                 </td>
-                                <td style={{ padding: '16px 12px' }}>
+                                <td style={getTableBodyCellStyle(theme)}>
                                   {renderAccountInfo(item)}
                                 </td>
-                                <td style={{ padding: '16px 12px', color: theme.palette.text.secondary }}>
+                                <td style={getTableBodyCellStyle(theme)}>
                                   <span style={{
                                     background: 'rgba(59, 130, 246, 0.1)',
                                     padding: '4px 10px',
                                     borderRadius: '6px',
-                                    fontSize: '13px',
+                                    fontSize: '12px',
                                     color: '#3b82f6',
-                                    fontWeight: 500
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
                                   }}>
                                     {item.category || 'Uncategorized'}
                                   </span>
                                 </td>
                                 <td style={{
-                                  padding: '16px 12px',
+                                  ...getTableBodyCellStyle(theme),
                                   textAlign: 'center'
                                 }}>
                                   <span style={{
-                                    background: item.frequency === 'bi-monthly' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                                    color: item.frequency === 'bi-monthly' ? '#f59e0b' : '#3b82f6',
-                                    padding: '4px 10px',
-                                    borderRadius: '6px',
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    textTransform: 'capitalize'
+                                    background: item.frequency === 'bi-monthly' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(139, 92, 246, 0.1)',
+                                    color: item.frequency === 'bi-monthly' ? '#f59e0b' : '#8b5cf6',
+                                    padding: '6px 12px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
                                   }}>
                                     {item.frequency}
                                   </span>
                                 </td>
                                 <td style={{
-                                  padding: '16px 12px',
+                                  ...getTableBodyCellStyle(theme),
                                   textAlign: 'right',
-                                  fontWeight: 600,
-                                  color: '#3b82f6'
+                                  fontWeight: 800,
+                                  color: '#3b82f6',
+                                  fontSize: '15px'
                                 }}>
                                   ₪{formatNumber(item.price)}
                                 </td>
                                 <td style={{
-                                  padding: '16px 12px',
-                                  textAlign: 'center',
-                                  fontSize: '13px'
+                                  ...getTableBodyCellStyle(theme),
+                                  textAlign: 'center'
                                 }}>
                                   <span style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '4px',
+                                    gap: '6px',
                                     color: '#f59e0b',
-                                    fontWeight: 500
+                                    fontWeight: 700,
+                                    fontSize: '13px'
                                   }}>
-                                    <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
+                                    <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.8 }} />
                                     {formatDate(item.next_payment_date)}
                                   </span>
                                 </td>
                                 <td style={{
-                                  padding: '16px 12px',
+                                  ...getTableBodyCellStyle(theme),
                                   textAlign: 'center',
-                                  color: theme.palette.text.secondary,
-                                  fontSize: '13px'
+                                  color: theme.palette.text.secondary
                                 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                    <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.7 }} />
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px', fontWeight: 500 }}>
+                                    <CalendarTodayIcon sx={{ fontSize: '14px', opacity: 0.8 }} />
                                     {formatDate(item.last_charge_date)}
                                   </div>
                                 </td>
                                 <td style={{
-                                  padding: '16px 12px',
-                                  textAlign: 'center',
-                                  color: '#8b5cf6'
+                                  ...getTableBodyCellStyle(theme),
+                                  textAlign: 'center'
                                 }}>
                                   <span style={{
                                     fontSize: '12px',
-                                    fontWeight: 600,
-                                    textDecoration: 'underline'
+                                    fontWeight: 700,
+                                    color: '#8b5cf6',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
                                   }}>
-                                    {isExpanded ? 'Hide' : `Show ${item.month_count} payments`}
+                                    {isExpanded ? 'Hide' : `Details (${item.month_count})`}
                                   </span>
                                 </td>
                               </tr>
@@ -907,15 +943,5 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     </Dialog>
   );
 };
-
-const getHeaderCellStyle = (theme: Theme): React.CSSProperties => ({
-  padding: '16px 12px',
-  textAlign: 'left',
-  color: theme.palette.text.secondary,
-  fontWeight: 600,
-  fontSize: '13px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px'
-});
 
 export default RecurringPaymentsModal;
