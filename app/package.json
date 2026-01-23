@@ -20,6 +20,7 @@
     "@emotion/styled": "^11.13.0",
     "@fontsource/roboto": "^5.1.0",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@mui/icons-material": "^6.1.4",
     "@mui/material": "^6.1.4",
     "@mui/styled-engine-sc": "^6.1.4",
@@ -38,7 +39,8 @@
     "react-icons": "^5.5.0",
     "react-virtuoso": "^4.18.1",
     "styled-components": "^6.1.18",
-    "twilio": "^5.11.2"
+    "twilio": "^5.11.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.12.0",
