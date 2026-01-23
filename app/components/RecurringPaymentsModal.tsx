@@ -17,13 +17,13 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ModalHeader from './ModalHeader';
 import { useTheme, Theme } from '@mui/material/styles';
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
-import { CardVendorIcon } from './CardVendorsModal';
 import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from './CategoryDashboard/utils/tableStyles';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import { fetchCategories } from './CategoryDashboard/utils/categoryUtils';
 import CategoryAutocomplete from './CategoryAutocomplete';
+import AccountDisplay from './AccountDisplay';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
@@ -109,7 +109,6 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   });
 
   const theme = useTheme();
-  const { getCardVendor, getCardNickname } = useCardVendors();
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -194,105 +193,7 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
   };
 
   const renderAccountInfo = (item: Installment | RecurringTransaction) => {
-    const isBank = item.transaction_type === 'bank' || (item.vendor && ['hapoalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'otsarHahayal', 'beinleumi', 'massad', 'pagi'].includes(item.vendor));
-
-    if (isBank) {
-      const bankNames: Record<string, string> = {
-        'hapoalim': 'Bank Hapoalim',
-        'leumi': 'Bank Leumi',
-        'mizrahi': 'Mizrahi Tefahot',
-        'discount': 'Discount Bank',
-        'yahav': 'Bank Yahav',
-        'union': 'Union Bank',
-        'otsarHahayal': 'Otsar HaHayal',
-        'beinleumi': 'International Bank',
-        'massad': 'Massad Bank',
-        'pagi': 'Bank Pagi'
-      };
-
-      const bankName = bankNames[item.vendor] || item.bank_nickname || 'Bank Account';
-      const bankAccount = item.bank_account_display || item.account_number;
-
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 2px 6px rgba(14, 165, 233, 0.2)'
-          }}>
-            <CardVendorIcon vendor={item.vendor} size={18} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{
-              fontWeight: 700,
-              fontSize: '13px',
-              color: theme.palette.text.primary,
-              letterSpacing: '0.2px'
-            }}>
-              {bankName}
-            </span>
-            {bankAccount && (
-              <span style={{
-                fontSize: '11px',
-                color: theme.palette.text.secondary,
-                fontWeight: 500
-              }}>
-                {bankAccount}
-              </span>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (item.account_number) {
-      const last4 = item.account_number.slice(-4);
-      const nickname = getCardNickname(item.account_number);
-      const vendor = getCardVendor(item.account_number);
-
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.2)'
-          }}>
-            <CardVendorIcon vendor={vendor} size={18} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{
-              fontWeight: 700,
-              fontSize: '13px',
-              color: theme.palette.text.primary,
-              letterSpacing: '0.2px'
-            }}>
-              {nickname || vendor || 'Credit Card'}
-            </span>
-            <span style={{
-              fontSize: '11px',
-              color: theme.palette.text.secondary,
-              fontFamily: 'monospace',
-              letterSpacing: '0.5px',
-              fontWeight: 500
-            }}>
-              •••• {last4}
-            </span>
-          </div>
-        </div>
-      );
-    }
-
-    return <span style={{ color: '#94a3b8', fontSize: '13px' }}>-</span>;
+    return <AccountDisplay transaction={item} premium={true} />;
   };
 
   const handleCategoryClick = (event: React.MouseEvent<HTMLElement>, item: Installment | RecurringTransaction, index: number, type: 'installment' | 'recurring') => {

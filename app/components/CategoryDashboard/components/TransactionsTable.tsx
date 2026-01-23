@@ -14,6 +14,7 @@ import { CardVendorIcon } from '../../CardVendorsModal';
 import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from '../utils/tableStyles';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 import CategoryAutocomplete from '../../CategoryAutocomplete';
+import AccountDisplay from '../../AccountDisplay';
 
 export interface Transaction {
   name: string;
@@ -565,35 +566,7 @@ const TransactionRow = ({
         )}
       </TableCell>
       <TableCell style={{ ...getTableBodyCellStyle(theme), fontSize: '12px' }}>
-        {transaction.account_number ? (
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={24} />
-            <span style={{
-              fontWeight: '500',
-              color: '#334155',
-              backgroundColor: 'rgba(148, 163, 184, 0.1)',
-              padding: '4px 8px',
-              borderRadius: '6px'
-            }}>
-              {getCardNickname(transaction.account_number) ? (
-                <>
-                  {getCardNickname(transaction.account_number)}
-                  <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>
-                    •••• {transaction.account_number.slice(-4)}
-                  </span>
-                </>
-              ) : (
-                `•••• ${transaction.account_number.slice(-4)}`
-              )}
-            </span>
-          </Box>
-        ) : (
-          <span style={{ color: theme.palette.text.disabled }}>—</span>
-        )}
+        <AccountDisplay transaction={transaction} premium={false} />
       </TableCell>
       <TableCell style={{ ...getTableBodyCellStyle(theme), color: theme.palette.text.secondary }}>
         {dateUtils.formatDate(transaction.date)}
