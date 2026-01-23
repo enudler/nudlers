@@ -288,10 +288,13 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     status,
     identifier,
     type,
-    installmentsNumber,
-    installmentsTotal,
-    category: scraperCategory
+    category: scraperCategory,
+    installments
   } = transaction;
+
+  // Use either top-level or nested installments data
+  const finalInstallmentsNumber = transaction.installmentsNumber || installments?.number || null;
+  const finalInstallmentsTotal = transaction.installmentsTotal || installments?.total || null;
 
   // 1. Determine local categorization with correct priority
   // Priority: Rule > Cache > Scraper (for transactions without category)
@@ -358,12 +361,14 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       price: cachedTx.price,
       date: cachedTx.date,
       category: cachedTx.category,
-      category_source: cachedTx.category_source
+      category_source: cachedTx.category_source,
+      installments_number: cachedTx.installments_number,
+      installments_total: cachedTx.installments_total
     };
   } else {
     // Cache miss or too old - hit database
     const existing = await client.query(
-      'SELECT identifier, name, price, date, category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2',
+      'SELECT identifier, name, price, date, category, category_source, installments_number, installments_total FROM transactions WHERE identifier = $1 AND vendor = $2',
       [txId, vendor]
     );
     if (existing.rows.length > 0) existingTx = existing.rows[0];
@@ -386,19 +391,41 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
       return insertTransaction(client, { ...transaction, identifier: fallbackId }, vendor, accountNumber, defaultCurrency, categorizationRules, updateCategoryOnRescrape, categoryMappings, isBank, billingCycleStartDay, historyCache);
     }
 
+    // Check if we need to update category or installments
+    let needsUpdate = false;
+    let updateFields = [];
+    let updateValues = [];
+    let paramIdx = 1;
+
+    // A. Update Category
     if (updateCategoryOnRescrape && finalCategory && finalCategory !== 'N/A' && finalCategory !== '') {
-      // If we only have cached info, we might need a quick DB fetch for current category
-      const fullTx = existingTx.category_source ? existingTx : (await client.query('SELECT category, category_source FROM transactions WHERE identifier = $1 AND vendor = $2', [txId, vendor])).rows[0];
-      if (fullTx) {
-        const currentCategory = fullTx.category;
-        const currentSource = fullTx.category_source;
-        const isCurrentEmpty = !currentCategory || currentCategory === 'N/A' || currentCategory === '' || currentCategory.toLowerCase() === 'uncategorized';
-        if ((isCurrentEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory)) && currentCategory !== finalCategory) {
-          await client.query('UPDATE transactions SET category = $1, category_source = $2, rule_matched = $3 WHERE identifier = $4 AND vendor = $5', [finalCategory, categorySource, ruleDetails, txId, vendor]);
-          return { success: true, duplicated: true, updated: true, newCategory: finalCategory, categorySource, oldCategory: currentCategory };
-        }
+      const currentCategory = existingTx.category;
+      const currentSource = existingTx.category_source;
+      const isCurrentEmpty = !currentCategory || currentCategory === 'N/A' || currentCategory === '' || currentCategory.toLowerCase() === 'uncategorized';
+
+      if ((isCurrentEmpty || (currentSource !== 'cache' && currentCategory !== finalCategory)) && currentCategory !== finalCategory) {
+        needsUpdate = true;
+        updateFields.push(`category = $${paramIdx++}`, `category_source = $${paramIdx++}`, `rule_matched = $${paramIdx++}`);
+        updateValues.push(finalCategory, categorySource, ruleDetails);
       }
     }
+
+    // B. Update Installments (if missing in DB but present in new data)
+    if (finalInstallmentsTotal && (!existingTx.installments_total || existingTx.installments_total <= 1)) {
+      needsUpdate = true;
+      updateFields.push(`installments_number = $${paramIdx++}`, `installments_total = $${paramIdx++}`);
+      updateValues.push(finalInstallmentsNumber, finalInstallmentsTotal);
+    }
+
+    if (needsUpdate) {
+      updateValues.push(txId, vendor);
+      await client.query(
+        `UPDATE transactions SET ${updateFields.join(', ')} WHERE identifier = $${paramIdx++} AND vendor = $${paramIdx++}`,
+        updateValues
+      );
+      return { success: true, duplicated: true, updated: true, newCategory: finalCategory, categorySource, oldCategory: existingTx.category };
+    }
+
     return { success: true, duplicated: true, updated: false, category: existingTx.category, categorySource: existingTx.category_source };
   }
 
@@ -408,29 +435,47 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   const currentKey = `${newDateStr}|${normalizedName}|${normalizedPrice.toFixed(2)}|${accountNumber || ''}`;
 
   // 3. Business Key Check
+  let businessMatch = null;
   if (historyCache?.businessKeys.has(currentKey)) {
     const cachedInfo = historyCache.businessKeys.get(currentKey);
-    return { success: true, duplicated: true, category: cachedInfo.category, categorySource: cachedInfo.category_source };
+    // Cached info doesn't have identifier/total, so we might still need a DB hit if we want to update
+    if (finalInstallmentsTotal && (!cachedInfo.installments_total || cachedInfo.installments_total <= 1)) {
+      // Intentional DB hit to get full info for update
+    } else {
+      return { success: true, duplicated: true, category: cachedInfo.category, categorySource: cachedInfo.category_source };
+    }
   }
 
   const businessKeyCheck = await client.query(
-    `SELECT identifier, category, category_source FROM transactions WHERE vendor = $1 AND date = $2 AND LOWER(TRIM(name)) = $3 AND ABS(price) = $4 AND COALESCE(account_number, '') = $5`,
+    `SELECT identifier, category, category_source, installments_total FROM transactions WHERE vendor = $1 AND date = $2 AND LOWER(TRIM(name)) = $3 AND ABS(price) = $4 AND COALESCE(account_number, '') = $5`,
     [vendor, date, normalizedName, normalizedPrice, accountNumber || '']
   );
   if (businessKeyCheck.rows.length > 0) {
     const match = businessKeyCheck.rows[0];
+    if (finalInstallmentsTotal && (!match.installments_total || match.installments_total <= 1)) {
+      await client.query(
+        `UPDATE transactions SET installments_number = $1, installments_total = $2 WHERE identifier = $3 AND vendor = $4`,
+        [finalInstallmentsNumber, finalInstallmentsTotal, match.identifier, vendor]
+      );
+      return { success: true, duplicated: true, updated: true, category: match.category, categorySource: match.category_source };
+    }
     return { success: true, duplicated: true, category: match.category, categorySource: match.category_source };
   }
 
   // 4. Installment Logic (Still DB-based as it is rarer and location-sensitive)
-  if (installmentsTotal > 1) {
+  if (finalInstallmentsTotal > 1) {
     const totalMatchCheck = await client.query(
       `SELECT identifier, category, category_source FROM transactions WHERE vendor = $1 AND ABS(date - $2) <= 1 AND LOWER(TRIM(name)) = $3 AND (ABS(price) = $4 OR ABS(original_amount) = $4) AND (installments_total IS NULL OR installments_total <= 1)`,
       [vendor, date, normalizedName, Math.abs(originalAmount || chargedAmount)]
     );
     if (totalMatchCheck.rows.length > 0) {
       const match = totalMatchCheck.rows[0];
-      return { success: true, duplicated: true, category: match.category, categorySource: match.category_source };
+      // Update installments if missing
+      await client.query(
+        `UPDATE transactions SET installments_number = $1, installments_total = $2 WHERE identifier = $3 AND vendor = $4`,
+        [finalInstallmentsNumber, finalInstallmentsTotal, match.identifier, vendor]
+      );
+      return { success: true, duplicated: true, updated: true, newCategory: finalCategory, categorySource, oldCategory: match.category };
     }
   }
 
@@ -449,10 +494,18 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   try {
     await client.query(
       `INSERT INTO transactions (identifier, vendor, date, name, price, category, type, processed_date, original_amount, original_currency, charged_currency, memo, status, installments_number, installments_total, account_number, category_source, rule_matched, transaction_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) ON CONFLICT (identifier, vendor) DO NOTHING`,
-      [txId, vendor, date, description || '', finalPrice, finalCategory, type, finalProcessedDate, originalAmount, originalCurrency, defaultCurrency, memo, status || 'completed', installmentsNumber, installmentsTotal, accountNumber, categorySource, ruleDetails, transactionType]
+      [txId, vendor, date, description || '', finalPrice, finalCategory, type, finalProcessedDate, originalAmount, originalCurrency, defaultCurrency, memo, status || 'completed', finalInstallmentsNumber, finalInstallmentsTotal, accountNumber, categorySource, ruleDetails, transactionType]
     );
     if (historyCache) {
-      historyCache.idMap.set(txId, { name: description, price: finalPrice, date: newDateStr, category: finalCategory, category_source: categorySource });
+      historyCache.idMap.set(txId, {
+        name: description,
+        price: finalPrice,
+        date: newDateStr,
+        category: finalCategory,
+        category_source: categorySource,
+        installments_number: finalInstallmentsNumber,
+        installments_total: finalInstallmentsTotal
+      });
       historyCache.businessKeys.set(currentKey, { category: finalCategory, category_source: categorySource });
     }
   } catch (err) {
@@ -464,6 +517,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   }
 
   return { success: true, duplicated: false, category: finalCategory, categorySource, ruleMatched: ruleDetails };
+
 }
 
 /**
@@ -988,7 +1042,7 @@ export async function getScrapeRetries(client) {
 async function fetchHistoryCache(client, vendor) {
   try {
     const result = await client.query(
-      `SELECT identifier, name, price, date, category, category_source, account_number 
+      `SELECT identifier, name, price, date, category, category_source, account_number, installments_number, installments_total 
        FROM transactions 
        WHERE vendor = $1 
        AND date >= CURRENT_DATE - INTERVAL '120 days'
@@ -996,8 +1050,8 @@ async function fetchHistoryCache(client, vendor) {
       [vendor]
     );
 
-    const idMap = new Map(); // identifier -> { name, price, date, category, category_source }
-    const businessKeys = new Map(); // date|name|price|account_number -> { category, category_source }
+    const idMap = new Map(); // identifier -> { name, price, date, category, category_source, installments_number, installments_total }
+    const businessKeys = new Map(); // date|name|price|account_number -> { category, category_source, installments_number, installments_total }
     const nameToCategory = new Map(); // name -> category (most recent)
 
     for (const row of result.rows) {
@@ -1007,20 +1061,23 @@ async function fetchHistoryCache(client, vendor) {
       const priceStr = priceVal.toFixed(2);
       const accNum = row.account_number || '';
 
+      const installmentInfo = {
+        category: row.category,
+        category_source: row.category_source,
+        installments_number: row.installments_number,
+        installments_total: row.installments_total
+      };
+
       if (row.identifier) {
         idMap.set(row.identifier, {
           name,
           price: priceVal,
           date: dateStr,
-          category: row.category,
-          category_source: row.category_source
+          ...installmentInfo
         });
       }
 
-      businessKeys.set(`${dateStr}|${name}|${priceStr}|${accNum}`, {
-        category: row.category,
-        category_source: row.category_source
-      });
+      businessKeys.set(`${dateStr}|${name}|${priceStr}|${accNum}`, installmentInfo);
 
       // Build name -> category map (skipping uncategorized)
       if (row.category && row.category !== 'N/A' && row.category !== '' && row.category.toLowerCase() !== 'uncategorized' && !nameToCategory.has(name)) {
