@@ -226,28 +226,60 @@ paths:
             enum: [description, last4digits]
         - name: excludeBankTransactions
           in: query
-          description: Exclude bank transactions (category = 'Bank') from results. Only applicable when groupBy is 'description'. In the UI, bank transactions are excluded by default unless the user enables "Show Bank Transactions".
+          description: When true, filters out transactions originating from known bank vendors (e.g. hapoalim, leumi). Useful for isolating card-only expenses.
           schema:
             type: boolean
             default: false
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum: [name, count, card_expenses]
+            default: card_expenses
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
           description: Monthly summary data
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    bank_income:
-                      type: number
-                    bank_expenses:
-                      type: number
-                    card_expenses:
-                      type: number
-                    net_balance:
-                      type: number
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    description: Total number of items matching the filter
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bank_income:
+                          type: number
+                        bank_expenses:
+                          type: number
+                        card_expenses:
+                          type: number
+                        net_balance:
+                          type: number
 
   /reports/budget-vs-actual:
     get:
