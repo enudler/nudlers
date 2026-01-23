@@ -169,31 +169,43 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
     const isBank = item.transaction_type === 'bank' || (item.vendor && ['hapoalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'otsarHahayal', 'beinleumi', 'massad', 'pagi'].includes(item.vendor));
 
     if (isBank) {
+      const bankName = item.bank_nickname || 'Bank Account';
+      const bankAccount = item.bank_account_display || item.account_number;
+
       return (
-        <Tooltip title={`${item.bank_nickname || 'Bank Account'} (${item.bank_account_display || item.account_number})`}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-            padding: '6px 12px',
-            borderRadius: '8px',
-            width: 'fit-content'
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(14, 165, 233, 0.2)'
           }}>
-            <CardVendorIcon vendor={item.vendor} size={20} />
-            <span style={{
-              color: 'white',
-              fontSize: '12px',
-              fontWeight: 600,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: '120px',
-              whiteSpace: 'nowrap'
-            }}>
-              {item.bank_nickname || 'Bank Account'}
-            </span>
+            <CardVendorIcon vendor={item.vendor} size={18} />
           </div>
-        </Tooltip>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{
+              fontWeight: 700,
+              fontSize: '13px',
+              color: theme.palette.text.primary,
+              letterSpacing: '0.2px'
+            }}>
+              {bankName}
+            </span>
+            {bankAccount && (
+              <span style={{
+                fontSize: '11px',
+                color: theme.palette.text.secondary,
+                fontWeight: 500
+              }}>
+                {bankAccount}
+              </span>
+            )}
+          </div>
+        </div>
       );
     }
 
@@ -203,39 +215,39 @@ const RecurringPaymentsModal: React.FC<RecurringPaymentsModalProps> = ({ open, o
       const vendor = getCardVendor(item.account_number);
 
       return (
-        <Tooltip title={nickname || `Card ending in ${last4}`}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '2px'
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.2)'
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              width: 'fit-content'
-            }}>
-              <CardVendorIcon vendor={vendor} size={20} />
-              <span style={{
-                color: 'white',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-                fontWeight: 600,
-                letterSpacing: '1px'
-              }}>
-                •••• {last4}
-              </span>
-            </div>
-            {nickname && (
-              <span style={{ fontSize: '11px', color: theme.palette.text.secondary, paddingLeft: '4px' }}>
-                {nickname}
-              </span>
-            )}
+            <CardVendorIcon vendor={vendor} size={18} />
           </div>
-        </Tooltip>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{
+              fontWeight: 700,
+              fontSize: '13px',
+              color: theme.palette.text.primary,
+              letterSpacing: '0.2px'
+            }}>
+              {nickname || vendor || 'Credit Card'}
+            </span>
+            <span style={{
+              fontSize: '11px',
+              color: theme.palette.text.secondary,
+              fontFamily: 'monospace',
+              letterSpacing: '0.5px',
+              fontWeight: 500
+            }}>
+              •••• {last4}
+            </span>
+          </div>
+        </div>
       );
     }
 
