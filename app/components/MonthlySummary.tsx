@@ -64,10 +64,7 @@ const isBankTransaction = (transaction: BankCheckTransaction) => {
     }
   }
 
-  // 3. Explicit Categories
-  if (transaction.category === 'Bank' || transaction.category === 'Income' || transaction.category === 'Salary') return true;
-
-  // 4. Check vendor source against known Bank vendors
+  // 3. Check vendor source against known Bank vendors
   if (transaction.vendor) {
     const vendorLower = transaction.vendor.toLowerCase();
     if (BANK_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
@@ -196,6 +193,10 @@ const MonthlySummary: React.FC = () => {
   // Filter for showing/hiding bank transactions in breakdown by description
   // By default, bank transactions are hidden (showBankTransactions = false)
   const [showBankTransactions, setShowBankTransactions] = useState<boolean>(false);
+  // Pagination
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -422,7 +423,7 @@ const MonthlySummary: React.FC = () => {
 
   // fetchAvailableMonths removed
 
-  const fetchMonthlySummary = useCallback(async (skipLoadingState = false) => {
+  const fetchMonthlySummary = useCallback(async (skipLoadingState = false, offsetValue = 0) => {
     // For custom mode, we need custom dates; for other modes, we need year/month
     if (dateRangeMode === 'custom') {
       if (!customStartDate || !customEndDate) return;
@@ -441,19 +442,31 @@ const MonthlySummary: React.FC = () => {
       let url: string;
       let cardUrl: string;
 
+      const queryParams = new URLSearchParams();
       if (billingCycle) {
-        url = `/api/reports/monthly-summary?billingCycle=${billingCycle}&groupBy=${groupBy}`;
-        if (groupBy === 'description' && !showBankTransactions) {
-          url += '&excludeBankTransactions=true';
-        }
-        cardUrl = `/api/reports/monthly-summary?billingCycle=${billingCycle}&groupBy=last4digits`;
+        queryParams.set('billingCycle', billingCycle);
       } else {
-        url = `/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`;
-        if (groupBy === 'description' && !showBankTransactions) {
-          url += '&excludeBankTransactions=true';
-        }
-        cardUrl = `/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}&groupBy=last4digits`;
+        queryParams.set('startDate', startDate);
+        queryParams.set('endDate', endDate);
       }
+      queryParams.set('groupBy', groupBy);
+      queryParams.set('limit', PAGE_SIZE.toString());
+      queryParams.set('offset', offsetValue.toString());
+      queryParams.set('sortBy', sortField);
+      queryParams.set('sortOrder', sortDirection);
+      if (groupBy === 'description' && !showBankTransactions) {
+        queryParams.set('excludeBankTransactions', 'true');
+      }
+
+      url = `/api/reports/monthly-summary?${queryParams.toString()}`;
+
+      // Card summary always needs all data for sidebars/totals (or at least more than 50)
+      const cardParams = new URLSearchParams(queryParams);
+      cardParams.set('groupBy', 'last4digits');
+      cardParams.set('limit', '500'); // Sufficient for most users
+      cardParams.set('offset', '0');
+      cardParams.delete('excludeBankTransactions'); // Sidebar must always show bank balances
+      cardUrl = `/api/reports/monthly-summary?${cardParams.toString()}`;
 
       // Fetch both main data and card summary in parallel
       const [mainResponse, cardResponse] = await Promise.all([
@@ -461,12 +474,16 @@ const MonthlySummary: React.FC = () => {
         fetch(cardUrl)
       ]);
 
-      if (!mainResponse.ok) {
-        throw new Error('Failed to fetch monthly summary');
-      }
-
       const result = await mainResponse.json();
-      setData(result);
+      const items = result.items || [];
+      const newTotal = result.total || 0;
+
+      if (offsetValue === 0) {
+        setData(items);
+      } else {
+        setData(prev => [...prev, ...items]);
+      }
+      setTotal(newTotal);
 
       if (cardResponse.ok) {
         interface CardAPIResponse {
@@ -485,7 +502,8 @@ const MonthlySummary: React.FC = () => {
           total_income?: string | number;
           total_outflow?: string | number;
         }
-        const cardResult: CardAPIResponse[] = await cardResponse.json();
+        const cardResponseData = await cardResponse.json();
+        const cardResult: CardAPIResponse[] = cardResponseData.items || [];
         // Filter to include cards with expenses OR bank activity
         const cards: CardSummary[] = cardResult
           .filter((c) => Number(c.card_expenses) > 0 || Number(c.bank_expenses) > 0 || Number(c.bank_income) > 0)
@@ -621,26 +639,29 @@ const MonthlySummary: React.FC = () => {
         window.scrollTo(0, scrollY);
       });
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions, selectedYear, selectedMonth]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions, selectedYear, selectedMonth, sortField, sortDirection]);
 
   useEffect(() => {
+    setOffset(0); // Reset offset when filters change
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate) {
-        fetchMonthlySummary();
+        fetchMonthlySummary(false, 0);
       }
     } else if (startDate && endDate) {
-      fetchMonthlySummary();
+      fetchMonthlySummary(false, 0);
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, fetchMonthlySummary, customStartDate, customEndDate, selectedYear, selectedMonth]);
+  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection]);
 
   // Separate useEffect for filter toggle - skip loading state to prevent flicker
   useEffect(() => {
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate) {
-        fetchMonthlySummary(true); // skipLoadingState = true
+        setOffset(0);
+        fetchMonthlySummary(true, 0); // skipLoadingState = true
       }
     } else if (startDate && endDate) {
-      fetchMonthlySummary(true); // skipLoadingState = true
+      setOffset(0);
+      fetchMonthlySummary(true, 0); // skipLoadingState = true
     }
   }, [showBankTransactions]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -684,13 +705,20 @@ const MonthlySummary: React.FC = () => {
   };
 
   const handleRefresh = () => {
+    setOffset(0);
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
-        fetchMonthlySummary();
+        fetchMonthlySummary(false, 0);
       }
     } else {
-      fetchMonthlySummary();
+      fetchMonthlySummary(false, 0);
     }
+  };
+
+  const handleLoadMore = () => {
+    const nextOffset = offset + PAGE_SIZE;
+    setOffset(nextOffset);
+    fetchMonthlySummary(true, nextOffset);
   };
 
   const [loadingAll, setLoadingAll] = useState(false);
@@ -1120,33 +1148,25 @@ const MonthlySummary: React.FC = () => {
   const sortedData = useMemo(() => {
     if (!data.length) return data;
 
+    // For breakdown table, we now use server-side sorting for pagination consistency
+    if (groupBy === 'description' || groupBy === 'last4digits') {
+      return data;
+    }
+
     return [...data].sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
         case 'name':
-          const nameA = groupBy === 'description'
-            ? (a.description || '')
-            : groupBy === 'last4digits'
-              ? (a.last4digits || '')
-              : (a.vendor_nickname || a.vendor || '');
-          const nameB = groupBy === 'description'
-            ? (b.description || '')
-            : groupBy === 'last4digits'
-              ? (b.last4digits || '')
-              : (b.vendor_nickname || b.vendor || '');
+          const nameA = a.vendor_nickname || a.vendor || '';
+          const nameB = b.vendor_nickname || b.vendor || '';
           comparison = nameA.localeCompare(nameB);
           break;
         case 'count':
           comparison = (a.transaction_count || 0) - (b.transaction_count || 0);
           break;
         case 'card_expenses':
-          if (groupBy === 'description') {
-            // For description grouping, sort by absolute value of amount
-            comparison = Math.abs(Number(a.amount || 0)) - Math.abs(Number(b.amount || 0));
-          } else {
-            comparison = Number(a.card_expenses) - Number(b.card_expenses);
-          }
+          comparison = Number(a.card_expenses) - Number(b.card_expenses);
           break;
       }
 
@@ -2483,6 +2503,48 @@ const MonthlySummary: React.FC = () => {
                       </tr>
                     </tfoot>
                   </Box>
+                  {/* Load More Button */}
+                  {data.length < total && (
+                    <Box sx={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      marginTop: '24px',
+                      padding: '16px'
+                    }}>
+                      <button
+                        onClick={handleLoadMore}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '12px 24px',
+                          borderRadius: '16px',
+                          border: `1px solid ${theme.palette.divider}`,
+                          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                          color: '#3b82f6',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                          backdropFilter: 'blur(10px)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                          e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.2)';
+                          e.currentTarget.style.background = theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                          e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.08)';
+                          e.currentTarget.style.background = theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                        }}
+                      >
+                        <RefreshIcon sx={{ fontSize: '18px' }} />
+                        Load More Transactions ({total - data.length} remaining)
+                      </button>
+                    </Box>
+                  )}
                 </Box>
               )}
             </Box>
