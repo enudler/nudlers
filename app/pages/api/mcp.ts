@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { createMcpServer } from "../../utils/mcp-setup";
+import logger from "../../utils/logger";
 
 // Global storage for active transports
 // This allows us to route POST messages to the correct SSE connection
@@ -28,7 +29,7 @@ export default async function handler(req: any, res: any) {
     // though NextApiRequest extends IncomingMessage usually.
 
     if (req.method === "GET") {
-        console.log("New MCP SSE connection request");
+        logger.info("New MCP SSE connection request");
 
         // Create new transport bound to this response
         // The endpoint argument is where the client should send POST messages
@@ -43,16 +44,16 @@ export default async function handler(req: any, res: any) {
         const sessionId = (transport as any).sessionId;
 
         if (sessionId) {
-            console.log(`Registered MCP session: ${sessionId}`);
+            logger.info(`Registered MCP session: ${sessionId}`);
             globalWithMcp.mcpTransports.set(sessionId, transport);
         } else {
-            console.error("Failed to retrieve sessionId from transport");
+            logger.error("Failed to retrieve sessionId from transport");
         }
 
         // Cleanup when client disconnects
         req.on("close", () => {
             if (sessionId) {
-                console.log(`Closed MCP session: ${sessionId}`);
+                logger.info(`Closed MCP session: ${sessionId}`);
                 globalWithMcp.mcpTransports.delete(sessionId);
             }
         });
@@ -62,7 +63,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === "POST") {
-        // console.log("New MCP Message", req.url);
+        // Delegate to transport
         const sessionId = req.query.sessionId as string;
 
         if (!sessionId) {
@@ -72,7 +73,7 @@ export default async function handler(req: any, res: any) {
 
         const transport = globalWithMcp.mcpTransports.get(sessionId);
         if (!transport) {
-            console.warn(`Session not found: ${sessionId}`);
+            logger.warn(`Session not found: ${sessionId}`);
             res.status(404).end("Session not found");
             return;
         }
