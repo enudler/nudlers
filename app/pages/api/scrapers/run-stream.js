@@ -255,6 +255,14 @@ async function handler(req, res) {
 
           await updateScrapeAudit(client, auditId, 'started', `Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
 
+          // Send network event for countdown timer in UI
+          sendSSE(res, 'network', {
+            type: 'retryWait',
+            message: `Retrying in ${retryDelay / 1000}s (attempt ${attempt}/${maxRetries})...`,
+            seconds: retryDelay / 1000,
+            timestamp: new Date().toISOString()
+          });
+
           // Send retry message to UI
           sendSSE(res, 'progress', {
             step: 'retry',
@@ -268,6 +276,12 @@ async function handler(req, res) {
           });
 
           await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+          // Clear retry wait state in UI
+          sendSSE(res, 'network', {
+            type: 'rateLimitFinished',
+            timestamp: new Date().toISOString()
+          });
 
           // Update message after wait
           sendSSE(res, 'progress', {
