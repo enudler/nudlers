@@ -84,7 +84,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Update package.json and Push
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION_NUMBER="${{ steps.next_version.outputs.version_number }}"
+          echo "Updating package.json to $VERSION_NUMBER"
+          cd app
+          npm version "$VERSION_NUMBER" --no-git-tag-version
+          git add package.json package-lock.json
+          git commit -m "chore(release): bump version to $VERSION_NUMBER [skip ci]"
+          git push
+
       - name: Create and push tag
+        if: github.event_name == 'workflow_dispatch'
         run: |
           NEW_VERSION="${{ steps.next_version.outputs.new_version }}"
           git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
@@ -125,13 +137,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Sync package.json version
-        run: |
-          VERSION_NUMBER="${{ steps.next_version.outputs.version_number }}"
-          echo "Syncing package.json to version $VERSION_NUMBER"
-          cd app
-          npm version "$VERSION_NUMBER" --no-git-tag-version --allow-same-version
-          echo "✅ package.json version synced to $VERSION_NUMBER"
+
 
       # Docker build steps
       - name: Set up QEMU
