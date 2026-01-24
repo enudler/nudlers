@@ -170,7 +170,7 @@ export async function generateDailySummary() {
         // Generate AI summary
         const genAI = new GoogleGenerativeAI(apiKey);
 
-        const prompt = `סכם בעברית (מקס 1200 תווים):
+        const defaultPrompt = `סכם בעברית (מקס 1200 תווים):
 
 תקציב: ₪${totalBudget || 0} | הוצאות: ₪${totalActual} | ניצול: ${totalBudget ? Math.round((totalActual / totalBudget) * 100) : 0}%
 
@@ -187,6 +187,8 @@ ${last10Transactions}
 4. המלצה קצרה
 
 פורמט יפה עם שורות חדשות.`;
+
+        const prompt = defaultPrompt;
 
         try {
             const model = genAI.getGenerativeModel({

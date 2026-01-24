@@ -57,6 +57,7 @@ interface Settings {
   whatsapp_hour: number;
   whatsapp_to: string;
   whatsapp_summary_mode: 'calendar' | 'cycle';
+
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -132,7 +133,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     whatsapp_enabled: false,
     whatsapp_hour: 8,
     whatsapp_to: '',
-    whatsapp_summary_mode: 'calendar'
+    whatsapp_summary_mode: 'calendar',
+
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -227,7 +229,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           whatsapp_enabled: parseBool(data.settings.whatsapp_enabled),
           whatsapp_hour: parseInt(data.settings.whatsapp_hour) || 8,
           whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, ''),
-          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle'
+          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle',
+
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -838,19 +841,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">To Number</Typography>
+                  <Typography variant="body1">Recipients</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Your WhatsApp number (e.g., whatsapp:+972501234567)
+                    WhatsApp numbers or Group IDs, comma-separated.<br />
+                    Numbers: 972501234567<br />
+                    Groups: 120363024523351234@g.us
                   </Typography>
                 </Box>
                 <StyledTextField
                   value={settings.whatsapp_to}
                   onChange={(e) => setSettings({ ...settings, whatsapp_to: e.target.value })}
-                  placeholder="whatsapp:+972501234567"
+                  placeholder="972501234567, 12036302...@g.us"
                   size="small"
-                  sx={{ width: '250px' }}
+                  sx={{ width: '350px' }}
                 />
               </SettingRow>
+
+
 
               {/* Test Message Button */}
               <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid rgba(148, 163, 184, 0.2)' }}>
