@@ -33,6 +33,7 @@ services:
       - NUDLERS_DB_PASSWORD=${NUDLERS_DB_PASSWORD}
       - NUDLERS_DB_PORT=${NUDLERS_DB_PORT}
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY}
+      - WHATSAPP_SERVICE_URL=http://whatsapp-service:3001
     ports:
       - "3000:3000"
     depends_on:
@@ -48,9 +49,42 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    
+
+  whatsapp-service:
+    build:
+      context: ./whatsapp-service
+      dockerfile: Dockerfile
+    container_name: nudlers-whatsapp-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - WHATSAPP_SERVICE_PORT=3001
+      - POSTGRES_HOST=nudlers-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${NUDLERS_DB_NAME}
+      - POSTGRES_USER=${NUDLERS_DB_USER}
+      - POSTGRES_PASSWORD=${NUDLERS_DB_PASSWORD}
+    ports:
+      - "3001:3001"
+    depends_on:
+      nudlers-db:
+        condition: service_healthy
+    networks:
+      - nudlers-network
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp=unconfined
+    shm_size: '2gb'
+    volumes:
+      - whatsapp-session-data:/app/.wwebjs_auth
+      - whatsapp-cache:/app/.wwebjs_cache
+
 volumes:
   db-data:
+  whatsapp-session-data:
+  whatsapp-cache:
 
 networks:
   nudlers-network:

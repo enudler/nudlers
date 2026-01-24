@@ -30,6 +30,12 @@ import DeleteAllTransactionsDialog from './DeleteAllTransactionsDialog';
 import ScreenshotViewer from './ScreenshotViewer';
 import ImageIcon from '@mui/icons-material/Image';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import QrCodeIcon from '@mui/icons-material/QrCode';
+import PhoneIcon from '@mui/icons-material/Phone';
+import GroupIcon from '@mui/icons-material/Group';
+import LinkOffIcon from '@mui/icons-material/LinkOff';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 interface SettingsModalProps {
   open: boolean;
@@ -59,6 +65,10 @@ interface Settings {
   whatsapp_twilio_from: string;
   whatsapp_to: string;
   whatsapp_summary_mode: 'calendar' | 'cycle';
+  whatsapp_webjs_enabled: boolean;
+  whatsapp_webjs_auto_reconnect: boolean;
+  whatsapp_webjs_test_number: string;
+  whatsapp_webjs_test_group: string;
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -137,7 +147,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     whatsapp_twilio_auth_token: '',
     whatsapp_twilio_from: '',
     whatsapp_to: '',
-    whatsapp_summary_mode: 'calendar'
+    whatsapp_summary_mode: 'calendar',
+    whatsapp_webjs_enabled: false,
+    whatsapp_webjs_auto_reconnect: true,
+    whatsapp_webjs_test_number: '',
+    whatsapp_webjs_test_group: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -151,6 +165,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     message: string | null;
     error: string | null;
   } | null>(null);
+
+  // WhatsApp Web.js state
+  const [whatsappWebjsStatus, setWhatsappWebjsStatus] = useState<{
+    connected: boolean;
+    session_exists: boolean;
+    phone_number: string | null;
+    last_connected: string | null;
+    qr_required: boolean;
+  }>({ connected: false, session_exists: false, phone_number: null, last_connected: null, qr_required: false });
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [loadingQr, setLoadingQr] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testMessageResult, setTestMessageResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [testMessage, setTestMessage] = useState('Test message from Nudlers');
+  const [contacts, setContacts] = useState<{ id: string; name: string; phone_number?: string }[]>([]);
+  const [groups, setGroups] = useState<{ id: string; name: string; participant_count?: number }[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
   // Delete all transactions dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -187,7 +218,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           whatsapp_twilio_auth_token: (data.settings.whatsapp_twilio_auth_token || '').replace(/"/g, ''),
           whatsapp_twilio_from: (data.settings.whatsapp_twilio_from || '').replace(/"/g, ''),
           whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, ''),
-          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle'
+          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle',
+          whatsapp_webjs_enabled: parseBool(data.settings.whatsapp_webjs_enabled),
+          whatsapp_webjs_auto_reconnect: data.settings.whatsapp_webjs_auto_reconnect === undefined ? true : parseBool(data.settings.whatsapp_webjs_auto_reconnect),
+          whatsapp_webjs_test_number: (data.settings.whatsapp_webjs_test_number || '').replace(/"/g, ''),
+          whatsapp_webjs_test_group: (data.settings.whatsapp_webjs_test_group || '').replace(/"/g, '')
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -276,6 +311,108 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       setTestingWhatsApp(false);
     }
   };
+
+  // WhatsApp Web.js handlers
+  const fetchWhatsAppStatus = async () => {
+    try {
+      const response = await fetch('/api/whatsapp-webjs/status');
+      if (response.ok) {
+        const data = await response.json();
+        setWhatsappWebjsStatus(data);
+        return data;
+      }
+    } catch (error) {
+      logger.error('Failed to fetch WhatsApp status', error as Error);
+    }
+  };
+
+  const fetchQRCode = async () => {
+    setLoadingQr(true);
+    setQrCode(null);
+    try {
+      const response = await fetch('/api/whatsapp-webjs/qr');
+      if (response.ok) {
+        const data = await response.json();
+        setQrCode(data.qr_code);
+      } else {
+        const errorData = await response.json();
+        logger.error('Failed to fetch QR code', new Error(errorData.message || errorData.error));
+      }
+    } catch (error) {
+      logger.error('Failed to fetch QR code', error as Error);
+    } finally {
+      setLoadingQr(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      const response = await fetch('/api/whatsapp-webjs/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        setQrCode(null);
+        await fetchWhatsAppStatus();
+      }
+    } catch (error) {
+      logger.error('Failed to disconnect WhatsApp', error as Error);
+    }
+  };
+
+  const handleSendTestMessage = async () => {
+    setSendingTest(true);
+    setTestMessageResult(null);
+    try {
+      const to = settings.whatsapp_webjs_test_number || settings.whatsapp_webjs_test_group;
+      if (!to) {
+        setTestMessageResult({ success: false, error: 'Please select a contact or group' });
+        return;
+      }
+
+      const response = await fetch('/api/whatsapp-webjs/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, message: testMessage })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setTestMessageResult({ success: true });
+      } else {
+        setTestMessageResult({ success: false, error: data.message || data.error });
+      }
+    } catch (error) {
+      setTestMessageResult({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  const fetchContacts = async () => {
+    setLoadingContacts(true);
+    try {
+      const response = await fetch('/api/whatsapp-webjs/contacts?refresh=true');
+      if (response.ok) {
+        const data = await response.json();
+        setContacts(data.contacts || []);
+        setGroups(data.groups || []);
+      }
+    } catch (error) {
+      logger.error('Failed to fetch contacts', error as Error);
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  // Auto-refresh WhatsApp status when modal opens
+  useEffect(() => {
+    if (open && settings.whatsapp_webjs_enabled) {
+      fetchWhatsAppStatus();
+      const interval = setInterval(fetchWhatsAppStatus, 10000); // Refresh every 10s
+      return () => clearInterval(interval);
+    }
+  }, [open, settings.whatsapp_webjs_enabled]);
 
   return (
     <StyledDialog open={open} onClose={handleClose} maxWidth="md">
@@ -872,6 +1009,261 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     </Box>
                   )}
                 </Box>
+              )}
+            </SettingSection>
+
+            {/* WhatsApp Web.js Integration */}
+            <SettingSection>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <WhatsAppIcon sx={{ color: '#25D366' }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  WhatsApp Web.js Integration
+                </Typography>
+              </Box>
+
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 2 }}>
+                Connect your personal WhatsApp account to send messages directly. No Twilio required!
+              </Typography>
+
+              {/* Enable Toggle */}
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">Enable WhatsApp Web.js</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Use your personal WhatsApp account to send messages
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.whatsapp_webjs_enabled}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_webjs_enabled: e.target.checked })}
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#25D366',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#25D366',
+                    },
+                  }}
+                />
+              </SettingRow>
+
+              {settings.whatsapp_webjs_enabled && (
+                <>
+                  {/* Connection Status */}
+                  <Box sx={{ mt: 3, p: 2, borderRadius: '8px', background: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        Connection Status
+                      </Typography>
+                      <Box sx={{
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: '12px',
+                        background: whatsappWebjsStatus.connected
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                          : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                        color: 'white',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}>
+                        {whatsappWebjsStatus.connected ? '✓ Connected' : '○ Disconnected'}
+                      </Box>
+                    </Box>
+
+                    {whatsappWebjsStatus.connected && whatsappWebjsStatus.phone_number && (
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <PhoneIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
+                          <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                            Phone: +{whatsappWebjsStatus.phone_number}
+                          </Typography>
+                        </Box>
+                        {whatsappWebjsStatus.last_connected && (
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.5, display: 'block' }}>
+                            Last connected: {new Date(whatsappWebjsStatus.last_connected).toLocaleString()}
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+
+                    {whatsappWebjsStatus.connected && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<LinkOffIcon />}
+                        onClick={handleDisconnect}
+                        sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main }}
+                      >
+                        Disconnect
+                      </Button>
+                    )}
+                  </Box>
+
+                  {/* QR Code Section */}
+                  {!whatsappWebjsStatus.connected && (
+                    <Box sx={{ mt: 3, p: 3, borderRadius: '8px', background: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)', textAlign: 'center' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
+                        <QrCodeIcon sx={{ color: '#25D366' }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          Scan QR Code to Connect
+                        </Typography>
+                      </Box>
+
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 2 }}>
+                        1. Open WhatsApp on your phone<br />
+                        2. Tap Menu (⋮) → Linked Devices<br />
+                        3. Tap "Link a Device"<br />
+                        4. Scan this QR code
+                      </Typography>
+
+                      {loadingQr && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                          <CircularProgress />
+                        </Box>
+                      )}
+
+                      {qrCode && !loadingQr && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+                          <img src={qrCode} alt="WhatsApp QR Code" style={{ maxWidth: '250px', border: '2px solid #25D366', borderRadius: '8px' }} />
+                        </Box>
+                      )}
+
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={loadingQr ? <CircularProgress size={16} /> : <RefreshIcon />}
+                        onClick={fetchQRCode}
+                        disabled={loadingQr}
+                        sx={{ borderColor: '#25D366', color: '#25D366' }}
+                      >
+                        {qrCode ? 'Refresh QR Code' : 'Generate QR Code'}
+                      </Button>
+                    </Box>
+                  )}
+
+                  {/* Test Message Section */}
+                  {whatsappWebjsStatus.connected && (
+                    <Box sx={{ mt: 3, p: 2, borderRadius: '8px', background: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
+                        Test Messaging
+                      </Typography>
+
+                      <SettingRow>
+                        <Box sx={{ flex: 1, mr: 2 }}>
+                          <Typography variant="body1">Test Phone Number</Typography>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                            Format: +972501234567
+                          </Typography>
+                        </Box>
+                        <StyledTextField
+                          value={settings.whatsapp_webjs_test_number}
+                          onChange={(e) => setSettings({ ...settings, whatsapp_webjs_test_number: e.target.value })}
+                          placeholder="+972501234567"
+                          size="small"
+                          sx={{ width: '250px' }}
+                        />
+                      </SettingRow>
+
+                      <SettingRow>
+                        <Box sx={{ flex: 1, mr: 2 }}>
+                          <Typography variant="body1">Test Group ID</Typography>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                            Optional: WhatsApp group ID
+                          </Typography>
+                        </Box>
+                        <StyledTextField
+                          value={settings.whatsapp_webjs_test_group}
+                          onChange={(e) => setSettings({ ...settings, whatsapp_webjs_test_group: e.target.value })}
+                          placeholder="120363XXXXXX@g.us"
+                          size="small"
+                          sx={{ width: '250px' }}
+                        />
+                      </SettingRow>
+
+                      <Box sx={{ mt: 2 }}>
+                        <StyledTextField
+                          fullWidth
+                          multiline
+                          rows={3}
+                          value={testMessage}
+                          onChange={(e) => setTestMessage(e.target.value)}
+                          placeholder="Enter test message"
+                          label="Test Message"
+                        />
+                      </Box>
+
+                      <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+                        <Button
+                          variant="contained"
+                          startIcon={sendingTest ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                          onClick={handleSendTestMessage}
+                          disabled={sendingTest || (!settings.whatsapp_webjs_test_number && !settings.whatsapp_webjs_test_group)}
+                          sx={{
+                            background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
+                            }
+                          }}
+                        >
+                          {sendingTest ? 'Sending...' : 'Send Test Message'}
+                        </Button>
+
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={loadingContacts ? <CircularProgress size={16} /> : <GroupIcon />}
+                          onClick={fetchContacts}
+                          disabled={loadingContacts}
+                          sx={{ borderColor: '#25D366', color: '#25D366' }}
+                        >
+                          {loadingContacts ? 'Loading...' : 'Load Contacts'}
+                        </Button>
+                      </Box>
+
+                      {testMessageResult && (
+                        <Alert
+                          severity={testMessageResult.success ? 'success' : 'error'}
+                          sx={{ mt: 2 }}
+                          icon={testMessageResult.success ? <CheckCircleIcon /> : <ErrorIcon />}
+                        >
+                          {testMessageResult.success
+                            ? '✓ Test message sent successfully!'
+                            : `✗ Failed: ${testMessageResult.error}`}
+                        </Alert>
+                      )}
+
+                      {(contacts.length > 0 || groups.length > 0) && (
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 1 }}>
+                            {contacts.length} contacts, {groups.length} groups loaded
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+
+                  {/* Settings */}
+                  <SettingRow sx={{ mt: 2 }}>
+                    <Box>
+                      <Typography variant="body1">Auto-reconnect</Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                        Automatically reconnect when disconnected
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={settings.whatsapp_webjs_auto_reconnect}
+                      onChange={(e) => setSettings({ ...settings, whatsapp_webjs_auto_reconnect: e.target.checked })}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                          color: '#25D366',
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                          backgroundColor: '#25D366',
+                        },
+                      }}
+                    />
+                  </SettingRow>
+                </>
               )}
             </SettingSection>
 
