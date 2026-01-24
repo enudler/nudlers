@@ -290,17 +290,9 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
     setIsSaving(false);
   };
 
-  const handleBackgroundClick = () => {
-    if (editingCard && originalValues) {
-      const hasChanges = JSON.stringify(editValues) !== JSON.stringify(originalValues);
-      if (hasChanges) {
-        handleSave(editingCard, editValues);
-      }
-    }
-    setEditingCard(null);
-  };
 
-  const handleSave = async (last4_digits: string, values: typeof editValues) => {
+
+  const handleSave = async (last4_digits: string, values: typeof editValues): Promise<boolean> => {
     try {
       setIsSaving(true);
 
@@ -375,12 +367,14 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         }
       }
 
+      return true;
     } catch (err) {
       setSnackbar({
         open: true,
         message: err instanceof Error ? err.message : 'Failed to save',
         severity: 'error',
       });
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -439,6 +433,9 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
           select
           size="small"
           autoFocus={focusedField === 'vendor'}
+          SelectProps={{
+            defaultOpen: focusedField === 'vendor',
+          }}
           value={editValues.vendor}
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
@@ -448,9 +445,11 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
             const newValues = { ...editValues, vendor: newValue };
             if (JSON.stringify(newValues) !== JSON.stringify(originalValues)) {
               setTimeout(() => {
-                handleSave(editingCard, newValues).then(() => {
-                  setEditingCard(null);
-                  setSnackbar({ open: true, message: 'Vendor updated', severity: 'success' });
+                handleSave(editingCard, newValues).then((success) => {
+                  if (success) {
+                    setEditingCard(null);
+                    setSnackbar({ open: true, message: 'Vendor updated', severity: 'success' });
+                  }
                 });
               }, 200);
             } else {
@@ -518,9 +517,11 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
               return;
             }
             if (JSON.stringify(editValues) !== JSON.stringify(originalValues)) {
-              handleSave(editingCard, editValues).then(() => {
-                setEditingCard(null);
-                setSnackbar({ open: true, message: 'Nickname saved', severity: 'success' });
+              handleSave(editingCard, editValues).then((success) => {
+                if (success) {
+                  setEditingCard(null);
+                  setSnackbar({ open: true, message: 'Nickname saved', severity: 'success' });
+                }
               });
             } else {
               setEditingCard(null);
@@ -569,6 +570,9 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
             select
             size="small"
             autoFocus={focusedField === 'bankAccount'}
+            SelectProps={{
+              defaultOpen: focusedField === 'bankAccount',
+            }}
             value={editValues.bankAccountId !== null ? editValues.bankAccountId : ''}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
@@ -579,9 +583,11 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
               if (val !== -1) {
                 if (JSON.stringify(newValues) !== JSON.stringify(originalValues)) {
                   setTimeout(() => {
-                    handleSave(editingCard, newValues).then(() => {
-                      setEditingCard(null);
-                      setSnackbar({ open: true, message: 'Bank account updated', severity: 'success' });
+                    handleSave(editingCard, newValues).then((success) => {
+                      if (success) {
+                        setEditingCard(null);
+                        setSnackbar({ open: true, message: 'Bank account updated', severity: 'success' });
+                      }
                     });
                   }, 200);
                 } else {
@@ -617,9 +623,11 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                 }
                 if (JSON.stringify(editValues) !== JSON.stringify(originalValues)) {
                   if (editValues.customBankNumber?.trim() || editValues.customBankNickname?.trim()) {
-                    handleSave(editingCard, editValues).then(() => {
-                      setEditingCard(null);
-                      setSnackbar({ open: true, message: 'Custom bank saved', severity: 'success' });
+                    handleSave(editingCard, editValues).then((success) => {
+                      if (success) {
+                        setEditingCard(null);
+                        setSnackbar({ open: true, message: 'Custom bank saved', severity: 'success' });
+                      }
                     });
                   }
                 } else {
