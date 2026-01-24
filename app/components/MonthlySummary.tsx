@@ -133,7 +133,7 @@ interface BankCCSummary {
 
 type GroupByType = 'vendor' | 'description' | 'last4digits';
 // DateRangeMode imported from context
-type SortField = 'name' | 'count' | 'card_expenses';
+type SortField = 'name' | 'transaction_count' | 'card_expenses';
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to calculate date range based on mode
@@ -1109,11 +1109,12 @@ const MonthlySummary: React.FC = () => {
   }, [data, totals.card_expenses, dateRangeMode, selectedYear, selectedMonth, customStartDate, customEndDate, setScreenContext, startDate, endDate]);
 
   // Sorting handler
-  const handleSortChange = (field: SortField) => {
-    if (field === sortField) {
+  const handleSortChange = (field: string) => {
+    const sField = field as SortField;
+    if (sField === sortField) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field);
+      setSortField(sField);
       setSortDirection('desc');
     }
   };
@@ -1136,7 +1137,7 @@ const MonthlySummary: React.FC = () => {
           const nameB = b.vendor_nickname || b.vendor || '';
           comparison = nameA.localeCompare(nameB);
           break;
-        case 'count':
+        case 'transaction_count':
           comparison = (a.transaction_count || 0) - (b.transaction_count || 0);
           break;
         case 'card_expenses':
@@ -1288,7 +1289,7 @@ const MonthlySummary: React.FC = () => {
     }
 
     cols.push({
-      id: 'amount', // Or card_expenses
+      id: 'card_expenses',
       label: 'Amount',
       align: 'right',
       sortable: true,
@@ -1943,7 +1944,7 @@ const MonthlySummary: React.FC = () => {
                   </div>
                   {[
                     { field: 'name' as SortField, label: 'Name' },
-                    ...(groupBy === 'description' || groupBy === 'last4digits' ? [{ field: 'count' as SortField, label: 'Count' }] : []),
+                    ...(groupBy === 'description' || groupBy === 'last4digits' ? [{ field: 'transaction_count' as SortField, label: 'Count' }] : []),
                     { field: 'card_expenses' as SortField, label: 'Amount' }
                   ].map(({ field, label }) => (
                     <button

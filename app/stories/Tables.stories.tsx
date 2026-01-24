@@ -3,7 +3,7 @@ import Table, { Column } from '../components/Table';
 import { Box, Typography, Chip } from '@mui/material';
 import React from 'react';
 
-const meta: Meta<typeof Table> = {
+const meta: Meta<typeof Table<any>> = {
     title: 'Design System/Tables',
     component: Table,
     parameters: {
@@ -14,7 +14,7 @@ const meta: Meta<typeof Table> = {
 
 export default meta;
 
-type Story = StoryObj<typeof Table>;
+type Story = StoryObj<typeof Table<any>>;
 
 interface Transaction {
     id: string;
