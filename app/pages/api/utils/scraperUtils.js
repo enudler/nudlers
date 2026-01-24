@@ -483,9 +483,9 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
   let finalProcessedDate = processedDate || date;
   if (!isBank && (!processedDate || new Date(processedDate).getTime() === new Date(date).getTime())) {
     const billingStartDay = billingCycleStartDay || 10;
-    if (new Date(date).getDate() > billingStartDay) {
+    if (new Date(date).getDate() >= billingStartDay) {
       const d = new Date(date);
-      finalProcessedDate = new Date(d.getFullYear(), d.getMonth() + 1, billingStartDay).toISOString().split('T')[0];
+      finalProcessedDate = formatLocalDate(new Date(d.getFullYear(), d.getMonth() + 1, billingStartDay - 1));
     }
   }
 
