@@ -35,6 +35,7 @@ services:
       - NUDLERS_DB_PASSWORD=${NUDLERS_DB_PASSWORD}
       - NUDLERS_DB_PORT=${NUDLERS_DB_PORT}
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY}
+      - LOW_RESOURCES_MODE=${LOW_RESOURCES_MODE:-true}
     ports:
       - "3000:3000"
     depends_on:
@@ -46,10 +47,16 @@ services:
       - SYS_ADMIN
     security_opt:
       - seccomp=unconfined
-    shm_size: '2gb'
+    shm_size: '512mb'
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     volumes:
       - whatsapp-data:/app/.wwebjs_auth
 

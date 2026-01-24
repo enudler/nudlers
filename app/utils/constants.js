@@ -27,23 +27,41 @@ export const SCRAPER_DOCKER_FLAGS = [
 ];
 
 export const SCRAPER_LOW_RESOURCE_FLAGS = [
-    '--disable-gl-drawing-for-tests',
-    '--mute-audio',
+    // Process optimization (critical for NAS)
+    '--single-process',
     '--no-zygote',
+    '--disable-extensions',
+    // Memory optimization
+    '--js-flags=--max-old-space-size=256',
+    '--disable-gl-drawing-for-tests',
     '--disable-accelerated-2d-canvas',
     '--disable-canvas-aa',
     '--disable-2d-canvas-clip-aa',
+    '--disk-cache-size=0',
+    '--media-cache-size=0',
+    '--aggressive-cache-discard',
+    // Disable unnecessary features
+    '--mute-audio',
+    '--disable-audio-output',
     '--disable-notifications',
     '--disable-offer-store-unmasked-wallet-cards',
     '--disable-offer-upload-credit-cards',
     '--disable-print-preview',
     '--disable-speech-api',
     '--disable-wake-on-wifi',
-    '--disk-cache-size=0',
     '--disable-client-side-phishing-detection',
     '--disable-component-extensions-with-background-pages',
     '--disable-datasaver-prompt',
-    '--disable-features=TranslateUI,IsolateOrigins,site-per-process',
+    '--disable-default-apps',
+    '--disable-domain-reliability',
+    '--disable-sync',
+    // Background throttling (keep Chrome idle when not active)
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-hang-monitor',
+    // Feature disabling
+    '--disable-features=TranslateUI,IsolateOrigins,site-per-process,BackForwardCache,BlinkGenPropertyTrees',
     '--force-color-profile=srgb',
     '--blink-settings=imagesEnabled=false',
 ];

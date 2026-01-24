@@ -26,6 +26,46 @@ export function getClient() {
     // Use absolute path for auth strategy to ensure persistence in Docker volumes
     const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
 
+    // Build browser args - always use low-resource flags for WhatsApp since it runs continuously
+    const browserArgs = [
+        // Core sandbox/Docker flags
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        // Process optimization (critical for NAS - reduces memory footprint)
+        '--single-process',
+        '--no-zygote',
+        '--no-first-run',
+        '--disable-extensions',
+        // Memory optimization
+        '--js-flags=--max-old-space-size=128', // WhatsApp needs less heap than scraping
+        '--disable-accelerated-2d-canvas',
+        '--disable-canvas-aa',
+        '--disable-2d-canvas-clip-aa',
+        '--disk-cache-size=0',
+        '--media-cache-size=0',
+        '--aggressive-cache-discard',
+        // Disable unnecessary features
+        '--mute-audio',
+        '--disable-audio-output',
+        '--disable-notifications',
+        '--disable-print-preview',
+        '--disable-speech-api',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        // Background throttling
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        // Feature disabling
+        '--disable-features=TranslateUI,IsolateOrigins,site-per-process,BackForwardCache',
+        '--blink-settings=imagesEnabled=false',
+    ];
+
     clientInstance = new Client({
         authStrategy: new LocalAuth({
             clientId: 'nudlers-client',
@@ -35,16 +75,7 @@ export function getClient() {
             headless: true,
             // Use system chromium if available (Crucial for Docker)
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process', // helps in low resource environments
-                '--disable-gpu'
-            ]
+            args: browserArgs
         }
     });
 
