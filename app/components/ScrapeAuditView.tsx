@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import HistoryIcon from '@mui/icons-material/History';
+import PageHeader from './PageHeader';
 import { useTheme } from '@mui/material/styles';
+import Table from './Table';
 
 interface ScrapeEvent {
     id: number;
@@ -51,29 +48,18 @@ export default function ScrapeAuditView() {
 
     return (
         <Box sx={{
-            padding: { xs: '16px', md: '32px' },
+            padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
             maxWidth: '1440px',
             margin: '0 auto',
-            marginTop: { xs: '56px', md: '40px' },
+            position: 'relative',
+            zIndex: 1
         }}>
-            {/* Header Section */}
-            <Box sx={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                padding: '24px',
-                marginBottom: '24px',
-                border: `1px solid ${theme.palette.divider}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px'
-            }}>
-                <HistoryIcon sx={{ fontSize: '32px', color: theme.palette.primary.main }} />
-                <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>Scrape Audit</Typography>
-                    <Typography variant="body2" color="text.secondary">History of scraping events and their status</Typography>
-                </Box>
-            </Box>
+            <PageHeader
+                title="Scrape Audit"
+                description="History of scraping events and their status"
+                icon={<HistoryIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+                onRefresh={fetchEvents}
+            />
 
             {/* Content Section */}
             <Box sx={{
@@ -93,41 +79,55 @@ export default function ScrapeAuditView() {
                         <Typography color="text.secondary">No audit events found</Typography>
                     </Box>
                 ) : (
-                    <Box sx={{ overflowX: 'auto' }}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 700 }}>Time</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Vendor</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Start Date</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Triggered By</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Message</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {events.map(ev => (
-                                    <TableRow key={ev.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                        <TableCell>{new Date(ev.created_at).toLocaleString()}</TableCell>
-                                        <TableCell>{ev.vendor}</TableCell>
-                                        <TableCell>{new Date(ev.start_date).toLocaleDateString()}</TableCell>
-                                        <TableCell>{ev.triggered_by || '-'}</TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={ev.status}
-                                                color={statusColor(ev.status) as any}
-                                                size="small"
-                                                sx={{ fontWeight: 600, textTransform: 'capitalize' }}
-                                            />
-                                        </TableCell>
-                                        <TableCell sx={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {ev.message || '-'}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </Box>
+                    <Table
+                        rows={events}
+                        rowKey={(row) => row.id}
+                        emptyMessage="No audit events found"
+                        columns={[
+                            { id: 'created_at', label: 'Time', format: (val) => new Date(val).toLocaleString() },
+                            { id: 'vendor', label: 'Vendor' },
+                            { id: 'start_date', label: 'Start Date', format: (val) => new Date(val).toLocaleDateString() },
+                            { id: 'triggered_by', label: 'Triggered By', format: (val) => val || '-' },
+                            {
+                                id: 'status',
+                                label: 'Status',
+                                format: (val) => (
+                                    <Chip
+                                        label={val}
+                                        color={statusColor(val) as any}
+                                        size="small"
+                                        sx={{ fontWeight: 600, textTransform: 'capitalize' }}
+                                    />
+                                )
+                            },
+                            {
+                                id: 'message',
+                                label: 'Message',
+                                format: (val) => (
+                                    <Box sx={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>
+                                        {val || '-'}
+                                    </Box>
+                                )
+                            }
+                        ]}
+                        mobileCardRenderer={(row) => (
+                            <Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                    <Typography variant="subtitle2" fontWeight={700}>{row.vendor}</Typography>
+                                    <Chip
+                                        label={row.status}
+                                        color={statusColor(row.status) as any}
+                                        size="small"
+                                        sx={{ height: 20, fontSize: '10px' }}
+                                    />
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Typography variant="caption" color="text.secondary">{new Date(row.created_at).toLocaleString()}</Typography>
+                                    <Typography variant="caption" color="text.secondary">{row.message || '-'}</Typography>
+                                </Box>
+                            </Box>
+                        )}
+                    />
                 )}
             </Box>
         </Box>

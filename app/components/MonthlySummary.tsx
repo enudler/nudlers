@@ -27,7 +27,14 @@ import MenuItem from '@mui/material/MenuItem';
 import Tooltip from '@mui/material/Tooltip';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import Link from 'next/link';
+import PageHeader from './PageHeader';
+import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
+import TableCell from '@mui/material/TableCell';
+import TableRow from '@mui/material/TableRow';
+import Table, { Column } from './Table';
+
 import ExpensesModal from './CategoryDashboard/components/ExpensesModal';
 import Typography from '@mui/material/Typography';
 import { ModalData } from './CategoryDashboard/types';
@@ -1141,6 +1148,168 @@ const MonthlySummary: React.FC = () => {
     });
   }, [data, sortField, sortDirection, groupBy]);
 
+  // Table columns configuration
+  const tableColumns = useMemo(() => {
+    const cols: Column<MonthlySummaryData>[] = [
+      {
+        id: 'name',
+        label: groupBy === 'description'
+          ? 'Description'
+          : groupBy === 'last4digits'
+            ? 'Last 4 Digits'
+            : 'Card / Account',
+        sortable: true,
+        format: (val, row) => {
+          const displayName = groupBy === 'description'
+            ? row.description
+            : groupBy === 'last4digits'
+              ? row.last4digits || 'Unknown'
+              : (row.vendor_nickname || row.vendor);
+          const isClickable = (groupBy === 'description' && row.description) || (groupBy === 'last4digits' && row.last4digits);
+          const isLoading = loadingDescription === row.description || loadingLast4 === row.last4digits;
+
+          return (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              opacity: isLoading ? 0.5 : 1
+            }}>
+              {isLoading ? (
+                <CircularProgress size={18} style={{ color: '#3b82f6' }} />
+              ) : groupBy === 'description' ? (
+                <DescriptionIcon sx={{ fontSize: '18px', color: '#64748b' }} />
+              ) : (
+                <CreditCardIcon sx={{ fontSize: '18px', color: '#3B82F6' }} />
+              )}
+              <span style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                textDecoration: isClickable ? 'underline' : 'none',
+                textDecorationColor: 'rgba(59, 130, 246, 0.3)'
+              }}>
+                {groupBy === 'last4digits' ? `****${displayName}` : displayName}
+              </span>
+            </div>
+          );
+        }
+      }
+    ];
+
+    if (groupBy === 'description') {
+      cols.push({
+        id: 'category',
+        label: 'Category',
+        format: (val, row) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            {editingDescription === row.description ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Autocomplete
+                  value={editCategory}
+                  onChange={(event, newValue) => setEditCategory(newValue || '')}
+                  onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                  freeSolo
+                  options={availableCategories}
+                  size="small"
+                  sx={{
+                    minWidth: 140,
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'white',
+                      color: 'text.primary',
+                      '& fieldset': { borderColor: theme.palette.divider },
+                      '&:hover fieldset': { borderColor: '#3b82f6' },
+                      '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+                    },
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="Category..."
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCategorySave(row.description!);
+                        } else if (e.key === 'Escape') {
+                          handleCategoryCancel();
+                        }
+                      }}
+                      sx={{ '& .MuiInputBase-input': { fontSize: '13px', padding: '6px 10px' } }}
+                    />
+                  )}
+                />
+                <IconButton
+                  size="small"
+                  onClick={() => handleCategorySave(row.description!)}
+                  sx={{ color: '#4ADE80', padding: '4px', '&:hover': { backgroundColor: 'rgba(74, 222, 128, 0.1)' } }}
+                >
+                  <CheckIcon sx={{ fontSize: '18px' }} />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={handleCategoryCancel}
+                  sx={{ color: '#ef4444', padding: '4px', '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.1)' } }}
+                >
+                  <CloseIcon sx={{ fontSize: '18px' }} />
+                </IconButton>
+              </div>
+            ) : (
+              <span
+                style={{
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  color: '#3b82f6',
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease-in-out',
+                  display: 'inline-block'
+                }}
+                onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
+              >
+                {row.category || 'Uncategorized'}
+              </span>
+            )}
+          </div>
+        )
+      });
+    }
+
+    if (groupBy === 'description' || groupBy === 'last4digits') {
+      cols.push({
+        id: 'transaction_count',
+        label: 'Count',
+        sortable: true,
+        align: 'center',
+        format: (val) => <span style={{ color: '#64748b', fontWeight: 500 }}>{val}</span>
+      });
+    }
+
+    cols.push({
+      id: 'amount', // Or card_expenses
+      label: 'Amount',
+      align: 'right',
+      sortable: true,
+      format: (val, row) => (
+        <div style={{
+          color: groupBy === 'description'
+            ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
+            : '#3B82F6',
+          fontWeight: 600
+        }}>
+          {groupBy === 'description' && row.amount !== undefined
+            ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+            : `₪${formatNumber(row.card_expenses)}`
+          }
+        </div>
+      )
+    });
+
+    return cols;
+  }, [groupBy, theme, editingDescription, editCategory, availableCategories, loadingDescription, loadingLast4, sortField, sortDirection]);
+
   if (error) {
     return (
       <div style={{
@@ -1195,229 +1364,49 @@ const MonthlySummary: React.FC = () => {
         zIndex: 1,
         color: theme.palette.text.primary
       }}>
-        {/* Hero Section with Filters */}
-        {/* Header Section */}
-        <Box sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '24px',
-          padding: { xs: '20px', md: '32px' },
-          borderRadius: '32px',
-          marginBottom: '24px',
-          marginTop: { xs: '56px', md: '40px' },
-          marginLeft: { xs: '8px', md: '24px' },
-          marginRight: { xs: '8px', md: '24px' },
-          border: '1px solid var(--n-glass-border)',
-          position: 'relative',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.04)',
-          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
-          backdropFilter: 'blur(20px)',
-        }} className="n-glass">
-
-          {/* Background Decor */}
-          <Box sx={{
-            position: 'absolute',
-            top: -100, right: -100,
-            width: 400, height: 400,
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%)',
-            zIndex: 0,
-            pointerEvents: 'none'
-          }} />
-
-          {/* Row 1: Header & Stats */}
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 3, position: 'relative', zIndex: 1 }}>
-            {/* Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <Box sx={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                width: 56, height: 56,
-                borderRadius: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 8px 16px rgba(59, 130, 246, 0.25)'
-              }}>
-                <SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />
-              </Box>
-              <Box>
-                <Box component="h1" className="gradient-text" sx={{
-                  fontSize: { xs: '24px', md: '32px' },
-                  fontWeight: 800,
-                  margin: 0,
-                  lineHeight: 1.2
-                }}>Monthly Summary</Box>
-                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
-                  {dateRangeMode === 'custom' && customStartDate && customEndDate
-                    ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                    : (selectedMonth && selectedYear
-                      ? `Overview for ${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
-                      : 'Track and analyze your expenses')
-                  }
-                </Typography>
-              </Box>
+        <PageHeader
+          title="Monthly Summary"
+          description={
+            dateRangeMode === 'custom' && customStartDate && customEndDate
+              ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+              : (selectedMonth && selectedYear
+                ? `Overview for ${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                : 'Track and analyze your expenses')
+          }
+          icon={<SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+          stats={
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                {dateRangeMode === 'billing' ? 'Cycle Total' : 'Total Expenses'}
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1, mt: 0.5 }}>
+                ₪{formatNumber(totals.card_expenses)}
+              </Typography>
             </Box>
+          }
+          showDateSelectors={true}
+          dateRangeMode={dateRangeMode}
+          onDateRangeModeChange={handleDateRangeModeChange}
+          selectedYear={selectedYear}
+          onYearChange={handleYearChange}
+          selectedMonth={selectedMonth}
+          onMonthChange={handleMonthChange}
+          uniqueYears={uniqueYears}
+          uniqueMonths={uniqueMonths}
+          customStartDate={customStartDate}
+          onCustomStartDateChange={(val) => handleCustomDateChange('start', val)}
+          customEndDate={customEndDate}
+          onCustomEndDateChange={(val) => handleCustomDateChange('end', val)}
+          onRefresh={handleRefresh}
+          showSearch={true}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          onSearchSubmit={handleSearch}
+          isSearching={isSearching}
+          startDate={startDate}
+          endDate={endDate}
+        />
 
-            {/* Stat Highlight - Total Expenses */}
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255,255,255,0.5)',
-              borderRadius: '20px',
-              padding: '12px 24px',
-              border: `1px solid ${theme.palette.divider}`,
-              minWidth: '200px'
-            }}>
-              <Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {dateRangeMode === 'billing' ? 'Cycle Total' : 'Total Expenses'}
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1, mt: 0.5 }}>
-                  ₪{formatNumber(totals.card_expenses)}
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-
-          {/* Divider */}
-          <Box sx={{ height: '1px', bgcolor: theme.palette.divider, opacity: 0.5 }} />
-
-          {/* Row 2: Controls Toolbar */}
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', lg: 'center' }, gap: 2, position: 'relative', zIndex: 1 }}>
-
-            {/* Left Group: Toggles & Pickers */}
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-              {/* Date Mode Toggles */}
-              <div style={{
-                display: 'flex',
-                background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                padding: '4px',
-                borderRadius: '14px',
-                border: `1px solid ${theme.palette.divider}`
-              }}>
-                {[
-                  { id: 'calendar', icon: <CalendarMonthIcon sx={{ fontSize: 18 }} />, label: 'Calendar' },
-                  { id: 'billing', icon: <DateRangeIcon sx={{ fontSize: 18 }} />, label: 'Cycle' },
-                  { id: 'custom', icon: <TuneIcon sx={{ fontSize: 18 }} />, label: 'Custom' }
-                ].map((mode) => (
-                  <button
-                    key={mode.id}
-                    onClick={() => handleDateRangeModeChange(mode.id as DateRangeMode)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px',
-                      border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
-                      background: dateRangeMode === mode.id ? 'var(--n-primary)' : 'transparent',
-                      color: dateRangeMode === mode.id ? '#ffffff' : theme.palette.text.secondary,
-                      transition: 'all 0.2s ease',
-                      boxShadow: dateRangeMode === mode.id ? '0 2px 8px rgba(59, 130, 246, 0.3)' : 'none'
-                    }}
-                  >
-                    {mode.icon} {mode.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Pickers based on Mode */}
-              {dateRangeMode !== 'custom' && (
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <select
-                    value={selectedYear}
-                    onChange={handleYearChange}
-                    className="n-glass n-select"
-                    style={{ minWidth: '90px', height: '40px', padding: '0 28px 0 12px', fontSize: '14px' }}
-                  >
-                    {uniqueYears.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                  <select
-                    value={selectedMonth}
-                    onChange={handleMonthChange}
-                    className="n-glass n-select"
-                    style={{ minWidth: '130px', height: '40px', padding: '0 28px 0 12px', fontSize: '14px' }}
-                  >
-                    {uniqueMonths.map(m => (
-                      <option key={m} value={m}>
-                        {new Date(`2024-${m}-01`).toLocaleDateString('default', { month: 'long' })}
-                      </option>
-                    ))}
-                  </select>
-                </Box>
-              )}
-
-              {dateRangeMode === 'custom' && (
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <TextField
-                    type="date"
-                    size="small"
-                    value={customStartDate}
-                    onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: 'background.paper', height: '40px' } }}
-                  />
-                  <Typography sx={{ color: 'text.secondary' }}>-</Typography>
-                  <TextField
-                    type="date"
-                    size="small"
-                    value={customEndDate}
-                    onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: 'background.paper', height: '40px' } }}
-                  />
-                </Box>
-              )}
-            </Box>
-
-            {/* Right Group: Search & Refresh */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', width: { xs: '100%', lg: 'auto' }, flexGrow: { lg: 1 }, justifyContent: { lg: 'flex-end' } }}>
-              {/* Search Field */}
-              <Box
-                component="form"
-                onSubmit={handleSearch}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                  padding: '4px 8px 4px 16px',
-                  borderRadius: '14px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  width: '100%',
-                  maxWidth: '300px',
-                  height: '40px',
-                  transition: 'all 0.2s',
-                  '&:focus-within': { borderColor: 'primary.main', boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)' }
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Search transactions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    border: 'none', background: 'transparent', outline: 'none', fontSize: '14px',
-                    width: '100%', color: theme.palette.text.primary, fontWeight: 500
-                  }}
-                />
-                <IconButton type="submit" size="small" disabled={isSearching} sx={{ padding: '4px' }}>
-                  {isSearching ? <CircularProgress size={18} /> : <SearchIcon fontSize="small" />}
-                </IconButton>
-              </Box>
-
-              {/* Refresh Button */}
-              <Tooltip title="Refresh Data">
-                <IconButton
-                  onClick={handleRefresh}
-                  className="n-glass"
-                  sx={{
-                    borderRadius: '12px',
-                    color: 'primary.main',
-                    width: 40, height: 40,
-                    '&:hover': { transform: 'rotate(180deg)', bgcolor: 'primary.soft' }
-                  }}
-                >
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-        </Box>
 
         {loading ? (
           <div style={{
@@ -1999,312 +1988,76 @@ const MonthlySummary: React.FC = () => {
                   No transactions found for this period.
                 </Box>
               ) : (
-                <Box sx={{
-                  overflowX: 'auto',
-                  WebkitOverflowScrolling: 'touch',
-                  mx: { xs: -2, md: 0 },
-                  px: { xs: 2, md: 0 }
-                }}>
-                  <Box component="table" sx={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: { xs: '12px', md: '14px' },
-                    minWidth: { xs: '500px', md: 'auto' }
-                  }}>
-                    <thead>
-                      <tr style={{
-                        borderBottom: `2px solid ${theme.palette.divider}`
-                      }}>
-                        <th style={{
-                          padding: '16px 12px',
-                          textAlign: 'left',
-                          color: 'text.secondary',
-                          fontWeight: 600,
-                          fontSize: '13px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px'
-                        }}>
-                          {groupBy === 'description'
-                            ? 'Description'
-                            : groupBy === 'last4digits'
-                              ? 'Last 4 Digits'
-                              : 'Card / Account'}
-                        </th>
-                        {groupBy === 'description' && (
-                          <th style={{
-                            padding: '16px 12px',
-                            textAlign: 'left',
-                            color: 'text.secondary',
-                            fontWeight: 600,
-                            fontSize: '13px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>Category</th>
-                        )}
-                        {(groupBy === 'description' || groupBy === 'last4digits') && (
-                          <th style={{
-                            padding: '16px 12px',
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontWeight: 600,
-                            fontSize: '13px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>Count</th>
-                        )}
-                        <th style={{
-                          padding: '16px 12px',
-                          textAlign: 'right',
-                          color: '#3B82F6',
-                          fontWeight: 600,
-                          fontSize: '13px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-                            <CreditCardIcon sx={{ fontSize: '16px' }} />
-                            Amount
-                          </div>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedData.map((row, index) => {
-                        const rowKey = groupBy === 'description'
-                          ? `description-${row.description}-${index}`
-                          : groupBy === 'last4digits'
-                            ? `last4-${row.last4digits}-${index}`
-                            : `${row.month}-${row.vendor}`;
-                        const displayName = groupBy === 'description'
-                          ? row.description
-                          : groupBy === 'last4digits'
-                            ? row.last4digits || 'Unknown'
-                            : (row.vendor_nickname || row.vendor);
-                        const isClickable = (groupBy === 'description' && row.description) || (groupBy === 'last4digits' && row.last4digits);
-                        const isLoading = loadingDescription === row.description || loadingLast4 === row.last4digits;
-
-                        return (
-                          <tr
-                            key={rowKey}
-                            style={{
-                              borderBottom: `1px solid ${theme.palette.divider}`,
-                              transition: 'background 0.2s ease',
-                              background: index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.3)' : 'rgba(248, 250, 252, 0.5)'),
-                              cursor: isClickable ? 'pointer' : 'default'
-                            }}
-                            onClick={() => {
-                              if (groupBy === 'description' && row.description) {
-                                handleDescriptionClick(row.description);
-                              } else if (groupBy === 'last4digits' && row.last4digits) {
-                                handleLast4DigitsClick(row.last4digits);
-                              }
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = isClickable
-                                ? 'rgba(96, 165, 250, 0.15)'
-                                : 'rgba(96, 165, 250, 0.08)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = index % 2 === 0 ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.3)' : 'rgba(248, 250, 252, 0.5)');
-                            }}
-                          >
-                            <td style={{
-                              padding: '16px 12px',
-                              fontWeight: 600,
-                              color: isClickable ? '#3b82f6' : 'text.primary',
-                              maxWidth: '300px'
+                <>
+                  <Table
+                    rows={sortedData}
+                    columns={tableColumns}
+                    rowKey={(row) => groupBy === 'description' ? `desc-${row.description}` : groupBy === 'last4digits' ? `last4-${row.last4digits}` : `vendor-${row.vendor}`}
+                    onRowClick={(row) => {
+                      if (groupBy === 'description' && row.description) {
+                        handleDescriptionClick(row.description);
+                      } else if (groupBy === 'last4digits' && row.last4digits) {
+                        handleLast4DigitsClick(row.last4digits);
+                      }
+                    }}
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSortChange}
+                    mobileCardRenderer={(row) => (
+                      <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="subtitle2" fontWeight={700}>
+                            {groupBy === 'description' ? row.description : (row.vendor_nickname || row.vendor || row.last4digits)}
+                          </Typography>
+                          <Typography variant="subtitle2" fontWeight={700} sx={{
+                            color: groupBy === 'description'
+                              ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
+                              : '#3B82F6'
+                          }}>
+                            {groupBy === 'description' && row.amount !== undefined
+                              ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+                              : `₪${formatNumber(row.card_expenses)}`
+                            }
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {groupBy === 'description' ? (
+                            <span style={{
+                              background: 'rgba(59, 130, 246, 0.1)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              color: '#3b82f6',
                             }}>
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                opacity: isLoading ? 0.5 : 1
-                              }}>
-                                {isLoading ? (
-                                  <CircularProgress size={18} style={{ color: '#3b82f6' }} />
-                                ) : groupBy === 'description' ? (
-                                  <DescriptionIcon sx={{ fontSize: '18px', color: '#64748b' }} />
-                                ) : (
-                                  <CreditCardIcon sx={{ fontSize: '18px', color: '#3B82F6' }} />
-                                )}
-                                <span style={{
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  textDecoration: isClickable ? 'underline' : 'none',
-                                  textDecorationColor: 'rgba(59, 130, 246, 0.3)'
-                                }}>
-                                  {groupBy === 'last4digits' ? `****${displayName}` : displayName}
-                                </span>
-                              </div>
-                            </td>
-                            {groupBy === 'description' && (
-                              <td style={{
-                                padding: '16px 12px',
-                                color: '#64748b',
-                                fontWeight: 500
-                              }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {editingDescription === row.description ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <Autocomplete
-                                      value={editCategory}
-                                      onChange={(event, newValue) => setEditCategory(newValue || '')}
-                                      onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                                      freeSolo
-                                      options={availableCategories}
-                                      size="small"
-                                      sx={{
-                                        minWidth: 140,
-                                        '& .MuiOutlinedInput-root': {
-                                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'white',
-                                          color: 'text.primary',
-                                          '& fieldset': {
-                                            borderColor: theme.palette.divider,
-                                          },
-                                          '&:hover fieldset': {
-                                            borderColor: '#3b82f6',
-                                          },
-                                          '&.Mui-focused fieldset': {
-                                            borderColor: '#3b82f6',
-                                          },
-                                        },
-                                      }}
-                                      renderInput={(params) => (
-                                        <TextField
-                                          {...params}
-                                          placeholder="Category..."
-                                          autoFocus
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                              e.preventDefault();
-                                              handleCategorySave(row.description!);
-                                            } else if (e.key === 'Escape') {
-                                              handleCategoryCancel();
-                                            }
-                                          }}
-                                          sx={{
-                                            '& .MuiInputBase-input': {
-                                              fontSize: '13px',
-                                              padding: '6px 10px',
-                                            },
-                                          }}
-                                        />
-                                      )}
-                                    />
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleCategorySave(row.description!)}
-                                      sx={{
-                                        color: '#4ADE80',
-                                        padding: '4px',
-                                        '&:hover': { backgroundColor: 'rgba(74, 222, 128, 0.1)' }
-                                      }}
-                                    >
-                                      <CheckIcon sx={{ fontSize: '18px' }} />
-                                    </IconButton>
-                                    <IconButton
-                                      size="small"
-                                      onClick={handleCategoryCancel}
-                                      sx={{
-                                        color: '#ef4444',
-                                        padding: '4px',
-                                        '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.1)' }
-                                      }}
-                                    >
-                                      <CloseIcon sx={{ fontSize: '18px' }} />
-                                    </IconButton>
-                                  </div>
-                                ) : (
-                                  <span
-                                    style={{
-                                      background: 'rgba(59, 130, 246, 0.1)',
-                                      padding: '4px 10px',
-                                      borderRadius: '6px',
-                                      fontSize: '13px',
-                                      cursor: 'pointer',
-                                      color: '#3b82f6',
-                                      fontWeight: 500,
-                                      transition: 'all 0.2s ease-in-out',
-                                      display: 'inline-block'
-                                    }}
-                                    onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
-                                      e.currentTarget.style.transform = 'scale(1.02)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
-                                      e.currentTarget.style.transform = 'scale(1)';
-                                    }}
-                                  >
-                                    {row.category || 'Uncategorized'}
-                                  </span>
-                                )}
-                              </td>
-                            )}
-                            {(groupBy === 'description' || groupBy === 'last4digits') && (
-                              <td style={{
-                                padding: '16px 12px',
-                                textAlign: 'center',
-                                color: '#64748b',
-                                fontWeight: 500
-                              }}>{row.transaction_count}</td>
-                            )}
-                            <td style={{
-                              padding: '16px 12px',
-                              textAlign: 'right',
-                              color: groupBy === 'description'
-                                ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
-                                : '#3B82F6',
-                              fontWeight: 600
-                            }}>
-                              {groupBy === 'description' && row.amount !== undefined
-                                ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
-                                : `₪${formatNumber(row.card_expenses)}`
-                              }
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    {/* Totals row */}
-                    <tfoot>
-                      <tr style={{
+                              {row.category || 'Uncategorized'}
+                            </span>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              {row.transaction_count} transactions
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+                    footer={
+                      <TableRow sx={{
                         borderTop: `2px solid ${theme.palette.divider}`,
-                        background: theme.palette.mode === 'dark'
-                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.12) 100%)'
+                        bgcolor: theme.palette.mode === 'dark'
+                          ? 'rgba(30, 41, 59, 0.5)'
                           : 'rgba(248, 250, 252, 0.8)'
                       }}>
-                        <td style={{
-                          padding: '16px 12px',
-                          fontWeight: 700,
-                          color: theme.palette.text.primary,
-                          fontSize: '15px'
-                        }}>TOTAL</td>
-                        {groupBy === 'description' && (
-                          <td style={{
-                            padding: '16px 12px'
-                          }}></td>
-                        )}
+                        <TableCell sx={{ fontWeight: 700 }}>TOTAL</TableCell>
+                        {groupBy === 'description' && <TableCell />}
                         {(groupBy === 'description' || groupBy === 'last4digits') && (
-                          <td style={{
-                            padding: '16px 12px',
-                            textAlign: 'center',
-                            color: theme.palette.text.secondary,
-                            fontWeight: 700,
-                            fontSize: '15px'
-                          }}>{sortedData.reduce((sum, row) => sum + Number(row.transaction_count || 0), 0)}</td>
+                          <TableCell align="center" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                            {sortedData.reduce((sum, row) => sum + Number(row.transaction_count || 0), 0)}
+                          </TableCell>
                         )}
-                        <td style={{
-                          padding: '16px 12px',
-                          textAlign: 'right',
+                        <TableCell align="right" sx={{
+                          fontWeight: 700,
                           color: groupBy === 'description'
                             ? (sortedData.reduce((sum, row) => sum + Number(row.amount || 0), 0) >= 0 ? '#10B981' : '#F43F5E')
                             : '#3B82F6',
-                          fontWeight: 700,
-                          fontSize: '15px'
                         }}>
                           {groupBy === 'description'
                             ? (() => {
@@ -2313,11 +2066,11 @@ const MonthlySummary: React.FC = () => {
                             })()
                             : `₪${formatNumber(totals.card_expenses)}`
                           }
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </Box>
-                  {/* Load More Button */}
+                        </TableCell>
+                      </TableRow>
+                    }
+                  />
+
                   {data.length < total && (
                     <Box sx={{
                       display: 'flex',
@@ -2359,24 +2112,27 @@ const MonthlySummary: React.FC = () => {
                       </button>
                     </Box>
                   )}
-                </Box>
-              )}
+                </>
+              )
+              }
             </Box>
           </>
         )}
       </Box>
 
       {/* Transaction Details Modal */}
-      {modalData && (
-        <ExpensesModal
-          open={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          data={modalData}
-          color="#3b82f6"
-          setModalData={setModalData}
-          currentMonth={dateRangeMode === 'custom' ? `${customStartDate}` : `${selectedYear}-${selectedMonth}`}
-        />
-      )}
+      {
+        modalData && (
+          <ExpensesModal
+            open={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            data={modalData}
+            color="#3b82f6"
+            setModalData={setModalData}
+            currentMonth={dateRangeMode === 'custom' ? `${customStartDate}` : `${selectedYear}-${selectedMonth}`}
+          />
+        )
+      }
 
       {/* Snackbar for feedback messages */}
       <Snackbar
@@ -2397,7 +2153,7 @@ const MonthlySummary: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </div>
+    </div >
   );
 };
 

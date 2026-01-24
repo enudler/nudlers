@@ -21,10 +21,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
-import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from './CategoryDashboard/utils/tableStyles';
 import { fetchCategories } from './CategoryDashboard/utils/categoryUtils';
 import CategoryAutocomplete from './CategoryAutocomplete';
 import AccountDisplay from './AccountDisplay';
+import Table, { Column } from './Table';
+import PageHeader from './PageHeader';
 
 interface Installment {
     name: string;
@@ -249,73 +250,42 @@ const RecurringPaymentsView: React.FC = () => {
 
     return (
         <Box sx={{
-            padding: { xs: '16px', md: '32px' },
+            padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
             maxWidth: '1440px',
             margin: '0 auto',
-            marginTop: { xs: '56px', md: '40px' },
+            position: 'relative',
+            zIndex: 1
         }}>
-            {/* Header Section */}
-            <Box sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                justifyContent: 'space-between',
-                alignItems: { xs: 'stretch', md: 'center' },
-                gap: '24px',
-                padding: '32px',
-                borderRadius: '32px',
-                marginBottom: '24px',
-                border: '1px solid var(--n-glass-border)',
-                position: 'relative',
-                overflow: 'hidden'
-            }} className="n-glass">
-                {/* Decorative background element */}
-                <Box sx={{
-                    position: 'absolute',
-                    top: -50, right: -50,
-                    width: 200, height: 200,
-                    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
-                    zIndex: 0
-                }} />
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
-                    <Box sx={{
-                        background: 'linear-gradient(135deg, var(--n-primary) 0%, #a78bfa 100%)',
-                        width: 56, height: 56,
-                        borderRadius: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)'
-                    }}>
-                        <RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />
+            <PageHeader
+                title="Recurring Payments"
+                description="Monitor your active installments and recurring subscriptions"
+                icon={<RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+                stats={
+                    <Box sx={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>INSTALLMENTS</Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(totalMonthlyInstallments)}</Typography>
+                        </Box>
+                        <Box sx={{ width: '1px', height: '32px', bgcolor: 'divider' }} />
+                        <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>ACTIVE</Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>{activeInstallments.length + recurring.length}</Typography>
+                        </Box>
                     </Box>
-                    <Box>
-                        <Typography variant="h4" className="gradient-text" sx={{ fontWeight: 800, fontSize: { xs: '24px', md: '32px' } }}>Recurring Payments</Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>Monitor your active installments and recurring subscriptions</Typography>
-                    </Box>
-                </Box>
-
-                <Box sx={{ display: 'flex', gap: '24px', alignItems: 'center', mt: { xs: 2, md: 0 } }}>
-                    <Box sx={{ textAlign: 'center', px: 2 }}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>INSTALLMENTS</Typography>
-                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(totalMonthlyInstallments)}</Typography>
-                    </Box>
-                    <Box sx={{ width: '1px', height: '40px', bgcolor: 'var(--n-border)' }} />
-                    <Box sx={{ textAlign: 'center', px: 2 }}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>ACTIVE</Typography>
-                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>{activeInstallments.length + recurring.length}</Typography>
-                    </Box>
-                </Box>
-            </Box>
+                }
+                onRefresh={fetchData}
+            />
 
             {/* Main Content Card */}
             <Box sx={{
                 padding: '0',
                 borderRadius: '32px',
-                border: '1px solid var(--n-border)',
+                border: `1px solid ${theme.palette.divider}`,
                 overflow: 'hidden',
-                boxShadow: 'var(--n-shadow-xl)'
-            }} className="n-glass">
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(20px)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
+            }}>
                 <Box sx={{ borderBottom: 1, borderColor: theme.palette.divider, px: 3, pt: 2 }}>
                     <Tabs
                         value={activeTab}
@@ -323,12 +293,13 @@ const RecurringPaymentsView: React.FC = () => {
                         sx={{
                             '& .MuiTab-root': {
                                 textTransform: 'none',
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 fontSize: '15px',
                                 color: theme.palette.text.secondary,
-                                '&.Mui-selected': { color: '#8b5cf6' }
+                                minHeight: '48px',
+                                '&.Mui-selected': { color: theme.palette.primary.main }
                             },
-                            '& .MuiTabs-indicator': { backgroundColor: '#8b5cf6', height: '3px', borderRadius: '3px 3px 0 0' }
+                            '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main, height: '3px', borderRadius: '3px 3px 0 0' }
                         }}
                     >
                         <Tab label={`Installments (${installments.length})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
@@ -336,7 +307,7 @@ const RecurringPaymentsView: React.FC = () => {
                     </Tabs>
                 </Box>
 
-                <Box sx={{ p: 3 }}>
+                <Box sx={{ p: { xs: 1, md: 3 } }}>
                     {loading ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}><CircularProgress /></Box>
                     ) : error ? (
@@ -344,145 +315,155 @@ const RecurringPaymentsView: React.FC = () => {
                     ) : (
                         <>
                             {activeTab === 0 ? (
-                                installments.length === 0 ? (
-                                    <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">No installment payments found</Typography></Box>
-                                ) : (
-                                    <Box sx={{ overflowX: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                                            <thead>
-                                                <tr>
-                                                    <th style={getTableHeaderCellStyle(theme)}>Description</th>
-                                                    <th style={getTableHeaderCellStyle(theme)}>Account</th>
-                                                    <th style={getTableHeaderCellStyle(theme)}>Category</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Progress</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'right' }}>Monthly</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'right' }}>Original</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Next</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>End</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {installments.map((item, index) => {
-                                                    const progressPercent = Math.round((item.current_installment / item.total_installments) * 100);
-                                                    const remaining = item.total_installments - item.current_installment;
+                                <Table
+                                    rows={installments}
+                                    rowKey={(row) => `${row.name}-${row.current_installment}-${row.total_installments}`}
+                                    emptyMessage="No installment payments found"
+                                    columns={[
+                                        { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
+                                        { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
+                                        {
+                                            id: 'category',
+                                            label: 'Category',
+                                            format: (_, row: Installment,) => {
+                                                const index = installments.indexOf(row);
+                                                if (editingItem?.type === 'installment' && editingItem.index === index) {
                                                     return (
-                                                        <tr key={index} style={{ ...TABLE_ROW_HOVER_STYLE }}>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), fontWeight: 700 }}>{item.name}</td>
-                                                            <td style={getTableBodyCellStyle(theme)}>{renderAccountInfo(item)}</td>
-                                                            <td style={getTableBodyCellStyle(theme)}>
-                                                                {editingItem?.type === 'installment' && editingItem.index === index ? (
-                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
-                                                                        <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
-                                                                        <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
-                                                                    </Box>
-                                                                ) : (
-                                                                    <Box
-                                                                        onClick={(e) => handleCategoryClick(e, item, index, 'installment')}
-                                                                        sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: 'primary.main', color: 'white', px: 1, py: 0.5, borderRadius: 1, cursor: 'pointer', fontSize: '12px' }}
-                                                                    >
-                                                                        {item.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
-                                                                    </Box>
-                                                                )}
-                                                            </td>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
-                                                                <Tooltip title={`${item.current_installment} of ${item.total_installments}`}>
-                                                                    <Box>
-                                                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.current_installment}/{item.total_installments}</Typography>
-                                                                        <Box sx={{ width: '60px', height: '6px', bgcolor: 'action.hover', borderRadius: 3, mx: 'auto', mt: 0.5, overflow: 'hidden' }}>
-                                                                            <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: item.status === 'completed' ? 'success.main' : 'primary.main' }} />
-                                                                        </Box>
-                                                                    </Box>
-                                                                </Tooltip>
-                                                            </td>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'right', fontWeight: 800, color: 'primary.main' }}>₪{formatNumber(item.price)}</td>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'right', color: 'text.secondary' }}>{item.original_amount ? `₪${formatNumber(item.original_amount)}` : '-'}</td>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>{item.next_payment_date ? formatDate(item.next_payment_date) : 'Completed'}</td>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>{formatDate(item.last_payment_date)}</td>
-                                                            <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
-                                                                <Chip label={item.status} size="small" color={item.status === 'completed' ? 'success' : 'primary'} />
-                                                            </td>
-                                                        </tr>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
+                                                            <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
+                                                            <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
+                                                        </Box>
                                                     );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </Box>
-                                )
+                                                }
+                                                return (
+                                                    <Box
+                                                        onClick={(e) => handleCategoryClick(e, row, index, 'installment')}
+                                                        sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: theme.palette.primary.main, color: 'white', px: 1, py: 0.5, borderRadius: 1.5, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                                                    >
+                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
+                                                    </Box>
+                                                );
+                                            }
+                                        },
+                                        {
+                                            id: 'progress',
+                                            label: 'Progress',
+                                            align: 'center',
+                                            format: (_, row) => {
+                                                const progressPercent = Math.round((row.current_installment / row.total_installments) * 100);
+                                                return (
+                                                    <Tooltip title={`${row.current_installment} of ${row.total_installments}`}>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700 }}>{row.current_installment}/{row.total_installments}</Typography>
+                                                            <Box sx={{ width: '60px', height: '6px', bgcolor: 'action.hover', borderRadius: 3, mx: 'auto', mt: 0.5, overflow: 'hidden' }}>
+                                                                <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: row.status === 'completed' ? 'success.main' : 'primary.main' }} />
+                                                            </Box>
+                                                        </Box>
+                                                    </Tooltip>
+                                                );
+                                            }
+                                        },
+                                        { id: 'price', label: 'Monthly', align: 'right', format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                        { id: 'original_amount', label: 'Original', align: 'right', format: (val) => <span style={{ color: 'text.secondary' }}>{val ? `₪${formatNumber(val)}` : '-'}</span> },
+                                        { id: 'next_payment_date', label: 'Next', align: 'center', format: (val) => val ? formatDate(val) : 'Completed' },
+                                        { id: 'last_payment_date', label: 'End', align: 'center', format: (val) => formatDate(val) },
+                                        { id: 'status', label: 'Status', align: 'center', format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
+                                    ]}
+                                    mobileCardRenderer={(row) => (
+                                        <Box>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}/mo</Typography>
+                                            </Box>
+                                            <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {row.current_installment}/{row.total_installments} payments
+                                                </Typography>
+                                                <Chip label={row.status} size="small" color={row.status === 'completed' ? 'success' : 'primary'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
+                                            </Box>
+                                        </Box>
+                                    )}
+                                />
                             ) : (
-                                sortedRecurring.length === 0 ? (
-                                    <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">No recurring payments detected</Typography></Box>
-                                ) : (
-                                    <Box sx={{ overflowX: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                                            <thead>
-                                                <tr>
-                                                    <th style={getTableHeaderCellStyle(theme)}>Description</th>
-                                                    <th style={getTableHeaderCellStyle(theme)}>Account</th>
-                                                    <th style={getTableHeaderCellStyle(theme)}>Category</th>
-                                                    <th style={getTableHeaderCellStyle(theme)} onClick={() => handleSort('count')}>Frequency</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'right' }} onClick={() => handleSort('amount')}>Amount (Avg)</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Next</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Last</th>
-                                                    <th style={{ ...getTableHeaderCellStyle(theme), textAlign: 'center' }}>Details</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {sortedRecurring.map((item, index) => {
-                                                    const rowId = `${item.name}-${index}`;
-                                                    const isExpanded = expandedRows.has(rowId);
+                                <Table
+                                    rows={sortedRecurring}
+                                    rowKey={(row) => `${row.name}-${row.month_count}`}
+                                    emptyMessage="No recurring payments detected"
+                                    onSort={(field) => handleSort(field as 'amount' | 'count')}
+                                    sortField={sortBy}
+                                    sortDirection={sortOrder}
+                                    expandedRowIds={expandedRows}
+                                    onRowToggle={(rowKey) => toggleRow(rowKey as string)}
+                                    columns={[
+                                        { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
+                                        { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
+                                        {
+                                            id: 'category',
+                                            label: 'Category',
+                                            format: (_, row) => {
+                                                const index = sortedRecurring.indexOf(row);
+                                                if (editingItem?.type === 'recurring' && editingItem.index === index) {
                                                     return (
-                                                        <React.Fragment key={index}>
-                                                            <tr style={{ ...TABLE_ROW_HOVER_STYLE }} onClick={() => toggleRow(rowId)}>
-                                                                <td style={{ ...getTableBodyCellStyle(theme), fontWeight: 700 }}>{item.name}</td>
-                                                                <td style={getTableBodyCellStyle(theme)}>{renderAccountInfo(item)}</td>
-                                                                <td style={getTableBodyCellStyle(theme)}>
-                                                                    {editingItem?.type === 'recurring' && editingItem.index === index ? (
-                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                            <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
-                                                                            <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
-                                                                            <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
-                                                                        </Box>
-                                                                    ) : (
-                                                                        <Box
-                                                                            onClick={(e) => handleCategoryClick(e, item, index, 'recurring')}
-                                                                            sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: 'primary.main', color: 'white', px: 1, py: 0.5, borderRadius: 1, cursor: 'pointer', fontSize: '12px' }}
-                                                                        >
-                                                                            {item.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
-                                                                        </Box>
-                                                                    )}
-                                                                </td>
-                                                                <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
-                                                                    <Chip label={item.frequency} size="small" color={item.frequency === 'bi-monthly' ? 'warning' : 'info'} />
-                                                                </td>
-                                                                <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'right', fontWeight: 800, color: 'primary.main' }}>₪{formatNumber(item.price)}</td>
-                                                                <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>{formatDate(item.next_payment_date)}</td>
-                                                                <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>{formatDate(item.last_charge_date)}</td>
-                                                                <td style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>{isExpanded ? 'Hide' : `History (${item.month_count})`}</td>
-                                                            </tr>
-                                                            {isExpanded && (
-                                                                <tr>
-                                                                    <td colSpan={8} style={{ padding: '16px' }}>
-                                                                        <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
-                                                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Payment History</Typography>
-                                                                            {item.occurrences.map((occ, i) => (
-                                                                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                                                                    <Typography variant="body2">{formatDate(occ.date)}</Typography>
-                                                                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>₪{formatNumber(occ.amount)}</Typography>
-                                                                                </Box>
-                                                                            ))}
-                                                                        </Box>
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </React.Fragment>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
+                                                            <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
+                                                            <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
+                                                        </Box>
                                                     );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </Box>
-                                )
+                                                }
+                                                return (
+                                                    <Box
+                                                        onClick={(e) => handleCategoryClick(e, row, index, 'recurring')}
+                                                        sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: theme.palette.primary.main, color: 'white', px: 1, py: 0.5, borderRadius: 1.5, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                                                    >
+                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
+                                                    </Box>
+                                                );
+                                            }
+                                        },
+                                        { id: 'frequency', label: 'Frequency', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'bi-monthly' ? 'warning' : 'info'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> },
+                                        { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                        { id: 'next_payment_date', label: 'Next', align: 'center', format: (val) => formatDate(val) },
+                                        { id: 'last_charge_date', label: 'Last', align: 'center', format: (val) => formatDate(val) },
+                                        {
+                                            id: 'details',
+                                            label: 'Details',
+                                            align: 'center',
+                                            format: (_, row) => {
+                                                const isExpanded = expandedRows.has(`${row.name}-${row.month_count}`);
+                                                return isExpanded ? 'Hide' : `History (${row.month_count})`;
+                                            }
+                                        }
+                                    ]}
+                                    renderSubRow={(row) => (
+                                        <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, mx: 2, mb: 2 }}>
+                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Payment History</Typography>
+                                            {row.occurrences.map((occ, i) => (
+                                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                    <Typography variant="body2">{formatDate(occ.date)}</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>₪{formatNumber(occ.amount)}</Typography>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    )}
+                                    mobileCardRenderer={(row) => (
+                                        <Box>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}</Typography>
+                                            </Box>
+                                            <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Chip label={row.frequency} size="small" color={row.frequency === 'bi-monthly' ? 'warning' : 'info'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
+                                                <Typography variant="caption" color="text.secondary">
+                                                    Next: {formatDate(row.next_payment_date)}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    )}
+                                />
                             )}
                         </>
                     )}
@@ -490,7 +471,7 @@ const RecurringPaymentsView: React.FC = () => {
             </Box>
 
             <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-                <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
+                <Alert severity={snackbar.severity} sx={{ borderRadius: '12px', fontWeight: 600 }}>{snackbar.message}</Alert>
             </Snackbar>
         </Box>
     );

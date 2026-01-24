@@ -5,11 +5,8 @@ import DialogContent from '@mui/material/DialogContent';
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
 import ModalHeader from '../../ModalHeader';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
+
+import Table, { Column } from '../../Table';
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
 import CheckIcon from '@mui/icons-material/Check';
@@ -35,7 +32,6 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useCategories } from '../utils/useCategories';
 import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
-import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from '../utils/tableStyles';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
 type SortField = 'date' | 'amount' | 'installments';
@@ -599,102 +595,81 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
           background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
           backdropFilter: 'blur(10px)'
         }}>
-          <Table
-            onClick={handleTableClick}
-          >
-            <TableHead>
-              <TableRow>
-                <TableCell style={{ ...getTableHeaderCellStyle(theme), width: '200px', maxWidth: '200px' }}>Description</TableCell>
-                <TableCell style={getTableHeaderCellStyle(theme)}>Category</TableCell>
-                <TableCell align="right" style={getTableHeaderCellStyle(theme)}>Amount</TableCell>
-                <TableCell style={getTableHeaderCellStyle(theme)}>Installment</TableCell>
-                <TableCell style={getTableHeaderCellStyle(theme)}>Card</TableCell>
-                <TableCell style={getTableHeaderCellStyle(theme)}>Date</TableCell>
-                <TableCell align="center" style={{ ...getTableHeaderCellStyle(theme), width: '120px' }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {Array.isArray(sortedExpenses) ? sortedExpenses.map((expense: Expense, index) => (
-                <TableRow
-                  key={index}
-                  onClick={() => handleRowClick(expense)}
-                  style={TABLE_ROW_HOVER_STYLE}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = getTableRowHoverBackground(theme);
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <TableCell style={getTableBodyCellStyle(theme)}>
-                    {expense.name}
-                  </TableCell>
-                  <TableCell style={getTableBodyCellStyle(theme)}>
-                    {editingExpense?.identifier === expense.identifier &&
-                      editingExpense?.vendor === expense.vendor ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <Autocomplete
-                          value={editCategory}
-                          onChange={(event, newValue) => setEditCategory(newValue || '')}
-                          onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                          freeSolo
-                          options={availableCategories}
-                          size="small"
-                          sx={{
-                            minWidth: 120,
-                            '& .MuiOutlinedInput-root': {
-                              '& fieldset': {
-                                borderColor: '#e2e8f0',
+          <Box sx={{
+            borderRadius: '20px',
+            overflow: 'hidden',
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+            background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
+            backdropFilter: 'blur(10px)'
+          }} onClick={handleTableClick}>
+
+            <Table<Expense>
+              rows={Array.isArray(sortedExpenses) ? sortedExpenses : []}
+              rowKey={(row) => row.identifier ? `${row.identifier}-${row.vendor}` : JSON.stringify(row)} // Better unique key if possible
+              emptyMessage="No data available"
+              columns={React.useMemo(() => [
+                {
+                  id: 'name',
+                  label: 'Description',
+                  minWidth: 200,
+                  format: (val) => val
+                },
+                {
+                  id: 'category',
+                  label: 'Category',
+                  format: (_, expense) => {
+                    const isEditing = editingExpense?.identifier === expense.identifier && editingExpense?.vendor === expense.vendor;
+                    if (isEditing) {
+                      return (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <Autocomplete
+                            value={editCategory}
+                            onChange={(event, newValue) => setEditCategory(newValue || '')}
+                            onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                            freeSolo
+                            options={availableCategories}
+                            size="small"
+                            sx={{
+                              minWidth: 120,
+                              '& .MuiOutlinedInput-root': {
+                                '& fieldset': { borderColor: '#e2e8f0' },
+                                '&:hover fieldset': { borderColor: '#3b82f6' },
+                                '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
                               },
-                              '&:hover fieldset': {
-                                borderColor: '#3b82f6',
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: '#3b82f6',
-                              },
-                            },
-                          }}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              placeholder="Enter category..."
-                              sx={{
-                                '& .MuiInputBase-input': {
-                                  fontSize: '14px',
-                                  padding: '6px 10px',
-                                },
-                              }}
-                            />
+                            }}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                placeholder="Enter category..."
+                                sx={{ '& .MuiInputBase-input': { fontSize: '14px', padding: '6px 10px' } }}
+                              />
+                            )}
+                          />
+                          {editingExpense && editCategory !== editingExpense.category && editCategory !== (editingExpense.category || 'Uncategorized') && (
+                            <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={applyToAll}
+                                    onChange={(e) => setApplyToAll(e.target.checked)}
+                                    size="small"
+                                    sx={{ color: '#94a3b8', '&.Mui-checked': { color: '#3b82f6' }, padding: '2px' }}
+                                  />
+                                }
+                                label={
+                                  <Typography sx={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                    Apply to all & create rule
+                                  </Typography>
+                                }
+                                sx={{ margin: 0 }}
+                              />
+                            </Tooltip>
                           )}
-                        />
-                        {editingExpense && editCategory !== editingExpense.category && editCategory !== (editingExpense.category || 'Uncategorized') && (
-                          <Tooltip title="When checked, applies to all transactions with the same description and creates a rule for future transactions">
-                            <FormControlLabel
-                              control={
-                                <Checkbox
-                                  checked={applyToAll}
-                                  onChange={(e) => setApplyToAll(e.target.checked)}
-                                  size="small"
-                                  sx={{
-                                    color: '#94a3b8',
-                                    '&.Mui-checked': {
-                                      color: '#3b82f6',
-                                    },
-                                    padding: '2px',
-                                  }}
-                                />
-                              }
-                              label={
-                                <Typography sx={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
-                                  Apply to all & create rule
-                                </Typography>
-                              }
-                              sx={{ margin: 0 }}
-                            />
-                          </Tooltip>
-                        )}
-                      </Box>
-                    ) : (
+                        </Box>
+                      );
+                    }
+                    return (
                       <span
                         style={{
                           cursor: 'pointer',
@@ -725,107 +700,97 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                       >
                         {expense.category || 'Uncategorized'}
                       </span>
-                    )}
-                  </TableCell>
-                  <TableCell align="right" style={{
-                    ...getTableBodyCellStyle(theme),
-                    color: isBankView
-                      ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                      : (expense.price < 0 ? '#F87171' : color),
-                    fontWeight: '600'
-                  }}>
-                    {editingExpense?.identifier === expense.identifier &&
-                      editingExpense?.vendor === expense.vendor ? (
-                      <TextField
-                        value={editPrice}
-                        onChange={(e) => setEditPrice(e.target.value)}
-                        size="small"
-                        type="number"
-                        inputProps={{
-                          style: {
-                            textAlign: 'right',
-                            color: isBankView
-                              ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                              : color
-                          }
-                        }}
-                        sx={{
-                          width: '100px',
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: isBankView
-                                ? (expense.price >= 0 ? '#4ADE80' : '#F87171')
-                                : color,
+                    );
+                  }
+                },
+                {
+                  id: 'price',
+                  label: 'Amount',
+                  align: 'right',
+                  format: (_, expense) => {
+                    const isEditing = editingExpense?.identifier === expense.identifier && editingExpense?.vendor === expense.vendor;
+                    const displayAmount = Math.abs(expense.price);
+                    const isForeignCurrency = expense.original_currency && !['ILS', '₪', 'NIS'].includes(expense.original_currency);
+                    const sign = expense.price >= 0 ? (isBankView ? '+' : '') : '-';
+                    const getCurrencySymbol = (currency?: string) => {
+                      if (!currency) return '₪';
+                      if (['EUR', '€'].includes(currency)) return '€';
+                      if (['USD', '$'].includes(currency)) return '$';
+                      if (['GBP', '£'].includes(currency)) return '£';
+                      if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
+                      return currency + ' ';
+                    };
+
+                    if (isEditing) {
+                      return (
+                        <TextField
+                          value={editPrice}
+                          onChange={(e) => setEditPrice(e.target.value)}
+                          size="small"
+                          type="number"
+                          inputProps={{
+                            style: {
+                              textAlign: 'right',
+                              color: isBankView ? (expense.price >= 0 ? '#4ADE80' : '#F87171') : color
+                            }
+                          }}
+                          sx={{
+                            width: '100px',
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: isBankView ? (expense.price >= 0 ? '#4ADE80' : '#F87171') : color,
+                              },
                             },
-                          },
-                        }}
-                      />
-                    ) : (
-                      (() => {
-                        // Price is already the per-installment amount (combineInstallments: false)
-                        const displayAmount = Math.abs(expense.price);
+                          }}
+                        />
+                      );
+                    }
 
-                        // Check if original currency is different from ILS (foreign transaction)
-                        const isForeignCurrency = expense.original_currency &&
-                          !['ILS', '₪', 'NIS'].includes(expense.original_currency);
+                    if (isBankView) {
+                      return <span style={{ fontWeight: 600, color: (expense.price >= 0 ? '#4ADE80' : '#F87171') }}>{sign}₪{formatNumber(displayAmount)}</span>;
+                    }
 
-                        // Get the appropriate currency symbol
-                        const getCurrencySymbol = (currency?: string) => {
-                          if (!currency) return '₪';
-                          if (['EUR', '€'].includes(currency)) return '€';
-                          if (['USD', '$'].includes(currency)) return '$';
-                          if (['GBP', '£'].includes(currency)) return '£';
-                          if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
-                          return currency + ' ';
-                        };
+                    if (isForeignCurrency && expense.original_amount) {
+                      const symbol = getCurrencySymbol(expense.original_currency);
+                      const originalDisplayAmount = Math.abs(expense.original_amount);
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-end' }}>
+                          <span style={{ fontWeight: 600, color: (expense.price < 0 ? '#F87171' : color) }}>{sign}₪{formatNumber(displayAmount)}</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>({symbol}{formatNumber(originalDisplayAmount)})</span>
+                        </div>
+                      );
+                    }
 
-                        const sign = expense.price >= 0 ? (isBankView ? '+' : '') : '-';
+                    return <span style={{ fontWeight: 600, color: (expense.price < 0 ? '#F87171' : color) }}>{sign}₪{formatNumber(displayAmount)}</span>;
+                  }
+                },
+                {
+                  id: 'installments_number',
+                  label: 'Installment',
+                  align: 'center',
+                  format: (_, expense) => expense.installments_total && expense.installments_total > 1 ? (
+                    <span style={{
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      color: '#6366f1',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500'
+                    }}>
+                      {expense.installments_number}/{expense.installments_total}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                  )
+                },
+                {
+                  id: 'card',
+                  label: 'Card',
+                  format: (_, expense) => {
+                    const hasCardInfo = expense.vendor_nickname || expense.vendor || expense.card6_digits || expense.account_number;
+                    if (!hasCardInfo) return <span style={{ color: '#94a3b8' }}>—</span>;
 
-                        if (isBankView) {
-                          return `${sign}₪${formatNumber(displayAmount)}`;
-                        }
-
-                        // For foreign currency transactions, show ILS amount with original amount below
-                        if (isForeignCurrency && expense.original_amount) {
-                          const symbol = getCurrencySymbol(expense.original_currency);
-                          // original_amount is also already the per-installment amount
-                          const originalDisplayAmount = Math.abs(expense.original_amount);
-
-                          return (
-                            <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span>{sign}₪{formatNumber(displayAmount)}</span>
-                              <span style={{
-                                fontSize: '11px',
-                                color: '#64748b'
-                              }}>
-                                ({symbol}{formatNumber(originalDisplayAmount)})
-                              </span>
-                            </span>
-                          );
-                        }
-
-                        return `${sign}₪${formatNumber(displayAmount)}`;
-                      })()
-                    )}
-                  </TableCell>
-                  <TableCell style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
-                    {expense.installments_total && expense.installments_total > 1 ? (
-                      <span style={{
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                        color: '#6366f1',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '500'
-                      }}>
-                        {expense.installments_number}/{expense.installments_total}
-                      </span>
-                    ) : (
-                      <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
-                    )}
-                  </TableCell>
-                  <TableCell style={{ ...getTableBodyCellStyle(theme), fontSize: '12px' }}>
-                    {expense.vendor_nickname || expense.vendor || expense.card6_digits || expense.account_number ? (
+                    return (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <CardVendorIcon vendor={getCardVendor(expense.account_number)} size={24} />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -840,90 +805,86 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                             {getCardNickname(expense.account_number) || expense.vendor_nickname || expense.vendor}
                           </span>
                           {(expense.account_number || expense.card6_digits) && (
-                            <span style={{
-                              fontSize: '11px',
-                              color: '#64748b',
-                              paddingLeft: '8px'
-                            }}>
-                              •••• {expense.account_number
-                                ? expense.account_number.slice(-4)
-                                : expense.card6_digits?.slice(-4)}
+                            <span style={{ fontSize: '11px', color: '#64748b', paddingLeft: '8px' }}>
+                              •••• {expense.account_number ? expense.account_number.slice(-4) : expense.card6_digits?.slice(-4)}
                             </span>
                           )}
                         </div>
                       </Box>
-                    ) : (
-                      <span style={{ color: '#94a3b8' }}>—</span>
-                    )}
-                  </TableCell>
-                  <TableCell style={{ ...getTableBodyCellStyle(theme), color: theme.palette.text.secondary }}>
-                    {dateUtils.formatDate(expense.date)}
-                  </TableCell>
-                  <TableCell align="center" style={getTableBodyCellStyle(theme)}>
-                    {editingExpense?.identifier === expense.identifier &&
-                      editingExpense?.vendor === expense.vendor ? (
-                      <>
+                    );
+                  }
+                },
+                {
+                  id: 'date',
+                  label: 'Date',
+                  format: (val) => <span style={{ color: theme.palette.text.secondary }}>{dateUtils.formatDate(val)}</span>
+                },
+                {
+                  id: 'actions',
+                  label: 'Actions',
+                  align: 'center',
+                  format: (_, expense) => {
+                    const isEditing = editingExpense?.identifier === expense.identifier && editingExpense?.vendor === expense.vendor;
+                    if (isEditing) {
+                      return (
+                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                          <IconButton onClick={(e) => { e.stopPropagation(); handleSaveClick(); }} size="small" sx={{ color: '#4ADE80' }}>
+                            <CheckIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton onClick={(e) => { e.stopPropagation(); handleCancelClick(); }} size="small" sx={{ color: '#ef4444' }}>
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      );
+                    }
+                    return (
+                      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                         <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSaveClick();
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }}
                           size="small"
-                          sx={{ color: '#4ADE80' }}
-                        >
-                          <CheckIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelClick();
-                          }}
-                          size="small"
-                          sx={{ color: '#ef4444' }}
-                        >
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
-                      </>
-                    ) : (
-                      <>
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRowClick(expense);
-                            handleEditClick(expense);
-                          }}
-                          size="small"
-                          sx={{
-                            color: '#3b82f6',
-                            '&:hover': {
-                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            },
-                          }}
+                          sx={{ color: '#3b82f6', '&:hover': { backgroundColor: 'rgba(59, 130, 246, 0.1)' } }}
                         >
                           <EditIcon fontSize="small" />
                         </IconButton>
                         <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmDeleteExpense(expense);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteExpense(expense); }}
                           size="small"
-                          sx={{
-                            color: '#ef4444',
-                            '&:hover': {
-                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            },
-                          }}
+                          sx={{ color: '#ef4444', '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.1)' } }}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )) : <TableRow><TableCell colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>No data available</TableCell></TableRow>}
-            </TableBody>
-          </Table>
+                      </Box>
+                    );
+                  }
+                }
+              ], [editingExpense, editCategory, editPrice, applyToAll, isBankView, availableCategories, theme, color])}
+              mobileCardRenderer={(expense) => (
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>{expense.name}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} color={expense.price >= 0 && isBankView ? 'success.main' : 'error.main'}>
+                      {isBankView ? (expense.price >= 0 ? '+' : '') : (expense.price < 0 ? '-' : '')}₪{formatNumber(Math.abs(expense.price))}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">{dateUtils.formatDate(expense.date)}</Typography>
+                    <span style={{ fontSize: '11px', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                      {expense.category || 'Uncategorized'}
+                    </span>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }} sx={{ color: '#3b82f6' }}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setConfirmDeleteExpense(expense); }} sx={{ color: '#ef4444' }}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Box>
+              )}
+            />
+          </Box>
+
         </Box>
       </DialogContent >
 

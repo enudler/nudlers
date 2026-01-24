@@ -5,6 +5,8 @@ import Box from '@mui/material/Box';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import PageHeader from './PageHeader';
+import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
@@ -89,10 +91,20 @@ const BudgetDashboard: React.FC = () => {
     selectedYear, setSelectedYear,
     selectedMonth, setSelectedMonth,
     dateRangeMode, setDateRangeMode,
+    customStartDate, setCustomStartDate,
+    customEndDate, setCustomEndDate,
     uniqueYears,
     uniqueMonths,
     startDate, endDate, billingCycle
   } = useDateSelection();
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => setSelectedYear(e.target.value);
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => setSelectedMonth(e.target.value);
+  const handleDateRangeModeChange = (mode: DateRangeMode) => setDateRangeMode(mode);
+  const handleCustomDateChange = (type: 'start' | 'end', val: string) => {
+    if (type === 'start') setCustomStartDate(val);
+    else setCustomEndDate(val);
+  };
 
   // Local state for data
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -231,19 +243,6 @@ const BudgetDashboard: React.FC = () => {
     };
     init();
   }, [startDate, endDate, dateRangeMode, fetchBudgets, fetchAllCategories, fetchSpendingData, fetchBurndownData]);
-
-  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedYear(event.target.value);
-    // Context handles month adjustment
-  };
-
-  const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedMonth(event.target.value);
-  };
-
-  const handleDateRangeModeChange = (mode: DateRangeMode) => {
-    setDateRangeMode(mode);
-  };
 
   const handleRefresh = async () => {
     const budgetList = await fetchBudgets();
@@ -449,222 +448,55 @@ const BudgetDashboard: React.FC = () => {
         position: 'relative',
         zIndex: 1
       }}>
-        {/* Hero Section */}
-        <Box sx={{
-          background: 'var(--n-bg-surface)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: { xs: '20px', md: '32px' },
-          padding: { xs: '16px', sm: '24px', md: '36px' },
-          marginBottom: { xs: '16px', md: '32px' },
-          marginTop: { xs: '56px', md: '40px' },
-          marginLeft: { xs: '8px', md: '24px' },
-          marginRight: { xs: '8px', md: '24px' },
-          border: '1px solid var(--n-border)',
-          boxShadow: 'var(--n-shadow-md)',
-          position: 'relative',
-          overflow: 'hidden'
-        }} className="n-glass">
-          <Box sx={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            width: '300px',
-            height: '300px',
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
-            filter: 'blur(40px)',
-            zIndex: 0,
-            display: { xs: 'none', md: 'block' }
-          }} />
-          <Box sx={{
-            position: 'relative',
-            zIndex: 1,
-            display: 'flex',
-            flexDirection: { xs: 'column', md: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', md: 'center' },
-            gap: { xs: '16px', md: '24px' }
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: '12px', md: '16px' } }}>
-              <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: theme.palette.primary.main }} />
-              <div>
-                <Box component="h1" className="gradient-text" sx={{
-                  fontSize: { xs: '22px', md: '28px' },
-                  fontWeight: 800,
-                  margin: 0,
-                }}>Monthly Credit Card Budgets</Box>
-                <Box component="p" sx={{ margin: '4px 0 0', color: 'text.secondary', fontSize: { xs: '12px', md: '14px' } }}>
-                  Set general budget limits for credit card categories
-                </Box>
-              </div>
+        <PageHeader
+          title="Monthly Budgets"
+          description="Manage your monthly spending limits and track progress"
+          icon={<SavingsIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+          stats={
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Total Budget
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1, mt: 0.5 }}>
+                ₪{new Intl.NumberFormat('he-IL').format(totalBudget)}
+              </Typography>
             </Box>
-            <Box sx={{
-              display: 'flex',
-              gap: { xs: '8px', md: '16px' },
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              justifyContent: { xs: 'center', md: 'flex-end' }
-            }}>
-              <IconButton
-                onClick={handleRefresh}
-                sx={{
-                  background: theme.palette.background.default,
-                  backdropFilter: 'blur(10px)',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  color: 'text.secondary',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  '&:hover': {
-                    transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
-                    color: 'primary.main'
-                  }
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
-              <IconButton
-                onClick={handleOpenAddModal}
-                sx={{
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: 'none',
-                  color: theme.palette.common.white,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  '&:hover': {
-                    transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)'
-                  }
-                }}
-              >
-                <AddIcon />
-              </IconButton>
-              {/* Month selector to view spending comparison */}
-              <select
-                value={selectedYear}
-                onChange={handleYearChange}
-                className="n-glass n-select"
-                style={{ minWidth: '120px' }}
-              >
-                {uniqueYears.map((year) => (
-                  <option key={year} value={year} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>{year}</option>
-                ))}
-              </select>
-              <select
-                value={selectedMonth}
-                onChange={handleMonthChange}
-                className="n-glass n-select"
-                style={{ minWidth: '160px' }}
-              >
-                {uniqueMonths.map((month) => (
-                  <option key={month} value={month} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>
-                    {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
-                  </option>
-                ))}
-              </select>
-              {/* Date Range Mode Toggle */}
-              <div style={{
-                display: 'flex',
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '16px',
-                border: `1px solid ${theme.palette.divider}`,
-                padding: '4px',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-              }}>
-                <button
-                  onClick={() => handleDateRangeModeChange('calendar')}
-                  title="Full month (1st - end of month)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'calendar'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
-                      : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'calendar'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <CalendarMonthIcon style={{ fontSize: '18px' }} />
-                  <span>1-31</span>
-                </button>
-                <button
-                  onClick={() => handleDateRangeModeChange('billing')}
-                  title="Billing cycle (11th - 10th)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
-                      : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <DateRangeIcon style={{ fontSize: '18px' }} />
-                  <span>Cycle</span>
-                </button>
-              </div>
-            </Box>
-          </Box>
-          {/* Date range indicator */}
-          {selectedYear && selectedMonth && (
-            <div style={{
-              marginTop: '16px',
-              textAlign: 'center',
-              color: 'text.secondary',
-              fontSize: '14px',
-              fontWeight: 500
-            }}>
-              {dateRangeMode === 'billing' ? (
-                <span style={{
-                  background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: `1px solid ${theme.palette.primary.main}`,
-                  color: theme.palette.primary.main
-                }}>
-                  💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </span>
-              ) : (
-                <span style={{
-                  background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: `1px solid ${theme.palette.primary.main}`,
-                  color: theme.palette.primary.main
-                }}>
-                  📅 {dateRangeMode === 'custom' ? 'Custom Range' : 'Full Month'}: {new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              )}
-            </div>
-          )}
-        </Box>
+          }
+          showDateSelectors={true}
+          dateRangeMode={dateRangeMode}
+          onDateRangeModeChange={handleDateRangeModeChange}
+          selectedYear={selectedYear}
+          onYearChange={handleYearChange}
+          selectedMonth={selectedMonth}
+          onMonthChange={handleMonthChange}
+          uniqueYears={uniqueYears}
+          uniqueMonths={uniqueMonths}
+          customStartDate={customStartDate}
+          onCustomStartDateChange={(val) => handleCustomDateChange('start', val)}
+          customEndDate={customEndDate}
+          onCustomEndDateChange={(val) => handleCustomDateChange('end', val)}
+          onRefresh={handleRefresh}
+          extraControls={
+            <IconButton
+              onClick={handleOpenAddModal}
+              sx={{
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                padding: '10px',
+                borderRadius: '12px',
+                color: '#ffffff',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)'
+                }
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          }
+          startDate={startDate}
+          endDate={endDate}
+        />
 
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
