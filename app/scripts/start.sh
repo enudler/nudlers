@@ -9,6 +9,18 @@ APP_USER="pptruser"
 APP_GROUP="pptruser"
 DATA_DIR="/app/.wwebjs_auth"
 
+# Function to clean up stale Chromium lock files
+# These can persist if the container crashes or is forcefully stopped
+cleanup_stale_locks() {
+    echo "Cleaning up stale Chromium lock files..."
+    find "$DATA_DIR" -name "SingletonLock" -delete 2>/dev/null || true
+    find "$DATA_DIR" -name "SingletonCookie" -delete 2>/dev/null || true
+    find "$DATA_DIR" -name "SingletonSocket" -delete 2>/dev/null || true
+    # Also clean up any leftover Chrome/Chromium lock files
+    find "$DATA_DIR" -name ".org.chromium.Chromium.*" -delete 2>/dev/null || true
+    find "$DATA_DIR" -name "lockfile" -delete 2>/dev/null || true
+}
+
 # Function to start Xvfb and the app
 start_app() {
     echo "Starting Xvfb..."
@@ -27,6 +39,9 @@ if [ "$(id -u)" = "0" ]; then
     # Create data directory if it doesn't exist
     mkdir -p "$DATA_DIR"
 
+    # Clean up stale lock files before fixing permissions
+    cleanup_stale_locks
+
     # Fix ownership of the data directory
     chown -R "$APP_USER:$APP_GROUP" "$DATA_DIR"
 
@@ -38,4 +53,8 @@ fi
 
 # If we get here, we're running as pptruser
 echo "Running as $(whoami)"
+
+# Also clean up locks when running as non-root (in case container started without root)
+cleanup_stale_locks
+
 start_app
