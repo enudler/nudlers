@@ -26,6 +26,15 @@ const eslintConfig = [...nextConfig, {
     rules: {
         "react/no-unescaped-entities": "off",
     },
-}, ...storybook.configs["flat/recommended"]];
+}, ...storybook.configs["flat/recommended"], {
+    files: ["**/*.stories.@(ts|tsx|js|jsx|mjs|cjs)"],
+    rules: {
+        "storybook/no-renderer-packages": "off"
+    }
+}, {
+    rules: {
+        "react-hooks/preserve-manual-memoization": "off"
+    }
+}];
 
 export default eslintConfig;
