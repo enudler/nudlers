@@ -657,20 +657,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                       </Typography>
                     )
                   },
-                  {
-                    id: 'actions',
-                    label: 'Actions',
-                    align: 'right',
-                    format: (_: any, card: CardData) => editingCard === card.last4_digits && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: '40px' }}>
-                        {isSaving ? (
-                          <CircularProgress size={20} sx={{ color: theme.palette.text.secondary }} />
-                        ) : lastSaved && editingCard === card.last4_digits ? (
-                          <CheckCircleIcon sx={{ color: '#10b981', fontSize: '20px' }} />
-                        ) : null}
-                      </Box>
-                    )
-                  }
+
                 ]}
                 mobileCardRenderer={(card: CardData) => (
                   <Box>
