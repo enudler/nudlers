@@ -90,6 +90,15 @@ describe('MCP Server API', () => {
     it('should establish an SSE connection on GET', async () => {
         const req = new MockRequest('GET', '/api/mcp');
         const res = new MockResponse();
+        (res as any).socket = {
+            setTimeout: vi.fn(),
+            setNoDelay: vi.fn(),
+            setKeepAlive: vi.fn(),
+        };
+        (res as any).flush = vi.fn();
+
+        // Emit close after some time to let the handler finish
+        setTimeout(() => req.emit('close'), 200);
 
         await handler(req, res);
 
@@ -97,9 +106,6 @@ describe('MCP Server API', () => {
         expect(res.headers['content-type']).toBe('text/event-stream');
         expect(res.headers['cache-control']).toContain('no-cache');
         expect(res.headers['connection']).toBe('keep-alive');
-
-        // Expect endpoint event to be written
-        await new Promise(resolve => setTimeout(resolve, 100));
 
         const output = res.body;
         expect(output).toContain('event: endpoint');
@@ -109,7 +115,15 @@ describe('MCP Server API', () => {
     it('should handle POST messages for tools', async () => {
         const initReq = new MockRequest('GET', '/api/mcp');
         const initRes = new MockResponse();
-        await handler(initReq, initRes);
+        (initRes as any).socket = {
+            setTimeout: vi.fn(),
+            setNoDelay: vi.fn(),
+            setKeepAlive: vi.fn(),
+        };
+
+        // Start GET handler in background
+        const handlerPromise = handler(initReq, initRes);
+
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const match = initRes.body.match(/sessionId=([a-zA-Z0-9-]+)/);
@@ -143,13 +157,22 @@ describe('MCP Server API', () => {
         expect(postRes.statusCode).toBeLessThan(300);
         expect(initRes.body).toContain('serverInfo');
         expect(initRes.body).toContain('nudlers');
+
+        // Cleanup
+        initReq.emit('close');
+        await handlerPromise;
     });
 
     it('should list available tools', async () => {
         // 1. Establish connection
         const initReq = new MockRequest('GET', '/api/mcp');
         const initRes = new MockResponse();
-        await handler(initReq, initRes);
+        (initRes as any).socket = {
+            setTimeout: vi.fn(),
+            setNoDelay: vi.fn(),
+            setKeepAlive: vi.fn(),
+        };
+        const handlerPromise = handler(initReq, initRes);
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const match = initRes.body.match(/sessionId=([a-zA-Z0-9-]+)/);
@@ -203,6 +226,10 @@ describe('MCP Server API', () => {
 
         // Verify "get_monthly_summary" is in the output stream
         expect(initRes.body).toContain('get_monthly_summary');
+
+        // Cleanup
+        initReq.emit('close');
+        await handlerPromise;
     });
 
     // Cleanup

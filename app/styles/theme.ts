@@ -4,14 +4,14 @@ import { createTheme, ThemeOptions } from '@mui/material/styles';
 // Common settings
 const baseTheme: ThemeOptions = {
     typography: {
-        fontFamily: "'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-        h1: { fontWeight: 700 },
-        h2: { fontWeight: 700 },
-        h3: { fontWeight: 600 },
+        fontFamily: "'Outfit', 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+        h1: { fontWeight: 800, letterSpacing: '-0.02em' },
+        h2: { fontWeight: 700, letterSpacing: '-0.02em' },
+        h3: { fontWeight: 700, letterSpacing: '-0.01em' },
         h4: { fontWeight: 600 },
         h5: { fontWeight: 600 },
         h6: { fontWeight: 600 },
-        button: { textTransform: 'none', fontWeight: 600 },
+        button: { textTransform: 'none', fontWeight: 600, letterSpacing: '0.01em' },
     },
     shape: {
         borderRadius: 12,
@@ -20,14 +20,22 @@ const baseTheme: ThemeOptions = {
         MuiButton: {
             styleOverrides: {
                 root: {
-                    borderRadius: 8,
+                    borderRadius: 10,
                     boxShadow: 'none',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
-                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                        transform: 'translateY(-1px)',
+                        boxShadow: 'var(--n-shadow-md)',
+                    },
+                    '&:active': {
+                        transform: 'translateY(0)',
                     },
                 },
                 containedPrimary: {
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                    background: 'var(--n-primary)',
+                    '&:hover': {
+                        background: 'var(--n-primary-hover)',
+                    },
                 },
             },
         },
@@ -35,7 +43,14 @@ const baseTheme: ThemeOptions = {
             styleOverrides: {
                 root: {
                     backgroundImage: 'none',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                    borderRadius: 16,
+                    border: '1px solid var(--n-border)',
+                    backgroundColor: 'var(--n-bg-surface)',
+                    boxShadow: 'var(--n-shadow-md)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                        boxShadow: 'var(--n-shadow-lg)',
+                    },
                 },
             },
         },
@@ -43,16 +58,28 @@ const baseTheme: ThemeOptions = {
             styleOverrides: {
                 root: {
                     backgroundImage: 'none',
+                    backgroundColor: 'var(--n-bg-surface)',
                 },
             },
         },
         MuiTableCell: {
             styleOverrides: {
                 root: {
-                    borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+                    borderBottom: '1px solid var(--n-border)',
                 },
                 head: {
-                    fontWeight: 600,
+                    fontWeight: 700,
+                    backgroundColor: 'var(--n-bg-surface-alt)',
+                    color: 'var(--n-text-secondary)',
+                },
+            },
+        },
+        MuiDialog: {
+            styleOverrides: {
+                paper: {
+                    borderRadius: 20,
+                    boxShadow: 'var(--n-shadow-xl)',
+                    border: '1px solid var(--n-border)',
                 },
             },
         },
@@ -64,24 +91,24 @@ export const lightTheme = createTheme({
     palette: {
         mode: 'light',
         primary: {
-            main: '#3b82f6', // blue-500
-            light: '#60a5fa',
-            dark: '#2563eb',
+            main: '#6366f1', // Indigo 600
+            light: '#818cf8',
+            dark: '#4f46e5',
         },
         secondary: {
-            main: '#64748b', // slate-500
-            light: '#94a3b8',
-            dark: '#475569',
+            main: '#71717a', // Zinc 500
+            light: '#a1a1aa',
+            dark: '#52525b',
         },
         background: {
-            default: '#f8fafc', // slate-50
+            default: '#fafafa', // Zinc 50
             paper: '#ffffff',
         },
         text: {
-            primary: '#0f172a', // slate-900
-            secondary: '#475569', // slate-600
+            primary: '#09090b', // Zinc 950
+            secondary: '#52525b', // Zinc 600
         },
-        divider: '#e2e8f0', // slate-200
+        divider: '#e4e4e7', // Zinc 200
     },
 });
 
@@ -90,23 +117,23 @@ export const darkTheme = createTheme({
     palette: {
         mode: 'dark',
         primary: {
-            main: '#3b82f6', // blue-500
-            light: '#60a5fa',
-            dark: '#2563eb',
+            main: '#6366f1', // Indigo 500
+            light: '#818cf8',
+            dark: '#4f46e5',
         },
         secondary: {
-            main: '#94a3b8', // slate-400
-            light: '#cbd5e1',
-            dark: '#64748b',
+            main: '#a1a1aa', // Zinc 400
+            light: '#d4d4d8',
+            dark: '#71717a',
         },
         background: {
-            default: '#0f172a', // slate-900
-            paper: '#1e293b', // slate-800
+            default: '#09090b', // Zinc 950
+            paper: '#18181b', // Zinc 900
         },
         text: {
-            primary: '#f1f5f9', // slate-100
-            secondary: '#94a3b8', // slate-400
+            primary: '#fafafa', // Zinc 50
+            secondary: '#a1a1aa', // Zinc 400
         },
-        divider: '#334155', // slate-700
+        divider: '#27272a', // Zinc 800
     },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '@mui/material/styles';
+import PageHeader from '../PageHeader';
 import IconButton from '@mui/material/IconButton';
 import Box from '@mui/material/Box';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
@@ -814,505 +815,195 @@ const CategoryDashboard: React.FC = () => {
         zIndex: 1
       }}>
 
-        {/* Hero Section */}
+        <PageHeader
+          title="Financial Overview"
+          description="Analyze your financial health and spending patterns"
+          icon={<MonetizationOnIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+          showDateSelectors={true}
+          dateRangeMode={dateRangeMode}
+          onDateRangeModeChange={handleDateRangeModeChange}
+          selectedYear={selectedYear}
+          onYearChange={handleYearChange}
+          selectedMonth={selectedMonth}
+          onMonthChange={handleMonthChange}
+          uniqueYears={uniqueYears}
+          uniqueMonths={uniqueMonths}
+          customStartDate={customStartDate}
+          onCustomStartDateChange={(val) => handleCustomDateChange('start', val)}
+          customEndDate={customEndDate}
+          onCustomEndDateChange={(val) => handleCustomDateChange('end', val)}
+          onRefresh={handleRefreshClick}
+          extraControls={
+            <IconButton
+              onClick={handleTransactionsTableClick}
+              sx={{
+                background: showTransactionsTable
+                  ? (theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)')
+                  : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
+                backdropFilter: 'blur(10px)',
+                padding: '10px',
+                borderRadius: '12px',
+                border: showTransactionsTable
+                  ? `1px solid ${theme.palette.primary.main}`
+                  : `1px solid ${theme.palette.divider}`,
+                color: showTransactionsTable ? 'primary.main' : 'text.secondary',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
+                  color: 'primary.main'
+                }
+              }}
+            >
+              <TableChartIcon fontSize="medium" />
+            </IconButton>
+          }
+          startDate={startDate}
+          endDate={endDate}
+        />
+
+
+
+        {/* Summary Cards Section */}
         <Box sx={{
-          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: { xs: '20px', md: '32px' },
-          padding: { xs: '16px', sm: '24px', md: '36px' },
-          marginBottom: { xs: '24px', md: '90px' },
-          marginTop: { xs: '56px', md: '40px' },
-          marginLeft: { xs: '8px', md: '24px' },
-          marginRight: { xs: '8px', md: '24px' },
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-          position: 'relative',
-          overflow: 'hidden'
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: '16px', md: '32px' },
+          marginTop: { xs: '24px', md: '48px' },
+          marginBottom: { xs: '24px', md: '40px' }
         }}>
+          <Card
+            title="Bank Transactions"
+            value={bankTransactions.income}
+            color="#4ADE80"
+            icon={MonetizationOnIcon}
+            onClick={handleBankTransactionsClick}
+            isLoading={loadingBankTransactions}
+            size="medium"
+            secondaryValue={bankTransactions.expenses}
+            secondaryColor="#F87171"
+          />
+          <Card
+            title="Credit Card Transactions"
+            value={creditCardTransactions}
+            color="#3B82F6"
+            icon={CreditCardIcon}
+            onClick={handleTotalCreditCardExpensesClick}
+            isLoading={loadingBankTransactions}
+            size="medium"
+          />
+        </Box>
+
+        {showTransactionsTable ? (
           <Box sx={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            width: '300px',
-            height: '300px',
-            background: 'radial-gradient(circle, rgba(96, 165, 250, 0.1) 0%, transparent 70%)',
-            filter: 'blur(40px)',
-            zIndex: 0,
-            display: { xs: 'none', md: 'block' }
-          }} />
-          <Box sx={{
-            position: 'relative',
-            zIndex: 1,
-            display: 'flex',
-            flexDirection: { xs: 'column', md: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', md: 'center' },
-            gap: { xs: '16px', md: '24px' }
+            background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: { xs: '20px', md: '32px' },
+            padding: { xs: '12px', md: '32px' },
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+            overflowX: 'auto'
           }}>
-            <div>
-              <Box component="h1" sx={{
-                fontSize: { xs: '22px', md: '28px' },
+            <TransactionsTable
+              transactions={transactions}
+              isLoading={loadingTransactions}
+              onDelete={handleDeleteTransaction}
+              onUpdate={handleUpdateTransaction}
+              groupByDate={true}
+            />
+          </Box>
+        ) : (
+          <>
+            {/* Categories Section Header */}
+            <Box sx={{
+              marginBottom: { xs: '16px', md: '32px' },
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: '8px', md: '16px' }
+            }}>
+              <Box sx={{
+                height: '2px',
+                flex: 1,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
+                borderRadius: '2px',
+                display: { xs: 'none', sm: 'block' }
+              }} />
+              <Box component="h2" sx={{
+                fontSize: { xs: '12px', md: '14px' },
                 fontWeight: 700,
                 margin: 0,
-                background: theme.palette.mode === 'dark'
-                  ? 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)'
-                  : 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}>Financial Overview</Box>
-            </div>
-            <Box sx={{
-              display: 'flex',
-              gap: { xs: '8px', md: '16px' },
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              justifyContent: { xs: 'center', md: 'flex-end' }
-            }}>
-              <IconButton
-                onClick={handleRefreshClick}
-                sx={{
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  color: 'text.secondary',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  '&:hover': {
-                    transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
-                    color: 'primary.main'
-                  }
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
-              <IconButton
-                onClick={handleTransactionsTableClick}
-                sx={{
-                  background: showTransactionsTable
-                    ? (theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)')
-                    : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
-                  backdropFilter: 'blur(10px)',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: showTransactionsTable
-                    ? `1px solid ${theme.palette.primary.main}`
-                    : `1px solid ${theme.palette.divider}`,
-                  color: showTransactionsTable ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: showTransactionsTable
-                    ? '0 8px 24px rgba(96, 165, 250, 0.3)'
-                    : '0 4px 16px rgba(0, 0, 0, 0.08)',
-                  '&:hover': {
-                    transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-                    color: 'primary.main'
-                  }
-                }}
-              >
-                <TableChartIcon />
-              </IconButton>
-              {dateRangeMode !== 'custom' && (
-                <>
-                  <select
-                    value={selectedYear}
-                    onChange={handleYearChange}
-                    style={{ ...selectStyle, minWidth: '120px' }}
-                  >
-                    {uniqueYears.map((year) => (
-                      <option key={year} value={year} style={{
-                        background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
-                        color: theme.palette.text.primary
-                      }}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={selectedMonth}
-                    onChange={handleMonthChange}
-                    style={{ ...selectStyle, minWidth: '160px' }}
-                  >
-                    {uniqueMonths.map((month) => (
-                      <option key={month} value={month} style={{
-                        background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
-                        color: theme.palette.text.primary
-                      }}>
-                        {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              )}
-              {/* Date Range Mode Toggle */}
-              <div style={{
-                display: 'flex',
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '16px',
-                border: `1px solid ${theme.palette.divider}`,
-                padding: '4px',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-              }}>
-                <button
-                  onClick={() => handleDateRangeModeChange('calendar')}
-                  title="Full month (1st - end of month)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'calendar'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
-                      : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'calendar'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <CalendarMonthIcon style={{ fontSize: '18px' }} />
-                  <span>1-31</span>
-                </button>
-                <button
-                  onClick={() => handleDateRangeModeChange('billing')}
-                  title="Billing cycle (11th - 10th)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
-                      : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <DateRangeIcon style={{ fontSize: '18px' }} />
-                  <span>Cycle</span>
-                </button>
-                <button
-                  onClick={() => handleDateRangeModeChange('custom')}
-                  title="Custom date range (up to 5 years)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'custom'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
-                      : 'transparent',
-                    color: dateRangeMode === 'custom' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'custom'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <TuneIcon style={{ fontSize: '18px' }} />
-                  <span>Custom</span>
-                </button>
-              </div>
-            </Box>
-          </Box>
-          {/* Date range indicator */}
-          {dateRangeMode === 'custom' ? (
-            <div style={{
-              marginTop: '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                flexWrap: 'wrap',
-                justifyContent: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 500 }}>From:</span>
-                  <TextField
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                    size="small"
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '12px',
-                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.9)',
-                        color: theme.palette.text.primary,
-                        '& fieldset': {
-                          borderColor: dateRangeError ? '#ef4444' : theme.palette.divider,
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#10b981',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#10b981',
-                        },
-                      },
-                      '& .MuiInputBase-input': {
-                        padding: '10px 14px',
-                        fontSize: '14px',
-                        colorScheme: theme.palette.mode
-                      },
-                      '& .MuiSvgIcon-root': {
-                        color: theme.palette.text.secondary
-                      }
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 500 }}>To:</span>
-                  <TextField
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                    size="small"
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '12px',
-                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.9)',
-                        color: theme.palette.text.primary,
-                        '& fieldset': {
-                          borderColor: dateRangeError ? '#ef4444' : theme.palette.divider,
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#10b981',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#10b981',
-                        },
-                      },
-                      '& .MuiInputBase-input': {
-                        padding: '10px 14px',
-                        fontSize: '14px',
-                        colorScheme: theme.palette.mode
-                      },
-                      '& .MuiSvgIcon-root': {
-                        color: theme.palette.text.secondary
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              {dateRangeError && (
-                <span style={{
-                  color: '#ef4444',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(239, 68, 68, 0.2)'
-                }}>
-                  {dateRangeError}
-                </span>
-              )}
-              {customStartDate && customEndDate && !dateRangeError && (
-                <span style={{
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(16, 185, 129, 0.2)',
-                  color: '#10b981',
-                  fontSize: '13px',
-                  fontWeight: 500
-                }}>
-                  📅 {new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              )}
-            </div>
-          ) : selectedYear && selectedMonth && dateRangeMode === 'billing' ? (
-            <div style={{
-              marginTop: '16px',
-              textAlign: 'center',
-              color: '#64748b',
-              fontSize: '14px',
-              fontWeight: 500
-            }}>
-              <span style={{
-                background: 'rgba(139, 92, 246, 0.1)',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid rgba(139, 92, 246, 0.2)'
-              }}>
-                💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                <span style={{ opacity: 0.7, marginLeft: '8px', fontSize: '13px' }}>
-                  ({new Date(startDate).toLocaleDateString('en-GB')} - {new Date(endDate).toLocaleDateString('en-GB')})
-                </span>
-              </span>
-            </div>
-          ) : null}
-
-
-          {/* Summary Cards Section */}
-          <Box sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: { xs: '16px', md: '32px' },
-            marginTop: { xs: '24px', md: '48px' },
-            marginBottom: { xs: '24px', md: '40px' }
-          }}>
-            <Card
-              title="Bank Transactions"
-              value={bankTransactions.income}
-              color="#4ADE80"
-              icon={MonetizationOnIcon}
-              onClick={handleBankTransactionsClick}
-              isLoading={loadingBankTransactions}
-              size="medium"
-              secondaryValue={bankTransactions.expenses}
-              secondaryColor="#F87171"
-            />
-            <Card
-              title="Credit Card Transactions"
-              value={creditCardTransactions}
-              color="#3B82F6"
-              icon={CreditCardIcon}
-              onClick={handleTotalCreditCardExpensesClick}
-              isLoading={loadingBankTransactions}
-              size="medium"
-            />
-          </Box>
-
-          {showTransactionsTable ? (
-            <Box sx={{
-              background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(20px)',
-              borderRadius: { xs: '20px', md: '32px' },
-              padding: { xs: '12px', md: '32px' },
-              border: `1px solid ${theme.palette.divider}`,
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-              overflowX: 'auto'
-            }}>
-              <TransactionsTable
-                transactions={transactions}
-                isLoading={loadingTransactions}
-                onDelete={handleDeleteTransaction}
-                onUpdate={handleUpdateTransaction}
-                groupByDate={true}
-              />
-            </Box>
-          ) : (
-            <>
-              {/* Categories Section Header */}
+                color: '#475569',
+                letterSpacing: { xs: '1px', md: '2px' },
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                flex: { xs: 1, sm: 'none' }
+              }}>Expense Categories</Box>
               <Box sx={{
-                marginBottom: { xs: '16px', md: '32px' },
-                display: 'flex',
-                alignItems: 'center',
-                gap: { xs: '8px', md: '16px' }
-              }}>
-                <Box sx={{
-                  height: '2px',
-                  flex: 1,
-                  background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
-                  borderRadius: '2px',
-                  display: { xs: 'none', sm: 'block' }
-                }} />
-                <Box component="h2" sx={{
-                  fontSize: { xs: '12px', md: '14px' },
-                  fontWeight: 700,
-                  margin: 0,
-                  color: '#475569',
-                  letterSpacing: { xs: '1px', md: '2px' },
-                  textTransform: 'uppercase',
+                height: '2px',
+                flex: 1,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
+                borderRadius: '2px',
+                display: { xs: 'none', sm: 'block' }
+              }} />
+            </Box>
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(auto-fill, minmax(280px, 1fr))'
+              },
+              gap: { xs: '12px', sm: '16px', md: '32px' },
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
+              {categories.length > 0 ? (
+                categories.map((category, index) => (
+                  <Card
+                    key={"category-" + index}
+                    title={category.name}
+                    value={category.value}
+                    color={category.color}
+                    icon={category.icon}
+                    onClick={() => handleCategoryClick(category.name)}
+                    isLoading={loadingCategory === category.name}
+                    size="medium"
+                    budget={category.budget}
+                    onSetBudget={handleSetBudget}
+                    onEditBudget={handleEditBudget}
+                  />
+                ))
+              ) : (
+                <div style={{
+                  gridColumn: '1 / -1',
                   textAlign: 'center',
-                  flex: { xs: 1, sm: 'none' }
-                }}>Expense Categories</Box>
-                <Box sx={{
-                  height: '2px',
-                  flex: 1,
-                  background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
-                  borderRadius: '2px',
-                  display: { xs: 'none', sm: 'block' }
-                }} />
-              </Box>
-              <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  md: 'repeat(auto-fill, minmax(280px, 1fr))'
-                },
-                gap: { xs: '12px', sm: '16px', md: '32px' },
-                width: '100%',
-                boxSizing: 'border-box'
-              }}>
-                {categories.length > 0 ? (
-                  categories.map((category, index) => (
-                    <Card
-                      key={"category-" + index}
-                      title={category.name}
-                      value={category.value}
-                      color={category.color}
-                      icon={category.icon}
-                      onClick={() => handleCategoryClick(category.name)}
-                      isLoading={loadingCategory === category.name}
-                      size="medium"
-                      budget={category.budget}
-                      onSetBudget={handleSetBudget}
-                      onEditBudget={handleEditBudget}
-                    />
-                  ))
-                ) : (
+                  padding: '64px',
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: '24px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  backdropFilter: 'blur(20px)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{
-                    gridColumn: '1 / -1',
-                    textAlign: 'center',
-                    padding: '64px',
-                    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                    borderRadius: '24px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    backdropFilter: 'blur(20px)',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                    fontSize: '48px',
+                    marginBottom: '16px',
+                    opacity: 0.6
+                  }}>📊</div>
+                  <div style={{
+                    color: '#475569',
+                    fontSize: '18px',
+                    fontWeight: 600
                   }}>
-                    <div style={{
-                      fontSize: '48px',
-                      marginBottom: '16px',
-                      opacity: 0.6
-                    }}>📊</div>
-                    <div style={{
-                      color: '#475569',
-                      fontSize: '18px',
-                      fontWeight: 600
-                    }}>
-                      {dateRangeMode === 'custom'
-                        ? `No transactions found for ${customStartDate && customEndDate ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'selected date range'}`
-                        : `No transactions found for ${new Date(`2024-${selectedMonth}-01`).toLocaleDateString('default', { month: 'long' })} ${selectedYear}`
-                      }
-                    </div>
+                    {dateRangeMode === 'custom'
+                      ? `No transactions found for ${customStartDate && customEndDate ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'selected date range'}`
+                      : `No transactions found for ${new Date(`2024-${selectedMonth}-01`).toLocaleDateString('default', { month: 'long' })} ${selectedYear}`
+                    }
                   </div>
-                )}
-              </Box>
-            </>
-          )}
-        </Box>
+                </div>
+              )}
+            </Box>
+          </>
+        )}
       </Box>
 
       {
@@ -1321,7 +1012,7 @@ const CategoryDashboard: React.FC = () => {
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             data={modalData}
-            color={categoryColors[modalData?.type] || '#94a3b8'}
+            color={categoryColors[modalData?.type || 'expense'] || '#94a3b8'}
             setModalData={setModalData}
             currentMonth={`${selectedYear}-${selectedMonth}`}
           />
@@ -1439,7 +1130,7 @@ const CategoryDashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box >
+    </Box>
   );
 };
 

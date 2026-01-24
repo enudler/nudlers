@@ -51,23 +51,7 @@ export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Sync with Global CSS Variables
     useEffect(() => {
         const root = document.documentElement;
-        if (mode === 'dark') {
-            root.style.setProperty('--bg-default', '#0f172a');
-            root.style.setProperty('--bg-paper', '#1e293b');
-            root.style.setProperty('--text-primary', '#f1f5f9');
-            root.style.setProperty('--text-secondary', '#94a3b8');
-            root.style.setProperty('--border-color', '#334155');
-            root.style.setProperty('--hover-bg', 'rgba(255, 255, 255, 0.05)');
-            root.setAttribute('data-theme', 'dark');
-        } else {
-            root.style.setProperty('--bg-default', '#f8fafc');
-            root.style.setProperty('--bg-paper', '#ffffff');
-            root.style.setProperty('--text-primary', '#0f172a');
-            root.style.setProperty('--text-secondary', '#475569');
-            root.style.setProperty('--border-color', '#e2e8f0');
-            root.style.setProperty('--hover-bg', 'rgba(0, 0, 0, 0.04)');
-            root.setAttribute('data-theme', 'light');
-        }
+        root.setAttribute('data-theme', mode);
     }, [mode]);
 
     return (
