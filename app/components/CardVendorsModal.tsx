@@ -187,6 +187,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editingCard, setEditingCard] = useState<string | null>(null);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
     vendor: string;
     nickname: string;
@@ -241,27 +242,31 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
       const response = await fetch('/api/credentials');
       if (response.ok) {
         const data = await response.json();
-        // Filter to only bank accounts
         const banks = data.filter((acc: any) =>
           ['hapoalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'otsarHahayal', 'beinleumi', 'massad', 'pagi'].includes(acc.vendor)
         );
         setBankAccounts(banks);
       }
     } catch (err) {
-      // Silent fail - bank accounts are supplementary
       logger.error('Failed to fetch bank accounts', err as Error);
     }
   };
 
-  const handleEdit = (card: CardData, event?: React.MouseEvent) => {
+  const handleEdit = (card: CardData, field: string = 'vendor', event?: React.MouseEvent) => {
     if (event) {
       event.stopPropagation();
     }
 
-    // If we're already editing this card, do nothing
-    if (editingCard === card.last4_digits) return;
+    if (editingCard === card.last4_digits) {
+      // Just update focus within same card if needed, e.g. clicking another field
+      // But autoFocus prop is only read on mount/render. 
+      // We might want to force re-render or let user click. 
+      // For now, if already editing, we rely on standard click/focus behavior.
+      // We set focusedField anyway to help with render updates.
+      setFocusedField(field);
+      return;
+    }
 
-    // Save previous card if it has changes
     if (editingCard && originalValues) {
       const hasChanges = JSON.stringify(editValues) !== JSON.stringify(originalValues);
       if (hasChanges) {
@@ -278,6 +283,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
     };
 
     setEditingCard(card.last4_digits);
+    setFocusedField(field);
     setEditValues(initialValues);
     setOriginalValues(initialValues);
     setLastSaved(null);
@@ -298,11 +304,8 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
     try {
       setIsSaving(true);
 
-      // Optimistically update local state to avoid re-fetch and UI flash
-      // We do this BEFORE the network request
       setCards(prevCards => prevCards.map(c => {
         if (c.last4_digits === last4_digits) {
-          // Find linked bank info if applicable
           const linkedBank = bankAccounts.find(b => b.id === values.bankAccountId);
 
           return {
@@ -320,14 +323,11 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         return c;
       }));
 
-      // Update original values to current values so we don't save again
       setOriginalValues(values);
       setLastSaved(new Date());
 
-      // Trigger refresh to update card icons in other views
       window.dispatchEvent(new CustomEvent('cardVendorsUpdated'));
 
-      // Save card vendor info
       const cardResponse = await fetch('/api/cards', {
         method: 'POST',
         headers: {
@@ -344,27 +344,20 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         throw new Error('Failed to save card vendor');
       }
 
-      // Update bank account assignment if card ownership exists
       const card = cards.find(c => c.last4_digits === last4_digits);
 
       if (card?.card_ownership_id) {
         const payload: any = {};
 
         if (values.bankAccountId === -1) {
-          // Custom bank account validation
           if (!values.customBankNumber?.trim() && !values.customBankNickname?.trim()) {
             throw new Error('Please provide at least a number or nickname for the custom account');
           }
-
-          // Custom bank account
           payload.custom_bank_account_number = values.customBankNumber;
           payload.custom_bank_account_nickname = values.customBankNickname;
-          // Ensure linked account is cleared (though API handles this too)
           payload.linked_bank_account_id = null;
         } else {
-          // Regular linked account or null
           payload.linked_bank_account_id = values.bankAccountId;
-          // Ensure custom fields are cleared (API handles this)
           payload.custom_bank_account_number = null;
           payload.custom_bank_account_nickname = null;
         }
@@ -388,26 +381,300 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
         message: err instanceof Error ? err.message : 'Failed to save',
         severity: 'error',
       });
-      // Optionally revert optimistic update here if needed (skipping for complexity/UX tradeoff)
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Autosave effect
   useEffect(() => {
     if (!editingCard || !originalValues) return;
-
-    // Check if values have actually changed
     const hasChanges = JSON.stringify(editValues) !== JSON.stringify(originalValues);
     if (!hasChanges) return;
 
     const timeoutId = setTimeout(() => {
       handleSave(editingCard, editValues);
-    }, 1000); // Debounce for 1 second
+    }, 1000);
 
     return () => clearTimeout(timeoutId);
   }, [editValues, editingCard, originalValues]);
+
+  const columns = React.useMemo(() => [
+    {
+      id: 'card',
+      label: 'Card',
+      format: (_: any, card: CardData) => (
+        <CardChip>
+          <CardVendorIcon vendor={card.card_vendor} size={28} />
+          •••• {card.last4_digits}
+        </CardChip>
+      )
+    },
+    {
+      id: 'transactions',
+      label: 'Transactions',
+      format: (_: any, card: CardData) => (
+        <Typography
+          sx={{
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            color: '#6366f1',
+            padding: '4px 12px',
+            borderRadius: '20px',
+            fontSize: '14px',
+            fontWeight: 500,
+            display: 'inline-block',
+          }}
+        >
+          {card.transaction_count.toLocaleString()}
+        </Typography>
+      )
+    },
+    {
+      id: 'vendor',
+      label: 'Card Vendor',
+      minWidth: '200px',
+      format: (_: any, card: CardData) => editingCard === card.last4_digits ? (
+        <TextField
+          key={`vendor-edit-${card.last4_digits}`}
+          className={`edit-group-${card.last4_digits}`}
+          select
+          size="small"
+          autoFocus={focusedField === 'vendor'}
+          value={editValues.vendor}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            setEditValues(prev => ({ ...prev, vendor: newValue }));
+
+            const newValues = { ...editValues, vendor: newValue };
+            if (JSON.stringify(newValues) !== JSON.stringify(originalValues)) {
+              setTimeout(() => {
+                handleSave(editingCard, newValues).then(() => {
+                  setEditingCard(null);
+                  setSnackbar({ open: true, message: 'Vendor updated', severity: 'success' });
+                });
+              }, 200);
+            } else {
+              setEditingCard(null);
+            }
+          }}
+          fullWidth
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '12px',
+            },
+          }}
+        >
+          <MenuItem value="">
+            <em>None</em>
+          </MenuItem>
+          {Object.entries(CARD_VENDORS).map(([key, config]) => (
+            <MenuItem key={key} value={key}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CardVendorIcon vendor={key} size={24} />
+                {config.name}
+              </Box>
+            </MenuItem>
+          ))}
+        </TextField>
+      ) : (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            cursor: 'pointer',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            transition: 'all 0.2s',
+            '&:hover': {
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            },
+          }}
+          onClick={(e) => handleEdit(card, 'vendor', e)}
+        >
+          <CardVendorIcon vendor={card.card_vendor} size={24} />
+          <Typography sx={{ color: card.card_vendor ? theme.palette.text.primary : theme.palette.text.disabled }}>
+            {card.card_vendor
+              ? CARD_VENDORS[card.card_vendor as keyof typeof CARD_VENDORS]?.name || card.card_vendor
+              : 'Click to set vendor'}
+          </Typography>
+        </Box>
+      )
+    },
+    {
+      id: 'nickname',
+      label: 'Nickname',
+      format: (_: any, card: CardData) => editingCard === card.last4_digits ? (
+        <TextField
+          key={`nickname-edit-${card.last4_digits}`}
+          className={`edit-group-${card.last4_digits}`}
+          size="small"
+          autoFocus={focusedField === 'nickname'}
+          value={editValues.nickname}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setEditValues(prev => ({ ...prev, nickname: e.target.value }))}
+          onBlur={(e) => {
+            if (e.relatedTarget && (e.relatedTarget as Element).closest(`.edit-group-${card.last4_digits}`)) {
+              return;
+            }
+            if (JSON.stringify(editValues) !== JSON.stringify(originalValues)) {
+              handleSave(editingCard, editValues).then(() => {
+                setEditingCard(null);
+                setSnackbar({ open: true, message: 'Nickname saved', severity: 'success' });
+              });
+            } else {
+              setEditingCard(null);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              (e.target as HTMLElement).blur();
+            }
+          }}
+          placeholder="e.g., Personal Card"
+          fullWidth
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '12px',
+            },
+          }}
+        />
+      ) : (
+        <Typography
+          sx={{
+            color: card.card_nickname ? theme.palette.text.primary : theme.palette.text.disabled,
+            fontStyle: card.card_nickname ? 'normal' : 'italic',
+            cursor: 'pointer',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            '&:hover': {
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            }
+          }}
+          onClick={(e) => handleEdit(card, 'nickname', e)}
+        >
+          {card.card_nickname || 'No nickname'}
+        </Typography>
+      )
+    },
+    {
+      id: 'bankAccount',
+      label: 'Bank Account',
+      minWidth: '200px',
+      format: (_: any, card: CardData) => editingCard === card.last4_digits ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <TextField
+            key={`bank-edit-${card.last4_digits}`}
+            className={`edit-group-${card.last4_digits}`}
+            select
+            size="small"
+            autoFocus={focusedField === 'bankAccount'}
+            value={editValues.bankAccountId !== null ? editValues.bankAccountId : ''}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const val = e.target.value ? Number(e.target.value) : null;
+              const newValues = { ...editValues, bankAccountId: val };
+              setEditValues(newValues);
+
+              if (val !== -1) {
+                if (JSON.stringify(newValues) !== JSON.stringify(originalValues)) {
+                  setTimeout(() => {
+                    handleSave(editingCard, newValues).then(() => {
+                      setEditingCard(null);
+                      setSnackbar({ open: true, message: 'Bank account updated', severity: 'success' });
+                    });
+                  }, 200);
+                } else {
+                  setEditingCard(null);
+                }
+              }
+            }}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '12px',
+              },
+            }}
+          >
+            <MenuItem value="">
+              <em>No bank account</em>
+            </MenuItem>
+            <MenuItem value="-1">
+              <em>Custom Bank Account</em>
+            </MenuItem>
+            {bankAccounts.map((bankAccount) => (
+              <MenuItem key={bankAccount.id} value={bankAccount.id}>
+                {bankAccount.nickname} ({bankAccount.bank_account_number || bankAccount.vendor})
+              </MenuItem>
+            ))}
+          </TextField>
+          {editValues.bankAccountId === -1 && (
+            <Box
+              sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 1 }}
+              onBlur={(e) => {
+                if (e.relatedTarget && (e.relatedTarget as Element).closest(`.edit-group-${card.last4_digits}`)) {
+                  return;
+                }
+                if (JSON.stringify(editValues) !== JSON.stringify(originalValues)) {
+                  if (editValues.customBankNumber?.trim() || editValues.customBankNickname?.trim()) {
+                    handleSave(editingCard, editValues).then(() => {
+                      setEditingCard(null);
+                      setSnackbar({ open: true, message: 'Custom bank saved', severity: 'success' });
+                    });
+                  }
+                } else {
+                  setEditingCard(null);
+                }
+              }}
+              className={`custom-bank-group edit-group-${card.last4_digits}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <TextField
+                size="small"
+                className={`edit-group-${card.last4_digits}`}
+                placeholder="Nickname (e.g. My Bank)"
+                value={editValues.customBankNickname}
+                onChange={(e) => setEditValues(prev => ({ ...prev, customBankNickname: e.target.value }))}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLElement).blur(); }}
+              />
+              <TextField
+                size="small"
+                className={`edit-group-${card.last4_digits}`}
+                placeholder="Account Number"
+                value={editValues.customBankNumber}
+                onChange={(e) => setEditValues(prev => ({ ...prev, customBankNumber: e.target.value }))}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLElement).blur(); }}
+              />
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Typography
+          sx={{
+            color: card.bank_account_nickname || card.custom_bank_account_nickname ? theme.palette.text.primary : theme.palette.text.disabled,
+            fontStyle: card.bank_account_nickname || card.custom_bank_account_nickname ? 'normal' : 'italic',
+            cursor: 'pointer',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            '&:hover': {
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            }
+          }}
+          onClick={(e) => handleEdit(card, 'bankAccount', e)}
+        >
+          {card.bank_account_nickname
+            ? `${card.bank_account_nickname} (${card.bank_account_number || card.bank_account_vendor})`
+            : card.custom_bank_account_nickname
+              ? `${card.custom_bank_account_nickname} (${card.custom_bank_account_number})`
+              : 'No bank account'}
+        </Typography>
+      )
+    }
+  ], [editingCard, editValues, originalValues, bankAccounts, isSaving, theme, focusedField]);
 
   return (
     <>
@@ -466,199 +733,7 @@ export default function CardVendorsModal({ isOpen, onClose }: CardVendorsModalPr
                 rows={cards}
                 rowKey={(card) => card.last4_digits}
                 emptyMessage="No cards found"
-                columns={[
-                  {
-                    id: 'card',
-                    label: 'Card',
-                    format: (_: any, card: CardData) => (
-                      <CardChip>
-                        <CardVendorIcon vendor={card.card_vendor} size={28} />
-                        •••• {card.last4_digits}
-                      </CardChip>
-                    )
-                  },
-                  {
-                    id: 'transactions',
-                    label: 'Transactions',
-                    format: (_: any, card: CardData) => (
-                      <Typography
-                        sx={{
-                          backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                          color: '#6366f1',
-                          padding: '4px 12px',
-                          borderRadius: '20px',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          display: 'inline-block',
-                        }}
-                      >
-                        {card.transaction_count.toLocaleString()}
-                      </Typography>
-                    )
-                  },
-                  {
-                    id: 'vendor',
-                    label: 'Card Vendor',
-                    minWidth: '200px',
-                    format: (_: any, card: CardData) => editingCard === card.last4_digits ? (
-                      <TextField
-                        select
-                        size="small"
-                        value={editValues.vendor}
-                        onChange={(e) => setEditValues({ ...editValues, vendor: e.target.value })}
-                        fullWidth
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: '12px',
-                          },
-                        }}
-                      >
-                        <MenuItem value="">
-                          <em>None</em>
-                        </MenuItem>
-                        {Object.entries(CARD_VENDORS).map(([key, config]) => (
-                          <MenuItem key={key} value={key}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <CardVendorIcon vendor={key} size={24} />
-                              {config.name}
-                            </Box>
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    ) : (
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          cursor: 'pointer',
-                          padding: '8px 12px',
-                          borderRadius: '12px',
-                          transition: 'all 0.2s',
-                          '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          },
-                        }}
-                        onClick={() => handleEdit(card)}
-                      >
-                        <CardVendorIcon vendor={card.card_vendor} size={24} />
-                        <Typography sx={{ color: card.card_vendor ? theme.palette.text.primary : theme.palette.text.disabled }}>
-                          {card.card_vendor
-                            ? CARD_VENDORS[card.card_vendor as keyof typeof CARD_VENDORS]?.name || card.card_vendor
-                            : 'Click to set vendor'}
-                        </Typography>
-                      </Box>
-                    )
-                  },
-                  {
-                    id: 'nickname',
-                    label: 'Nickname',
-                    format: (_: any, card: CardData) => editingCard === card.last4_digits ? (
-                      <TextField
-                        size="small"
-                        value={editValues.nickname}
-                        onChange={(e) => setEditValues({ ...editValues, nickname: e.target.value })}
-                        placeholder="e.g., Personal Card"
-                        fullWidth
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: '12px',
-                          },
-                        }}
-                      />
-                    ) : (
-                      <Typography
-                        sx={{
-                          color: card.card_nickname ? theme.palette.text.primary : theme.palette.text.disabled,
-                          fontStyle: card.card_nickname ? 'normal' : 'italic',
-                          cursor: 'pointer',
-                          padding: '8px 12px',
-                          borderRadius: '12px',
-                          '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          }
-                        }}
-                        onClick={() => handleEdit(card)}
-                      >
-                        {card.card_nickname || 'No nickname'}
-                      </Typography>
-                    )
-                  },
-                  {
-                    id: 'bankAccount',
-                    label: 'Bank Account',
-                    minWidth: '200px',
-                    format: (_: any, card: CardData) => editingCard === card.last4_digits ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <TextField
-                          select
-                          size="small"
-                          value={editValues.bankAccountId !== null ? editValues.bankAccountId : ''}
-                          onChange={(e) => setEditValues({ ...editValues, bankAccountId: e.target.value ? Number(e.target.value) : null })}
-                          fullWidth
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: '12px',
-                            },
-                          }}
-                        >
-                          <MenuItem value="">
-                            <em>No bank account</em>
-                          </MenuItem>
-                          <MenuItem value="-1">
-                            <em>Custom Bank Account</em>
-                          </MenuItem>
-                          {bankAccounts.map((bankAccount) => (
-                            <MenuItem key={bankAccount.id} value={bankAccount.id}>
-                              {bankAccount.nickname} ({bankAccount.bank_account_number || bankAccount.vendor})
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        {editValues.bankAccountId === -1 && (
-                          <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <TextField
-                              size="small"
-                              placeholder="Nickname (e.g. My Bank)"
-                              value={editValues.customBankNickname}
-                              onChange={(e) => setEditValues({ ...editValues, customBankNickname: e.target.value })}
-                              fullWidth
-                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-                            />
-                            <TextField
-                              size="small"
-                              placeholder="Account Number"
-                              value={editValues.customBankNumber}
-                              onChange={(e) => setEditValues({ ...editValues, customBankNumber: e.target.value })}
-                              fullWidth
-                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-                            />
-                          </Box>
-                        )}
-                      </Box>
-                    ) : (
-                      <Typography
-                        sx={{
-                          color: card.bank_account_nickname || card.custom_bank_account_nickname ? theme.palette.text.primary : theme.palette.text.disabled,
-                          fontStyle: card.bank_account_nickname || card.custom_bank_account_nickname ? 'normal' : 'italic',
-                          cursor: 'pointer',
-                          padding: '8px 12px',
-                          borderRadius: '12px',
-                          '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          }
-                        }}
-                        onClick={() => handleEdit(card)}
-                      >
-                        {card.bank_account_nickname
-                          ? `${card.bank_account_nickname} (${card.bank_account_number || card.bank_account_vendor})`
-                          : card.custom_bank_account_nickname
-                            ? `${card.custom_bank_account_nickname} (${card.custom_bank_account_number})`
-                            : 'No bank account'}
-                      </Typography>
-                    )
-                  },
-
-                ]}
+                columns={columns}
                 mobileCardRenderer={(card: CardData) => (
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
