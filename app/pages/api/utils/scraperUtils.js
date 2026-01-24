@@ -1185,7 +1185,10 @@ export async function processScrapedAccounts({
           isUpdate: !!insertResult.updated,
           isDuplicate: !!insertResult.duplicated && !insertResult.updated,
           isBank: isBank,
-          oldCategory: insertResult.oldCategory
+          oldCategory: insertResult.oldCategory,
+          installmentsNumber: txn.installmentsNumber || txn.installments?.number,
+          installmentsTotal: txn.installmentsTotal || txn.installments?.total,
+          totalAmount: txn.originalAmount
         };
 
         if (insertResult.updated) {

@@ -26,6 +26,9 @@ export interface ScrapeReportTransaction {
     isDuplicate?: boolean;
     source?: string;
     rule?: string;
+    installmentsNumber?: number;
+    installmentsTotal?: number;
+    totalAmount?: number;
 }
 
 export interface ScrapeReportSummary {
@@ -174,6 +177,7 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
             <th style={{ padding: '10px 12px', fontWeight: 600, width: '120px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Account</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, width: '200px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Description</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right', width: '100px', borderBottom: `1px solid ${theme.palette.divider}` }}>Amount</th>
+            <th style={{ padding: '10px 12px', fontWeight: 600, width: '100px', textAlign: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>Installments</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, width: '150px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Category</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, width: '100px', textAlign: 'left', borderBottom: `1px solid ${theme.palette.divider}` }}>Status</th>
         </tr>
@@ -211,6 +215,30 @@ export default function ScrapeReport({ report, summary }: ScrapeReportProps) {
                 }}>
                     {Math.abs(tx.amount).toFixed(2)}
                 </Typography>
+            </td>
+            <td style={{ padding: '6px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {tx.installmentsTotal && tx.installmentsTotal > 1 ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <Typography variant="caption" sx={{
+                            color: theme.palette.text.secondary,
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f3f4f6',
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: 1,
+                            fontWeight: 600,
+                            border: `1px solid ${theme.palette.divider}`
+                        }}>
+                            {tx.installmentsNumber} / {tx.installmentsTotal}
+                        </Typography>
+                        {tx.totalAmount && Math.abs(tx.totalAmount) !== Math.abs(tx.amount) && (
+                            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', mt: 0.5 }}>
+                                of {Math.abs(tx.totalAmount).toFixed(0)}
+                            </Typography>
+                        )}
+                    </Box>
+                ) : (
+                    <Typography variant="caption" sx={{ color: 'text.disabled' }}>-</Typography>
+                )}
             </td>
             <td style={{ padding: '6px 12px' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
