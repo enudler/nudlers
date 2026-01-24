@@ -88,9 +88,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Setup non-root user for running the app
-# We use UID/GID 999 to avoid conflicts with node user (1000) in base image
-RUN groupadd -r -g 999 pptruser \
-    && useradd -r -u 999 -g pptruser -G audio,video pptruser \
+# Handle case where GID/UID might already exist in base image
+RUN (getent group pptruser || groupadd -r pptruser) \
+    && (getent passwd pptruser || useradd -r -g pptruser -G audio,video -m pptruser) \
     && mkdir -p /home/pptruser/Downloads /app/.wwebjs_auth \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /app
