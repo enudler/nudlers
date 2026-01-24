@@ -112,9 +112,7 @@ export async function register() {
             // Get WhatsApp settings
             const settingsResult = await client.query(
               `SELECT key, value FROM app_settings 
-               WHERE key IN ('whatsapp_enabled', 'whatsapp_hour', 'whatsapp_last_sent_date',
-                             'whatsapp_twilio_sid', 'whatsapp_twilio_auth_token', 
-                             'whatsapp_twilio_from', 'whatsapp_to')`
+               WHERE key IN ('whatsapp_enabled', 'whatsapp_hour', 'whatsapp_last_sent_date', 'whatsapp_to')`
             );
 
             const settings: Record<string, unknown> = {};

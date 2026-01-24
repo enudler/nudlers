@@ -107,7 +107,7 @@ export function getClient() {
             logger.error({ err: err.message, retry: initRetries }, 'Failed to initialize WhatsApp client');
 
             // Specialized recovery for Puppeteer SingletonLock
-            if (err.message && err.message.includes('SingletonLock')) {
+            if (err.message && (err.message.includes('SingletonLock') || err.message.includes('profile appears to be in use'))) {
                 logger.warn('Detected SingletonLock error, attempting automatic cleanup...');
                 try {
                     const lockPath = path.join(authPath, 'session-nudlers-client', 'SingletonLock');

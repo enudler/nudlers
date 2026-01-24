@@ -77,11 +77,9 @@ export const APP_SETTINGS_KEYS = {
     DATE_FORMAT: 'date_format',
     WHATSAPP_ENABLED: 'whatsapp_enabled',
     WHATSAPP_HOUR: 'whatsapp_hour',
-    WHATSAPP_TWILIO_SID: 'whatsapp_twilio_sid',
-    WHATSAPP_TWILIO_AUTH_TOKEN: 'whatsapp_twilio_auth_token',
-    WHATSAPP_TWILIO_FROM: 'whatsapp_twilio_from',
     WHATSAPP_TO: 'whatsapp_to',
     WHATSAPP_LAST_SENT_DATE: 'whatsapp_last_sent_date',
+    WHATSAPP_SUMMARY_MODE: 'whatsapp_summary_mode',
     GEMINI_MODEL: 'gemini_model',
     SYNC_LAST_RUN_AT: 'sync_last_run_at',
     SYNC_HOUR: 'sync_hour'

@@ -23,10 +23,19 @@ import { insertTransaction } from '../pages/api/utils/scraperUtils';
 describe('Transaction Logic Tests', () => {
 
     describe('getBillingCycleSql', () => {
-        it('should use inclusive >= for startDay', () => {
+        it('should contain the core logic components', () => {
             const sql = getBillingCycleSql(10);
             expect(sql).toContain('>= 10');
-            expect(sql).toContain('+ INTERVAL \'1 month\'');
+            expect(sql).toContain('> 10'); // New logic for processed_date
+            expect(sql).toContain('INTERVAL \'1 month\'');
+        });
+
+        it('should maintain current month for processed_date on the startDay', () => {
+            // This is the core fix: if processed_date is the 10th and differs from date,
+            // it stays in the billing month (it doesn't shift again to the 11th).
+            const sql = getBillingCycleSql(10, 't.date', 't.processed_date');
+            expect(sql).toContain('WHEN t.processed_date IS NOT NULL AND t.processed_date != t.date');
+            expect(sql).toContain('WHEN EXTRACT(DAY FROM t.processed_date) > 10');
         });
     });
 

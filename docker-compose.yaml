@@ -12,7 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
+      - ./app/migrations:/docker-entrypoint-initdb.d
     command: postgres -c ssl=off
     networks:
       - nudlers-network
@@ -23,7 +23,9 @@ services:
       retries: 5
 
   nudlers-app:
-    image: ghcr.io/enudler/nudlers:latest
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
