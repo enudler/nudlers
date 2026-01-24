@@ -1311,6 +1311,14 @@ const MonthlySummary: React.FC = () => {
     return cols;
   }, [groupBy, theme, editingDescription, editCategory, availableCategories, loadingDescription, loadingLast4, sortField, sortDirection]);
 
+  // Update document title and data
+  useEffect(() => {
+    if (selectedMonth && selectedYear) {
+      const monthName = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long' });
+      document.title = `Nudlers | ${monthName} ${selectedYear}`;
+    }
+  }, [selectedMonth, selectedYear]);
+
   if (error) {
     return (
       <div style={{
@@ -1473,7 +1481,7 @@ const MonthlySummary: React.FC = () => {
                       <CreditCardIcon sx={{ color: 'white', fontSize: '20px' }} />
                     )}
                     <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                      Total Expenses
+                      {selectedMonth && selectedYear ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'short' })} Expenses` : 'Total Expenses'}
                     </span>
                   </div>
                   <div style={{ fontSize: '24px', fontWeight: 700, color: 'white' }}>

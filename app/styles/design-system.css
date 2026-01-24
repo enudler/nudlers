@@ -155,6 +155,25 @@ h6 {
     background-size: 16px;
     cursor: pointer;
     transition: var(--n-transition-base);
+    color: var(--n-text-primary);
+    background-color: var(--n-bg-surface);
+    border: 1px solid var(--n-border);
+}
+
+.n-select:hover {
+    border-color: var(--n-border-hover);
+    background-color: var(--n-bg-surface-alt);
+}
+
+.n-select:focus {
+    outline: none;
+    border-color: var(--n-primary);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.n-select option {
+    background-color: var(--n-bg-surface);
+    color: var(--n-text-primary);
 }
 
 [data-theme='light'] .n-select {

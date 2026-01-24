@@ -134,7 +134,24 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                             fontWeight: 800,
                             margin: 0,
                             lineHeight: 1.2
-                        }}>{title}</Box>
+                        }}>
+                            {title}
+                            {dateRangeMode !== 'custom' && selectedMonth && selectedYear && (
+                                <Box component="span" sx={{
+                                    display: { xs: 'none', sm: 'inline' },
+                                    opacity: 0.9,
+                                    fontSize: '0.8em',
+                                    ml: 1.5,
+                                    fontWeight: 500,
+                                    color: theme.palette.text.secondary,
+                                    textFillColor: 'initial',
+                                    background: 'none',
+                                    WebkitTextFillColor: 'currentColor'
+                                }}>
+                                    • {new Date(`2024-${selectedMonth}-01`).toLocaleDateString('default', { month: 'long' })} {selectedYear}
+                                </Box>
+                            )}
+                        </Box>
                         {description && (
                             <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
                                 {description}
@@ -212,7 +229,8 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                                 value={selectedYear}
                                 onChange={onYearChange}
                                 className="n-glass n-select"
-                                style={{ minWidth: '95px', height: '40px', padding: '0 28px 0 12px', fontSize: '14px' }}
+                                style={{ minWidth: '110px' }}
+                                aria-label="Selected Year"
                             >
                                 {uniqueYears.map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
@@ -220,7 +238,8 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                                 value={selectedMonth}
                                 onChange={onMonthChange}
                                 className="n-glass n-select"
-                                style={{ minWidth: '130px', height: '40px', padding: '0 28px 0 12px', fontSize: '14px' }}
+                                style={{ minWidth: '140px' }}
+                                aria-label="Selected Month"
                             >
                                 {uniqueMonths.map(m => (
                                     <option key={m} value={m}>
