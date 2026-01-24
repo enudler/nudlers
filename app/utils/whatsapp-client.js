@@ -26,7 +26,8 @@ export function getClient() {
     // Use absolute path for auth strategy to ensure persistence in Docker volumes
     const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
 
-    // Build browser args - always use low-resource flags for WhatsApp since it runs continuously
+    // Build browser args - optimized for low-resource but stable WhatsApp operation
+    // NOTE: --single-process is NOT used here as it causes "detached Frame" errors with WhatsApp Web's iframes
     const browserArgs = [
         // Core sandbox/Docker flags
         '--no-sandbox',
@@ -34,19 +35,17 @@ export function getClient() {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
-        // Process optimization (critical for NAS - reduces memory footprint)
-        '--single-process',
+        // Process optimization (no-zygote helps memory, but keep multi-process for frame stability)
         '--no-zygote',
         '--no-first-run',
         '--disable-extensions',
         // Memory optimization
-        '--js-flags=--max-old-space-size=128', // WhatsApp needs less heap than scraping
+        '--js-flags=--max-old-space-size=256', // WhatsApp needs more heap for encryption
         '--disable-accelerated-2d-canvas',
         '--disable-canvas-aa',
         '--disable-2d-canvas-clip-aa',
         '--disk-cache-size=0',
         '--media-cache-size=0',
-        '--aggressive-cache-discard',
         // Disable unnecessary features
         '--mute-audio',
         '--disable-audio-output',
@@ -57,13 +56,12 @@ export function getClient() {
         '--disable-sync',
         '--disable-client-side-phishing-detection',
         '--disable-component-extensions-with-background-pages',
-        // Background throttling
+        // Background throttling (safe for WhatsApp)
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
-        // Feature disabling
-        '--disable-features=TranslateUI,IsolateOrigins,site-per-process,BackForwardCache',
-        '--blink-settings=imagesEnabled=false',
+        // Feature disabling - keep site-per-process enabled for frame stability
+        '--disable-features=TranslateUI,BackForwardCache',
     ];
 
     clientInstance = new Client({
