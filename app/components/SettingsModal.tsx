@@ -14,7 +14,9 @@ import {
   CircularProgress,
 
   Select,
-  MenuItem
+  MenuItem,
+  Chip,
+  Autocomplete
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -30,6 +32,9 @@ import DeleteAllTransactionsDialog from './DeleteAllTransactionsDialog';
 import ScreenshotViewer from './ScreenshotViewer';
 import ImageIcon from '@mui/icons-material/Image';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import CloseIcon from '@mui/icons-material/Close';
+import AddIcon from '@mui/icons-material/Add';
+import { msToSeconds, secondsToMs } from '../utils/settings-utils';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
 
 interface SettingsModalProps {
@@ -66,37 +71,85 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
       ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)'
       : 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(20px)',
-    border: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider}`,
     borderRadius: '16px',
     color: theme.palette.text.primary,
     minWidth: '500px',
-    maxHeight: '90vh'
+    maxHeight: '90vh',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+      : '0 25px 50px -12px rgba(0, 0, 0, 0.1)',
   }
 }));
 
 const SettingSection = styled(Box)(({ theme }) => ({
-  padding: '20px',
-  borderRadius: '12px',
-  border: `1px solid ${theme.palette.divider}`,
-  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(241, 245, 249, 0.6)',
-  marginBottom: '16px'
+  padding: '24px',
+  borderRadius: '16px',
+  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : theme.palette.divider}`,
+  background: theme.palette.mode === 'dark'
+    ? 'rgba(30, 41, 59, 0.4)'
+    : 'rgba(241, 245, 249, 0.6)',
+  marginBottom: '20px',
+  transition: 'all 0.2s ease-in-out',
+  '&:hover': {
+    background: theme.palette.mode === 'dark'
+      ? 'rgba(30, 41, 59, 0.5)'
+      : 'rgba(241, 245, 249, 0.8)',
+    borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
+  }
 }));
 
-const SettingRow = styled(Box)({
+const SettingRow = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '12px 0',
+  padding: '16px 0',
   '&:not(:last-child)': {
-    borderBottom: '1px solid rgba(148, 163, 184, 0.1)'
+    borderBottom: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.1)'}`
   }
-});
+}));
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
     color: theme.palette.text.primary,
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+    transition: 'all 0.2s ease-in-out',
     '& fieldset': {
-      borderColor: theme.palette.divider,
+      borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
+      transition: 'all 0.2s ease-in-out',
+    },
+    '&:hover fieldset': {
+      borderColor: theme.palette.primary.main,
+    },
+    '&.Mui-focused': {
+      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'transparent',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: theme.palette.primary.main,
+      borderWidth: '1.5px',
+      boxShadow: `0 0 0 4px ${theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`,
+    },
+  },
+  '& .MuiInputBase-input': {
+    padding: '8.5px 14px',
+    fontSize: '0.9rem',
+  },
+  '& .MuiInputLabel-root': {
+    color: theme.palette.text.secondary,
+    fontSize: '0.9rem',
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: theme.palette.primary.main,
+  },
+}));
+
+const StyledAutocomplete = styled(Autocomplete)(({ theme }) => ({
+  '& .MuiOutlinedInput-root': {
+    padding: '4px 8px',
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+    transition: 'all 0.2s ease-in-out',
+    '& fieldset': {
+      borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
     },
     '&:hover fieldset': {
       borderColor: theme.palette.primary.main,
@@ -105,11 +158,45 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
       borderColor: theme.palette.primary.main,
     },
   },
-  '& .MuiInputLabel-root': {
-    color: theme.palette.text.secondary,
+  '& .MuiChip-root': {
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+    color: '#10b981',
+    borderRadius: '8px',
+    height: '28px',
+    fontWeight: 500,
+    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'}`,
+    '& .MuiChip-deleteIcon': {
+      color: '#10b981',
+      fontSize: '16px',
+      '&:hover': {
+        color: '#059669',
+      },
+    },
   },
-  '& .MuiInputLabel-root.Mui-focused': {
-    color: theme.palette.primary.main,
+}));
+
+const StyledSelect = styled(Select)(({ theme }) => ({
+  color: theme.palette.text.primary,
+  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+  transition: 'all 0.2s ease-in-out',
+  '& .MuiOutlinedInput-notchedOutline': {
+    borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
+    transition: 'all 0.2s ease-in-out',
+  },
+  '&:hover .MuiOutlinedInput-notchedOutline': {
+    borderColor: theme.palette.primary.main,
+  },
+  '&.Mui-focused': {
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'transparent',
+  },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+    borderColor: theme.palette.primary.main,
+    borderWidth: '1.5px',
+    boxShadow: `0 0 0 4px ${theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`,
+  },
+  '& .MuiSelect-select': {
+    padding: '8.5px 14px',
+    fontSize: '0.9rem',
   },
 }));
 
@@ -215,7 +302,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           date_format: (data.settings.date_format || 'DD/MM/YYYY').replace(/"/g, ''),
           billing_cycle_start_day: parseInt(data.settings.billing_cycle_start_day) || 10,
           // fetch_categories_from_scrapers removed
-          scraper_timeout: parseInt(data.settings.scraper_timeout) || parseInt(data.settings.scraper_timeout_standard) || 90000,
+          scraper_timeout: msToSeconds(data.settings.scraper_timeout || data.settings.scraper_timeout_standard || 90000),
           scraper_log_http_requests: data.settings.scraper_log_http_requests === undefined
             ? false // Default to false if not set (matches backend behavior)
             : parseBool(data.settings.scraper_log_http_requests),
@@ -259,7 +346,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       const response = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings })
+        body: JSON.stringify({
+          settings: {
+            ...settings,
+            scraper_timeout: secondsToMs(settings.scraper_timeout)
+          }
+        })
       });
 
       if (response.ok) {
@@ -326,8 +418,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        pb: 2
+        borderBottom: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : theme.palette.divider}`,
+        px: 3,
+        py: 2.5
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <SettingsIcon sx={{ color: '#60a5fa' }} />
@@ -563,18 +656,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box>
-                  <Typography variant="body1">Scraper Timeout (ms)</Typography>
+                  <Typography variant="body1">Scraper Timeout (seconds)</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Maximum duration for scraping operations (default: 90000ms = 90 seconds)
+                    Maximum duration for scraping operations (default: 90 seconds)
                   </Typography>
                 </Box>
                 <StyledTextField
                   type="number"
                   value={settings.scraper_timeout}
-                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 90000 })}
+                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 90 })}
                   size="small"
                   sx={{ width: '120px' }}
-                  inputProps={{ min: 1000, step: 1000 }}
+                  inputProps={{ min: 1, step: 1 }}
                 />
               </SettingRow>
 
@@ -692,16 +785,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     AI model to use for chat and summaries
                   </Typography>
                 </Box>
-                <Select
+                <StyledSelect
                   value={settings.gemini_model}
-                  onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value })}
+                  onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value as string })}
                   size="small"
-                  sx={{ width: 250, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                  sx={{ width: 250 }}
                 >
                   <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</MenuItem>
                   <MenuItem value="gemini-3-flash-preview">Gemini 3 Flash (Limited)</MenuItem>
                   <MenuItem value="gemini-3-pro-preview">Gemini 3 Pro (Limited)</MenuItem>
-                </Select>
+                </StyledSelect>
               </SettingRow>
             </SettingSection>
 
@@ -803,15 +896,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     Time period to cover in the summary
                   </Typography>
                 </Box>
-                <Select
+                <StyledSelect
                   value={settings.whatsapp_summary_mode}
                   onChange={(e) => setSettings({ ...settings, whatsapp_summary_mode: e.target.value as 'calendar' | 'cycle' })}
                   size="small"
-                  sx={{ width: 220, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                  sx={{ width: 220 }}
                 >
                   <MenuItem value="calendar">Calendar Month (1st-30th)</MenuItem>
                   <MenuItem value="cycle">Billing Cycle (from {settings.billing_cycle_start_day}th)</MenuItem>
-                </Select>
+                </StyledSelect>
               </SettingRow>
 
 
@@ -839,22 +932,47 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
 
 
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
+              <SettingRow sx={{ alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1, mr: 2, pt: 1 }}>
                   <Typography variant="body1">Recipients</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    WhatsApp numbers or Group IDs, comma-separated.<br />
                     Numbers: 972501234567<br />
-                    Groups: 120363024523351234@g.us
+                    Groups: 120363024523351234@g.us<br />
+                    <span style={{ fontStyle: 'italic', fontSize: '0.75rem', opacity: 0.8 }}>Press Enter or tab to add a recipient</span>
                   </Typography>
                 </Box>
-                <StyledTextField
-                  value={settings.whatsapp_to}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_to: e.target.value })}
-                  placeholder="972501234567, 12036302...@g.us"
-                  size="small"
-                  sx={{ width: '350px' }}
-                />
+                <Box sx={{ width: '450px' }}>
+                  <StyledAutocomplete
+                    multiple
+                    freeSolo
+                    options={[]} // No pre-defined options
+                    value={(settings.whatsapp_to || '').split(',').map(s => s.trim()).filter(Boolean)}
+                    onChange={(_, newValue) => {
+                      const tags = newValue as string[];
+                      setSettings({ ...settings, whatsapp_to: tags.join(',') });
+                    }}
+                    renderTags={(value: unknown[], getTagProps) =>
+                      (value as string[]).map((option: string, index: number) => {
+                        const { key, ...tagProps } = getTagProps({ index });
+                        return (
+                          <Chip
+                            key={key}
+                            label={option}
+                            {...tagProps}
+                            deleteIcon={<CloseIcon />}
+                          />
+                        );
+                      })
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder={settings.whatsapp_to ? "" : "Enter number or group ID"}
+                        size="small"
+                      />
+                    )}
+                  />
+                </Box>
               </SettingRow>
 
 
@@ -970,10 +1088,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       </DialogContent>
 
       <DialogActions sx={{
-        borderTop: `1px solid ${theme.palette.divider}`,
-        p: 2,
+        borderTop: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : theme.palette.divider}`,
+        p: 2.5,
+        px: 3,
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.2)' : 'transparent'
       }}>
         <Typography variant="caption" sx={{ color: theme.palette.text.disabled, fontSize: '11px' }}>
           v{packageJson.version}

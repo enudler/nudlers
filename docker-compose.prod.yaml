@@ -1,5 +1,5 @@
 # Production docker-compose for NAS deployment
-# 
+#
 # Usage:
 #   1. Copy .env_example to .env and fill in your values
 #   2. Run: docker-compose -f docker-compose.prod.yaml up -d
@@ -27,7 +27,7 @@ services:
     networks:
       - nudlers-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${NUDLERS_DB_USER:-myuser} -d ${NUDLERS_DB_NAME:-nudlers}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${NUDLERS_DB_USER:-myuser} -d ${NUDLERS_DB_NAME:-nudlers}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -58,9 +58,14 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    
+
+    volumes:
+      - whatsapp-data:/app/.wwebjs_auth
+
 volumes:
   db-data:
+  whatsapp-data:
+
 
 networks:
   nudlers-network:

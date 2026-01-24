@@ -55,7 +55,8 @@ export default function SyncHistoryModal({ isOpen, onClose }: SyncHistoryModalPr
             const res = await fetch('/api/scrape-events');
             if (res.ok) {
                 const data = await res.json();
-                setEvents(data);
+                // Filter out non-sync events like whatsapp
+                setEvents(data.filter((e: SyncEvent) => e.vendor !== 'whatsapp_summary'));
             }
         } catch (err) {
             logger.error('Failed to fetch sync history', err as Error);

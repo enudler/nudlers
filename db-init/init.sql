@@ -272,8 +272,12 @@ INSERT INTO app_settings (key, value, description) VALUES
     ('fetch_categories_from_scrapers', 'true', 'Fetch categories from card providers during scraping. Disable to reduce rate limiting on Isracard/Amex/Cal.'),
     ('update_category_on_rescrape', 'false', 'Update transaction categories if bank provides new ones during re-scrape'),
     ('scrape_retries', '3', 'Number of times to retry scraping on failure'),
-    ('scraper_timeout', '90000', 'Timeout in milliseconds for scraper operations (default: 90000ms = 90 seconds)'),
+    ('scraper_timeout', '90000', 'Maximum time (ms) allowed for each scraper to run'),
     ('israeli_bank_scrapers_version', '"latest"', 'Specific version or branch of the scraper library (e.g. "latest", "master", "6.6.0")'),
     ('scraper_log_http_requests', 'false', 'Log all HTTP requests made by the scraper for debugging rate limiting issues'),
-    ('rate_limit_wait_seconds', '60', 'Seconds to wait before retrying when rate limited by a scraper')
+    ('rate_limit_wait_seconds', '60', 'Seconds to wait before retrying when rate limited by a scraper'),
+    ('whatsapp_enabled', 'false', 'Enable daily WhatsApp summaries'),
+    ('whatsapp_hour', '8', 'Hour of the day to send the WhatsApp summary'),
+    ('whatsapp_to', '""', 'Destination phone number for WhatsApp summaries'),
+    ('whatsapp_summary_mode', '"calendar"', 'Summary mode: calendar (monthly) or cycle (billing cycle)')
 ON CONFLICT (key) DO NOTHING;

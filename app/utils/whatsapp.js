@@ -14,9 +14,6 @@ export async function sendWhatsAppMessage({ to, body }) {
 
     try {
         const client = getClient();
-
-        // Wait for ready state if initializing? 
-        // For now, assume if it's called, we hope it's ready or throw
         const globalAny = global;
         const status = globalAny.whatsappStatus;
 

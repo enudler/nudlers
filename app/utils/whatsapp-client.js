@@ -5,118 +5,139 @@ import logger from '../utils/logger.js';
 import path from 'path';
 import fs from 'fs';
 
-// Singleton instance
-let clientInstance = null;
-let qrCode = null;
-let connectionStatus = 'DISCONNECTED'; // DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY
+/**
+ * WhatsApp Client Singleton
+ * Manages a single instance of whatsapp-web.js client.
+ * Uses global scoped variables to persist across HMR in development.
+ */
 
-// We need to attach this to global in development to prevent re-initialization on hot-reload
-// but in production it's just a module level variable
 const globalAny = global;
 
-if (globalAny.whatsappClient) {
-    clientInstance = globalAny.whatsappClient;
-    connectionStatus = globalAny.whatsappStatus || 'DISCONNECTED';
-    qrCode = globalAny.whatsappQR || null;
-}
+// Internal state
+let clientInstance = globalAny.whatsappClient || null;
+let connectionStatus = globalAny.whatsappStatus || 'DISCONNECTED'; // DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY
+let qrCode = globalAny.whatsappQR || null;
 
 export function getClient() {
-    if (!clientInstance) {
-        logger.info('Initializing new WhatsApp Client instance...');
+    if (clientInstance) return clientInstance;
 
-        // Ensure absolute path for auth strategy
-        const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
+    logger.info('Initializing new WhatsApp Client instance...');
 
-        clientInstance = new Client({
-            authStrategy: new LocalAuth({
-                clientId: 'nudlers-client',
-                dataPath: authPath
-            }),
-            puppeteer: {
-                headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
-            }
-        });
+    // Use absolute path for auth strategy to ensure persistence in Docker volumes
+    const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
 
-        // Event listeners
-        clientInstance.on('qr', (qr) => {
-            logger.info('WhatsApp QR Code generated');
-            qrCode = qr;
-            connectionStatus = 'QR_READY';
+    clientInstance = new Client({
+        authStrategy: new LocalAuth({
+            clientId: 'nudlers-client',
+            dataPath: authPath
+        }),
+        puppeteer: {
+            headless: true,
+            // Use system chromium if available (Crucial for Docker)
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process', // helps in low resource environments
+                '--disable-gpu'
+            ]
+        }
+    });
 
-            // Update global state
-            globalAny.whatsappQR = qr;
-            globalAny.whatsappStatus = 'QR_READY';
-        });
+    // Event listeners
+    clientInstance.on('qr', (qr) => {
+        logger.info('WhatsApp QR Code generated');
+        qrCode = qr;
+        connectionStatus = 'QR_READY';
+        globalAny.whatsappQR = qr;
+        globalAny.whatsappStatus = 'QR_READY';
+    });
 
-        clientInstance.on('ready', () => {
-            logger.info('WhatsApp Client is ready!');
-            connectionStatus = 'READY';
-            qrCode = null;
+    clientInstance.on('ready', () => {
+        logger.info('WhatsApp Client is ready!');
+        connectionStatus = 'READY';
+        qrCode = null;
+        globalAny.whatsappQR = null;
+        globalAny.whatsappStatus = 'READY';
+    });
 
-            // Update global state
-            globalAny.whatsappQR = null;
-            globalAny.whatsappStatus = 'READY';
-        });
+    clientInstance.on('authenticated', () => {
+        logger.info('WhatsApp Client authenticated');
+        connectionStatus = 'AUTHENTICATED';
+        globalAny.whatsappStatus = 'AUTHENTICATED';
+    });
 
-        clientInstance.on('authenticated', () => {
-            logger.info('WhatsApp Client authenticated');
-            connectionStatus = 'AUTHENTICATED';
-            globalAny.whatsappStatus = 'AUTHENTICATED';
-        });
+    clientInstance.on('auth_failure', (msg) => {
+        logger.error({ msg }, 'WhatsApp authentication failure');
+        connectionStatus = 'DISCONNECTED';
+        globalAny.whatsappStatus = 'DISCONNECTED';
+    });
 
-        clientInstance.on('auth_failure', (msg) => {
-            logger.error({ msg }, 'WhatsApp authentication failure');
-            connectionStatus = 'DISCONNECTED';
-            globalAny.whatsappStatus = 'DISCONNECTED';
-        });
+    clientInstance.on('disconnected', async (reason) => {
+        logger.warn({ reason }, 'WhatsApp Client disconnected');
+        connectionStatus = 'DISCONNECTED';
+        qrCode = null;
+        globalAny.whatsappQR = null;
+        globalAny.whatsappStatus = 'DISCONNECTED';
 
-        clientInstance.on('disconnected', (reason) => {
-            logger.warn({ reason }, 'WhatsApp Client disconnected');
-            connectionStatus = 'DISCONNECTED';
-            qrCode = null;
+        // Clean up and allow for re-initialization
+        await destroyClient();
+    });
 
-            // Update global state
-            globalAny.whatsappQR = null;
-            globalAny.whatsappStatus = 'DISCONNECTED';
+    // Save to global to survive HMR
+    globalAny.whatsappClient = clientInstance;
 
-            // Try to re-initialize?
-            destroyClient().then(() => {
-                // Maybe auto-restart logic here if needed
-            });
-        });
+    // Start initialization
+    connectionStatus = 'INITIALIZING';
+    globalAny.whatsappStatus = 'INITIALIZING';
 
-        // Save to global
-        globalAny.whatsappClient = clientInstance;
+    const MAX_INIT_RETRIES = 3;
+    let initRetries = 0;
 
-        // Start initialization
-        connectionStatus = 'INITIALIZING';
-        globalAny.whatsappStatus = 'INITIALIZING';
+    const initializeWithRetry = async () => {
+        try {
+            await clientInstance.initialize();
+            logger.info('WhatsApp client initialized successfully');
+        } catch (err) {
+            initRetries++;
+            logger.error({ err: err.message, retry: initRetries }, 'Failed to initialize WhatsApp client');
 
-        clientInstance.initialize().catch(async err => {
-            logger.error({ err }, 'Failed to initialize WhatsApp client');
-            connectionStatus = 'DISCONNECTED';
-            globalAny.whatsappStatus = 'DISCONNECTED';
-
-            // Auto-recovery for SingletonLock
+            // Specialized recovery for Puppeteer SingletonLock
             if (err.message && err.message.includes('SingletonLock')) {
-                logger.warn('Detected SingletonLock error, attempting to clean up and retry...');
+                logger.warn('Detected SingletonLock error, attempting automatic cleanup...');
                 try {
                     const lockPath = path.join(authPath, 'session-nudlers-client', 'SingletonLock');
                     if (fs.existsSync(lockPath)) {
                         fs.unlinkSync(lockPath);
-                        logger.info('Removed SingletonLock file');
-                        // wait a bit and retry (simple retry, not recursive to avoid loops)
+                        logger.info('Removed SingletonLock file, retrying...');
                         await new Promise(resolve => setTimeout(resolve, 1000));
-                        await clientInstance.initialize();
-                        logger.info('Retry initialization successful');
+                        return initializeWithRetry();
                     }
                 } catch (retryErr) {
-                    logger.error({ err: retryErr }, 'Failed to recover from SingletonLock error');
+                    logger.error({ err: retryErr.message }, 'Failed to recover from SingletonLock');
                 }
             }
-        });
-    }
+
+            if (initRetries < MAX_INIT_RETRIES) {
+                const delay = Math.pow(2, initRetries) * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return initializeWithRetry();
+            } else {
+                logger.error('Max retries reached for WhatsApp initialization');
+                connectionStatus = 'DISCONNECTED';
+                globalAny.whatsappStatus = 'DISCONNECTED';
+                // Reset client so it can be re-tried manually later via getClient()
+                clientInstance = null;
+                globalAny.whatsappClient = null;
+            }
+        }
+    };
+
+    initializeWithRetry();
 
     return clientInstance;
 }
@@ -124,17 +145,22 @@ export function getClient() {
 export function getStatus() {
     return {
         status: globalAny.whatsappStatus || connectionStatus,
-        qr: globalAny.whatsappQR || qrCode
+        qr: globalAny.whatsappQR || qrCode,
+        timestamp: new Date().toISOString()
     };
 }
 
 export async function destroyClient() {
-    if (clientInstance) {
+    if (clientInstance || globalAny.whatsappClient) {
+        const client = clientInstance || globalAny.whatsappClient;
         try {
-            await clientInstance.destroy();
+            logger.info('Destroying WhatsApp client instance...');
+            await client.destroy();
         } catch (e) {
-            logger.error({ err: e }, 'Error destroying client');
+            logger.error({ err: e.message }, 'Error destroying WhatsApp client');
         }
+
+        // Reset all local and global states
         clientInstance = null;
         qrCode = null;
         connectionStatus = 'DISCONNECTED';
@@ -146,9 +172,9 @@ export async function destroyClient() {
 }
 
 export async function restartClient() {
+    logger.info('Restarting WhatsApp client...');
     await destroyClient();
+    // Wait a bit to ensure resources are freed
+    await new Promise(resolve => setTimeout(resolve, 1000));
     return getClient();
 }
-
-// Ensure client is initialized or retrieved
-// getClient(); // Don't auto-init on require, let instrumentation do it

@@ -171,9 +171,9 @@ export async function register() {
 
             // Log to audit (scrape_events table)
             await client.query(
-              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
-               VALUES ($1, $2, $3, $4, $5)`,
-              ['whatsapp_cron', 'whatsapp_summary', today, 'success', 'Daily WhatsApp summary sent']
+              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message, report_json)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              ['whatsapp_cron', 'whatsapp_summary', today, 'success', `WhatsApp summary sent to ${to}`, JSON.stringify({ body: summary, to })]
             );
 
             logger.info('[whatsapp-cron] Daily summary sent successfully');
@@ -185,9 +185,9 @@ export async function register() {
             const errorMsg = (error as Error).message;
             const todayDate = new Date().toISOString().split('T')[0];
             await client.query(
-              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
-               VALUES ($1, $2, $3, $4, $5)`,
-              ['whatsapp_cron', 'whatsapp_summary', todayDate, 'failed', errorMsg]
+              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message, report_json)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              ['whatsapp_cron', 'whatsapp_summary', todayDate, 'failed', errorMsg, JSON.stringify({ error: errorMsg })]
             ).catch(() => { }); // Ignore if this fails
           } finally {
             client.release();
