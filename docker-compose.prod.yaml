@@ -35,6 +35,8 @@ services:
   nudlers-app:
     image: ghcr.io/enudler/nudlers:latest
     restart: unless-stopped
+    # Note: No 'user:' needed - container starts as root to fix volume permissions,
+    # then automatically drops to non-root 'pptruser' via gosu
     environment:
       - NUDLERS_DB_USER=${NUDLERS_DB_USER:-myuser}
       - NUDLERS_DB_HOST=nudlers-db
