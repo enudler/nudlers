@@ -102,8 +102,18 @@ export async function register() {
       logger.info('[startup] Initializing WhatsApp daily summary cron job');
       const cron = await import('node-cron');
 
+      // Track if cron job is currently running to prevent overlap
+      let whatsappCronRunning = false;
+
       // Run every hour to check if we should send the daily summary
       cron.default.schedule('0 * * * *', async () => {
+        // Prevent overlapping executions
+        if (whatsappCronRunning) {
+          logger.warn('[whatsapp-cron] Previous execution still running, skipping');
+          return;
+        }
+        whatsappCronRunning = true;
+
         try {
           const { getDB } = await import('./pages/api/db');
           const client = await getDB();
@@ -193,6 +203,8 @@ export async function register() {
         } catch (error: unknown) {
           const err = error as Error;
           logger.error({ error: err.message }, '[whatsapp-cron] Failed to execute cron job');
+        } finally {
+          whatsappCronRunning = false;
         }
       });
 
@@ -207,9 +219,19 @@ export async function register() {
       logger.info('[startup] Initializing Background Sync cron job');
       const cron = await import('node-cron');
 
+      // Track if sync cron job is currently running to prevent overlap
+      let syncCronRunning = false;
+
       // Run every hour to check if we should trigger a sync
       // The exact hour is controlled by the 'sync_hour' setting in the database
       cron.default.schedule('0 * * * *', async () => {
+        // Prevent overlapping executions (sync can take >1 hour on NAS)
+        if (syncCronRunning) {
+          logger.warn('[sync-cron] Previous sync still running, skipping this execution');
+          return;
+        }
+        syncCronRunning = true;
+
         // If we run exactly at 00 minutes, we might be a few ms early or late.
         // The currentHour check below handles the logic correctly.
         try {
@@ -275,6 +297,8 @@ export async function register() {
         } catch (error: unknown) {
           const err = error as Error;
           logger.error({ error: err.message }, '[sync-cron] Failed to execute sync cron job');
+        } finally {
+          syncCronRunning = false;
         }
       });
 

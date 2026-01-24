@@ -64,19 +64,27 @@ export const SCRAPER_LOW_RESOURCE_FLAGS = [
     '--blink-settings=imagesEnabled=false',
 ];
 
-// Timeout Settings
-export const DEFAULT_SCRAPER_TIMEOUT = 90000;
-export const DEFAULT_SCRAPE_RETRIES = 3;
+// Timeout Settings (configurable via env for NAS tuning)
+export const DEFAULT_SCRAPER_TIMEOUT = parseInt(process.env.SCRAPER_TIMEOUT || '90000', 10);
+export const DEFAULT_SCRAPE_RETRIES = parseInt(process.env.SCRAPER_RETRIES || '3', 10);
 export const RATE_LIMIT_DELAY_MIN = 1000;
 export const RATE_LIMIT_DELAY_MAX = 4000;
 export const RATE_LIMIT_SLOW_DELAY_MIN = 5000;
 export const RATE_LIMIT_SLOW_DELAY_MAX = 10000;
-export const DEFAULT_PROTOCOL_TIMEOUT = 180000;
+export const DEFAULT_PROTOCOL_TIMEOUT = parseInt(process.env.SCRAPER_PROTOCOL_TIMEOUT || '180000', 10);
 
 // Scraper Phase 3 (Selective API Calls)
-export const SCRAPER_PHASE3_MAX_CALLS = 200;
+export const SCRAPER_PHASE3_MAX_CALLS = parseInt(process.env.SCRAPER_PHASE3_MAX_CALLS || '200', 10);
 export const SCRAPER_PHASE3_DELAY = 1000;
 export const SCRAPER_PHASE3_BATCH_SIZE = 5;
+
+// Cache sizes (reduce for NAS/low-memory environments)
+const LOW_RESOURCES = process.env.LOW_RESOURCES_MODE === 'true';
+export const CATEGORY_CACHE_LIMIT = parseInt(process.env.CATEGORY_CACHE_LIMIT || (LOW_RESOURCES ? '200' : '300'), 10);
+export const HISTORY_CACHE_LIMIT = parseInt(process.env.HISTORY_CACHE_LIMIT || (LOW_RESOURCES ? '1000' : '3000'), 10);
+
+// Screenshot retention (days) - older screenshots are cleaned up on startup
+export const SCREENSHOT_RETENTION_DAYS = parseInt(process.env.SCREENSHOT_RETENTION_DAYS || '7', 10);
 
 // App Settings Keys
 export const APP_SETTINGS_KEYS = {
