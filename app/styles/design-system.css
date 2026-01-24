@@ -1,0 +1,166 @@
+@import './design-tokens.css';
+
+/* Typography */
+body {
+    font-family: 'Outfit', 'Assistant', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--n-bg-main);
+    color: var(--n-text-primary);
+    line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--n-text-primary);
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Premium Containers */
+.n-card {
+    background: var(--n-bg-surface);
+    border: 1px solid var(--n-border);
+    border-radius: var(--n-radius-xl);
+    padding: var(--n-space-6);
+    box-shadow: var(--n-shadow-md);
+    transition: var(--n-transition-base);
+}
+
+.n-card-hover:hover {
+    border-color: var(--n-border-hover);
+    box-shadow: var(--n-shadow-lg);
+    transform: translateY(-2px);
+}
+
+/* Glassmorphism Refined */
+.n-glass {
+    background: var(--n-glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--n-glass-border);
+    box-shadow: var(--n-shadow-lg);
+}
+
+/* Animated Gradients */
+.n-gradient-bg {
+    background: linear-gradient(-45deg, #6366f1, #a855f7, #ec4899, #3b82f6);
+    background-size: 400% 400%;
+    animation: n-gradient-animation 15s ease infinite;
+}
+
+@keyframes n-gradient-animation {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Buttons (Vanilla counterparts) */
+.n-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--n-space-2) var(--n-space-4);
+    border-radius: var(--n-radius-md);
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: var(--n-transition-fast);
+    cursor: pointer;
+    border: 1px solid transparent;
+    gap: var(--n-space-2);
+}
+
+.n-btn-primary {
+    background-color: var(--n-primary);
+    color: var(--n-primary-foreground);
+}
+
+.n-btn-primary:hover {
+    background-color: var(--n-primary-hover);
+    transform: scale(1.02);
+}
+
+.n-btn-outline {
+    background-color: transparent;
+    border-color: var(--n-border);
+    color: var(--n-text-primary);
+}
+
+.n-btn-outline:hover {
+    background-color: var(--n-bg-surface-alt);
+    border-color: var(--n-border-hover);
+}
+
+/* Micro-interactions */
+.n-scale-on-hover {
+    transition: var(--n-transition-fast);
+}
+
+.n-scale-on-hover:hover {
+    transform: scale(1.05);
+}
+
+.n-active-press:active {
+    transform: scale(0.95);
+}
+
+/* Scrollbar Refinement */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--n-border);
+    border-radius: var(--n-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--n-text-muted);
+}
+
+/* Custom Select Refinement */
+.n-select {
+    padding: 12px 40px 12px 16px;
+    border-radius: var(--n-radius-xl);
+    font-size: 15px;
+    font-weight: 600;
+    appearance: none;
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    cursor: pointer;
+    transition: var(--n-transition-base);
+}
+
+[data-theme='light'] .n-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+[data-theme='dark'] .n-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}

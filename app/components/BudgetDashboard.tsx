@@ -85,49 +85,6 @@ const formatCurrency = (amount: number): string => {
 
 const BudgetDashboard: React.FC = () => {
   const theme = useTheme();
-  const BUTTON_STYLE = {
-    background: theme.palette.background.paper,
-    backdropFilter: 'blur(10px)',
-    padding: '14px',
-    borderRadius: '16px',
-    border: '1px solid rgba(148, 163, 184, 0.2)',
-    color: theme.palette.text.secondary,
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-  };
-
-  const HOVER_BUTTON_STYLE = {
-    transform: 'translateY(-2px) scale(1.05)',
-    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-    background: theme.palette.action.hover,
-    color: theme.palette.primary.main
-  };
-
-  const selectStyle: React.CSSProperties = {
-    padding: '14px 40px 14px 14px', // Extra right padding for arrow
-    borderRadius: '16px',
-    border: `1px solid ${theme.palette.divider}`,
-    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    color: theme.palette.text.primary,
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    outline: 'none',
-    textAlign: 'left' as const,
-    direction: 'ltr' as const,
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    appearance: 'none' as const,
-    WebkitAppearance: 'none' as const,
-    backgroundImage: theme.palette.mode === 'dark'
-      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
-      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 14px center',
-    backgroundSize: '16px'
-  };
-  // Date Selection Context
   const {
     selectedYear, setSelectedYear,
     selectedMonth, setSelectedMonth,
@@ -494,7 +451,7 @@ const BudgetDashboard: React.FC = () => {
       }}>
         {/* Hero Section */}
         <Box sx={{
-          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
+          background: 'var(--n-bg-surface)',
           backdropFilter: 'blur(20px)',
           borderRadius: { xs: '20px', md: '32px' },
           padding: { xs: '16px', sm: '24px', md: '36px' },
@@ -502,11 +459,11 @@ const BudgetDashboard: React.FC = () => {
           marginTop: { xs: '56px', md: '40px' },
           marginLeft: { xs: '8px', md: '24px' },
           marginRight: { xs: '8px', md: '24px' },
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+          border: '1px solid var(--n-border)',
+          boxShadow: 'var(--n-shadow-md)',
           position: 'relative',
           overflow: 'hidden'
-        }}>
+        }} className="n-glass">
           <Box sx={{
             position: 'absolute',
             top: 0,
@@ -530,16 +487,10 @@ const BudgetDashboard: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: '12px', md: '16px' } }}>
               <SavingsIcon sx={{ fontSize: { xs: '28px', md: '36px' }, color: theme.palette.primary.main }} />
               <div>
-                <Box component="h1" sx={{
+                <Box component="h1" className="gradient-text" sx={{
                   fontSize: { xs: '22px', md: '28px' },
-                  fontWeight: 700,
+                  fontWeight: 800,
                   margin: 0,
-                  background: theme.palette.mode === 'dark'
-                    ? 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)'
-                    : 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
                 }}>Monthly Credit Card Budgets</Box>
                 <Box component="p" sx={{ margin: '4px 0 0', color: 'text.secondary', fontSize: { xs: '12px', md: '14px' } }}>
                   Set general budget limits for credit card categories
@@ -597,19 +548,21 @@ const BudgetDashboard: React.FC = () => {
               <select
                 value={selectedYear}
                 onChange={handleYearChange}
-                style={{ ...selectStyle, minWidth: '120px' }}
+                className="n-glass n-select"
+                style={{ minWidth: '120px' }}
               >
                 {uniqueYears.map((year) => (
-                  <option key={year} value={year} style={{ background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', color: theme.palette.text.primary }}>{year}</option>
+                  <option key={year} value={year} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>{year}</option>
                 ))}
               </select>
               <select
                 value={selectedMonth}
                 onChange={handleMonthChange}
-                style={{ ...selectStyle, minWidth: '160px' }}
+                className="n-glass n-select"
+                style={{ minWidth: '160px' }}
               >
                 {uniqueMonths.map((month) => (
-                  <option key={month} value={month} style={{ background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', color: theme.palette.text.primary }}>
+                  <option key={month} value={month} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>
                     {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
                   </option>
                 ))}
@@ -720,18 +673,14 @@ const BudgetDashboard: React.FC = () => {
         ) : (
           <>
             {/* Total Spend Budget - Prominent Feature Card */}
-            <div style={{
+            <div className={`n-card n-card-hover ${totalSpendBudget?.is_over_budget ? '' : 'n-glass'}`} style={{
               background: totalSpendBudget?.is_over_budget
                 ? (theme.palette.mode === 'dark' ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)')
-                : (theme.palette.mode === 'dark' ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%)'),
-              backdropFilter: 'blur(20px)',
-              borderRadius: '24px',
-              padding: '28px',
+                : 'var(--n-glass-bg)',
               margin: '0 24px 24px',
               border: totalSpendBudget?.is_over_budget
-                ? '2px solid rgba(239, 68, 68, 0.3)'
-                : '2px solid rgba(139, 92, 246, 0.2)',
-              boxShadow: '0 8px 32px rgba(139, 92, 246, 0.15)',
+                ? '2px solid var(--n-error)'
+                : '1px solid var(--n-border)',
               position: 'relative',
               overflow: 'hidden'
             }}>

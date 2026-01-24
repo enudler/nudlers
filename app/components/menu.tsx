@@ -52,24 +52,22 @@ const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false 
 
 
 interface ResponsiveAppBarProps {
-  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring';
-  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring') => void;
+  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
+  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design') => void;
 }
 
 
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
-  background: theme.palette.mode === 'dark'
-    ? 'rgba(15, 23, 42, 0.8)'
-    : 'rgba(255, 255, 255, 0.8)',
+  background: 'var(--n-glass-bg)',
   backdropFilter: 'blur(12px)',
-  borderBottom: `1px solid ${theme.palette.divider}`,
+  borderBottom: '1px solid var(--n-border)',
   boxShadow: 'none',
-  color: theme.palette.text.primary,
+  color: 'var(--n-text-primary)',
 }));
 
 const Logo = styled(Typography)({
-  fontFamily: "Assistant, sans-serif",
+  fontFamily: "Outfit, Assistant, sans-serif",
   fontWeight: 700,
   letterSpacing: ".3rem",
   background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%)',
@@ -146,12 +144,12 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   }, [desktopDrawerOpen, isMobile]);
 
   const viewMenuItems = [
-    { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: '#3b82f6' },
-    { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: '#3b82f6' },
-    { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: '#3b82f6' },
-    { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: '#3b82f6' },
-    { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: '#3b82f6' },
-    { label: 'Chat', icon: <ForumIcon />, view: 'chat' as const, color: '#3b82f6' },
+    { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
+    { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
+    { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: 'var(--n-primary)' },
+    { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
+    { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: 'var(--n-primary)' },
+    { label: 'Chat', icon: <ForumIcon />, view: 'chat' as const, color: 'var(--n-primary)' },
   ];
 
 

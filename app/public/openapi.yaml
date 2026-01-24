@@ -1365,6 +1365,48 @@ paths:
       responses:
         '200':
           description: Import result
+  /mcp:
+    get:
+      tags:
+        - Settings
+      summary: Establish MCP SSE connection
+      description: |
+        Endpoint for Server-Sent Events (SSE) connection in Model Context Protocol (MCP).
+        This keeps a long-running connection open to relay messages to the MCP server.
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                format: binary
+    post:
+      tags:
+        - Settings
+      summary: Send message to MCP server
+      description: |
+        Relays a JSON-RPC message to an active MCP session identified by the sessionId.
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          description: Unique session ID established via the GET /mcp request.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '202':
+          description: Accepted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Session not found
 
 components:
   schemas:

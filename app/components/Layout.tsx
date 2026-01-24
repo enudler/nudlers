@@ -9,10 +9,11 @@ import ScrapeAuditView from "./ScrapeAuditView";
 import RecurringPaymentsView from "./RecurringPaymentsView";
 import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
+import DesignSystemShowcase from "./DesignSystemShowcase";
 import Footer from "./Footer";
 import { Box } from "@mui/material";
 
-type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring';
+type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
 
 // Screen context for AI Assistant
 interface ScreenContext {
@@ -66,10 +67,11 @@ export const useScreenContext = () => {
 
 interface LayoutProps {
   children: React.ReactNode;
+  defaultView?: ViewType;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [currentView, setCurrentView] = useState<ViewType>('summary');
+const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) => {
+  const [currentView, setCurrentView] = useState<ViewType>(defaultView);
   const [screenContext, setScreenContext] = useState<ScreenContext>({ view: 'summary' });
   const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
   const [syncDrawerWidth, setSyncDrawerWidth] = useState(600);
@@ -142,6 +144,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         return <ScrapeAuditView />;
       case 'recurring':
         return <RecurringPaymentsView />;
+      case 'design':
+        return <DesignSystemShowcase />;
       default:
         return children;
     }
@@ -163,19 +167,60 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <DateSelectionProvider>
       <NotificationProvider>
         <ViewContext.Provider value={contextValue}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: '100vh',
+              position: 'relative',
+              overflow: 'hidden',
+              backgroundColor: 'var(--n-bg-main)',
+            }}
+          >
+            {/* Ambient Background Glows */}
+            <Box
+              sx={{
+                position: 'fixed',
+                top: '-10%',
+                left: '-10%',
+                width: '40%',
+                height: '40%',
+                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0) 70%)',
+                zIndex: 0,
+                pointerEvents: 'none',
+                filter: 'blur(100px)',
+              }}
+            />
+            <Box
+              sx={{
+                position: 'fixed',
+                bottom: '-10%',
+                right: '-10%',
+                width: '40%',
+                height: '40%',
+                background: 'radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, rgba(236, 72, 153, 0) 70%)',
+                zIndex: 0,
+                pointerEvents: 'none',
+                filter: 'blur(100px)',
+              }}
+            />
+
             <ResponsiveAppBar
               currentView={currentView}
               onViewChange={handleViewChange}
             />
-            <main
-              style={{
-                marginTop: '48px', // AppBar height
+            <Box
+              component="main"
+              sx={{
+                marginTop: { xs: '56px', md: '48px' },
+                flex: 1,
+                zIndex: 1,
+                position: 'relative',
               }}
               className="main-content"
             >
               {renderView()}
-            </main>
+            </Box>
             {currentView !== 'chat' && <Footer />}
             <AIAssistant screenContext={screenContext} />
           </Box>

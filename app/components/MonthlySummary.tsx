@@ -14,6 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import SearchIcon from '@mui/icons-material/Search';
+import SummarizeIcon from '@mui/icons-material/Summarize';
 
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
@@ -244,41 +245,6 @@ const MonthlySummary: React.FC = () => {
   };
 
   // Theme-aware styles
-  const selectStyle: React.CSSProperties = {
-    padding: '14px 40px 14px 14px', // Extra right padding for arrow
-    borderRadius: '16px',
-    border: `1px solid ${theme.palette.divider}`,
-    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    color: theme.palette.text.primary,
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    outline: 'none',
-    textAlign: 'left' as const, // Changed for consistency with LTR
-    direction: 'ltr' as const,
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    appearance: 'none' as const,
-    WebkitAppearance: 'none',
-    backgroundImage: theme.palette.mode === 'dark'
-      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
-      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 14px center',
-    backgroundSize: '16px'
-  };
-
-  const buttonStyle = {
-    background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    padding: '14px',
-    borderRadius: '16px',
-    border: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.primary,
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-  };
 
   const fetchCardVendors = useCallback(async () => {
     try {
@@ -1230,35 +1196,46 @@ const MonthlySummary: React.FC = () => {
       }}>
         {/* Hero Section with Filters */}
         <Box sx={{
-          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: { xs: '20px', md: '32px' },
-          padding: { xs: '16px', sm: '24px', md: '36px' },
-          marginBottom: { xs: '16px', md: '32px' },
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', md: 'center' },
+          gap: '24px',
+          padding: '32px',
+          borderRadius: '32px',
+          marginBottom: '24px',
           marginTop: { xs: '56px', md: '40px' },
           marginLeft: { xs: '8px', md: '24px' },
           marginRight: { xs: '8px', md: '24px' },
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
-        }}>
+          border: '1px solid var(--n-glass-border)',
+          position: 'relative',
+          overflow: 'hidden'
+        }} className="n-glass">
+          {/* Decorative background element */}
           <Box sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', md: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', md: 'flex-start' },
-            gap: { xs: '16px', md: '24px' }
-          }}>
+            position: 'absolute',
+            top: -50, right: -50,
+            width: 250, height: 250,
+            background: 'radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%)',
+            zIndex: 0
+          }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
+            <Box sx={{
+              background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+              width: 56, height: 56,
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 8px 16px rgba(59, 130, 246, 0.2)'
+            }}>
+              <SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />
+            </Box>
             <div>
-              <Box component="h1" sx={{
-                fontSize: { xs: '22px', md: '28px' },
-                fontWeight: 700,
+              <Box component="h1" className="gradient-text" sx={{
+                fontSize: { xs: '24px', md: '32px' },
+                fontWeight: 800,
                 margin: 0,
-                background: theme.palette.mode === 'dark'
-                  ? 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)'
-                  : 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
               }}>Monthly Summary</Box>
               <Box component="p" sx={{
                 color: 'text.secondary',
@@ -1284,18 +1261,24 @@ const MonthlySummary: React.FC = () => {
               gap: { xs: '8px', md: '16px' },
               alignItems: 'center',
               flexWrap: 'wrap',
-              justifyContent: { xs: 'center', md: 'flex-end' }
+              justifyContent: { xs: 'center', md: 'flex-end' },
+              position: 'relative',
+              zIndex: 1,
+              marginTop: { xs: 2, md: 0 }
             }}>
 
 
               <IconButton
                 onClick={handleRefresh}
+                className="n-glass"
                 sx={{
-                  ...buttonStyle,
                   color: 'text.secondary',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
                     transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
+                    boxShadow: 'var(--n-shadow-md)',
                     background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
                     color: 'primary.main'
                   }
@@ -1308,22 +1291,21 @@ const MonthlySummary: React.FC = () => {
                   <select
                     value={selectedYear}
                     onChange={handleYearChange}
-                    style={{ ...selectStyle, minWidth: '120px' }}
+                    className="n-glass n-select"
+                    style={{ minWidth: '120px' }}
                   >
                     {uniqueYears.map((year) => (
-                      <option key={year} value={year} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
-                        {year}
-                      </option>
+                      <option key={year} value={year} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>{year}</option>
                     ))}
                   </select>
-
                   <select
                     value={selectedMonth}
                     onChange={handleMonthChange}
-                    style={{ ...selectStyle, minWidth: '160px' }}
+                    className="n-glass n-select"
+                    style={{ minWidth: '160px' }}
                   >
                     {uniqueMonths.map((month) => (
-                      <option key={month} value={month} style={{ background: theme.palette.background.paper, color: theme.palette.text.primary }}>
+                      <option key={month} value={month} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>
                         {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
                       </option>
                     ))}

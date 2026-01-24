@@ -256,58 +256,66 @@ const RecurringPaymentsView: React.FC = () => {
         }}>
             {/* Header Section */}
             <Box sx={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                padding: '24px',
-                marginBottom: '24px',
-                border: `1px solid ${theme.palette.divider}`,
                 display: 'flex',
                 flexDirection: { xs: 'column', md: 'row' },
                 justifyContent: 'space-between',
                 alignItems: { xs: 'stretch', md: 'center' },
-                gap: '24px'
-            }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <RepeatIcon sx={{ fontSize: '32px', color: theme.palette.primary.main }} />
+                gap: '24px',
+                padding: '32px',
+                borderRadius: '32px',
+                marginBottom: '24px',
+                border: '1px solid var(--n-glass-border)',
+                position: 'relative',
+                overflow: 'hidden'
+            }} className="n-glass">
+                {/* Decorative background element */}
+                <Box sx={{
+                    position: 'absolute',
+                    top: -50, right: -50,
+                    width: 200, height: 200,
+                    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+                    zIndex: 0
+                }} />
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
+                    <Box sx={{
+                        background: 'linear-gradient(135deg, var(--n-primary) 0%, #a78bfa 100%)',
+                        width: 56, height: 56,
+                        borderRadius: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)'
+                    }}>
+                        <RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />
+                    </Box>
                     <Box>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>Recurring Payments</Typography>
-                        <Typography variant="body2" color="text.secondary">Monitor your active installments and recurring subscriptions</Typography>
+                        <Typography variant="h4" className="gradient-text" sx={{ fontWeight: 800, fontSize: { xs: '24px', md: '32px' } }}>Recurring Payments</Typography>
+                        <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>Monitor your active installments and recurring subscriptions</Typography>
                     </Box>
                 </Box>
 
-                {/* Summary Mini Cards */}
-                <Box sx={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <Box sx={{
-                        background: 'rgba(139, 92, 246, 0.1)',
-                        padding: '12px 20px',
-                        borderRadius: '16px',
-                        border: '1px solid rgba(139, 92, 246, 0.2)'
-                    }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>INSTALLMENTS</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: '#8b5cf6' }}>₪{formatNumber(totalMonthlyInstallments)}</Typography>
+                <Box sx={{ display: 'flex', gap: '24px', alignItems: 'center', mt: { xs: 2, md: 0 } }}>
+                    <Box sx={{ textAlign: 'center', px: 2 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>INSTALLMENTS</Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(totalMonthlyInstallments)}</Typography>
                     </Box>
-                    <Box sx={{
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        padding: '12px 20px',
-                        borderRadius: '16px',
-                        border: '1px solid rgba(16, 185, 129, 0.2)'
-                    }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>ACTIVE</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: '#10b981' }}>{activeInstallments.length + recurring.length}</Typography>
+                    <Box sx={{ width: '1px', height: '40px', bgcolor: 'var(--n-border)' }} />
+                    <Box sx={{ textAlign: 'center', px: 2 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>ACTIVE</Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>{activeInstallments.length + recurring.length}</Typography>
                     </Box>
                 </Box>
             </Box>
 
             {/* Main Content Card */}
             <Box sx={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
                 padding: '0',
-                border: `1px solid ${theme.palette.divider}`,
-                overflow: 'hidden'
-            }}>
+                borderRadius: '32px',
+                border: '1px solid var(--n-border)',
+                overflow: 'hidden',
+                boxShadow: 'var(--n-shadow-xl)'
+            }} className="n-glass">
                 <Box sx={{ borderBottom: 1, borderColor: theme.palette.divider, px: 3, pt: 2 }}>
                     <Tabs
                         value={activeTab}

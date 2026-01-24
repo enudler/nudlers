@@ -1,3 +1,5 @@
+@import './design-system.css';
+
 :root {
   --bg-gradient-dark: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
   --bg-gradient-light: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
@@ -257,13 +259,6 @@ a:hover {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
 }
 
-/* Gradient text utility */
-.gradient-text {
-  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
 
 /* Card hover effect */
 .card-hover {
@@ -273,6 +268,21 @@ a:hover {
 .card-hover:hover {
   transform: translateY(-4px) scale(1.02);
   box-shadow: 0 16px 48px rgba(59, 130, 246, 0.25);
+}
+
+.n-hover-lift {
+  transition: var(--n-transition-base);
+}
+
+.n-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--n-shadow-xl);
+}
+
+.n-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--n-space-6);
 }
 
 /* ===== MOBILE RESPONSIVE STYLES ===== */
