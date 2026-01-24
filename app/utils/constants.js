@@ -40,7 +40,7 @@ export const SCRAPER_LOW_RESOURCE_FLAGS = [
     '--disk-cache-size=0',
     '--media-cache-size=0',
     '--aggressive-cache-discard',
-    // Disable unnecessary features
+    // Disable unnecessary features (note: --disable-default-apps and --disable-sync are in base args)
     '--mute-audio',
     '--disable-audio-output',
     '--disable-notifications',
@@ -52,9 +52,7 @@ export const SCRAPER_LOW_RESOURCE_FLAGS = [
     '--disable-client-side-phishing-detection',
     '--disable-component-extensions-with-background-pages',
     '--disable-datasaver-prompt',
-    '--disable-default-apps',
     '--disable-domain-reliability',
-    '--disable-sync',
     // Background throttling (keep Chrome idle when not active)
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
