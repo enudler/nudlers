@@ -30,6 +30,7 @@ import DeleteAllTransactionsDialog from './DeleteAllTransactionsDialog';
 import ScreenshotViewer from './ScreenshotViewer';
 import ImageIcon from '@mui/icons-material/Image';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 
 interface SettingsModalProps {
   open: boolean;
@@ -54,9 +55,6 @@ interface Settings {
   isracard_scrape_categories: boolean;
   whatsapp_enabled: boolean;
   whatsapp_hour: number;
-  whatsapp_twilio_sid: string;
-  whatsapp_twilio_auth_token: string;
-  whatsapp_twilio_from: string;
   whatsapp_to: string;
   whatsapp_summary_mode: 'calendar' | 'cycle';
 }
@@ -133,9 +131,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     isracard_scrape_categories: true,
     whatsapp_enabled: false,
     whatsapp_hour: 8,
-    whatsapp_twilio_sid: '',
-    whatsapp_twilio_auth_token: '',
-    whatsapp_twilio_from: '',
     whatsapp_to: '',
     whatsapp_summary_mode: 'calendar'
   });
@@ -146,6 +141,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
   // WhatsApp test state
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
+  const [whatsappStatus, setWhatsappStatus] = useState<{ status: string, qr: string | null }>({ status: 'DISCONNECTED', qr: null });
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (open) {
+      // Poll status immediately and then every 2 seconds
+      const checkStatus = async () => {
+        try {
+          const res = await fetch('/api/whatsapp/status');
+          if (res.ok) {
+            const data = await res.json();
+            setWhatsappStatus(data);
+          }
+        } catch (e) {
+          console.error('Failed to fetch WhatsApp status', e);
+        }
+      };
+
+      checkStatus();
+      interval = setInterval(checkStatus, 2000);
+    }
+
+    return () => clearInterval(interval);
+  }, [open]);
+
+  const handleWhatsAppAction = async (action: 'restart' | 'disconnect') => {
+    try {
+      // Optimistic update
+      if (action === 'restart') setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING' }));
+
+      await fetch('/api/whatsapp/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+
+      // Force a status check after action
+      const res = await fetch('/api/whatsapp/status');
+      if (res.ok) {
+        const data = await res.json();
+        setWhatsappStatus(data);
+      }
+    } catch (e) {
+      console.error(`Failed to ${action} WhatsApp client`, e);
+    }
+  };
+
   const [whatsappTestResult, setWhatsappTestResult] = useState<{
     success: boolean;
     message: string | null;
@@ -183,9 +226,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             : parseBool(data.settings.isracard_scrape_categories),
           whatsapp_enabled: parseBool(data.settings.whatsapp_enabled),
           whatsapp_hour: parseInt(data.settings.whatsapp_hour) || 8,
-          whatsapp_twilio_sid: (data.settings.whatsapp_twilio_sid || '').replace(/"/g, ''),
-          whatsapp_twilio_auth_token: (data.settings.whatsapp_twilio_auth_token || '').replace(/"/g, ''),
-          whatsapp_twilio_from: (data.settings.whatsapp_twilio_from || '').replace(/"/g, ''),
           whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, ''),
           whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle'
         };
@@ -669,9 +709,65 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   WhatsApp Daily Summary
                 </Typography>
+
+                {/* Status Indicator */}
+                {whatsappStatus.status && (
+                  <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED' ? '#10b981' :
+                        whatsappStatus.status === 'DISCONNECTED' ? '#ef4444' : '#f59e0b',
+                      boxShadow: `0 0 8px ${whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED' ? '#10b981' :
+                        whatsappStatus.status === 'DISCONNECTED' ? '#ef4444' : '#f59e0b'}`
+                    }} />
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>
+                      {whatsappStatus.status}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
+              {/* QR Code Section */}
+              {whatsappStatus.status === 'QR_READY' && whatsappStatus.qr && (
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>
+                    Scan this QR code with WhatsApp (Settings {'>'} Linked Devices)
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
+                    <QRCode value={whatsappStatus.qr} size={200} />
+                  </Box>
+                </Box>
+              )}
 
+              {/* Disconnected / Restart Controls */}
+              {(whatsappStatus.status === 'DISCONNECTED' || whatsappStatus.status === 'INITIALIZING') && (
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleWhatsAppAction('restart')}
+                    disabled={whatsappStatus.status === 'INITIALIZING'}
+                    startIcon={whatsappStatus.status === 'INITIALIZING' ? <CircularProgress size={16} /> : <SyncIcon />}
+                  >
+                    {whatsappStatus.status === 'INITIALIZING' ? 'Starting Service...' : 'Start WhatsApp Service'}
+                  </Button>
+                </Box>
+              )}
+
+              {/* Connected Controls */}
+              {(whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED') && (
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                  <Button
+                    size="small"
+                    color="error"
+                    onClick={() => handleWhatsAppAction('disconnect')}
+                  >
+                    Disconnect Session
+                  </Button>
+                </Box>
+              )}
 
               <SettingRow>
                 <Box>
@@ -736,59 +832,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
 
 
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">Twilio Account SID</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Your Twilio Account SID
-                  </Typography>
-                </Box>
-                <StyledTextField
-                  type="password"
-                  value={settings.whatsapp_twilio_sid}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_sid: e.target.value })}
-                  placeholder={settings.whatsapp_twilio_sid ? '••••••••••••••••' : 'Enter SID'}
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
-              </SettingRow>
 
-
-
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">Twilio Auth Token</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Your Twilio Auth Token
-                  </Typography>
-                </Box>
-                <StyledTextField
-                  type="password"
-                  value={settings.whatsapp_twilio_auth_token}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_auth_token: e.target.value })}
-                  placeholder={settings.whatsapp_twilio_auth_token ? '••••••••••••••••' : 'Enter Token'}
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
-              </SettingRow>
-
-
-
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">From Number</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Twilio WhatsApp number (e.g., whatsapp:+14155238886)
-                  </Typography>
-                </Box>
-                <StyledTextField
-                  value={settings.whatsapp_twilio_from}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_from: e.target.value })}
-                  placeholder="whatsapp:+14155238886"
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
-              </SettingRow>
 
 
 
@@ -814,7 +858,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   variant="contained"
                   startIcon={testingWhatsApp ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                   onClick={handleTestWhatsApp}
-                  disabled={testingWhatsApp || !settings.whatsapp_twilio_sid || !settings.whatsapp_twilio_auth_token || !settings.whatsapp_twilio_from || !settings.whatsapp_to}
+                  disabled={testingWhatsApp || !settings.whatsapp_to}
                   sx={{
                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     '&:hover': {

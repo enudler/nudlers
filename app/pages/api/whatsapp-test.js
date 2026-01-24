@@ -31,16 +31,10 @@ export default async function handler(req, res) {
         }
 
         // Validate required settings
-        const missingSettings = [];
-        if (!settings.whatsapp_twilio_sid) missingSettings.push('Twilio Account SID');
-        if (!settings.whatsapp_twilio_auth_token) missingSettings.push('Twilio Auth Token');
-        if (!settings.whatsapp_twilio_from) missingSettings.push('From Number');
-        if (!settings.whatsapp_to) missingSettings.push('To Number');
-
-        if (missingSettings.length > 0) {
+        if (!settings.whatsapp_to) {
             return res.status(400).json({
                 success: false,
-                error: `Missing required settings: ${missingSettings.join(', ')}`,
+                error: 'Missing "To Number" setting',
                 message: null
             });
         }
@@ -61,9 +55,6 @@ export default async function handler(req, res) {
         // Send the WhatsApp message
         try {
             await sendWhatsAppMessage({
-                sid: settings.whatsapp_twilio_sid,
-                authToken: settings.whatsapp_twilio_auth_token,
-                from: settings.whatsapp_twilio_from,
                 to: settings.whatsapp_to,
                 body: generatedMessage
             });

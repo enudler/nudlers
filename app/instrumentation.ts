@@ -85,6 +85,16 @@ export async function register() {
       logger.error({ error: err.message, stack: err.stack }, '[startup] Failed to run migrations');
     }
 
+    // Initialize WhatsApp Client (Singleton)
+    try {
+      logger.info('[startup] Initializing WhatsApp Client singleton');
+      const { getClient } = await import('./utils/whatsapp-client.js');
+      getClient(); // Triggers initialization
+    } catch (error: unknown) {
+      const err = error as Error;
+      logger.error({ error: err.message }, '[startup] Failed to initialize WhatsApp Client');
+    }
+
 
 
     // Initialize WhatsApp daily summary cron job
@@ -144,23 +154,11 @@ export async function register() {
 
             // Send WhatsApp message
             const { sendWhatsAppMessage } = await import('./utils/whatsapp.js');
-            const sid = typeof settings.whatsapp_twilio_sid === 'string'
-              ? settings.whatsapp_twilio_sid.replace(/"/g, '')
-              : settings.whatsapp_twilio_sid as string;
-            const authToken = typeof settings.whatsapp_twilio_auth_token === 'string'
-              ? settings.whatsapp_twilio_auth_token.replace(/"/g, '')
-              : settings.whatsapp_twilio_auth_token as string;
-            const from = typeof settings.whatsapp_twilio_from === 'string'
-              ? settings.whatsapp_twilio_from.replace(/"/g, '')
-              : settings.whatsapp_twilio_from as string;
             const to = typeof settings.whatsapp_to === 'string'
               ? settings.whatsapp_to.replace(/"/g, '')
               : settings.whatsapp_to as string;
 
             await sendWhatsAppMessage({
-              sid,
-              authToken,
-              from,
               to,
               body: summary
             });
