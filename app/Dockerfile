@@ -46,7 +46,7 @@ ENV NODE_ENV=production \
     LOW_RESOURCES_MODE=true \
     PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
 
-# 1. Install minimal Chromium and its dependencies + Xvfb + Tini
+# 1. Install minimal Chromium and its dependencies + Xvfb + Tini + gosu (for privilege dropping)
 # We use Chromium from the Debian repo to keep the image small
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
@@ -84,11 +84,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     xvfb \
     tini \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Setup non-root user (match the "pptruser" name used in previous versions for consistency)
-RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
-    && mkdir -p /home/pptruser/Downloads \
+# 2. Setup non-root user for running the app
+# Handle case where GID/UID might already exist in base image
+RUN (getent group pptruser || groupadd -r pptruser) \
+    && (getent passwd pptruser || useradd -r -g pptruser -G audio,video -m pptruser) \
+    && mkdir -p /home/pptruser/Downloads /app/.wwebjs_auth \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /app
 
@@ -106,7 +109,9 @@ COPY --chown=pptruser:pptruser scripts ./scripts
 
 RUN chmod +x /app/scripts/start.sh
 
-USER pptruser
+# Note: We don't set USER here - the container starts as root to fix volume permissions,
+# then start.sh drops privileges to pptruser via gosu. This is the standard pattern
+# used by official images (postgres, mysql, redis, etc.)
 
 EXPOSE 3000
 

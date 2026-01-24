@@ -35,6 +35,8 @@ services:
   nudlers-app:
     image: ghcr.io/enudler/nudlers:latest
     restart: unless-stopped
+    # Note: No 'user:' needed - container starts as root to fix volume permissions,
+    # then automatically drops to non-root 'pptruser' via gosu
     environment:
       - NUDLERS_DB_USER=${NUDLERS_DB_USER:-myuser}
       - NUDLERS_DB_HOST=nudlers-db
@@ -43,6 +45,7 @@ services:
       - NUDLERS_DB_PORT=5432
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY:?NUDLERS_ENCRYPTION_KEY is required}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - LOW_RESOURCES_MODE=true
     ports:
       - "3000:3000"
     depends_on:
@@ -54,11 +57,18 @@ services:
       - SYS_ADMIN
     security_opt:
       - seccomp=unconfined
-    shm_size: '2gb'
+    # Reduced from 2gb - with --single-process and aggressive flags, 512mb is sufficient
+    shm_size: '512mb'
     dns:
       - 8.8.8.8
       - 8.8.4.4
-
+    # Resource limits for NAS - adjust based on your NAS specs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     volumes:
       - whatsapp-data:/app/.wwebjs_auth
 
