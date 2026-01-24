@@ -1607,7 +1607,39 @@ components:
         processedTransactions:
           type: array
           items:
-            $ref: '#/components/schemas/Transaction'
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              description:
+                type: string
+              amount:
+                type: number
+              currency:
+                type: string
+              category:
+                type: string
+              source:
+                type: string
+              rule:
+                type: string
+              cardLast4:
+                type: string
+              isUpdate:
+                type: boolean
+              isDuplicate:
+                type: boolean
+              isBank:
+                type: boolean
+              oldCategory:
+                type: string
+              installmentsNumber:
+                type: integer
+              installmentsTotal:
+                type: integer
+              totalAmount:
+                type: number
         savedTransactions:
           type: integer
         duration_seconds:
