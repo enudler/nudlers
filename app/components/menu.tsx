@@ -28,6 +28,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import BackupIcon from '@mui/icons-material/Backup';
+import CategoryIcon from '@mui/icons-material/Category';
 
 import ForumIcon from '@mui/icons-material/Forum';
 import dynamic from 'next/dynamic';
@@ -52,8 +53,8 @@ const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false 
 
 
 interface ResponsiveAppBarProps {
-  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
-  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design') => void;
+  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'categories';
+  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'categories') => void;
 }
 
 
@@ -144,8 +145,9 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   }, [desktopDrawerOpen, isMobile]);
 
   const viewMenuItems = [
-    { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
     { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
+    { label: 'Categories', icon: <CategoryIcon />, view: 'categories' as const, color: 'var(--n-primary)' },
+    { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
     { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: 'var(--n-primary)' },
     { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
     { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: 'var(--n-primary)' },

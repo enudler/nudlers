@@ -1,16 +1,16 @@
 import React from "react";
 import Head from "next/head";
 import Layout from "../components/Layout";
-import CategoryDashboard from "../components/CategoryDashboard";
+import Homepage from "../components/Homepage";
 
 const Index: React.FC = () => {
   return (
     <Layout>
       <Head>
-        <title>Nudlers</title>
+        <title>Nudlers - Financial Overview</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <CategoryDashboard />
+      <Homepage />
     </Layout>
   );
 };

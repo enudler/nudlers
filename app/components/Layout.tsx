@@ -10,10 +10,11 @@ import RecurringPaymentsView from "./RecurringPaymentsView";
 import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import DesignSystemShowcase from "./DesignSystemShowcase";
+import CategoryDashboard from "./CategoryDashboard";
 import Footer from "./Footer";
 import { Box } from "@mui/material";
 
-type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
+type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'categories';
 
 // Screen context for AI Assistant
 interface ScreenContext {
@@ -146,6 +147,8 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
         return <RecurringPaymentsView />;
       case 'design':
         return <DesignSystemShowcase />;
+      case 'categories':
+        return <CategoryDashboard />;
       default:
         return children;
     }
