@@ -22,7 +22,13 @@ async function updateSettings() {
 
     try {
         // 1. Delete unused settings
-        const settingsToDelete = ['sync_interval_hours', 'israeli_bank_scrapers_version'];
+        const settingsToDelete = [
+            'sync_interval_hours',
+            'israeli_bank_scrapers_version',
+            'whatsapp_twilio_sid',
+            'whatsapp_twilio_auth_token',
+            'whatsapp_twilio_from'
+        ];
 
         console.log('\n[1/2] Removing unused settings...');
         const checkRes = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [settingsToDelete]);
@@ -55,9 +61,6 @@ async function updateSettings() {
             ['gemini_model', 'The specific Google Gemini AI model version to use'],
             ['whatsapp_enabled', 'Send a financial summary via WhatsApp daily'],
             ['whatsapp_hour', 'The hour (0-23) when the daily WhatsApp summary is sent'],
-            ['whatsapp_twilio_sid', 'Your Twilio Account SID for WhatsApp API access'],
-            ['whatsapp_twilio_auth_token', 'Your Twilio Auth Token for WhatsApp API access'],
-            ['whatsapp_twilio_from', 'The Twilio number from which summaries are sent'],
             ['whatsapp_to', 'The phone number to receive WhatsApp summaries (e.g., whatsapp:+972...)'],
             ['whatsapp_last_sent_date', 'Internal tracker to ensure only one WhatsApp message is sent per day'],
             ['whatsapp_summary_mode', 'Time period for the summary: calendar (monthly) or cycle (billing)'],

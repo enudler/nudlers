@@ -20,7 +20,7 @@ Personal finance management application for tracking credit card expenses and ba
 
 ### 🤖 AI & Connectivity
 - **AI Assistant**: Natural language queries via **Google Gemini** ("What's my grocery budget status?").
-- **WhatsApp Summary**: Daily automated reports with trends and alerts via Twilio.
+- **WhatsApp Summary**: Daily automated reports with trends and alerts via native WhatsApp integration (QR Scan).
 - **MCP Integration**: Native Model Context Protocol support for **Claude Desktop** and **Cursor**.
 
 ### 🔐 Security & Performance
@@ -63,46 +63,6 @@ Nudlers has native MCP support. No local files are required to connect.
 
 
 
-## Screenshots
-
-### Main Views
-
-<table>
-  <tr>
-    <td><img src="app/public/screenshots/dashboard.png" alt="Dashboard" width="400"/><br/><sub><b>Monthly Summary</b> - Overview of credit card expenses for the month</sub></td>
-    <td><img src="app/public/screenshots/overview.png" alt="Overview" width="400"/><br/><sub><b>Financial Overview</b> - Bank transactions and expense categories</sub></td>
-  </tr>
-  <tr>
-    <td><img src="app/public/screenshots/budget.png" alt="Budget" width="400"/><br/><sub><b>Budget Dashboard</b> - Set and track spending limits per category</sub></td>
-    <td><img src="app/public/screenshots/category_example.png" alt="Category Details" width="400"/><br/><sub><b>Category Details</b> - Transaction timeline and detailed expense view</sub></td>
-  </tr>
-</table>
-
-### Management & Configuration
-
-<table>
-  <tr>
-    <td><img src="app/public/screenshots/account_management.png" alt="Accounts" width="400"/><br/><sub><b>Account Management</b> - Add and manage bank accounts and credit cards</sub></td>
-    <td><img src="app/public/screenshots/category_management.png" alt="Categories" width="400"/><br/><sub><b>Category Management</b> - Merge, rename, and organize categories</sub></td>
-  </tr>
-  <tr>
-    <td><img src="app/public/screenshots/rules.png" alt="Rules" width="400"/><br/><sub><b>Categorization Rules</b> - Auto-categorize transactions with pattern matching</sub></td>
-    <td><img src="app/public/screenshots/settings.png" alt="Settings" width="400"/><br/><sub><b>App Settings</b> - Configure sync, display preferences, and more</sub></td>
-  </tr>
-</table>
-
-### Sync & Tracking
-
-<table>
-  <tr>
-    <td><img src="app/public/screenshots/sync_status.png" alt="Sync Status" width="400"/><br/><sub><b>Sync Status</b> - Real-time account sync status and recent activity</sub></td>
-    <td><img src="app/public/screenshots/audit.png" alt="Audit" width="400"/><br/><sub><b>Scrape Audit</b> - Detailed logs of all scraping operations</sub></td>
-  </tr>
-  <tr>
-    <td><img src="app/public/screenshots/recurring.png" alt="Recurring" width="400"/><br/><sub><b>Recurring Payments</b> - Track installment and subscription payments</sub></td>
-    <td></td>
-  </tr>
-</table>
 
 
 ---
@@ -131,6 +91,37 @@ docker-compose up -d
 ```
 
 Open http://localhost:3000
+
+### 📱 WhatsApp Support Migration (for Docker users)
+If you are upgrading an existing Docker installation to support the new WhatsApp integration, you must update your `docker-compose.yaml`.
+
+1. **Add Persistence Volume**: The WhatsApp session must be stored to avoid scanning the QR code on every restart.
+   ```yaml
+   services:
+     nudlers-app:
+       volumes:
+         - whatsapp-data:/app/.wwebjs_auth
+   volumes:
+     whatsapp-data:
+   ```
+
+2. **Add Browser Capabilities**: Native WhatsApp integration uses a headless browser.
+   ```yaml
+   services:
+     nudlers-app:
+       cap_add:
+         - SYS_ADMIN
+       security_opt:
+         - seccomp=unconfined
+       shm_size: '2gb' # Recommended for stable browser execution
+   ```
+
+3. **Update Image**:
+   ```bash
+   docker-compose pull && docker-compose up -d
+   ```
+
+---
 
 ### Option 2: NAS / Server Deployment (Pre-built Image)
 
@@ -258,17 +249,23 @@ All settings can be configured through the Settings UI (accessible via the gear 
 | `gemini_api_key` | Google Gemini API key for AI Chat and smart summaries | *(empty)* |
 | `gemini_model` | The specific Google Gemini AI model version to use | `gemini-2.5-flash` |
 
-### WhatsApp Daily Summary
+### WhatsApp Daily Summary (Native)
+
+Nudlers now features a native WhatsApp integration that doesn't require third-party services like Twilio. It works by emulating a WhatsApp Web session.
+
+To set up:
+1. Go to **Settings** > **WhatsApp Daily Summary**.
+2. Click **Start WhatsApp Service**.
+3. Scan the generated **QR Code** with your WhatsApp mobile app (Linked Devices).
 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `whatsapp_enabled` | Send a financial summary via WhatsApp daily | `false` |
 | `whatsapp_hour` | The hour (0-23) when the daily WhatsApp summary is sent | `8` |
 | `whatsapp_summary_mode` | Time period for the summary: `calendar` (monthly) or `cycle` (billing) | `calendar` |
-| `whatsapp_twilio_sid` | Your Twilio Account SID for WhatsApp API access | *(empty)* |
-| `whatsapp_twilio_auth_token` | Your Twilio Auth Token for WhatsApp API access | *(empty)* |
-| `whatsapp_twilio_from` | The Twilio number from which summaries are sent | *(empty)* |
-| `whatsapp_to` | The phone number to receive WhatsApp summaries (e.g., whatsapp:+972...) | *(empty)* |
+| `whatsapp_to` | Comma-separated list of phone numbers (e.g., `972501234567`) or Group IDs (e.g., `120363...`@`g.us`) | *(empty)* |
+
+> **Note:** The WhatsApp service runs a headless browser. If running on low-resource hardware, ensure `LOW_RESOURCES_MODE=true` is set.
 
 > **Note:** Settings marked as "Internal" (`sync_last_run_at`, `whatsapp_last_sent_date`) are automatically managed by the system and should not be manually modified.
 

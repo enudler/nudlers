@@ -7,6 +7,8 @@ import HistoryIcon from '@mui/icons-material/History';
 import PageHeader from './PageHeader';
 import { useTheme } from '@mui/material/styles';
 import Table from './Table';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 
 interface ScrapeEvent {
     id: number;
@@ -16,11 +18,19 @@ interface ScrapeEvent {
     status: 'started' | 'success' | 'failed' | string;
     message: string | null;
     created_at: string;
+    report_json?: {
+        body?: string;
+        to?: string;
+        error?: string;
+        [key: string]: any;
+    } | null;
 }
 
 export default function ScrapeAuditView() {
     const [events, setEvents] = useState<ScrapeEvent[]>([]);
     const [loading, setLoading] = useState(false);
+    const [currentTab, setCurrentTab] = useState(0);
+    const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
     const theme = useTheme();
 
     const fetchEvents = async () => {
@@ -40,11 +50,31 @@ export default function ScrapeAuditView() {
         fetchEvents();
     }, []);
 
+    const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+        setCurrentTab(newValue);
+    };
+
+    const toggleRow = (id: number) => {
+        const newExpanded = new Set(expandedRows);
+        if (newExpanded.has(id)) {
+            newExpanded.delete(id);
+        } else {
+            newExpanded.add(id);
+        }
+        setExpandedRows(newExpanded);
+    };
+
     const statusColor = (status: string) => {
         if (status === 'success') return 'success';
         if (status === 'failed') return 'error';
         return 'default';
     };
+
+    // Filter events based on tab
+    const displayEvents = events.filter(event => {
+        const isWhatsApp = event.vendor === 'whatsapp_summary';
+        return currentTab === 0 ? !isWhatsApp : isWhatsApp;
+    });
 
     return (
         <Box sx={{
@@ -55,11 +85,32 @@ export default function ScrapeAuditView() {
             zIndex: 1
         }}>
             <PageHeader
-                title="Scrape Audit"
-                description="History of scraping events and their status"
+                title="Audit"
+                description="History of system events and scraping status"
                 icon={<HistoryIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
                 onRefresh={fetchEvents}
             />
+
+            <Box sx={{ mb: 3 }}>
+                <Tabs
+                    value={currentTab}
+                    onChange={handleTabChange}
+                    sx={{
+                        '& .MuiTab-root': {
+                            fontWeight: 700,
+                            fontSize: '0.9rem',
+                            minHeight: '48px',
+                            color: 'text.secondary',
+                            '&.Mui-selected': {
+                                color: 'primary.main',
+                            }
+                        }
+                    }}
+                >
+                    <Tab label="Scrape Audit" />
+                    <Tab label="Audit History" />
+                </Tabs>
+            </Box>
 
             {/* Content Section */}
             <Box sx={{
@@ -74,19 +125,21 @@ export default function ScrapeAuditView() {
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}>
                         <CircularProgress />
                     </Box>
-                ) : events.length === 0 ? (
+                ) : displayEvents.length === 0 ? (
                     <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Typography color="text.secondary">No audit events found</Typography>
+                        <Typography color="text.secondary">No {currentTab === 0 ? 'scrape' : 'audit'} events found</Typography>
                     </Box>
                 ) : (
                     <Table
-                        rows={events}
+                        rows={displayEvents}
                         rowKey={(row) => row.id}
-                        emptyMessage="No audit events found"
+                        emptyMessage="No events found"
+                        expandedRowIds={expandedRows}
+                        onRowToggle={(id) => toggleRow(id as number)}
                         columns={[
                             { id: 'created_at', label: 'Time', format: (val) => new Date(val).toLocaleString() },
                             { id: 'vendor', label: 'Vendor' },
-                            { id: 'start_date', label: 'Start Date', format: (val) => new Date(val).toLocaleDateString() },
+                            ...(currentTab === 0 ? [{ id: 'start_date', label: 'Start Date', format: (val: any) => new Date(val).toLocaleDateString() }] : []),
                             { id: 'triggered_by', label: 'Triggered By', format: (val) => val || '-' },
                             {
                                 id: 'status',
@@ -103,13 +156,29 @@ export default function ScrapeAuditView() {
                             {
                                 id: 'message',
                                 label: 'Message',
-                                format: (val) => (
-                                    <Box sx={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>
+                                format: (val, row) => (
+                                    <Box sx={{
+                                        maxWidth: '300px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        color: row.vendor === 'whatsapp_summary' ? 'primary.main' : 'inherit',
+                                        fontWeight: row.vendor === 'whatsapp_summary' ? 600 : 400
+                                    }} title={val}>
                                         {val || '-'}
+                                        {row.vendor === 'whatsapp_summary' && row.report_json?.body && ' (Click to view)'}
                                     </Box>
                                 )
                             }
                         ]}
+                        renderSubRow={(row) => row.vendor === 'whatsapp_summary' && row.report_json?.body ? (
+                            <Box sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)', borderRadius: 2, m: 2 }}>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, opacity: 0.7 }}>Full Message Body:</Typography>
+                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                                    {row.report_json.body}
+                                </Typography>
+                            </Box>
+                        ) : null}
                         mobileCardRenderer={(row) => (
                             <Box>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -125,6 +194,11 @@ export default function ScrapeAuditView() {
                                     <Typography variant="caption" color="text.secondary">{new Date(row.created_at).toLocaleString()}</Typography>
                                     <Typography variant="caption" color="text.secondary">{row.message || '-'}</Typography>
                                 </Box>
+                                {row.vendor === 'whatsapp_summary' && row.report_json?.body && (
+                                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block', fontWeight: 600 }}>
+                                        Tap to view summary body
+                                    </Typography>
+                                )}
                             </Box>
                         )}
                     />

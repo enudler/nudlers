@@ -14,7 +14,9 @@ import {
   CircularProgress,
 
   Select,
-  MenuItem
+  MenuItem,
+  Chip,
+  Autocomplete
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -30,6 +32,10 @@ import DeleteAllTransactionsDialog from './DeleteAllTransactionsDialog';
 import ScreenshotViewer from './ScreenshotViewer';
 import ImageIcon from '@mui/icons-material/Image';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import CloseIcon from '@mui/icons-material/Close';
+import AddIcon from '@mui/icons-material/Add';
+import { msToSeconds, secondsToMs } from '../utils/settings-utils';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 
 interface SettingsModalProps {
   open: boolean;
@@ -54,11 +60,9 @@ interface Settings {
   isracard_scrape_categories: boolean;
   whatsapp_enabled: boolean;
   whatsapp_hour: number;
-  whatsapp_twilio_sid: string;
-  whatsapp_twilio_auth_token: string;
-  whatsapp_twilio_from: string;
   whatsapp_to: string;
   whatsapp_summary_mode: 'calendar' | 'cycle';
+
 }
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
@@ -67,37 +71,85 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
       ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)'
       : 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(20px)',
-    border: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider}`,
     borderRadius: '16px',
     color: theme.palette.text.primary,
     minWidth: '500px',
-    maxHeight: '90vh'
+    maxHeight: '90vh',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+      : '0 25px 50px -12px rgba(0, 0, 0, 0.1)',
   }
 }));
 
 const SettingSection = styled(Box)(({ theme }) => ({
-  padding: '20px',
-  borderRadius: '12px',
-  border: `1px solid ${theme.palette.divider}`,
-  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(241, 245, 249, 0.6)',
-  marginBottom: '16px'
+  padding: '24px',
+  borderRadius: '16px',
+  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : theme.palette.divider}`,
+  background: theme.palette.mode === 'dark'
+    ? 'rgba(30, 41, 59, 0.4)'
+    : 'rgba(241, 245, 249, 0.6)',
+  marginBottom: '20px',
+  transition: 'all 0.2s ease-in-out',
+  '&:hover': {
+    background: theme.palette.mode === 'dark'
+      ? 'rgba(30, 41, 59, 0.5)'
+      : 'rgba(241, 245, 249, 0.8)',
+    borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
+  }
 }));
 
-const SettingRow = styled(Box)({
+const SettingRow = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '12px 0',
+  padding: '16px 0',
   '&:not(:last-child)': {
-    borderBottom: '1px solid rgba(148, 163, 184, 0.1)'
+    borderBottom: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.1)'}`
   }
-});
+}));
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
     color: theme.palette.text.primary,
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+    transition: 'all 0.2s ease-in-out',
     '& fieldset': {
-      borderColor: theme.palette.divider,
+      borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
+      transition: 'all 0.2s ease-in-out',
+    },
+    '&:hover fieldset': {
+      borderColor: theme.palette.primary.main,
+    },
+    '&.Mui-focused': {
+      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'transparent',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: theme.palette.primary.main,
+      borderWidth: '1.5px',
+      boxShadow: `0 0 0 4px ${theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`,
+    },
+  },
+  '& .MuiInputBase-input': {
+    padding: '8.5px 14px',
+    fontSize: '0.9rem',
+  },
+  '& .MuiInputLabel-root': {
+    color: theme.palette.text.secondary,
+    fontSize: '0.9rem',
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: theme.palette.primary.main,
+  },
+}));
+
+const StyledAutocomplete = styled(Autocomplete)(({ theme }) => ({
+  '& .MuiOutlinedInput-root': {
+    padding: '4px 8px',
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+    transition: 'all 0.2s ease-in-out',
+    '& fieldset': {
+      borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
     },
     '&:hover fieldset': {
       borderColor: theme.palette.primary.main,
@@ -106,11 +158,45 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
       borderColor: theme.palette.primary.main,
     },
   },
-  '& .MuiInputLabel-root': {
-    color: theme.palette.text.secondary,
+  '& .MuiChip-root': {
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+    color: '#10b981',
+    borderRadius: '8px',
+    height: '28px',
+    fontWeight: 500,
+    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'}`,
+    '& .MuiChip-deleteIcon': {
+      color: '#10b981',
+      fontSize: '16px',
+      '&:hover': {
+        color: '#059669',
+      },
+    },
   },
-  '& .MuiInputLabel-root.Mui-focused': {
-    color: theme.palette.primary.main,
+}));
+
+const StyledSelect = styled(Select)(({ theme }) => ({
+  color: theme.palette.text.primary,
+  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'transparent',
+  transition: 'all 0.2s ease-in-out',
+  '& .MuiOutlinedInput-notchedOutline': {
+    borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : theme.palette.divider,
+    transition: 'all 0.2s ease-in-out',
+  },
+  '&:hover .MuiOutlinedInput-notchedOutline': {
+    borderColor: theme.palette.primary.main,
+  },
+  '&.Mui-focused': {
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'transparent',
+  },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+    borderColor: theme.palette.primary.main,
+    borderWidth: '1.5px',
+    boxShadow: `0 0 0 4px ${theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`,
+  },
+  '& .MuiSelect-select': {
+    padding: '8.5px 14px',
+    fontSize: '0.9rem',
   },
 }));
 
@@ -133,11 +219,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     isracard_scrape_categories: true,
     whatsapp_enabled: false,
     whatsapp_hour: 8,
-    whatsapp_twilio_sid: '',
-    whatsapp_twilio_auth_token: '',
-    whatsapp_twilio_from: '',
     whatsapp_to: '',
-    whatsapp_summary_mode: 'calendar'
+    whatsapp_summary_mode: 'calendar',
+
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -146,6 +230,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
   // WhatsApp test state
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
+  const [whatsappStatus, setWhatsappStatus] = useState<{ status: string, qr: string | null }>({ status: 'DISCONNECTED', qr: null });
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (open) {
+      // Poll status immediately and then every 2 seconds
+      const checkStatus = async () => {
+        try {
+          const res = await fetch('/api/whatsapp/status');
+          if (res.ok) {
+            const data = await res.json();
+            setWhatsappStatus(data);
+          }
+        } catch (e) {
+          console.error('Failed to fetch WhatsApp status', e);
+        }
+      };
+
+      checkStatus();
+      interval = setInterval(checkStatus, 2000);
+    }
+
+    return () => clearInterval(interval);
+  }, [open]);
+
+  const handleWhatsAppAction = async (action: 'restart' | 'disconnect') => {
+    try {
+      // Optimistic update
+      if (action === 'restart') setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING' }));
+
+      await fetch('/api/whatsapp/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+
+      // Force a status check after action
+      const res = await fetch('/api/whatsapp/status');
+      if (res.ok) {
+        const data = await res.json();
+        setWhatsappStatus(data);
+      }
+    } catch (e) {
+      console.error(`Failed to ${action} WhatsApp client`, e);
+    }
+  };
+
   const [whatsappTestResult, setWhatsappTestResult] = useState<{
     success: boolean;
     message: string | null;
@@ -170,7 +302,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           date_format: (data.settings.date_format || 'DD/MM/YYYY').replace(/"/g, ''),
           billing_cycle_start_day: parseInt(data.settings.billing_cycle_start_day) || 10,
           // fetch_categories_from_scrapers removed
-          scraper_timeout: parseInt(data.settings.scraper_timeout) || parseInt(data.settings.scraper_timeout_standard) || 90000,
+          scraper_timeout: msToSeconds(data.settings.scraper_timeout || data.settings.scraper_timeout_standard || 90000),
           scraper_log_http_requests: data.settings.scraper_log_http_requests === undefined
             ? false // Default to false if not set (matches backend behavior)
             : parseBool(data.settings.scraper_log_http_requests),
@@ -183,11 +315,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             : parseBool(data.settings.isracard_scrape_categories),
           whatsapp_enabled: parseBool(data.settings.whatsapp_enabled),
           whatsapp_hour: parseInt(data.settings.whatsapp_hour) || 8,
-          whatsapp_twilio_sid: (data.settings.whatsapp_twilio_sid || '').replace(/"/g, ''),
-          whatsapp_twilio_auth_token: (data.settings.whatsapp_twilio_auth_token || '').replace(/"/g, ''),
-          whatsapp_twilio_from: (data.settings.whatsapp_twilio_from || '').replace(/"/g, ''),
           whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, ''),
-          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle'
+          whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle',
+
         };
         setSettings(newSettings);
         setOriginalSettings(newSettings);
@@ -216,7 +346,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       const response = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings })
+        body: JSON.stringify({
+          settings: {
+            ...settings,
+            scraper_timeout: secondsToMs(settings.scraper_timeout)
+          }
+        })
       });
 
       if (response.ok) {
@@ -283,8 +418,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        pb: 2
+        borderBottom: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : theme.palette.divider}`,
+        px: 3,
+        py: 2.5
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <SettingsIcon sx={{ color: '#60a5fa' }} />
@@ -520,18 +656,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               <SettingRow>
                 <Box>
-                  <Typography variant="body1">Scraper Timeout (ms)</Typography>
+                  <Typography variant="body1">Scraper Timeout (seconds)</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Maximum duration for scraping operations (default: 90000ms = 90 seconds)
+                    Maximum duration for scraping operations (default: 90 seconds)
                   </Typography>
                 </Box>
                 <StyledTextField
                   type="number"
                   value={settings.scraper_timeout}
-                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 90000 })}
+                  onChange={(e) => setSettings({ ...settings, scraper_timeout: parseInt(e.target.value) || 90 })}
                   size="small"
                   sx={{ width: '120px' }}
-                  inputProps={{ min: 1000, step: 1000 }}
+                  inputProps={{ min: 1, step: 1 }}
                 />
               </SettingRow>
 
@@ -649,16 +785,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     AI model to use for chat and summaries
                   </Typography>
                 </Box>
-                <Select
+                <StyledSelect
                   value={settings.gemini_model}
-                  onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value })}
+                  onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value as string })}
                   size="small"
-                  sx={{ width: 250, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                  sx={{ width: 250 }}
                 >
                   <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</MenuItem>
                   <MenuItem value="gemini-3-flash-preview">Gemini 3 Flash (Limited)</MenuItem>
                   <MenuItem value="gemini-3-pro-preview">Gemini 3 Pro (Limited)</MenuItem>
-                </Select>
+                </StyledSelect>
               </SettingRow>
             </SettingSection>
 
@@ -669,9 +805,65 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   WhatsApp Daily Summary
                 </Typography>
+
+                {/* Status Indicator */}
+                {whatsappStatus.status && (
+                  <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED' ? '#10b981' :
+                        whatsappStatus.status === 'DISCONNECTED' ? '#ef4444' : '#f59e0b',
+                      boxShadow: `0 0 8px ${whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED' ? '#10b981' :
+                        whatsappStatus.status === 'DISCONNECTED' ? '#ef4444' : '#f59e0b'}`
+                    }} />
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>
+                      {whatsappStatus.status}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
+              {/* QR Code Section */}
+              {whatsappStatus.status === 'QR_READY' && whatsappStatus.qr && (
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>
+                    Scan this QR code with WhatsApp (Settings {'>'} Linked Devices)
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
+                    <QRCode value={whatsappStatus.qr} size={200} />
+                  </Box>
+                </Box>
+              )}
 
+              {/* Disconnected / Restart Controls */}
+              {(whatsappStatus.status === 'DISCONNECTED' || whatsappStatus.status === 'INITIALIZING') && (
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleWhatsAppAction('restart')}
+                    disabled={whatsappStatus.status === 'INITIALIZING'}
+                    startIcon={whatsappStatus.status === 'INITIALIZING' ? <CircularProgress size={16} /> : <SyncIcon />}
+                  >
+                    {whatsappStatus.status === 'INITIALIZING' ? 'Starting Service...' : 'Start WhatsApp Service'}
+                  </Button>
+                </Box>
+              )}
+
+              {/* Connected Controls */}
+              {(whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED') && (
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                  <Button
+                    size="small"
+                    color="error"
+                    onClick={() => handleWhatsAppAction('disconnect')}
+                  >
+                    Disconnect Session
+                  </Button>
+                </Box>
+              )}
 
               <SettingRow>
                 <Box>
@@ -704,15 +896,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     Time period to cover in the summary
                   </Typography>
                 </Box>
-                <Select
+                <StyledSelect
                   value={settings.whatsapp_summary_mode}
                   onChange={(e) => setSettings({ ...settings, whatsapp_summary_mode: e.target.value as 'calendar' | 'cycle' })}
                   size="small"
-                  sx={{ width: 220, color: theme.palette.text.primary, '.MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider } }}
+                  sx={{ width: 220 }}
                 >
                   <MenuItem value="calendar">Calendar Month (1st-30th)</MenuItem>
                   <MenuItem value="cycle">Billing Cycle (from {settings.billing_cycle_start_day}th)</MenuItem>
-                </Select>
+                </StyledSelect>
               </SettingRow>
 
 
@@ -736,77 +928,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
 
 
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">Twilio Account SID</Typography>
+
+
+
+
+              <SettingRow sx={{ alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1, mr: 2, pt: 1 }}>
+                  <Typography variant="body1">Recipients</Typography>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Your Twilio Account SID
+                    Numbers: 972501234567<br />
+                    Groups: 120363024523351234@g.us<br />
+                    <span style={{ fontStyle: 'italic', fontSize: '0.75rem', opacity: 0.8 }}>Press Enter or tab to add a recipient</span>
                   </Typography>
                 </Box>
-                <StyledTextField
-                  type="password"
-                  value={settings.whatsapp_twilio_sid}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_sid: e.target.value })}
-                  placeholder={settings.whatsapp_twilio_sid ? '••••••••••••••••' : 'Enter SID'}
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
+                <Box sx={{ width: '450px' }}>
+                  <StyledAutocomplete
+                    multiple
+                    freeSolo
+                    options={[]} // No pre-defined options
+                    value={(settings.whatsapp_to || '').split(',').map(s => s.trim()).filter(Boolean)}
+                    onChange={(_, newValue) => {
+                      const tags = newValue as string[];
+                      setSettings({ ...settings, whatsapp_to: tags.join(',') });
+                    }}
+                    renderTags={(value: unknown[], getTagProps) =>
+                      (value as string[]).map((option: string, index: number) => {
+                        const { key, ...tagProps } = getTagProps({ index });
+                        return (
+                          <Chip
+                            key={key}
+                            label={option}
+                            {...tagProps}
+                            deleteIcon={<CloseIcon />}
+                          />
+                        );
+                      })
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder={settings.whatsapp_to ? "" : "Enter number or group ID"}
+                        size="small"
+                      />
+                    )}
+                  />
+                </Box>
               </SettingRow>
 
 
-
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">Twilio Auth Token</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Your Twilio Auth Token
-                  </Typography>
-                </Box>
-                <StyledTextField
-                  type="password"
-                  value={settings.whatsapp_twilio_auth_token}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_auth_token: e.target.value })}
-                  placeholder={settings.whatsapp_twilio_auth_token ? '••••••••••••••••' : 'Enter Token'}
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
-              </SettingRow>
-
-
-
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">From Number</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Twilio WhatsApp number (e.g., whatsapp:+14155238886)
-                  </Typography>
-                </Box>
-                <StyledTextField
-                  value={settings.whatsapp_twilio_from}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_twilio_from: e.target.value })}
-                  placeholder="whatsapp:+14155238886"
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
-              </SettingRow>
-
-
-
-              <SettingRow>
-                <Box sx={{ flex: 1, mr: 2 }}>
-                  <Typography variant="body1">To Number</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                    Your WhatsApp number (e.g., whatsapp:+972501234567)
-                  </Typography>
-                </Box>
-                <StyledTextField
-                  value={settings.whatsapp_to}
-                  onChange={(e) => setSettings({ ...settings, whatsapp_to: e.target.value })}
-                  placeholder="whatsapp:+972501234567"
-                  size="small"
-                  sx={{ width: '250px' }}
-                />
-              </SettingRow>
 
               {/* Test Message Button */}
               <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid rgba(148, 163, 184, 0.2)' }}>
@@ -814,7 +983,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   variant="contained"
                   startIcon={testingWhatsApp ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                   onClick={handleTestWhatsApp}
-                  disabled={testingWhatsApp || !settings.whatsapp_twilio_sid || !settings.whatsapp_twilio_auth_token || !settings.whatsapp_twilio_from || !settings.whatsapp_to}
+                  disabled={testingWhatsApp || !settings.whatsapp_to}
                   sx={{
                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     '&:hover': {
@@ -919,10 +1088,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       </DialogContent>
 
       <DialogActions sx={{
-        borderTop: `1px solid ${theme.palette.divider}`,
-        p: 2,
+        borderTop: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : theme.palette.divider}`,
+        p: 2.5,
+        px: 3,
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.2)' : 'transparent'
       }}>
         <Typography variant="caption" sx={{ color: theme.palette.text.disabled, fontSize: '11px' }}>
           v{packageJson.version}

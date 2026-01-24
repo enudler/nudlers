@@ -94,10 +94,11 @@ export async function generateDailySummary() {
         const transactionsResult = await client.query(
             `SELECT date, name, category, price, vendor
        FROM transactions
-       WHERE date >= $1
+       WHERE (installments_number IS NULL OR installments_number = 1)
+         AND vendor NOT IN ('hapoalim', 'poalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'fibi', 'jerusalem', 'onezero', 'pepper', 'otsarHahayal', 'otsar_hahayal', 'beinleumi', 'massad', 'pagi')
        ORDER BY date DESC
-       LIMIT 100`,
-            [sevenDaysAgoStr]
+       LIMIT 10`,
+            []
         );
 
         // Get actual spent for the calculated period
@@ -113,6 +114,7 @@ export async function generateDailySummary() {
          AND category IS NOT NULL 
          AND category != ''
          AND category != 'Bank'
+         AND vendor NOT IN ('hapoalim', 'poalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'fibi', 'jerusalem', 'onezero', 'pepper', 'otsarHahayal', 'otsar_hahayal', 'beinleumi', 'massad', 'pagi')
        GROUP BY category
        ORDER BY actual_spent DESC`,
             queryParams
@@ -142,7 +144,7 @@ export async function generateDailySummary() {
             const actual = actualMap.get(category) || 0;
             totalActual += actual;
 
-            if (budget > 0 || actual > 0) {
+            if (budget > 0) {
                 categoryBudgets.push({
                     category,
                     budget,
@@ -163,36 +165,69 @@ export async function generateDailySummary() {
         const top3 = categoryBudgets.slice(0, 3);
 
         // Format last 10 transactions
-        const last10Transactions = transactionsResult.rows.slice(0, 10)
-            .map(t => `  • ${t.name} - ₪${Math.abs(parseFloat(t.price)).toFixed(0)} (${t.category || 'ללא קטגוריה'})`)
+        const last10Transactions = transactionsResult.rows
+            .map(t => {
+                const dateStr = new Date(t.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+                return `  • ${dateStr}: ${t.name} - ₪${Math.abs(parseFloat(t.price)).toFixed(0)} (${t.category || 'ללא קטגוריה'})`;
+            })
             .join('\n');
+
+        // Calculate Burndown Rate
+        let daysPassed, totalDays;
+        if (summaryMode === 'cycle') {
+            const periodStart = new Date(now.getFullYear(), now.getMonth(), startDay);
+            if (now.getDate() < startDay) {
+                periodStart.setMonth(periodStart.getMonth() - 1);
+            }
+            const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, startDay - 1);
+            daysPassed = Math.max(1, Math.ceil((now - periodStart) / (1000 * 60 * 60 * 24)));
+            totalDays = Math.ceil((periodEnd - periodStart) / (1000 * 60 * 60 * 24)) + 1;
+        } else {
+            daysPassed = now.getDate();
+            totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        }
+
+        const burnRate = totalActual / daysPassed;
+        const budgetRate = totalBudget ? totalBudget / totalDays : 0;
+        const burndownStatus = totalBudget ? (burnRate <= budgetRate ? 'GOOD' : 'BEHIND') : 'N/A';
+        const expectedSpendAtThisPoint = budgetRate * daysPassed;
 
         // Generate AI summary
         const genAI = new GoogleGenerativeAI(apiKey);
 
-        const prompt = `סכם בעברית (מקס 1200 תווים):
+        const defaultPrompt = `צור סיכום פיננסי מעוצב, ישיר ומרשים לוואטסאפ (עברית). 
+אל תתחיל בהקדמות כמו "הנה הסיכום", התחל ישר בתוכן.
 
-תקציב: ₪${totalBudget || 0} | הוצאות: ₪${totalActual} | ניצול: ${totalBudget ? Math.round((totalActual / totalBudget) * 100) : 0}%
+💰 *סיכום הוצאות יומי* 💰
 
-קטגוריות:
-${top3.map(c => `${c.category}: ₪${c.actual}`).join(', ')}
-
-10 עסקאות אחרונות:
+1️⃣ *10 עסקאות אחרונות (אשראי בלבד):*
+חובה להציג את כל 10 העסקאות הבאות ברשימה:
 ${last10Transactions}
 
-כתוב:
-1. כותרת + אימוג'י
-2. סטטוס תקציב
-3. רשימת 10 העסקאות
-4. המלצה קצרה
+2️⃣ *סטטוס תקציב לפי קטגוריות:*
+${categoryBudgets.map(c => {
+            const status = c.isOverBudget ? '⚠️ חריגה!' : (c.percentUsed > 80 ? '🟡 קרוב' : '✅ תקין');
+            return `*${c.category}:* ₪${c.actual}/₪${c.budget} (${c.percentUsed}%) | ${status}`;
+        }).join('\n')}
 
-פורמט יפה עם שורות חדשות.`;
+3️⃣ *תמונת מצב תקציב כולל:*
+📊 *סיכום:*
+• *תקציב:* ₪${totalBudget || 0} | *הוצאות:* ₪${totalActual} (${totalBudget ? Math.round((totalActual / totalBudget) * 100) : 0}%)
+• *ימים:* ${daysPassed}/${totalDays} | *קצב:* ₪${Math.round(burnRate)}/יום (יעד: ₪${Math.round(budgetRate)})
+
+🧨 *בורנדאון:* ${burndownStatus === 'GOOD' ? 'מצוין ✅' : 'חריגה צפויה ⚠️'}
+
+---
+📝 *ניתוח ותובנות:*
+תן סיכום קצרצר (2 משפטים) והמלצה אחת בסוף. השתמש בפורמט וואטסאפ (בולד, אימוג'ים).`;
+
+        const prompt = defaultPrompt;
 
         try {
             const model = genAI.getGenerativeModel({
                 model: modelName,
                 generationConfig: {
-                    maxOutputTokens: 1500,
+                    maxOutputTokens: 2000,
                     temperature: 0.7,
                 }
             });

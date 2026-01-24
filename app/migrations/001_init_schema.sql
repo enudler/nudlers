@@ -18,14 +18,24 @@ CREATE TABLE IF NOT EXISTS transactions (
   status VARCHAR(20) NOT NULL,
   installments_number INTEGER,
   installments_total INTEGER,
-  account_number VARCHAR(50),      -- Added in later version
-  transaction_type VARCHAR(20),    -- Added in later version
-  category_source VARCHAR(50),     -- Added in later version
-  rule_matched VARCHAR(255),       -- Added in later version
+  account_number VARCHAR(50),
+  transaction_type VARCHAR(20) DEFAULT 'credit_card',
+  category_source VARCHAR(50),
+  rule_matched VARCHAR(255),
   PRIMARY KEY (identifier, vendor)
 );
 
--- Idempotency checks for columns added later (for existing databases)
+-- Performance Optimization Indexes
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+CREATE INDEX IF NOT EXISTS idx_transactions_processed_date ON transactions(processed_date);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+CREATE INDEX IF NOT EXISTS idx_transactions_account_number ON transactions(account_number);
+CREATE INDEX IF NOT EXISTS idx_transactions_name ON transactions(name);
+CREATE INDEX IF NOT EXISTS idx_transactions_vendor_account ON transactions(vendor, account_number);
+CREATE INDEX IF NOT EXISTS idx_transactions_lookup ON transactions(identifier, vendor, date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_name_category ON transactions(name, category);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
+-- Idempotency checks for columns (for updates to existing databases)
 DO $$ 
 BEGIN 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'account_number') THEN
@@ -33,18 +43,12 @@ BEGIN
   END IF;
   
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'transaction_type') THEN
-    ALTER TABLE transactions ADD COLUMN transaction_type VARCHAR(20);
+    ALTER TABLE transactions ADD COLUMN transaction_type VARCHAR(20) DEFAULT 'credit_card';
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'category_source') THEN
     ALTER TABLE transactions ADD COLUMN category_source VARCHAR(50);
     ALTER TABLE transactions ADD COLUMN rule_matched VARCHAR(255);
-  END IF;
-
-  -- Remove old columns if they exist
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'dedup_key') THEN
-    ALTER TABLE transactions DROP COLUMN dedup_key;
-    DROP INDEX IF EXISTS idx_transactions_dedup_key;
   END IF;
 END $$;
 
@@ -59,8 +63,8 @@ CREATE TABLE IF NOT EXISTS vendor_credentials (
   card6_digits VARCHAR(100),
   nickname VARCHAR(100),
   bank_account_number VARCHAR(100),
-  is_active BOOLEAN DEFAULT true,        -- Added in later version
-  last_synced_at TIMESTAMP,              -- Added in later version
+  is_active BOOLEAN DEFAULT true,
+  last_synced_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (id_number, username, vendor)
@@ -101,7 +105,9 @@ CREATE TABLE IF NOT EXISTS scrape_events (
   start_date DATE NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'started',
   message TEXT,
-  report_json JSONB,              -- Added in later version
+  report_json JSONB,
+  duration_seconds INTEGER,
+  retry_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -113,6 +119,14 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'scrape_events' AND column_name = 'report_json') THEN
     ALTER TABLE scrape_events ADD COLUMN report_json JSONB;
   END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'scrape_events' AND column_name = 'duration_seconds') THEN
+    ALTER TABLE scrape_events ADD COLUMN duration_seconds INTEGER;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'scrape_events' AND column_name = 'retry_count') THEN
+    ALTER TABLE scrape_events ADD COLUMN retry_count INTEGER DEFAULT 0;
+  END IF;
 END $$;
 
 
@@ -122,9 +136,9 @@ CREATE TABLE IF NOT EXISTS card_ownership (
   vendor VARCHAR(50) NOT NULL,
   account_number VARCHAR(50) NOT NULL,
   credential_id INTEGER NOT NULL REFERENCES vendor_credentials(id) ON DELETE CASCADE,
-  linked_bank_account_id INTEGER REFERENCES vendor_credentials(id) ON DELETE SET NULL, -- Added later
-  custom_bank_account_number VARCHAR(100),     -- Added later
-  custom_bank_account_nickname VARCHAR(100),   -- Added later
+  linked_bank_account_id INTEGER REFERENCES vendor_credentials(id) ON DELETE SET NULL,
+  custom_bank_account_number VARCHAR(100),
+  custom_bank_account_nickname VARCHAR(100),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(vendor, account_number)
 );
@@ -272,25 +286,31 @@ INSERT INTO app_settings (key, value, description) VALUES
   ('billing_cycle_start_day', '10', 'The day of the month when your credit card billing cycle begins'),
   ('scraper_log_http_requests', 'false', 'Log detailed HTTP requests for scraper debugging'),
   ('update_category_on_rescrape', 'false', 'If a transaction is re-scraped, update it if the bank provides a new category'),
-  ('scraper_timeout', '60000', 'Maximum time (ms) allowed for each scraper to run'),
+  ('scraper_timeout', '90000', 'Maximum time (ms) allowed for each scraper to run'),
   ('whatsapp_enabled', 'false', 'Send a financial summary via WhatsApp daily'),
   ('whatsapp_hour', '8', 'The hour (0-23) when the daily WhatsApp summary is sent'),
-  ('whatsapp_twilio_sid', '""', 'Your Twilio Account SID for WhatsApp API access'),
-  ('whatsapp_twilio_auth_token', '""', 'Your Twilio Auth Token for WhatsApp API access'),
-  ('whatsapp_twilio_from', '""', 'The Twilio number from which summaries are sent'),
   ('whatsapp_to', '""', 'The phone number to receive WhatsApp summaries (e.g., whatsapp:+972...)'),
   ('whatsapp_last_sent_date', '""', 'Internal tracker to ensure only one WhatsApp message is sent per day'),
   ('gemini_model', '"gemini-2.5-flash"', 'The specific Google Gemini AI model version to use'),
   ('sync_last_run_at', '"1970-01-01T00:00:00.000Z"', 'Internal timestamp tracker for the most recent sync execution'),
-  ('sync_hour', '3', 'The hour (0-23) when the daily background sync should run')
+  ('sync_hour', '3', 'The hour (0-23) when the daily background sync should run'),
+  ('scrape_retries', '3', 'Number of times to retry scraping on failure'),
+  ('fetch_categories_from_scrapers', 'true', 'Fetch categories from card providers during scraping'),
+  ('whatsapp_summary_mode', '"calendar"', 'Summary mode: calendar (monthly) or cycle (billing cycle)'),
+  ('isracard_scrape_categories', 'true', 'Whether to fetch categories from Isracard/Amex API')
 ON CONFLICT (key) DO NOTHING;
 
 
--- 13. Clean up
-DROP TABLE IF EXISTS potential_duplicates;
-DROP INDEX IF EXISTS idx_transactions_duplicate_check;
+-- 13. Data Fixes
+-- Update existing transactions to set transaction_type based on vendor
+UPDATE transactions SET transaction_type = 'bank' 
+WHERE (transaction_type IS NULL OR transaction_type = 'credit_card')
+  AND vendor IN ('hapoalim', 'poalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'fibi', 'jerusalem', 'onezero', 'pepper', 'otsarHahayal', 'otsar_hahayal', 'beinleumi', 'massad', 'pagi', 'mercantile', 'igud');
 
--- Optional Index (Clean up attempt logic preserved)
+
+-- 14. Performance & Integrity
+
+-- Final Business Key Index Logic
 DO $$
 BEGIN
   BEGIN

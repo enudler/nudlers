@@ -35,6 +35,8 @@ tags:
     description: Application settings
   - name: Reports
     description: Financial reports and summaries
+  - name: WhatsApp
+    description: WhatsApp notification service
 
 paths:
   /transactions:
@@ -839,21 +841,21 @@ paths:
 
 
 
-  /scrape_events:
+  /scrape-events:
     get:
       tags:
         - Scraping
-      summary: Get scrape history
+      summary: List scrape and system events
+      description: Retrieve history of scraping events and system audit logs (like WhatsApp summaries).
       parameters:
         - name: limit
           in: query
-          description: Maximum number of results
           schema:
             type: integer
             default: 100
       responses:
         '200':
-          description: List of scrape events
+          description: List of events
           content:
             application/json:
               schema:
@@ -990,6 +992,95 @@ paths:
         '200':
           description: Settings updated
 
+
+  /whatsapp/status:
+    get:
+      tags:
+        - WhatsApp
+      summary: Get WhatsApp connection status
+      responses:
+        '200':
+          description: WhatsApp status and QR code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY]
+                  qr:
+                    type: string
+                    nullable: true
+                    description: QR code string to be rendered
+                  timestamp:
+                    type: string
+                    format: date-time
+    post:
+      tags:
+        - WhatsApp
+      summary: Control WhatsApp client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [restart, disconnect]
+      responses:
+        '200':
+          description: Action performed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /whatsapp-test:
+    post:
+      tags:
+        - WhatsApp
+      summary: Run WhatsApp integration test
+      description: Generates a daily summary and attempts to send it via WhatsApp.
+      responses:
+        '200':
+          description: Test completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Invalid configuration
+        '500':
+          description: Test failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  error:
+                    type: string
+                  message:
+                    type: string
+                    nullable: true
 
 
   /reports/available-months:
@@ -1644,6 +1735,15 @@ components:
           type: integer
         duration_seconds:
           type: number
+        body:
+          type: string
+          description: Full message body for notification events
+        to:
+          type: string
+          description: Recipient for notification events
+        error:
+          type: string
+          description: Error details if event failed
 
     SyncAllRequest:
       type: object
@@ -1829,6 +1929,26 @@ components:
         timestamp:
           type: string
           format: date-time
+
+    WhatsAppStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY]
+        qr:
+          type: string
+          nullable: true
+          description: QR code string if status is QR_READY
+
+    WhatsAppActionRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [restart, disconnect]
 
   responses:
     BadRequest:

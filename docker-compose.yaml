@@ -12,18 +12,20 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
+      - ./app/migrations:/docker-entrypoint-initdb.d
     command: postgres -c ssl=off
     networks:
       - nudlers-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${NUDLERS_DB_USER} -d ${NUDLERS_DB_NAME}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${NUDLERS_DB_USER} -d ${NUDLERS_DB_NAME}" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
   nudlers-app:
-    image: ghcr.io/enudler/nudlers:latest
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
@@ -48,9 +50,13 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    
+    volumes:
+      - whatsapp-data:/app/.wwebjs_auth
+
 volumes:
   db-data:
+  whatsapp-data:
+
 
 networks:
   nudlers-network:

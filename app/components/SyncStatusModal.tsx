@@ -423,8 +423,19 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       const intervalTime = 10000;
 
       pollingInterval = setInterval(async () => {
-        await fetchStatus();
-        // If syncing state changed during poll, restart with new interval
+        try {
+          const response = await fetch('/api/scrapers/status');
+          if (response.ok) {
+            const data = await response.json();
+            // Filter out non-sync events from history
+            if (data.history) {
+              data.history = data.history.filter((e: any) => e.vendor !== 'whatsapp_summary');
+            }
+            setStatus(data);
+          }
+        } catch (error) {
+          logger.error('Failed to fetch sync status', error);
+        }
       }, intervalTime);
     };
 

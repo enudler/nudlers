@@ -85,6 +85,16 @@ export async function register() {
       logger.error({ error: err.message, stack: err.stack }, '[startup] Failed to run migrations');
     }
 
+    // Initialize WhatsApp Client (Singleton)
+    try {
+      logger.info('[startup] Initializing WhatsApp Client singleton');
+      const { getClient } = await import('./utils/whatsapp-client.js');
+      getClient(); // Triggers initialization
+    } catch (error: unknown) {
+      const err = error as Error;
+      logger.error({ error: err.message }, '[startup] Failed to initialize WhatsApp Client');
+    }
+
 
 
     // Initialize WhatsApp daily summary cron job
@@ -102,9 +112,7 @@ export async function register() {
             // Get WhatsApp settings
             const settingsResult = await client.query(
               `SELECT key, value FROM app_settings 
-               WHERE key IN ('whatsapp_enabled', 'whatsapp_hour', 'whatsapp_last_sent_date',
-                             'whatsapp_twilio_sid', 'whatsapp_twilio_auth_token', 
-                             'whatsapp_twilio_from', 'whatsapp_to')`
+               WHERE key IN ('whatsapp_enabled', 'whatsapp_hour', 'whatsapp_last_sent_date', 'whatsapp_to')`
             );
 
             const settings: Record<string, unknown> = {};
@@ -144,23 +152,11 @@ export async function register() {
 
             // Send WhatsApp message
             const { sendWhatsAppMessage } = await import('./utils/whatsapp.js');
-            const sid = typeof settings.whatsapp_twilio_sid === 'string'
-              ? settings.whatsapp_twilio_sid.replace(/"/g, '')
-              : settings.whatsapp_twilio_sid as string;
-            const authToken = typeof settings.whatsapp_twilio_auth_token === 'string'
-              ? settings.whatsapp_twilio_auth_token.replace(/"/g, '')
-              : settings.whatsapp_twilio_auth_token as string;
-            const from = typeof settings.whatsapp_twilio_from === 'string'
-              ? settings.whatsapp_twilio_from.replace(/"/g, '')
-              : settings.whatsapp_twilio_from as string;
             const to = typeof settings.whatsapp_to === 'string'
               ? settings.whatsapp_to.replace(/"/g, '')
               : settings.whatsapp_to as string;
 
             await sendWhatsAppMessage({
-              sid,
-              authToken,
-              from,
               to,
               body: summary
             });
@@ -173,9 +169,9 @@ export async function register() {
 
             // Log to audit (scrape_events table)
             await client.query(
-              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
-               VALUES ($1, $2, $3, $4, $5)`,
-              ['whatsapp_cron', 'whatsapp_summary', today, 'success', 'Daily WhatsApp summary sent']
+              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message, report_json)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              ['whatsapp_cron', 'whatsapp_summary', today, 'success', `WhatsApp summary sent to ${to}`, JSON.stringify({ body: summary, to })]
             );
 
             logger.info('[whatsapp-cron] Daily summary sent successfully');
@@ -187,9 +183,9 @@ export async function register() {
             const errorMsg = (error as Error).message;
             const todayDate = new Date().toISOString().split('T')[0];
             await client.query(
-              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message)
-               VALUES ($1, $2, $3, $4, $5)`,
-              ['whatsapp_cron', 'whatsapp_summary', todayDate, 'failed', errorMsg]
+              `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message, report_json)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              ['whatsapp_cron', 'whatsapp_summary', todayDate, 'failed', errorMsg, JSON.stringify({ error: errorMsg })]
             ).catch(() => { }); // Ignore if this fails
           } finally {
             client.release();

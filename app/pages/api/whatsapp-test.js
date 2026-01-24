@@ -4,7 +4,7 @@ import { sendWhatsAppMessage } from '../../utils/whatsapp.js';
 import logger from '../../utils/logger.js';
 
 /**
- * POST /api/whatsapp_test
+ * POST /api/whatsapp-test
  * Tests the WhatsApp configuration by generating a summary and sending it.
  * Returns the generated message and send status.
  */
@@ -19,8 +19,7 @@ export default async function handler(req, res) {
         // Get WhatsApp settings
         const settingsResult = await client.query(
             `SELECT key, value FROM app_settings 
-             WHERE key IN ('whatsapp_twilio_sid', 'whatsapp_twilio_auth_token', 
-                           'whatsapp_twilio_from', 'whatsapp_to')`
+             WHERE key IN ('whatsapp_enabled', 'whatsapp_to')`
         );
 
         const settings = {};
@@ -31,16 +30,10 @@ export default async function handler(req, res) {
         }
 
         // Validate required settings
-        const missingSettings = [];
-        if (!settings.whatsapp_twilio_sid) missingSettings.push('Twilio Account SID');
-        if (!settings.whatsapp_twilio_auth_token) missingSettings.push('Twilio Auth Token');
-        if (!settings.whatsapp_twilio_from) missingSettings.push('From Number');
-        if (!settings.whatsapp_to) missingSettings.push('To Number');
-
-        if (missingSettings.length > 0) {
+        if (!settings.whatsapp_to) {
             return res.status(400).json({
                 success: false,
-                error: `Missing required settings: ${missingSettings.join(', ')}`,
+                error: 'Missing "To Number" setting in WhatsApp configuration.',
                 message: null
             });
         }
@@ -48,6 +41,7 @@ export default async function handler(req, res) {
         // Generate the summary message
         let generatedMessage;
         try {
+            logger.info('[whatsapp-test] Generating daily summary for test');
             generatedMessage = await generateDailySummary();
         } catch (summaryError) {
             logger.error({ error: summaryError.message }, '[whatsapp-test] Failed to generate summary');
@@ -60,10 +54,8 @@ export default async function handler(req, res) {
 
         // Send the WhatsApp message
         try {
-            await sendWhatsAppMessage({
-                sid: settings.whatsapp_twilio_sid,
-                authToken: settings.whatsapp_twilio_auth_token,
-                from: settings.whatsapp_twilio_from,
+            logger.info({ to: settings.whatsapp_to }, '[whatsapp-test] Attempting to send test message');
+            const result = await sendWhatsAppMessage({
                 to: settings.whatsapp_to,
                 body: generatedMessage
             });
@@ -73,22 +65,23 @@ export default async function handler(req, res) {
             return res.status(200).json({
                 success: true,
                 message: generatedMessage,
+                results: result.results,
                 error: null
             });
         } catch (sendError) {
-            logger.error({ error: sendError.message, stack: sendError.stack }, '[whatsapp-test] Failed to send message');
+            logger.error({ error: sendError.message }, '[whatsapp-test] Failed to send message');
 
             return res.status(500).json({
                 success: false,
-                error: `Failed to send message: ${sendError.message}`,
-                message: generatedMessage // Still return the generated message
+                error: sendError.message,
+                message: generatedMessage // Still return the generated message for UI display
             });
         }
     } catch (error) {
-        logger.error({ error: error.message, stack: error.stack }, '[whatsapp-test] Unexpected error');
+        logger.error({ error: error.message, stack: error.stack }, '[whatsapp-test] Unexpected error in handler');
         return res.status(500).json({
             success: false,
-            error: `Unexpected error: ${error.message}`,
+            error: `Internal server error: ${error.message}`,
             message: null
         });
     } finally {
