@@ -24,6 +24,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Tooltip from '@mui/material/Tooltip';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Box from '@mui/material/Box';
@@ -1195,13 +1196,12 @@ const MonthlySummary: React.FC = () => {
         color: theme.palette.text.primary
       }}>
         {/* Hero Section with Filters */}
+        {/* Header Section */}
         <Box sx={{
           display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'stretch', md: 'center' },
+          flexDirection: 'column',
           gap: '24px',
-          padding: '32px',
+          padding: { xs: '20px', md: '32px' },
           borderRadius: '32px',
           marginBottom: '24px',
           marginTop: { xs: '56px', md: '40px' },
@@ -1209,382 +1209,214 @@ const MonthlySummary: React.FC = () => {
           marginRight: { xs: '8px', md: '24px' },
           border: '1px solid var(--n-glass-border)',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.04)',
+          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+          backdropFilter: 'blur(20px)',
         }} className="n-glass">
-          {/* Decorative background element */}
+
+          {/* Background Decor */}
           <Box sx={{
             position: 'absolute',
-            top: -50, right: -50,
-            width: 250, height: 250,
-            background: 'radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%)',
-            zIndex: 0
+            top: -100, right: -100,
+            width: 400, height: 400,
+            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%)',
+            zIndex: 0,
+            pointerEvents: 'none'
           }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
-            <Box sx={{
-              background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
-              width: 56, height: 56,
-              borderRadius: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 8px 16px rgba(59, 130, 246, 0.2)'
-            }}>
-              <SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />
-            </Box>
-            <div>
-              <Box component="h1" className="gradient-text" sx={{
-                fontSize: { xs: '24px', md: '32px' },
-                fontWeight: 800,
-                margin: 0,
-              }}>Monthly Summary</Box>
-              <Box component="p" sx={{
-                color: 'text.secondary',
-                marginTop: '8px',
-                marginBottom: 0,
-                fontSize: { xs: '14px', md: '16px' }
+
+          {/* Row 1: Header & Stats */}
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 3, position: 'relative', zIndex: 1 }}>
+            {/* Title */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <Box sx={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                width: 56, height: 56,
+                borderRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 16px rgba(59, 130, 246, 0.25)'
               }}>
-                Overview of credit card expenses for{' '}
-                {dateRangeMode === 'custom'
-                  ? (customStartDate && customEndDate
-                    ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                    : 'custom date range')
-                  : (selectedMonth && selectedYear &&
-                    new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)
-                      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))
-                }
+                <SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />
               </Box>
-            </div>
+              <Box>
+                <Box component="h1" className="gradient-text" sx={{
+                  fontSize: { xs: '24px', md: '32px' },
+                  fontWeight: 800,
+                  margin: 0,
+                  lineHeight: 1.2
+                }}>Monthly Summary</Box>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
+                  {dateRangeMode === 'custom' && customStartDate && customEndDate
+                    ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : (selectedMonth && selectedYear
+                      ? `Overview for ${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                      : 'Track and analyze your expenses')
+                  }
+                </Typography>
+              </Box>
+            </Box>
 
-            {/* Controls */}
+            {/* Stat Highlight - Total Expenses */}
             <Box sx={{
               display: 'flex',
-              gap: { xs: '8px', md: '16px' },
               alignItems: 'center',
-              flexWrap: 'wrap',
-              justifyContent: { xs: 'center', md: 'flex-end' },
-              position: 'relative',
-              zIndex: 1,
-              marginTop: { xs: 2, md: 0 }
+              gap: 3,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255,255,255,0.5)',
+              borderRadius: '20px',
+              padding: '12px 24px',
+              border: `1px solid ${theme.palette.divider}`,
+              minWidth: '200px'
             }}>
+              <Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  {dateRangeMode === 'billing' ? 'Cycle Total' : 'Total Expenses'}
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1, mt: 0.5 }}>
+                  ₪{formatNumber(totals.card_expenses)}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
 
+          {/* Divider */}
+          <Box sx={{ height: '1px', bgcolor: theme.palette.divider, opacity: 0.5 }} />
 
-              <IconButton
-                onClick={handleRefresh}
-                className="n-glass"
-                sx={{
-                  color: 'text.secondary',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&:hover': {
-                    transform: 'translateY(-2px) scale(1.05)',
-                    boxShadow: 'var(--n-shadow-md)',
-                    background: theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)',
-                    color: 'primary.main'
-                  }
-                }}>
-                <RefreshIcon />
-              </IconButton>
+          {/* Row 2: Controls Toolbar */}
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', lg: 'center' }, gap: 2, position: 'relative', zIndex: 1 }}>
 
+            {/* Left Group: Toggles & Pickers */}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+              {/* Date Mode Toggles */}
+              <div style={{
+                display: 'flex',
+                background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                padding: '4px',
+                borderRadius: '14px',
+                border: `1px solid ${theme.palette.divider}`
+              }}>
+                {[
+                  { id: 'calendar', icon: <CalendarMonthIcon sx={{ fontSize: 18 }} />, label: 'Calendar' },
+                  { id: 'billing', icon: <DateRangeIcon sx={{ fontSize: 18 }} />, label: 'Cycle' },
+                  { id: 'custom', icon: <TuneIcon sx={{ fontSize: 18 }} />, label: 'Custom' }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => handleDateRangeModeChange(mode.id as DateRangeMode)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px',
+                      border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+                      background: dateRangeMode === mode.id ? 'var(--n-primary)' : 'transparent',
+                      color: dateRangeMode === mode.id ? '#ffffff' : theme.palette.text.secondary,
+                      transition: 'all 0.2s ease',
+                      boxShadow: dateRangeMode === mode.id ? '0 2px 8px rgba(59, 130, 246, 0.3)' : 'none'
+                    }}
+                  >
+                    {mode.icon} {mode.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Pickers based on Mode */}
               {dateRangeMode !== 'custom' && (
-                <>
+                <Box sx={{ display: 'flex', gap: 1 }}>
                   <select
                     value={selectedYear}
                     onChange={handleYearChange}
                     className="n-glass n-select"
-                    style={{ minWidth: '120px' }}
+                    style={{ minWidth: '90px', height: '40px', padding: '0 28px 0 12px', fontSize: '14px' }}
                   >
-                    {uniqueYears.map((year) => (
-                      <option key={year} value={year} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>{year}</option>
-                    ))}
+                    {uniqueYears.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                   <select
                     value={selectedMonth}
                     onChange={handleMonthChange}
                     className="n-glass n-select"
-                    style={{ minWidth: '160px' }}
+                    style={{ minWidth: '130px', height: '40px', padding: '0 28px 0 12px', fontSize: '14px' }}
                   >
-                    {uniqueMonths.map((month) => (
-                      <option key={month} value={month} style={{ background: 'var(--n-bg-surface)', color: 'var(--n-text-primary)' }}>
-                        {new Date(`2024-${month}-01`).toLocaleDateString('default', { month: 'long' })}
+                    {uniqueMonths.map(m => (
+                      <option key={m} value={m}>
+                        {new Date(`2024-${m}-01`).toLocaleDateString('default', { month: 'long' })}
                       </option>
                     ))}
                   </select>
-                </>
+                </Box>
               )}
 
-              {/* Date Range Mode Toggle */}
-              <div style={{
-                display: 'flex',
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '16px',
-                border: `1px solid ${theme.palette.divider}`,
-                padding: '4px',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-              }}>
-                <button
-                  onClick={() => handleDateRangeModeChange('calendar')}
-                  title="Full month (1st - end of month)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'calendar'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
-                      : 'transparent',
-                    color: dateRangeMode === 'calendar' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'calendar'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <CalendarMonthIcon style={{ fontSize: '18px' }} />
-                  <span>1-31</span>
-                </button>
-                <button
-                  onClick={() => handleDateRangeModeChange('billing')}
-                  title="Billing cycle (uses actual billing date from credit card)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'billing'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
-                      : 'transparent',
-                    color: dateRangeMode === 'billing' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'billing'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <DateRangeIcon style={{ fontSize: '18px' }} />
-                  <span>Cycle</span>
-                </button>
-                <button
-                  onClick={() => handleDateRangeModeChange('custom')}
-                  title="Custom date range (up to 5 years)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: dateRangeMode === 'custom'
-                      ? 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' // Unified Blue
-                      : 'transparent',
-                    color: dateRangeMode === 'custom' ? '#ffffff' : theme.palette.text.secondary,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: dateRangeMode === 'custom'
-                      ? '0 4px 12px rgba(59, 130, 246, 0.3)'
-                      : 'none'
-                  }}
-                >
-                  <TuneIcon style={{ fontSize: '18px' }} />
-                  <span>Custom</span>
-                </button>
-              </div>
-            </Box>
-          </Box>
-
-          {/* Search Bar - New Location */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: '16px', marginBottom: '8px' }}>
-            <Box
-              component="form"
-              onSubmit={handleSearch}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255,255,255,0.8)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '16px',
-                padding: '4px 8px 4px 16px',
-                border: `1px solid ${theme.palette.divider}`,
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                width: '100%',
-                maxWidth: '600px',
-                '&:focus-within': {
-                  borderColor: 'primary.main',
-                  boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)'
-                }
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Search transactions (vendor, description, etc)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  outline: 'none',
-                  fontSize: '14px',
-                  width: '100%',
-                  color: theme.palette.text.primary,
-                  fontWeight: 500
-                }}
-              />
-              <IconButton
-                type="submit"
-                size="small"
-                disabled={isSearching}
-                sx={{
-                  color: 'text.secondary',
-                  '&:hover': { color: 'primary.main', background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }
-                }}
-              >
-                {isSearching ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-              </IconButton>
-            </Box>
-          </Box>
-
-          {/* Date range indicator */}
-          {dateRangeMode === 'custom' ? (
-            <div style={{
-              marginTop: '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                flexWrap: 'wrap',
-                justifyContent: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 500 }}>From:</span>
+              {dateRangeMode === 'custom' && (
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                   <TextField
                     type="date"
+                    size="small"
                     value={customStartDate}
                     onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                    size="small"
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '12px',
-                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.9)',
-                        color: theme.palette.text.primary,
-                        '& fieldset': {
-                          borderColor: dateRangeError ? '#ef4444' : theme.palette.divider,
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#10b981',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#10b981',
-                        },
-                      },
-                      '& .MuiInputBase-input': {
-                        padding: '10px 14px',
-                        fontSize: '14px',
-                        colorScheme: theme.palette.mode
-                      },
-                      '& .MuiSvgIcon-root': {
-                        color: theme.palette.text.secondary
-                      }
-                    }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: 'background.paper', height: '40px' } }}
                   />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 500 }}>To:</span>
+                  <Typography sx={{ color: 'text.secondary' }}>-</Typography>
                   <TextField
                     type="date"
+                    size="small"
                     value={customEndDate}
                     onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                    size="small"
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '12px',
-                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.9)',
-                        color: theme.palette.text.primary,
-                        '& fieldset': {
-                          borderColor: dateRangeError ? '#ef4444' : theme.palette.divider,
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#10b981',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#10b981',
-                        },
-                      },
-                      '& .MuiInputBase-input': {
-                        padding: '10px 14px',
-                        fontSize: '14px',
-                        colorScheme: theme.palette.mode
-                      },
-                      '& .MuiSvgIcon-root': {
-                        color: theme.palette.text.secondary
-                      }
-                    }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: 'background.paper', height: '40px' } }}
                   />
-                </div>
-              </div>
-              {dateRangeError && (
-                <span style={{
-                  color: '#ef4444',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(239, 68, 68, 0.2)'
-                }}>
-                  {dateRangeError}
-                </span>
+                </Box>
               )}
-              {customStartDate && customEndDate && !dateRangeError && (
-                <span style={{
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(16, 185, 129, 0.2)',
-                  color: '#10b981',
-                  fontSize: '13px',
-                  fontWeight: 500
-                }}>
-                  📅 {new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              )}
-            </div>
-          ) : selectedYear && selectedMonth && dateRangeMode === 'billing' ? (
-            <div style={{
-              marginTop: '16px',
-              textAlign: 'center',
-              color: '#64748b',
-              fontSize: '14px',
-              fontWeight: 500
-            }}>
-              <span style={{
-                background: 'rgba(139, 92, 246, 0.1)',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid rgba(139, 92, 246, 0.2)'
-              }}>
-                💳 Billing Cycle: {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </span>
-            </div>
-          ) : null}
+            </Box>
+
+            {/* Right Group: Search & Refresh */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', width: { xs: '100%', lg: 'auto' }, flexGrow: { lg: 1 }, justifyContent: { lg: 'flex-end' } }}>
+              {/* Search Field */}
+              <Box
+                component="form"
+                onSubmit={handleSearch}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                  padding: '4px 8px 4px 16px',
+                  borderRadius: '14px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  width: '100%',
+                  maxWidth: '300px',
+                  height: '40px',
+                  transition: 'all 0.2s',
+                  '&:focus-within': { borderColor: 'primary.main', boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)' }
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Search transactions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    border: 'none', background: 'transparent', outline: 'none', fontSize: '14px',
+                    width: '100%', color: theme.palette.text.primary, fontWeight: 500
+                  }}
+                />
+                <IconButton type="submit" size="small" disabled={isSearching} sx={{ padding: '4px' }}>
+                  {isSearching ? <CircularProgress size={18} /> : <SearchIcon fontSize="small" />}
+                </IconButton>
+              </Box>
+
+              {/* Refresh Button */}
+              <Tooltip title="Refresh Data">
+                <IconButton
+                  onClick={handleRefresh}
+                  className="n-glass"
+                  sx={{
+                    borderRadius: '12px',
+                    color: 'primary.main',
+                    width: 40, height: 40,
+                    '&:hover': { transform: 'rotate(180deg)', bgcolor: 'primary.soft' }
+                  }}
+                >
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
         </Box>
 
         {loading ? (

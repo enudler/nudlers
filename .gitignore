@@ -9,3 +9,6 @@ node_modules/
 
 app/public/debug/
 .agent/
+
+*storybook.log
+storybook-static
