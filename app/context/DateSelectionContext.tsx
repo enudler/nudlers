@@ -64,14 +64,8 @@ const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, bill
         const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
         return { startDate, endDate };
     } else {
-        // Billing cycle: (Start Day + 1) of previous month to (Start Day) of selected month
-        // Example: Start Day = 10. Range: 11th Prev to 10th Curr.
-
-        // Note: MonthlySummary had logic: Start = billingStartDay + 1. End = billingStartDay.
-        // BudgetDashboard had: 10th Prev to 9th Curr (hardcoded).
-        // CategoryDashboard had: Start = billingStartDay + 1. End = billingStartDay.
-
-        // We will unify to: Start = billingStartDay + 1. End = billingStartDay.
+        // Billing cycle: Start Day of previous month to (Start Day - 1) of selected month
+        // Example: Start Day = 10. Range: 10th Prev to 9th Curr.
 
         let prevMonth = m - 1;
         let prevYear = y;
@@ -80,11 +74,23 @@ const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, bill
             prevYear = y - 1;
         }
 
-        const startDayVal = billingStartDay + 1;
-        const endDayVal = billingStartDay;
+        const startDayVal = billingStartDay;
+        const endDayVal = billingStartDay - 1;
 
         const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
-        const endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
+
+        let endDate: string;
+
+        if (endDayVal === 0) {
+            // If billing start day is 1, the cycle ends on the last day of the previous month
+            // Example: Start Day = 1. Range: 1st of Prev Month to Last Day of Prev Month
+            // (Basically a calendar month shifted by one)
+            const lastDayOfPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+            endDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${lastDayOfPrevMonth.toString().padStart(2, '0')}`;
+        } else {
+            endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
+        }
+
         return { startDate, endDate };
     }
 };

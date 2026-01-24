@@ -16,7 +16,7 @@ export function getBillingCycleSql(startDay = 10, dateCol = 'date', processedDat
     return `
         TO_CHAR(
             CASE 
-                WHEN EXTRACT(DAY FROM COALESCE(${processedDateCol}, ${dateCol})) > ${startDay} 
+                WHEN EXTRACT(DAY FROM COALESCE(${processedDateCol}, ${dateCol})) >= ${startDay} 
                 THEN (COALESCE(${processedDateCol}, ${dateCol}) + INTERVAL '1 month')
                 ELSE COALESCE(${processedDateCol}, ${dateCol})
             END, 
