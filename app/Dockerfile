@@ -87,11 +87,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Setup non-root user with fixed UID/GID for predictable volume permissions
-# Using 1000:1000 as it's the default first user on most Linux systems
-ARG PUID=1000
-ARG PGID=1000
-RUN groupadd -g ${PGID} pptruser && useradd -u ${PUID} -g pptruser -G audio,video pptruser \
+# 2. Setup non-root user for running the app
+# We use UID/GID 999 to avoid conflicts with node user (1000) in base image
+RUN groupadd -r -g 999 pptruser \
+    && useradd -r -u 999 -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads /app/.wwebjs_auth \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /app
