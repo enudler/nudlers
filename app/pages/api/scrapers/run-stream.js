@@ -20,6 +20,7 @@ import {
   processScrapedAccounts,
   checkScraperConcurrency,
 } from '../utils/scraperUtils';
+import { sendSSE, setupSSEHeaders } from '../utils/sseUtils';
 
 const CompanyTypes = {
   hapoalim: 'hapoalim',
@@ -38,29 +39,13 @@ const CompanyTypes = {
   visaCal: 'visaCal',
 };
 
-// Helper to send SSE messages to the local client
-function sendSSE(res, event, data) {
-  if (res && !res.destroyed && !res.finished && !res.writableEnded) {
-    try {
-      res.write(`event: ${event}\n`);
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    } catch (err) {
-      // Ignore if client disconnected
-    }
-  }
-}
-
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   // Set up SSE headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  setupSSEHeaders(res);
 
   const client = await getDB();
   const startTime = Date.now();

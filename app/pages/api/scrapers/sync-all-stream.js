@@ -20,19 +20,8 @@ import {
     loadCategoryMappings,
     checkScraperConcurrency,
 } from '../utils/scraperUtils';
+import { sendSSE, setupSSEHeaders } from '../utils/sseUtils';
 import { BANK_VENDORS } from '../../../utils/constants';
-
-// Helper to send SSE messages to the local client
-function sendSSE(res, event, data) {
-    if (res && !res.destroyed && !res.finished && !res.writableEnded) {
-        try {
-            res.write(`event: ${event}\n`);
-            res.write(`data: ${JSON.stringify(data)}\n\n`);
-        } catch (err) {
-            // Ignore if client disconnected
-        }
-    }
-}
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -40,11 +29,7 @@ export default async function handler(req, res) {
     }
 
     // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
+    setupSSEHeaders(res);
 
     const client = await getDB();
     const startTime = Date.now();
