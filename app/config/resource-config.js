@@ -11,6 +11,8 @@
  * Priority: Individual env var > RESOURCE_MODE preset > Legacy flags > defaults
  */
 
+import logger from '../utils/logger.js';
+
 // =============================================================================
 // Resource Mode Presets
 // =============================================================================
@@ -451,8 +453,8 @@ export function getDatabaseConfig() {
 
 // Log configuration on module load (useful for debugging)
 if (process.env.NODE_ENV !== 'test') {
-    console.log(`[RESOURCE_CONFIG] Mode: ${RESOURCE_CONFIG.mode}`);
-    console.log(`[RESOURCE_CONFIG] DB Pool: ${RESOURCE_CONFIG.database.poolSize}, Cache: ${RESOURCE_CONFIG.cache.categoryCacheLimit}/${RESOURCE_CONFIG.cache.historyCacheLimit}`);
+    logger.info(`[RESOURCE_CONFIG] Mode: ${RESOURCE_CONFIG.mode}`);
+    logger.info(`[RESOURCE_CONFIG] DB Pool: ${RESOURCE_CONFIG.database.poolSize}, Cache: ${RESOURCE_CONFIG.cache.categoryCacheLimit}/${RESOURCE_CONFIG.cache.historyCacheLimit}`);
 }
 
 export default RESOURCE_CONFIG;
