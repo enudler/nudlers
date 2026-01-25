@@ -7,6 +7,7 @@ import {
     SCRAPER_DOCKER_FLAGS,
     SCRAPER_LOW_RESOURCE_FLAGS
 } from '../utils/constants.js';
+import { RESOURCE_CONFIG, isLowResourceMode, getScraperChromeArgs } from '../config/resource-config.js';
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
@@ -93,7 +94,8 @@ export async function saveScreenshot(page, companyId, stepName, onProgress = nul
     }
 }
 
-const LOW_RESOURCES_MODE = process.env.LOW_RESOURCES_MODE === 'true';
+// Use centralized resource config for resource mode detection
+const LOW_RESOURCES_MODE = isLowResourceMode();
 
 /**
  * Get Chromium/Chrome executable path based on OS/Environment.
@@ -120,41 +122,23 @@ export function getScraperOptions(companyId, startDate, options = {}) {
     const fetchCategories = options.fetchCategories ?? true;
     const userAgent = DEFAULT_USER_AGENT;
 
-    // Use minimalist args as the default for all vendors
-    const args = [...SCRAPER_DOCKER_FLAGS];
+    // Use centralized resource config for Chrome args
+    const args = getScraperChromeArgs({
+        headless: !showBrowser,
+        userAgent,
+        debugPort: showBrowser ? (options.debugPort || 9223) : undefined,
+        windowWidth: RESOURCE_CONFIG.display.viewportWidth,
+        windowHeight: RESOURCE_CONFIG.display.viewportHeight,
+    });
 
     // Specific flag for Visa Cal to avoid net::ERR_HTTP2_PROTOCOL_ERROR
     if (companyId === 'visaCal') {
         args.push('--disable-http2');
     }
 
-    if (LOW_RESOURCES_MODE) {
-        args.push(...SCRAPER_LOW_RESOURCE_FLAGS);
-    }
-
-    // Add safe standard args for all vendors
-    args.push(
-        '--disable-blink-features=AutomationControlled',
-        '--window-size=1920,1080',
-        `--user-agent=${userAgent}`,
-        '--lang=he-IL,he,en-US,en',
-        '--disable-background-networking',
-        '--disable-component-update',
-        '--disable-default-apps',
-        '--disable-sync'
-    );
-
-    if (showBrowser) {
-        const debugPort = options.debugPort || 9223;
-        args.push(`--remote-debugging-port=${debugPort}`);
-        args.push('--remote-debugging-address=127.0.0.1');
-    } else {
-        args.push('--headless=new');
-    }
-
     const isRateLimited = RATE_LIMITED_VENDORS.includes(companyId);
 
-    // Default timeout
+    // Default timeout from resource config
     const timeout = options.timeout || DEFAULT_SCRAPER_TIMEOUT;
 
     const skipInterception = companyId === 'max' || options.skipInterception === true;
@@ -172,7 +156,10 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         protocolTimeout: options.protocolTimeout || DEFAULT_PROTOCOL_TIMEOUT,
         executablePath: getChromePath(),
         args,
-        viewportSize: { width: 1920, height: 1080 },
+        viewportSize: {
+            width: RESOURCE_CONFIG.display.viewportWidth,
+            height: RESOURCE_CONFIG.display.viewportHeight,
+        },
         isRateLimited,
         skipInterception,
         ...options

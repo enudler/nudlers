@@ -1,3 +1,5 @@
+import { RESOURCE_CONFIG, isLowResourceMode } from '../config/resource-config.js';
+
 // Credit card vendors
 export const CREDIT_CARD_VENDORS = ['visaCal', 'max', 'isracard', 'amex'];
 
@@ -17,74 +19,33 @@ export const ALL_VENDORS = [...CREDIT_CARD_VENDORS, ...BANK_VENDORS];
 export const CHROME_VERSION = '132.0.6834.83';
 export const DEFAULT_USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
 
-// Browser Flags
-export const SCRAPER_DOCKER_FLAGS = [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--disable-software-rasterizer',
-];
+// Browser Flags - from centralized resource config
+export const SCRAPER_DOCKER_FLAGS = [...RESOURCE_CONFIG.chromeFlags.base];
+export const SCRAPER_LOW_RESOURCE_FLAGS = [...RESOURCE_CONFIG.chromeFlags.lowResource];
 
-export const SCRAPER_LOW_RESOURCE_FLAGS = [
-    // Process optimization (critical for NAS)
-    '--single-process',
-    '--no-zygote',
-    '--disable-extensions',
-    // Memory optimization
-    '--js-flags=--max-old-space-size=256',
-    '--disable-gl-drawing-for-tests',
-    '--disable-accelerated-2d-canvas',
-    '--disable-canvas-aa',
-    '--disable-2d-canvas-clip-aa',
-    '--disk-cache-size=0',
-    '--media-cache-size=0',
-    '--aggressive-cache-discard',
-    // Disable unnecessary features (note: --disable-default-apps and --disable-sync are in base args)
-    '--mute-audio',
-    '--disable-audio-output',
-    '--disable-notifications',
-    '--disable-offer-store-unmasked-wallet-cards',
-    '--disable-offer-upload-credit-cards',
-    '--disable-print-preview',
-    '--disable-speech-api',
-    '--disable-wake-on-wifi',
-    '--disable-client-side-phishing-detection',
-    '--disable-component-extensions-with-background-pages',
-    '--disable-datasaver-prompt',
-    '--disable-domain-reliability',
-    // Background throttling (keep Chrome idle when not active)
-    '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-hang-monitor',
-    // Feature disabling
-    '--disable-features=TranslateUI,IsolateOrigins,site-per-process,BackForwardCache,BlinkGenPropertyTrees',
-    '--force-color-profile=srgb',
-    '--blink-settings=imagesEnabled=false',
-];
-
-// Timeout Settings (configurable via env for NAS tuning)
-export const DEFAULT_SCRAPER_TIMEOUT = parseInt(process.env.SCRAPER_TIMEOUT || '90000', 10);
-export const DEFAULT_SCRAPE_RETRIES = parseInt(process.env.SCRAPER_RETRIES || '3', 10);
+// Timeout Settings - from centralized resource config
+export const DEFAULT_SCRAPER_TIMEOUT = RESOURCE_CONFIG.scraper.timeout;
+export const DEFAULT_SCRAPE_RETRIES = RESOURCE_CONFIG.scraper.retries;
 export const RATE_LIMIT_DELAY_MIN = 1000;
 export const RATE_LIMIT_DELAY_MAX = 4000;
 export const RATE_LIMIT_SLOW_DELAY_MIN = 5000;
 export const RATE_LIMIT_SLOW_DELAY_MAX = 10000;
-export const DEFAULT_PROTOCOL_TIMEOUT = parseInt(process.env.SCRAPER_PROTOCOL_TIMEOUT || '180000', 10);
+export const DEFAULT_PROTOCOL_TIMEOUT = RESOURCE_CONFIG.scraper.protocolTimeout;
 
-// Scraper Phase 3 (Selective API Calls)
-export const SCRAPER_PHASE3_MAX_CALLS = parseInt(process.env.SCRAPER_PHASE3_MAX_CALLS || '200', 10);
-export const SCRAPER_PHASE3_DELAY = 1000;
-export const SCRAPER_PHASE3_BATCH_SIZE = 5;
+// Scraper Phase 3 (Selective API Calls) - from centralized resource config
+export const SCRAPER_PHASE3_MAX_CALLS = RESOURCE_CONFIG.scraper.phase3MaxCalls;
+export const SCRAPER_PHASE3_DELAY = RESOURCE_CONFIG.scraper.phase3DelayMs;
+export const SCRAPER_PHASE3_BATCH_SIZE = RESOURCE_CONFIG.scraper.phase3BatchSize;
 
-// Cache sizes (reduce for NAS/low-memory environments)
-const LOW_RESOURCES = process.env.LOW_RESOURCES_MODE === 'true';
-export const CATEGORY_CACHE_LIMIT = parseInt(process.env.CATEGORY_CACHE_LIMIT || (LOW_RESOURCES ? '200' : '300'), 10);
-export const HISTORY_CACHE_LIMIT = parseInt(process.env.HISTORY_CACHE_LIMIT || (LOW_RESOURCES ? '1000' : '3000'), 10);
+// Cache sizes - from centralized resource config
+export const CATEGORY_CACHE_LIMIT = RESOURCE_CONFIG.cache.categoryCacheLimit;
+export const HISTORY_CACHE_LIMIT = RESOURCE_CONFIG.cache.historyCacheLimit;
 
-// Screenshot retention (days) - older screenshots are cleaned up on startup
-export const SCREENSHOT_RETENTION_DAYS = parseInt(process.env.SCREENSHOT_RETENTION_DAYS || '7', 10);
+// Screenshot retention - from centralized resource config
+export const SCREENSHOT_RETENTION_DAYS = RESOURCE_CONFIG.cleanup.screenshotRetentionDays;
+
+// Re-export resource config helpers for convenience
+export { RESOURCE_CONFIG, isLowResourceMode };
 
 // App Settings Keys
 export const APP_SETTINGS_KEYS = {

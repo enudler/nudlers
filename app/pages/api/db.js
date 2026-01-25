@@ -1,5 +1,9 @@
 import { Pool } from "pg";
 import logger from '../../utils/logger.js';
+import { getDatabaseConfig } from '../../config/resource-config.js';
+
+// Get database configuration from centralized resource config
+const dbConfig = getDatabaseConfig();
 
 export const pool = new Pool({
   user: process.env.NUDLERS_DB_USER,
@@ -8,10 +12,8 @@ export const pool = new Pool({
   password: process.env.NUDLERS_DB_PASSWORD,
   port: process.env.NUDLERS_DB_PORT ? parseInt(process.env.NUDLERS_DB_PORT) : 5432,
   ssl: false,
-  // Optimization for Docker/Low Resource environments
-  max: process.env.LOW_RESOURCES_MODE === 'true' ? 5 : 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  // Pool settings from centralized resource config (respects RESOURCE_MODE and env overrides)
+  ...dbConfig,
 });
 
 export async function getDB() {

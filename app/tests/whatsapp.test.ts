@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { sendWhatsAppMessage } from '../utils/whatsapp.js';
-import { getClient } from '../utils/whatsapp-client.js';
+import { getOrCreateClient } from '../utils/whatsapp-client.js';
 
 // Mock the modules
 vi.mock('../utils/whatsapp-client.js', () => ({
-    getClient: vi.fn(),
+    getOrCreateClient: vi.fn(),
 }));
 
 vi.mock('../utils/logger.js', () => ({
@@ -23,7 +23,7 @@ describe('sendWhatsAppMessage', () => {
         mockClient = {
             sendMessage: vi.fn().mockResolvedValue({ id: { _serialized: 'msg123' } }),
         };
-        (getClient as any).mockReturnValue(mockClient);
+        (getOrCreateClient as any).mockReturnValue(mockClient);
 
         // Mock global status
         (global as any).whatsappStatus = 'READY';

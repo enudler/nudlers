@@ -35,6 +35,9 @@ services:
       - NUDLERS_DB_PASSWORD=${NUDLERS_DB_PASSWORD}
       - NUDLERS_DB_PORT=${NUDLERS_DB_PORT}
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY}
+      # Resource mode: normal | low | ultra-low (defaults to low for Docker)
+      - RESOURCE_MODE=${RESOURCE_MODE:-low}
+      # Legacy support (RESOURCE_MODE takes precedence if set)
       - LOW_RESOURCES_MODE=${LOW_RESOURCES_MODE:-true}
     ports:
       - "3000:3000"

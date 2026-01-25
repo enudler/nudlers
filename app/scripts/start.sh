@@ -44,7 +44,7 @@ cleanup_old_screenshots() {
 start_app() {
     echo "Starting Xvfb..."
     export DISPLAY=:99
-    Xvfb :99 -screen 0 1920x1080x24 &
+    Xvfb :99 -screen 0 ${XVFB_WIDTH:-1280}x${XVFB_HEIGHT:-720}x${XVFB_DEPTH:-24} &
     sleep 1
 
     echo "Starting Nudlers app..."
