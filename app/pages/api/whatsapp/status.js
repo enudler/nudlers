@@ -1,5 +1,5 @@
 
-import { getStatus, restartClient, destroyClient } from '../../../utils/whatsapp-client.js';
+import { getStatus, restartClient, destroyClient, initializeClient } from '../../../utils/whatsapp-client.js';
 
 export default async function handler(req, res) {
     if (req.method === 'GET') {
@@ -9,6 +9,12 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
         const { action } = req.body;
+
+        if (action === 'connect') {
+            // Initialize the client on-demand (generates QR code)
+            initializeClient();
+            return res.status(200).json({ message: 'Connecting... QR code will be generated shortly.' });
+        }
 
         if (action === 'restart') {
             await restartClient();

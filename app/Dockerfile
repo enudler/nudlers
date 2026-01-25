@@ -44,7 +44,11 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
     LOW_RESOURCES_MODE=true \
-    PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
+    PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium" \
+    # Limit Node.js heap to 768MB for NAS (override with NODE_OPTIONS env var if needed)
+    NODE_OPTIONS="--max-old-space-size=768" \
+    # Reduce logging verbosity for NAS
+    LOG_LEVEL=warn
 
 # 1. Install minimal Chromium and its dependencies + Xvfb + Tini + gosu (for privilege dropping)
 # We use Chromium from the Debian repo to keep the image small

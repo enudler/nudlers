@@ -1,5 +1,5 @@
 import logger from './logger.js';
-import { getClient } from './whatsapp-client.js';
+import { getOrCreateClient } from './whatsapp-client.js';
 
 /**
  * Sends a WhatsApp message using the internal singleton client.
@@ -13,7 +13,7 @@ export async function sendWhatsAppMessage({ to, body }) {
     }
 
     try {
-        const client = getClient();
+        const client = getOrCreateClient();
         const globalAny = global;
         const status = globalAny.whatsappStatus;
 

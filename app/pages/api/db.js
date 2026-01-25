@@ -1,5 +1,9 @@
 import { Pool } from "pg";
 import logger from '../../utils/logger.js';
+import { getDatabaseConfig } from '../../config/resource-config.js';
+
+// Get database configuration from centralized resource config
+const dbConfig = getDatabaseConfig();
 
 export const pool = new Pool({
   user: process.env.NUDLERS_DB_USER,
@@ -8,29 +12,8 @@ export const pool = new Pool({
   password: process.env.NUDLERS_DB_PASSWORD,
   port: process.env.NUDLERS_DB_PORT ? parseInt(process.env.NUDLERS_DB_PORT) : 5432,
   ssl: false,
-  // Optimization for Docker/Low Resource environments
-  max: process.env.LOW_RESOURCES_MODE === 'true' ? 5 : 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  // Keepalive settings to prevent idle connections from being terminated
-  keepAlive: true,
-  keepAliveInitialDelayMillis: 10000,
-  // Allow proper cleanup when the application exits
-  allowExitOnIdle: true,
-});
-
-// Handle pool-level errors to prevent unhandled exceptions
-pool.on('error', (err, client) => {
-  logger.error({ error: err.message, stack: err.stack }, "Unexpected error on idle database client");
-});
-
-// Log when connections are acquired and released (debug level)
-pool.on('connect', (client) => {
-  logger.debug("New database connection established");
-});
-
-pool.on('remove', (client) => {
-  logger.debug("Database connection removed from pool");
+  // Pool settings from centralized resource config (respects RESOURCE_MODE and env overrides)
+  ...dbConfig,
 });
 
 export async function getDB() {

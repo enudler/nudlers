@@ -45,6 +45,9 @@ services:
       - NUDLERS_DB_PORT=5432
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY:?NUDLERS_ENCRYPTION_KEY is required}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # Resource mode: normal | low | ultra-low (defaults to low for NAS)
+      - RESOURCE_MODE=${RESOURCE_MODE:-low}
+      # Legacy support (RESOURCE_MODE takes precedence if set)
       - LOW_RESOURCES_MODE=true
     ports:
       - "3000:3000"

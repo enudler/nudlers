@@ -232,11 +232,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<{ status: string, qr: string | null }>({ status: 'DISCONNECTED', qr: null });
 
+  // Fetch WhatsApp status once when modal opens (no continuous polling)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
     if (open) {
-      // Poll status immediately and then every 2 seconds
       const checkStatus = async () => {
         try {
           const res = await fetch('/api/whatsapp/status');
@@ -248,18 +246,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           console.error('Failed to fetch WhatsApp status', e);
         }
       };
-
       checkStatus();
+    }
+  }, [open]);
+
+  // Poll only when actively waiting for QR code (INITIALIZING or QR_READY)
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    const shouldPoll = whatsappStatus.status === 'INITIALIZING' || whatsappStatus.status === 'QR_READY';
+
+    if (open && shouldPoll) {
+      const checkStatus = async () => {
+        try {
+          const res = await fetch('/api/whatsapp/status');
+          if (res.ok) {
+            const data = await res.json();
+            setWhatsappStatus(data);
+          }
+        } catch (e) {
+          console.error('Failed to fetch WhatsApp status', e);
+        }
+      };
       interval = setInterval(checkStatus, 2000);
     }
 
     return () => clearInterval(interval);
-  }, [open]);
+  }, [open, whatsappStatus.status]);
 
-  const handleWhatsAppAction = async (action: 'restart' | 'disconnect') => {
+  const handleWhatsAppAction = async (action: 'connect' | 'restart' | 'disconnect') => {
     try {
       // Optimistic update
-      if (action === 'restart') setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING' }));
+      if (action === 'connect' || action === 'restart') {
+        setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING' }));
+      }
 
       await fetch('/api/whatsapp/status', {
         method: 'POST',
@@ -837,18 +856,41 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                 </Box>
               )}
 
-              {/* Disconnected / Restart Controls */}
-              {(whatsappStatus.status === 'DISCONNECTED' || whatsappStatus.status === 'INITIALIZING') && (
-                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+              {/* Disconnected - Show Generate QR Code button */}
+              {whatsappStatus.status === 'DISCONNECTED' && (
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                   <Button
                     size="small"
-                    variant="outlined"
-                    onClick={() => handleWhatsAppAction('restart')}
-                    disabled={whatsappStatus.status === 'INITIALIZING'}
-                    startIcon={whatsappStatus.status === 'INITIALIZING' ? <CircularProgress size={16} /> : <SyncIcon />}
+                    variant="contained"
+                    onClick={() => handleWhatsAppAction('connect')}
+                    startIcon={<SyncIcon />}
+                    sx={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      },
+                    }}
                   >
-                    {whatsappStatus.status === 'INITIALIZING' ? 'Starting Service...' : 'Start WhatsApp Service'}
+                    Generate QR Code
                   </Button>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
+                    Click to start WhatsApp connection and generate QR code
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Initializing - Show loading state */}
+              {whatsappStatus.status === 'INITIALIZING' && (
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} sx={{ color: '#f59e0b' }} />
+                    <Typography variant="body2" sx={{ color: '#f59e0b' }}>
+                      Generating QR Code...
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    Please wait, this may take a few seconds
+                  </Typography>
                 </Box>
               )}
 

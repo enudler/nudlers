@@ -265,7 +265,7 @@ To set up:
 | `whatsapp_summary_mode` | Time period for the summary: `calendar` (monthly) or `cycle` (billing) | `calendar` |
 | `whatsapp_to` | Comma-separated list of phone numbers (e.g., `972501234567`) or Group IDs (e.g., `120363...`@`g.us`) | *(empty)* |
 
-> **Note:** The WhatsApp service runs a headless browser. If running on low-resource hardware, ensure `LOW_RESOURCES_MODE=true` is set.
+> **Note:** The WhatsApp service runs a headless browser. If running on low-resource hardware, ensure `RESOURCE_MODE=low` is set.
 
 > **Note:** Settings marked as "Internal" (`sync_last_run_at`, `whatsapp_last_sent_date`) are automatically managed by the system and should not be manually modified.
 
@@ -342,20 +342,36 @@ To ensure maximum reliability and speed while avoiding bot detection (especially
 
 ---
 
-## 🚀 Low Resource Mode
+## 🚀 Resource Modes
 
-Running Nudlers on a Raspberry Pi, a low-end Synology NAS, or a $5 VPS? Enable **Low Resource Mode** to significantly reduce CPU and RAM usage during scraping.
+Nudlers provides three pre-configured resource modes to optimize performance across different hardware environments, from powerful servers to Raspberry Pis.
 
-### Features:
-- **Headless Optimization**: Strips all non-essential browser components (GPU, Audio, Sync, etc.).
-- **Asset Blocking**: Automatically blocks heavy network requests (Images, Video, Fonts) during scraping.
-- **IO Reduction**: Disables disk caching and minimizes database writes through batching.
+### Comparison
 
-### How to Enable:
-Set the following environment variable in your `.env` or Docker configuration:
+| Feature | Normal | Low | Ultra-Low |
+|---------|--------|-----|-----------|
+| **Target Hardware** | Servers, PC (2GB+ RAM) | NAS, Synology DS220+ | Raspberry Pi, Low-end NAS |
+| **Node.js Memory** | 1024 MB | 768 MB | 512 MB |
+| **Chrome Memory** | 512 MB | 256 MB | 128 MB |
+| **Concurrent Work** | High | Medium | Minimal (Single Process) |
+| **Asset Blocking** | No | Yes | Yes |
+| **Display** | 720p | 720p | 720p |
+
+### How to Configure
+
+Set the `RESOURCE_MODE` environment variable in your `.env` or Docker configuration:
+
 ```env
-LOW_RESOURCES_MODE=true
+RESOURCE_MODE=low  # Options: normal, low, ultra-low
 ```
+
+*Note: Legacy flags `LOW_RESOURCES_MODE=true` and `ULTRA_LOW_RESOURCES_MODE=true` are still supported but deprecated.*
+
+### Mode Details
+
+*   **Normal**: Default mode. Optimized for speed and quality. Keeps browser instances alive for parallel scraping and retains clear screenshots for debugging.
+*   **Low**: Optimized for standard NAS devices. Reduces memory footprint by blocking heavy assets (images/fonts) and limiting database connections.
+*   **Ultra-Low**: Strict limits for minimal hardware. Aggressively reduces timeouts, forces single-process execution, disables all non-essential logging/features, and captures lower resolution (720p) screenshots.
 
 ---
 

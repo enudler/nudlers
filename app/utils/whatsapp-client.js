@@ -1,7 +1,7 @@
-
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import logger from '../utils/logger.js';
+import { getWhatsappChromeArgs } from '../config/resource-config.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -9,65 +9,94 @@ import fs from 'fs';
  * WhatsApp Client Singleton
  * Manages a single instance of whatsapp-web.js client.
  * Uses global scoped variables to persist across HMR in development.
+ * 
+ * Session Persistence:
+ * - Sessions are stored in .wwebjs_auth/session-{clientId}
+ * - On module load, if a valid session exists, the client auto-initializes
+ * - This allows session restoration after server restarts without re-scanning QR
  */
 
 const globalAny = global;
+
+// Use absolute path for auth strategy to ensure persistence in Docker volumes
+const AUTH_PATH = path.resolve(process.cwd(), '.wwebjs_auth');
+const CLIENT_ID = 'nudlers-client';
+const SESSION_PATH = path.join(AUTH_PATH, `session-${CLIENT_ID}`);
 
 // Internal state
 let clientInstance = globalAny.whatsappClient || null;
 let connectionStatus = globalAny.whatsappStatus || 'DISCONNECTED'; // DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY
 let qrCode = globalAny.whatsappQR || null;
 
+/**
+ * Check if a persisted session exists on disk.
+ * A valid session typically has a Default folder with session data.
+ */
+export function hasPersistedSession() {
+    try {
+        const defaultPath = path.join(SESSION_PATH, 'Default');
+        const localStatePath = path.join(SESSION_PATH, 'Local State');
+
+        // Check for key session files that indicate a valid authenticated session
+        const hasDefaultFolder = fs.existsSync(defaultPath);
+        const hasLocalState = fs.existsSync(localStatePath);
+
+        if (hasDefaultFolder && hasLocalState) {
+            logger.info({ sessionPath: SESSION_PATH }, 'Found persisted WhatsApp session');
+            return true;
+        }
+        return false;
+    } catch (err) {
+        logger.warn({ err: err.message }, 'Error checking for persisted session');
+        return false;
+    }
+}
+
+/**
+ * Get the existing client instance WITHOUT creating a new one.
+ * Returns null if no client exists.
+ * Use getOrCreateClient() when you need to ensure a client exists.
+ */
 export function getClient() {
-    if (clientInstance) return clientInstance;
+    return clientInstance || globalAny.whatsappClient || null;
+}
 
-    logger.info('Initializing new WhatsApp Client instance...');
+/**
+ * Get or create a client instance. Use this when you need to send messages
+ * and want to ensure the client is available.
+ */
+export function getOrCreateClient() {
+    const existing = getClient();
+    if (existing) return existing;
 
-    // Use absolute path for auth strategy to ensure persistence in Docker volumes
-    const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
+    // Auto-initialize for sending if no client exists
+    return initializeClient();
+}
 
-    // Build browser args - optimized for low-resource but stable WhatsApp operation
+/**
+ * Initialize the WhatsApp client on-demand.
+ * This creates a new client and starts the authentication process.
+ * If a persisted session exists, it will be restored automatically.
+ * Call this when user explicitly requests to connect/generate QR.
+ */
+export function initializeClient() {
+    // Return existing client if already initialized
+    if (clientInstance) {
+        logger.info('WhatsApp client already exists, returning existing instance');
+        return clientInstance;
+    }
+
+    const hasSession = hasPersistedSession();
+    logger.info({ hasPersistedSession: hasSession }, 'Initializing new WhatsApp Client instance...');
+
+    // Build browser args from centralized resource config
     // NOTE: --single-process is NOT used here as it causes "detached Frame" errors with WhatsApp Web's iframes
-    const browserArgs = [
-        // Core sandbox/Docker flags
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        // Process optimization (no-zygote helps memory, but keep multi-process for frame stability)
-        '--no-zygote',
-        '--no-first-run',
-        '--disable-extensions',
-        // Memory optimization
-        '--js-flags=--max-old-space-size=256', // WhatsApp needs more heap for encryption
-        '--disable-accelerated-2d-canvas',
-        '--disable-canvas-aa',
-        '--disable-2d-canvas-clip-aa',
-        '--disk-cache-size=0',
-        '--media-cache-size=0',
-        // Disable unnecessary features
-        '--mute-audio',
-        '--disable-audio-output',
-        '--disable-notifications',
-        '--disable-print-preview',
-        '--disable-speech-api',
-        '--disable-default-apps',
-        '--disable-sync',
-        '--disable-client-side-phishing-detection',
-        '--disable-component-extensions-with-background-pages',
-        // Background throttling (safe for WhatsApp)
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        // Feature disabling - keep site-per-process enabled for frame stability
-        '--disable-features=TranslateUI,BackForwardCache',
-    ];
+    const browserArgs = getWhatsappChromeArgs();
 
     clientInstance = new Client({
         authStrategy: new LocalAuth({
-            clientId: 'nudlers-client',
-            dataPath: authPath
+            clientId: CLIENT_ID,
+            dataPath: AUTH_PATH
         }),
         puppeteer: {
             headless: true,
@@ -139,7 +168,7 @@ export function getClient() {
             if (err.message && (err.message.includes('SingletonLock') || err.message.includes('profile appears to be in use'))) {
                 logger.warn('Detected SingletonLock error, attempting automatic cleanup...');
                 try {
-                    const lockPath = path.join(authPath, 'session-nudlers-client', 'SingletonLock');
+                    const lockPath = path.join(SESSION_PATH, 'SingletonLock');
                     if (fs.existsSync(lockPath)) {
                         fs.unlinkSync(lockPath);
                         logger.info('Removed SingletonLock file, retrying...');
@@ -159,7 +188,7 @@ export function getClient() {
                 logger.error('Max retries reached for WhatsApp initialization');
                 connectionStatus = 'DISCONNECTED';
                 globalAny.whatsappStatus = 'DISCONNECTED';
-                // Reset client so it can be re-tried manually later via getClient()
+                // Reset client so it can be re-tried manually later
                 clientInstance = null;
                 globalAny.whatsappClient = null;
             }
@@ -205,5 +234,36 @@ export async function restartClient() {
     await destroyClient();
     // Wait a bit to ensure resources are freed
     await new Promise(resolve => setTimeout(resolve, 1000));
-    return getClient();
+    return initializeClient();
 }
+
+/**
+ * Auto-restore session on module load.
+ * If a persisted session exists and no client is currently running,
+ * automatically initialize the client to restore the session.
+ * This ensures WhatsApp stays connected across server restarts.
+ */
+function autoRestoreSession() {
+    // Skip if client already exists (HMR case)
+    if (getClient()) {
+        logger.info('WhatsApp client already exists, skipping auto-restore');
+        return;
+    }
+
+    // Skip if already marked as initialized in global state
+    if (globalAny.whatsappAutoRestoreAttempted) {
+        return;
+    }
+    globalAny.whatsappAutoRestoreAttempted = true;
+
+    // Check if we have a persisted session to restore
+    if (hasPersistedSession()) {
+        logger.info('Auto-restoring WhatsApp session from persisted data...');
+        initializeClient();
+    } else {
+        logger.info('No persisted WhatsApp session found, client will initialize on-demand');
+    }
+}
+
+// Execute auto-restore on module load
+autoRestoreSession();

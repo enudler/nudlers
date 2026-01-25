@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import pkg from 'whatsapp-web.js';
-import { getClient, getStatus, destroyClient, restartClient } from '../utils/whatsapp-client.js';
+import { getClient, getOrCreateClient, initializeClient, getStatus, destroyClient, restartClient, hasPersistedSession } from '../utils/whatsapp-client.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
@@ -46,6 +46,7 @@ describe('WhatsApp Client Utils', () => {
         delete (global as any).whatsappClient;
         delete (global as any).whatsappStatus;
         delete (global as any).whatsappQR;
+        delete (global as any).whatsappAutoRestoreAttempted;
     });
 
     afterEach(async () => {
@@ -53,126 +54,217 @@ describe('WhatsApp Client Utils', () => {
         vi.useRealTimers();
     });
 
-    it('should initialize client successfully', async () => {
-        const client = getClient();
-        expect(client).toBeDefined();
-        expect(pkg.Client).toHaveBeenCalled();
+    describe('getClient', () => {
+        it('should return null when no client exists', () => {
+            const client = getClient();
+            expect(client).toBeNull();
+            expect(pkg.Client).not.toHaveBeenCalled();
+        });
 
-        // Wait for initialize to be called
-        await vi.runAllTimersAsync();
-        expect(client.initialize).toHaveBeenCalled();
+        it('should return existing client instance', async () => {
+            // First initialize the client
+            initializeClient();
+            await vi.runAllTimersAsync();
+
+            // Then getClient should return it without creating new
+            const clientCallCount = (pkg.Client as any).mock.calls.length;
+            const client = getClient();
+
+            expect(client).toBeDefined();
+            expect(pkg.Client).toHaveBeenCalledTimes(clientCallCount); // No new calls
+        });
     });
 
-    it('should return existing client instance (singleton)', () => {
-        const client1 = getClient();
-        const client2 = getClient();
-        expect(client1).toBe(client2);
-        expect(pkg.Client).toHaveBeenCalledTimes(1);
+    describe('initializeClient', () => {
+        it('should initialize client successfully', async () => {
+            const client = initializeClient();
+            expect(client).toBeDefined();
+            expect(pkg.Client).toHaveBeenCalled();
+
+            // Wait for initialize to be called
+            await vi.runAllTimersAsync();
+            expect(client.initialize).toHaveBeenCalled();
+        });
+
+        it('should return existing client instance (singleton)', () => {
+            const client1 = initializeClient();
+            const client2 = initializeClient();
+            expect(client1).toBe(client2);
+            expect(pkg.Client).toHaveBeenCalledTimes(1);
+        });
+
+        it('should handle initialization failure and retry', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn()
+                    .mockRejectedValueOnce(new Error('Init failed 1'))
+                    .mockRejectedValueOnce(new Error('Init failed 2'))
+                    .mockResolvedValueOnce(undefined),
+                destroy: vi.fn(),
+            };
+            (pkg.Client as any).mockReturnValueOnce(mockClient);
+
+            initializeClient();
+
+            // Process first failure logic
+            await vi.runOnlyPendingTimersAsync();
+
+            // Advance time for first retry (2s)
+            await vi.advanceTimersByTimeAsync(2000);
+
+            // Advance time for second retry (4s)
+            await vi.advanceTimersByTimeAsync(4000);
+
+            expect(mockClient.initialize).toHaveBeenCalledTimes(3);
+            expect(logger.error).toHaveBeenCalledWith(
+                expect.objectContaining({ err: 'Init failed 1', retry: 1 }),
+                expect.any(String)
+            );
+        });
+
+        it('should recover from SingletonLock error', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn()
+                    .mockRejectedValueOnce(new Error('SingletonLock'))
+                    .mockResolvedValueOnce(undefined),
+                destroy: vi.fn(),
+            };
+            (pkg.Client as any).mockReturnValueOnce(mockClient);
+            (fs.existsSync as any).mockReturnValue(true);
+
+            initializeClient();
+
+            // Process lock recovery logic
+            await vi.runOnlyPendingTimersAsync();
+            await vi.advanceTimersByTimeAsync(2000);
+
+            expect(fs.unlinkSync).toHaveBeenCalled();
+            expect(mockClient.initialize).toHaveBeenCalledTimes(2);
+            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('SingletonLock'));
+        });
     });
 
-    it('should handle initialization failure and retry', async () => {
-        const mockClient = {
-            on: vi.fn(),
-            initialize: vi.fn()
-                .mockRejectedValueOnce(new Error('Init failed 1'))
-                .mockRejectedValueOnce(new Error('Init failed 2'))
-                .mockResolvedValueOnce(undefined),
-            destroy: vi.fn(),
-        };
-        (pkg.Client as any).mockReturnValueOnce(mockClient);
+    describe('getOrCreateClient', () => {
+        it('should create client if none exists', async () => {
+            const client = getOrCreateClient();
+            expect(client).toBeDefined();
+            expect(pkg.Client).toHaveBeenCalled();
+        });
 
-        getClient();
+        it('should return existing client without creating new one', async () => {
+            initializeClient();
+            const callCount = (pkg.Client as any).mock.calls.length;
 
-        // Process first failure logic
-        await vi.runOnlyPendingTimersAsync();
-
-        // Advance time for first retry (2s)
-        await vi.advanceTimersByTimeAsync(2000);
-
-        // Advance time for second retry (4s)
-        await vi.advanceTimersByTimeAsync(4000);
-
-        expect(mockClient.initialize).toHaveBeenCalledTimes(3);
-        expect(logger.error).toHaveBeenCalledWith(
-            expect.objectContaining({ err: 'Init failed 1', retry: 1 }),
-            expect.any(String)
-        );
+            getOrCreateClient();
+            expect(pkg.Client).toHaveBeenCalledTimes(callCount); // No additional calls
+        });
     });
 
-    it('should recover from SingletonLock error', async () => {
-        const mockClient = {
-            on: vi.fn(),
-            initialize: vi.fn()
-                .mockRejectedValueOnce(new Error('SingletonLock'))
-                .mockResolvedValueOnce(undefined),
-            destroy: vi.fn(),
-        };
-        (pkg.Client as any).mockReturnValueOnce(mockClient);
-        (fs.existsSync as any).mockReturnValue(true);
+    describe('status and events', () => {
+        it('should update status on events', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+                destroy: vi.fn(),
+            };
+            (pkg.Client as any).mockReturnValueOnce(mockClient);
 
-        getClient();
+            initializeClient();
 
-        // Process lock recovery logic
-        await vi.runOnlyPendingTimersAsync();
-        await vi.advanceTimersByTimeAsync(2000);
+            // Find the 'qr' event listener and call it
+            const qrListener = mockClient.on.mock.calls.find(call => call[0] === 'qr')?.[1];
+            if (qrListener) qrListener('mock-qr-code');
 
-        expect(fs.unlinkSync).toHaveBeenCalled();
-        expect(mockClient.initialize).toHaveBeenCalledTimes(2);
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('SingletonLock'));
+            expect(getStatus().status).toBe('QR_READY');
+            expect(getStatus().qr).toBe('mock-qr-code');
+
+            // Find the 'ready' event listener and call it
+            const readyListener = mockClient.on.mock.calls.find(call => call[0] === 'ready')?.[1];
+            if (readyListener) readyListener();
+
+            expect(getStatus().status).toBe('READY');
+            expect(getStatus().qr).toBeNull();
+        });
+
+        it('should handle disconnection', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+                destroy: vi.fn().mockResolvedValue(undefined),
+            };
+            (pkg.Client as any).mockReturnValueOnce(mockClient);
+
+            initializeClient();
+
+            const disconnectListener = mockClient.on.mock.calls.find(call => call[0] === 'disconnected')?.[1];
+            if (disconnectListener) await disconnectListener('reason');
+
+            expect(getStatus().status).toBe('DISCONNECTED');
+            expect(mockClient.destroy).toHaveBeenCalled();
+        });
     });
 
-    it('should update status on events', async () => {
-        const mockClient = {
-            on: vi.fn(),
-            initialize: vi.fn().mockResolvedValue(undefined),
-            destroy: vi.fn(),
-        };
-        (pkg.Client as any).mockReturnValueOnce(mockClient);
+    describe('restartClient', () => {
+        it('should restart client', async () => {
+            initializeClient();
+            expect(pkg.Client).toHaveBeenCalledTimes(1);
 
-        getClient();
+            const restartPromise = restartClient();
 
-        // Find the 'qr' event listener and call it
-        const qrListener = mockClient.on.mock.calls.find(call => call[0] === 'qr')?.[1];
-        if (qrListener) qrListener('mock-qr-code');
+            // Advance timers to trigger the delay in restartClient
+            await vi.runAllTimersAsync();
 
-        expect(getStatus().status).toBe('QR_READY');
-        expect(getStatus().qr).toBe('mock-qr-code');
-
-        // Find the 'ready' event listener and call it
-        const readyListener = mockClient.on.mock.calls.find(call => call[0] === 'ready')?.[1];
-        if (readyListener) readyListener();
-
-        expect(getStatus().status).toBe('READY');
-        expect(getStatus().qr).toBeNull();
+            await restartPromise;
+            expect(pkg.Client).toHaveBeenCalledTimes(2);
+        });
     });
 
-    it('should handle disconnection', async () => {
-        const mockClient = {
-            on: vi.fn(),
-            initialize: vi.fn().mockResolvedValue(undefined),
-            destroy: vi.fn().mockResolvedValue(undefined),
-        };
-        (pkg.Client as any).mockReturnValueOnce(mockClient);
+    describe('hasPersistedSession', () => {
+        it('should return true when session files exist', () => {
+            (fs.existsSync as any).mockReturnValue(true);
 
-        getClient();
+            const result = hasPersistedSession();
 
-        const disconnectListener = mockClient.on.mock.calls.find(call => call[0] === 'disconnected')?.[1];
-        if (disconnectListener) await disconnectListener('reason');
+            expect(result).toBe(true);
+            expect(fs.existsSync).toHaveBeenCalledTimes(2); // Default folder and Local State
+            expect(logger.info).toHaveBeenCalledWith(
+                expect.objectContaining({ sessionPath: expect.any(String) }),
+                'Found persisted WhatsApp session'
+            );
+        });
 
-        expect(getStatus().status).toBe('DISCONNECTED');
-        expect(mockClient.destroy).toHaveBeenCalled();
-    });
+        it('should return false when no session files exist', () => {
+            (fs.existsSync as any).mockReturnValue(false);
 
-    it('should restart client', async () => {
-        getClient();
-        expect(pkg.Client).toHaveBeenCalledTimes(1);
+            const result = hasPersistedSession();
 
-        const restartPromise = restartClient();
+            expect(result).toBe(false);
+        });
 
-        // Advance timers to trigger the delay in restartClient
-        await vi.runAllTimersAsync();
+        it('should return false when only partial session exists', () => {
+            (fs.existsSync as any)
+                .mockReturnValueOnce(true)  // Default folder exists
+                .mockReturnValueOnce(false); // Local State doesn't exist
 
-        await restartPromise;
-        expect(pkg.Client).toHaveBeenCalledTimes(2);
+            const result = hasPersistedSession();
+
+            expect(result).toBe(false);
+        });
+
+        it('should handle errors gracefully and return false', () => {
+            (fs.existsSync as any).mockImplementation(() => {
+                throw new Error('File system error');
+            });
+
+            const result = hasPersistedSession();
+
+            expect(result).toBe(false);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.objectContaining({ err: 'File system error' }),
+                'Error checking for persisted session'
+            );
+        });
     });
 });
+

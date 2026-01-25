@@ -18,7 +18,9 @@ import {
   STANDARD_BANK_VENDORS,
   BEINLEUMI_GROUP_VENDORS,
   CREDIT_CARD_VENDORS,
-  ALL_VENDORS
+  ALL_VENDORS,
+  CATEGORY_CACHE_LIMIT,
+  HISTORY_CACHE_LIMIT
 } from '../../../utils/constants.js';
 import { generateTransactionIdentifier } from './transactionUtils.js';
 import { createScraper } from 'israeli-bank-scrapers';
@@ -66,16 +68,17 @@ export async function loadCategoryCache(client) {
   try {
     const historyResult = await client.query(
       `SELECT name, category FROM (
-        SELECT name, category, MAX(date) as last_seen 
-        FROM transactions 
-        WHERE category IS NOT NULL 
-          AND category != '' 
+        SELECT name, category, MAX(date) as last_seen
+        FROM transactions
+        WHERE category IS NOT NULL
+          AND category != ''
           AND category != 'N/A'
           AND LOWER(category) != 'uncategorized'
           AND (transaction_type IS NULL OR transaction_type != 'bank')
           AND date >= CURRENT_DATE - INTERVAL '120 days'
         GROUP BY name, category
-      ) t ORDER BY last_seen DESC LIMIT 300`
+      ) t ORDER BY last_seen DESC LIMIT $1`,
+      [CATEGORY_CACHE_LIMIT]
     );
 
     for (const row of historyResult.rows) {
@@ -1042,12 +1045,12 @@ export async function getScrapeRetries(client) {
 async function fetchHistoryCache(client, vendor) {
   try {
     const result = await client.query(
-      `SELECT identifier, name, price, date, category, category_source, account_number, installments_number, installments_total 
-       FROM transactions 
-       WHERE vendor = $1 
+      `SELECT identifier, name, price, date, category, category_source, account_number, installments_number, installments_total
+       FROM transactions
+       WHERE vendor = $1
        AND date >= CURRENT_DATE - INTERVAL '120 days'
-       ORDER BY date DESC LIMIT 3000`,
-      [vendor]
+       ORDER BY date DESC LIMIT $2`,
+      [vendor, HISTORY_CACHE_LIMIT]
     );
 
     const idMap = new Map(); // identifier -> { name, price, date, category, category_source, installments_number, installments_total }
