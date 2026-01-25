@@ -46,6 +46,8 @@ services:
       - NUDLERS_ENCRYPTION_KEY=${NUDLERS_ENCRYPTION_KEY:?NUDLERS_ENCRYPTION_KEY is required}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - LOW_RESOURCES_MODE=true
+      # Uncomment for very constrained NAS (Raspberry Pi, low-end Synology, etc.):
+      # - ULTRA_LOW_RESOURCES_MODE=true
     ports:
       - "3000:3000"
     depends_on:
@@ -57,18 +59,20 @@ services:
       - SYS_ADMIN
     security_opt:
       - seccomp=unconfined
-    # Reduced from 2gb - with --single-process and aggressive flags, 512mb is sufficient
-    shm_size: '512mb'
+    # Reduced shared memory - with --single-process and aggressive flags, 256mb is sufficient
+    shm_size: '256mb'
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    # Resource limits for NAS - adjust based on your NAS specs
+    # Resource limits for NAS - optimized for typical NAS devices
+    # For very constrained NAS (< 2GB total RAM), reduce limits further:
+    #   memory: 768M (with ULTRA_LOW_RESOURCES_MODE=true)
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1536M
         reservations:
-          memory: 512M
+          memory: 384M
     volumes:
       - whatsapp-data:/app/.wwebjs_auth
 

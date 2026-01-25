@@ -21,14 +21,36 @@ cleanup_stale_locks() {
     find "$DATA_DIR" -name "lockfile" -delete 2>/dev/null || true
 }
 
+# Function to get Node.js memory options based on environment
+get_node_options() {
+    # Default: 512MB heap for low-resource NAS, 2GB for normal operation
+    if [ "$LOW_RESOURCES_MODE" = "true" ]; then
+        # Ultra-low resource mode uses even less memory
+        if [ "$ULTRA_LOW_RESOURCES_MODE" = "true" ]; then
+            echo "--max-old-space-size=384"
+        else
+            echo "--max-old-space-size=512"
+        fi
+    else
+        echo "--max-old-space-size=2048"
+    fi
+}
+
 # Function to start Xvfb and the app
 start_app() {
-    echo "Starting Xvfb..."
+    echo "Starting Xvfb with minimal settings..."
     export DISPLAY=:99
-    Xvfb :99 -screen 0 1920x1080x24 &
+    # Use smaller virtual screen for low-resource mode
+    if [ "$LOW_RESOURCES_MODE" = "true" ]; then
+        Xvfb :99 -screen 0 1280x720x16 -nolisten tcp &
+    else
+        Xvfb :99 -screen 0 1920x1080x24 &
+    fi
     sleep 1
 
-    echo "Starting Nudlers app..."
+    # Set Node.js memory options based on resource mode
+    export NODE_OPTIONS="$(get_node_options)"
+    echo "Starting Nudlers app with NODE_OPTIONS=$NODE_OPTIONS..."
     exec node server.js
 }
 

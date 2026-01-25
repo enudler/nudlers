@@ -1,6 +1,17 @@
 import { Pool } from "pg";
 import logger from '../../utils/logger.js';
 
+// Determine connection pool size based on resource mode
+function getPoolSize() {
+  if (process.env.ULTRA_LOW_RESOURCES_MODE === 'true') {
+    return 2; // Minimal connections for very constrained NAS
+  }
+  if (process.env.LOW_RESOURCES_MODE === 'true') {
+    return 3; // Reduced connections for NAS
+  }
+  return 10; // Standard mode (reduced from 20 for better resource usage)
+}
+
 export const pool = new Pool({
   user: process.env.NUDLERS_DB_USER,
   host: process.env.NUDLERS_DB_HOST,
@@ -9,8 +20,9 @@ export const pool = new Pool({
   port: process.env.NUDLERS_DB_PORT ? parseInt(process.env.NUDLERS_DB_PORT) : 5432,
   ssl: false,
   // Optimization for Docker/Low Resource environments
-  max: process.env.LOW_RESOURCES_MODE === 'true' ? 5 : 20,
-  idleTimeoutMillis: 30000,
+  max: getPoolSize(),
+  // Shorter idle timeout in low-resource mode to free connections faster
+  idleTimeoutMillis: process.env.LOW_RESOURCES_MODE === 'true' ? 20000 : 30000,
   connectionTimeoutMillis: 10000,
   // Keepalive settings to prevent idle connections from being terminated
   keepAlive: true,

@@ -64,6 +64,43 @@ export const SCRAPER_LOW_RESOURCE_FLAGS = [
     '--blink-settings=imagesEnabled=false',
 ];
 
+// Ultra-low resource mode flags for very constrained NAS (Raspberry Pi, low-end Synology, etc.)
+// These flags provide even more aggressive memory optimization at the cost of some functionality
+export const SCRAPER_ULTRA_LOW_RESOURCE_FLAGS = [
+    ...SCRAPER_LOW_RESOURCE_FLAGS,
+    // Even more aggressive memory limits
+    '--js-flags=--max-old-space-size=128,--optimize-for-size,--gc-interval=100',
+    // Disable more features
+    '--disable-logging',
+    '--disable-web-security',
+    '--disable-plugins',
+    '--disable-popup-blocking',
+    '--disable-translate',
+    '--disable-infobars',
+    '--disable-session-crashed-bubble',
+    // Reduce memory usage
+    '--memory-pressure-off',
+    '--renderer-process-limit=1',
+    '--disable-breakpad',
+    '--disable-checker-imaging',
+    '--disable-composited-antialiasing',
+    // Disable more Chrome features
+    '--disable-ipc-flooding-protection',
+    '--disable-partial-raster',
+    '--disable-skia-runtime-opts',
+    // Force lower quality rendering
+    '--force-device-scale-factor=1',
+    '--disable-lcd-text',
+    '--disable-font-subpixel-positioning',
+].filter((flag, index, self) => {
+    // Remove duplicate --js-flags by keeping only the last one
+    if (flag.startsWith('--js-flags=')) {
+        const lastJsFlagsIndex = self.map((f, i) => f.startsWith('--js-flags=') ? i : -1).filter(i => i !== -1).pop();
+        return index === lastJsFlagsIndex;
+    }
+    return true;
+});
+
 // Timeout Settings
 export const DEFAULT_SCRAPER_TIMEOUT = 90000;
 export const DEFAULT_SCRAPE_RETRIES = 3;
@@ -74,9 +111,12 @@ export const RATE_LIMIT_SLOW_DELAY_MAX = 10000;
 export const DEFAULT_PROTOCOL_TIMEOUT = 180000;
 
 // Scraper Phase 3 (Selective API Calls)
-export const SCRAPER_PHASE3_MAX_CALLS = 200;
-export const SCRAPER_PHASE3_DELAY = 1000;
-export const SCRAPER_PHASE3_BATCH_SIZE = 5;
+// For NAS with limited resources, reduce max calls and batch size
+const isUltraLowResource = process.env.ULTRA_LOW_RESOURCES_MODE === 'true';
+const isLowResource = process.env.LOW_RESOURCES_MODE === 'true';
+export const SCRAPER_PHASE3_MAX_CALLS = isUltraLowResource ? 50 : (isLowResource ? 100 : 200);
+export const SCRAPER_PHASE3_DELAY = isUltraLowResource ? 2000 : 1000;
+export const SCRAPER_PHASE3_BATCH_SIZE = isUltraLowResource ? 2 : (isLowResource ? 3 : 5);
 
 // App Settings Keys
 export const APP_SETTINGS_KEYS = {

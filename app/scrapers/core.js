@@ -5,7 +5,8 @@ import {
     DEFAULT_PROTOCOL_TIMEOUT,
     CREDIT_CARD_VENDORS,
     SCRAPER_DOCKER_FLAGS,
-    SCRAPER_LOW_RESOURCE_FLAGS
+    SCRAPER_LOW_RESOURCE_FLAGS,
+    SCRAPER_ULTRA_LOW_RESOURCE_FLAGS
 } from '../utils/constants.js';
 import path from 'path';
 import fs from 'fs/promises';
@@ -94,6 +95,7 @@ export async function saveScreenshot(page, companyId, stepName, onProgress = nul
 }
 
 const LOW_RESOURCES_MODE = process.env.LOW_RESOURCES_MODE === 'true';
+const ULTRA_LOW_RESOURCES_MODE = process.env.ULTRA_LOW_RESOURCES_MODE === 'true';
 
 /**
  * Get Chromium/Chrome executable path based on OS/Environment.
@@ -128,7 +130,9 @@ export function getScraperOptions(companyId, startDate, options = {}) {
         args.push('--disable-http2');
     }
 
-    if (LOW_RESOURCES_MODE) {
+    if (ULTRA_LOW_RESOURCES_MODE) {
+        args.push(...SCRAPER_ULTRA_LOW_RESOURCE_FLAGS);
+    } else if (LOW_RESOURCES_MODE) {
         args.push(...SCRAPER_LOW_RESOURCE_FLAGS);
     }
 

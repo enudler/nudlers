@@ -85,14 +85,32 @@ export async function register() {
       logger.error({ error: err.message, stack: err.stack }, '[startup] Failed to run migrations');
     }
 
-    // Initialize WhatsApp Client (Singleton)
+    // Initialize WhatsApp Client (Singleton) - only if WhatsApp is enabled
+    // This saves significant memory (~150-200MB) for users who don't use WhatsApp
     try {
-      logger.info('[startup] Initializing WhatsApp Client singleton');
-      const { getClient } = await import('./utils/whatsapp-client.js');
-      getClient(); // Triggers initialization
+      const { getDB } = await import('./pages/api/db');
+      const dbClient = await getDB();
+      try {
+        const result = await dbClient.query(
+          "SELECT value FROM app_settings WHERE key = 'whatsapp_enabled'"
+        );
+        const isWhatsAppEnabled = result.rows.length > 0 &&
+          (result.rows[0].value === true || result.rows[0].value === 'true');
+
+        if (isWhatsAppEnabled) {
+          logger.info('[startup] WhatsApp is enabled, initializing client...');
+          const { getClient } = await import('./utils/whatsapp-client.js');
+          getClient(); // Triggers initialization
+        } else {
+          logger.info('[startup] WhatsApp is disabled, skipping client initialization (saves ~150MB RAM)');
+        }
+      } finally {
+        dbClient.release();
+      }
     } catch (error: unknown) {
       const err = error as Error;
-      logger.error({ error: err.message }, '[startup] Failed to initialize WhatsApp Client');
+      // If we can't check settings, skip WhatsApp to save resources
+      logger.warn({ error: err.message }, '[startup] Could not check WhatsApp settings, skipping initialization');
     }
 
 
