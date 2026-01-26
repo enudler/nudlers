@@ -19,6 +19,9 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import IconButton from '@mui/material/IconButton';
 
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
 import { fetchCategories } from './CategoryDashboard/utils/categoryUtils';
@@ -85,8 +88,23 @@ const RecurringPaymentsView: React.FC = () => {
     const [activeTab, setActiveTab] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-    const [sortBy, setSortBy] = useState<'amount' | 'count'>('count');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    // Sorting state - different defaults for each tab
+    const [installmentSortBy, setInstallmentSortBy] = useState<'status' | 'amount' | 'next_payment_date' | 'name'>('status');
+    const [installmentSortOrder, setInstallmentSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'name' | 'last_charge_date'>('amount');
+    const [recurringSortOrder, setRecurringSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    // Pagination state
+    const PAGE_SIZE = 25;
+    const [installmentPage, setInstallmentPage] = useState(1);
+    const [recurringPage, setRecurringPage] = useState(1);
+    const [totalInstallments, setTotalInstallments] = useState(0);
+    const [totalRecurring, setTotalRecurring] = useState(0);
+
+    // Summary stats
+    const [activeInstallmentsCount, setActiveInstallmentsCount] = useState(0);
+    const [activeInstallmentsAmount, setActiveInstallmentsAmount] = useState(0);
 
     const [categories, setCategories] = useState<string[]>([]);
     const [editingItem, setEditingItem] = useState<{ type: 'installment' | 'recurring', index: number, item: Installment | RecurringTransaction } | null>(null);
@@ -109,20 +127,49 @@ const RecurringPaymentsView: React.FC = () => {
             }
         };
         loadCategories();
-        fetchData();
     }, []);
+
+    // Fetch data when tab, sort, or page changes
+    useEffect(() => {
+        fetchData();
+    }, [activeTab, installmentSortBy, installmentSortOrder, recurringSortBy, recurringSortOrder, installmentPage, recurringPage]);
 
     const fetchData = async () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await fetch('/api/reports/recurring-payments');
+
+            // Determine which type to fetch based on active tab
+            const type = activeTab === 0 ? 'installments' : 'recurring';
+            const sortBy = activeTab === 0 ? installmentSortBy : recurringSortBy;
+            const sortOrder = activeTab === 0 ? installmentSortOrder : recurringSortOrder;
+            const page = activeTab === 0 ? installmentPage : recurringPage;
+            const offset = (page - 1) * PAGE_SIZE;
+
+            const params = new URLSearchParams({
+                type,
+                sortBy,
+                sortOrder,
+                limit: String(PAGE_SIZE),
+                offset: String(offset),
+                ...(type === 'recurring' && { frequency: 'monthly' })
+            });
+
+            const response = await fetch(`/api/reports/recurring-payments?${params}`);
             if (!response.ok) {
                 throw new Error('Failed to fetch recurring payments');
             }
             const data = await response.json();
-            setInstallments(data.installments || []);
-            setRecurring(data.recurring || []);
+
+            if (activeTab === 0) {
+                setInstallments(data.installments || []);
+                setTotalInstallments(data.pagination?.totalInstallments || 0);
+                setActiveInstallmentsCount(data.summary?.activeInstallmentsCount || 0);
+                setActiveInstallmentsAmount(data.summary?.activeInstallmentsAmount || 0);
+            } else {
+                setRecurring(data.recurring || []);
+                setTotalRecurring(data.pagination?.totalRecurring || 0);
+            }
         } catch (err) {
             logger.error('Error fetching recurring payments', err as Error);
             setError(err instanceof Error ? err.message : 'An error occurred');
@@ -135,10 +182,6 @@ const RecurringPaymentsView: React.FC = () => {
         setActiveTab(newValue);
     };
 
-    const activeInstallments = installments.filter(i => i.status === 'active');
-    const completedInstallments = installments.filter(i => i.status === 'completed');
-    const totalMonthlyInstallments = activeInstallments.reduce((sum, i) => sum + Math.abs(i.price), 0);
-
     const toggleRow = (id: string) => {
         const newExpanded = new Set(expandedRows);
         if (newExpanded.has(id)) {
@@ -149,29 +192,28 @@ const RecurringPaymentsView: React.FC = () => {
         setExpandedRows(newExpanded);
     };
 
-    const sortedRecurring = [...recurring].sort((a, b) => {
-        let comparison = 0;
-        if (sortBy === 'amount') {
-            comparison = Math.abs(a.price) - Math.abs(b.price);
-            if (comparison === 0) {
-                comparison = a.month_count - b.month_count;
-            }
-        } else if (sortBy === 'count') {
-            comparison = a.month_count - b.month_count;
-            if (comparison === 0) {
-                comparison = Math.abs(a.price) - Math.abs(b.price);
-            }
-        }
-        return sortOrder === 'desc' ? -comparison : comparison;
-    });
-
-    const handleSort = (field: 'amount' | 'count') => {
-        if (sortBy === field) {
-            setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    // Handle sorting for recurring tab (server-side)
+    const handleRecurringSort = (field: string) => {
+        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'name' | 'last_charge_date';
+        if (recurringSortBy === sortField) {
+            setRecurringSortOrder(recurringSortOrder === 'desc' ? 'asc' : 'desc');
         } else {
-            setSortBy(field);
-            setSortOrder('desc');
+            setRecurringSortBy(sortField);
+            setRecurringSortOrder('desc');
         }
+        setRecurringPage(1); // Reset to first page on sort change
+    };
+
+    // Handle sorting for installments tab (server-side)
+    const handleInstallmentSort = (field: string) => {
+        const sortField = field === 'price' ? 'amount' : field as 'status' | 'amount' | 'next_payment_date' | 'name';
+        if (installmentSortBy === sortField) {
+            setInstallmentSortOrder(installmentSortOrder === 'desc' ? 'asc' : 'desc');
+        } else {
+            setInstallmentSortBy(sortField);
+            setInstallmentSortOrder('desc');
+        }
+        setInstallmentPage(1); // Reset to first page on sort change
     };
 
     const renderAccountInfo = (item: Installment | RecurringTransaction) => {
@@ -260,20 +302,6 @@ const RecurringPaymentsView: React.FC = () => {
                 title="Recurring Payments"
                 description="Monitor your active installments and recurring subscriptions"
                 icon={<RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
-                stats={
-                    <Box sx={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>INSTALLMENTS</Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(totalMonthlyInstallments)}</Typography>
-                        </Box>
-                        <Box sx={{ width: '1px', height: '32px', bgcolor: 'divider' }} />
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>ACTIVE</Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>{activeInstallments.length + recurring.length}</Typography>
-                        </Box>
-                    </Box>
-                }
-                onRefresh={fetchData}
             />
 
             {/* Main Content Card */}
@@ -302,8 +330,8 @@ const RecurringPaymentsView: React.FC = () => {
                             '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main, height: '3px', borderRadius: '3px 3px 0 0' }
                         }}
                     >
-                        <Tab label={`Installments (${installments.length})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
-                        <Tab label={`Recurring (${recurring.length})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Installments (${totalInstallments || '...'})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Recurring (${totalRecurring || '...'})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
                     </Tabs>
                 </Box>
 
@@ -314,13 +342,47 @@ const RecurringPaymentsView: React.FC = () => {
                         <Box sx={{ p: 4, textAlign: 'center', color: 'error.main' }}>Error: {error}</Box>
                     ) : (
                         <>
+                            {/* Summary Box for Installments */}
+                            {activeTab === 0 && (
+                                <Box sx={{
+                                    display: 'flex',
+                                    gap: 3,
+                                    mb: 3,
+                                    p: 2,
+                                    borderRadius: 2,
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                    border: `1px solid ${theme.palette.divider}`
+                                }}>
+                                    <Box sx={{ textAlign: 'center', flex: 1 }}>
+                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                            ACTIVE INSTALLMENTS
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                                            {activeInstallmentsCount}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ width: '1px', bgcolor: 'divider' }} />
+                                    <Box sx={{ textAlign: 'center', flex: 1 }}>
+                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                            MONTHLY TOTAL
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>
+                                            ₪{formatNumber(activeInstallmentsAmount)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
                             {activeTab === 0 ? (
                                 <Table
                                     rows={installments}
                                     rowKey={(row) => `${row.name}-${row.current_installment}-${row.total_installments}`}
                                     emptyMessage="No installment payments found"
+                                    onSort={handleInstallmentSort}
+                                    sortField={installmentSortBy === 'amount' ? 'price' : installmentSortBy}
+                                    sortDirection={installmentSortOrder}
                                     columns={[
-                                        { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
+                                        { id: 'name', label: 'Description', sortable: true, format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
                                         { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
                                         {
                                             id: 'category',
@@ -364,11 +426,11 @@ const RecurringPaymentsView: React.FC = () => {
                                                 );
                                             }
                                         },
-                                        { id: 'price', label: 'Monthly', align: 'right', format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                        { id: 'price', label: 'Monthly', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
                                         { id: 'original_amount', label: 'Original', align: 'right', format: (val) => <span style={{ color: 'text.secondary' }}>{val ? `₪${formatNumber(val)}` : '-'}</span> },
-                                        { id: 'next_payment_date', label: 'Next', align: 'center', format: (val) => val ? formatDate(val) : 'Completed' },
+                                        { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => val ? formatDate(val) : 'Completed' },
                                         { id: 'last_payment_date', label: 'End', align: 'center', format: (val) => formatDate(val) },
-                                        { id: 'status', label: 'Status', align: 'center', format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
+                                        { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
                                     ]}
                                     mobileCardRenderer={(row) => (
                                         <Box>
@@ -388,12 +450,12 @@ const RecurringPaymentsView: React.FC = () => {
                                 />
                             ) : (
                                 <Table
-                                    rows={sortedRecurring}
+                                    rows={recurring}
                                     rowKey={(row) => `${row.name}-${row.month_count}`}
                                     emptyMessage="No recurring payments detected"
-                                    onSort={(field) => handleSort(field as 'amount' | 'count')}
-                                    sortField={sortBy}
-                                    sortDirection={sortOrder}
+                                    onSort={handleRecurringSort}
+                                    sortField={recurringSortBy === 'amount' ? 'price' : recurringSortBy}
+                                    sortDirection={recurringSortOrder}
                                     expandedRowIds={expandedRows}
                                     onRowToggle={(rowKey) => toggleRow(rowKey as string)}
                                     columns={[
@@ -403,7 +465,7 @@ const RecurringPaymentsView: React.FC = () => {
                                             id: 'category',
                                             label: 'Category',
                                             format: (_, row) => {
-                                                const index = sortedRecurring.indexOf(row);
+                                                const index = recurring.indexOf(row);
                                                 if (editingItem?.type === 'recurring' && editingItem.index === index) {
                                                     return (
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -423,17 +485,16 @@ const RecurringPaymentsView: React.FC = () => {
                                                 );
                                             }
                                         },
-                                        { id: 'frequency', label: 'Frequency', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'bi-monthly' ? 'warning' : 'info'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> },
                                         { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
-                                        { id: 'next_payment_date', label: 'Next', align: 'center', format: (val) => formatDate(val) },
-                                        { id: 'last_charge_date', label: 'Last', align: 'center', format: (val) => formatDate(val) },
+                                        { id: 'last_charge_date', label: 'Last Charge', align: 'center', sortable: true, format: (val) => formatDate(val) },
+                                        { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
                                         {
                                             id: 'details',
-                                            label: 'Details',
+                                            label: '',
                                             align: 'center',
                                             format: (_, row) => {
                                                 const isExpanded = expandedRows.has(`${row.name}-${row.month_count}`);
-                                                return isExpanded ? 'Hide' : `History (${row.month_count})`;
+                                                return isExpanded ? 'Hide' : 'History';
                                             }
                                         }
                                     ]}
@@ -456,15 +517,49 @@ const RecurringPaymentsView: React.FC = () => {
                                             </Box>
                                             <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Chip label={row.frequency} size="small" color={row.frequency === 'bi-monthly' ? 'warning' : 'info'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Next: {formatDate(row.next_payment_date)}
+                                                    {row.month_count} months
+                                                </Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    Last: {formatDate(row.last_charge_date)}
                                                 </Typography>
                                             </Box>
                                         </Box>
                                     )}
                                 />
                             )}
+
+                            {/* Pagination */}
+                            {(() => {
+                                const total = activeTab === 0 ? totalInstallments : totalRecurring;
+                                const page = activeTab === 0 ? installmentPage : recurringPage;
+                                const setPage = activeTab === 0 ? setInstallmentPage : setRecurringPage;
+                                const totalPages = Math.ceil(total / PAGE_SIZE);
+
+                                if (totalPages <= 1) return null;
+
+                                return (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 2 }}>
+                                        <IconButton
+                                            onClick={() => setPage(Math.max(1, page - 1))}
+                                            disabled={page === 1}
+                                            size="small"
+                                        >
+                                            <ChevronLeftIcon />
+                                        </IconButton>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            Page {page} of {totalPages} ({total} items)
+                                        </Typography>
+                                        <IconButton
+                                            onClick={() => setPage(Math.min(totalPages, page + 1))}
+                                            disabled={page === totalPages}
+                                            size="small"
+                                        >
+                                            <ChevronRightIcon />
+                                        </IconButton>
+                                    </Box>
+                                );
+                            })()}
                         </>
                     )}
                 </Box>
