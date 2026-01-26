@@ -209,4 +209,19 @@ describe('Recurring Payments API', () => {
         }));
         expect(mockClient.release).toHaveBeenCalled();
     });
+
+    it('should exclude transactions marked as non-recurring', async () => {
+        mockReq.query = { type: 'recurring' };
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+
+        await handler(mockReq, mockRes);
+
+        const query = mockClient.query.mock.calls[0][0];
+
+        // Verify the exclusion logic for non-recurring transactions
+        expect(query).toContain('excluded_recurring AS');
+        expect(query).toContain('FROM non_recurring_exclusions');
+        expect(query).toContain('NOT EXISTS');
+        expect(query).toContain('LOWER(TRIM(t.name)) = e.name');
+    });
 });

@@ -494,6 +494,85 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /reports/non-recurring-exclusions:
+    get:
+      tags:
+        - Reports
+      summary: List non-recurring exclusions
+      description: Returns a list of all transactions marked as non-recurring.
+      responses:
+        '200':
+          description: List of exclusions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exclusions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NonRecurringExclusion'
+                  total:
+                    type: integer
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags:
+        - Reports
+      summary: Mark a transaction as non-recurring
+      description: Adds a transaction pattern to the exclusion list so it's not detected as recurring.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: The transaction name to exclude
+                account_number:
+                  type: string
+                  description: Optional specific account number to exclude for
+      responses:
+        '201':
+          description: Exclusion created
+        '200':
+          description: Already existed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags:
+        - Reports
+      summary: Remove a non-recurring exclusion
+      description: Removes a transaction pattern from the exclusion list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                account_number:
+                  type: string
+      responses:
+        '200':
+          description: Exclusion removed
+        '404':
+          description: Exclusion not found
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /budgets:
     get:
       tags:
@@ -2068,3 +2147,16 @@ components:
                 type: string
               details:
                 type: string
+    NonRecurringExclusion:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        account_number:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
