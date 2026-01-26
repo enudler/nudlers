@@ -89,7 +89,7 @@ const RecurringPaymentsView: React.FC = () => {
     // Sorting state - different defaults for each tab
     const [installmentSortBy, setInstallmentSortBy] = useState<'status' | 'amount' | 'next_payment_date' | 'name'>('status');
     const [installmentSortOrder, setInstallmentSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date' | 'next_payment_date'>('amount');
+    const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date'>('amount');
     const [recurringSortOrder, setRecurringSortOrder] = useState<'asc' | 'desc'>('desc');
 
     // Pagination state
@@ -182,7 +182,7 @@ const RecurringPaymentsView: React.FC = () => {
 
     // Handle sorting for recurring tab (server-side)
     const handleRecurringSort = (field: string) => {
-        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date' | 'next_payment_date';
+        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date';
         if (recurringSortBy === sortField) {
             setRecurringSortOrder(recurringSortOrder === 'desc' ? 'asc' : 'desc');
         } else {
@@ -456,8 +456,7 @@ const RecurringPaymentsView: React.FC = () => {
                                         },
                                         { id: 'frequency', label: 'Frequency', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'bi-monthly' ? 'warning' : 'info'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> },
                                         { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
-                                        { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => formatDate(val) },
-                                        { id: 'last_charge_date', label: 'Last', align: 'center', sortable: true, format: (val) => formatDate(val) },
+                                        { id: 'last_charge_date', label: 'Last Charge', align: 'center', sortable: true, format: (val) => formatDate(val) },
                                         { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
                                         {
                                             id: 'details',
