@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nudlers Screen Redesign Proposals</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .intro {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .intro p {
+            color: #94a3b8;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .current-analysis {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .current-screen {
+            background: rgba(30, 41, 59, 0.4);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .current-screen h3 {
+            color: #f87171;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .current-screen ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .current-screen li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .current-screen li::before {
+            content: "•";
+            color: #64748b;
+        }
+
+        .proposal {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 24px;
+            padding: 32px;
+            margin-bottom: 48px;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .proposal-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .proposal-number {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .proposal h2 {
+            font-size: 1.75rem;
+            color: #f1f5f9;
+        }
+
+        .proposal-subtitle {
+            color: #94a3b8;
+            margin-top: 4px;
+            font-size: 0.9rem;
+        }
+
+        .screens-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-top: 24px;
+        }
+
+        .screen-mockup {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .screen-header {
+            background: linear-gradient(135deg, #1e40af, #7c3aed);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .screen-header.green {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+
+        .screen-header.purple {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+        }
+
+        .screen-header.orange {
+            background: linear-gradient(135deg, #ea580c, #f97316);
+        }
+
+        .screen-header.cyan {
+            background: linear-gradient(135deg, #0891b2, #06b6d4);
+        }
+
+        .screen-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screen-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .screen-content {
+            padding: 20px;
+        }
+
+        .module {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .module-title {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #60a5fa;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .module-content {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .mini-card {
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .mini-card.green {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .mini-card.red {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .mini-card.purple {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: rgba(139, 92, 246, 0.2);
+        }
+
+        .mini-card-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .mini-card-label {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .rationale {
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .rationale h4 {
+            color: #60a5fa;
+            margin-bottom: 12px;
+        }
+
+        .rationale ul {
+            list-style: none;
+        }
+
+        .rationale li {
+            padding: 6px 0;
+            color: #94a3b8;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .rationale li::before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .nav-preview {
+            display: flex;
+            gap: 8px;
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 12px;
+            overflow-x: auto;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 12px;
+            min-width: 80px;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .nav-item.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+        }
+
+        .nav-item-icon {
+            font-size: 1.2rem;
+        }
+
+        .nav-item-label {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        .recommendation {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+            border: 2px solid #10b981;
+            border-radius: 24px;
+            padding: 32px;
+            margin-top: 48px;
+        }
+
+        .recommendation h2 {
+            color: #10b981;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.new {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .badge.renamed {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .badge.merged {
+            background: rgba(139, 92, 246, 0.2);
+            color: #a78bfa;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .comparison-table th {
+            color: #60a5fa;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .comparison-table td {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .arrow {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        @media (max-width: 900px) {
+            .current-analysis,
+            .screens-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Screen Redesign Proposals</h1>
+
+        <div class="intro">
+            <p><strong>Current Problem:</strong> The "Summary" and "Overview" screens have confusing names that don't clearly communicate their purpose. Both names suggest a high-level view, making it unclear which screen serves what function.</p>
+            <p><strong>Goal:</strong> Rename and potentially reorganize these screens so users instantly understand what they'll find and when to use each one.</p>
+        </div>
+
+        <!-- Current State Analysis -->
+        <h2 style="margin-bottom: 24px; color: #f87171;">Current State Analysis</h2>
+        <div class="current-analysis">
+            <div class="current-screen">
+                <h3>📋 "Summary" Screen (MonthlySummary.tsx)</h3>
+                <ul>
+                    <li>Credit card expenses by card (with progress bars)</li>
+                    <li>Bank account net flows</li>
+                    <li>Credit card usage by linked bank</li>
+                    <li>Breakdown table (by description/card/vendor)</li>
+                    <li>Card vendor & nickname management</li>
+                    <li>Transaction search</li>
+                </ul>
+                <p style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; font-size: 0.85rem;">
+                    <strong>Issue:</strong> "Summary" implies a high-level overview, but this screen focuses on payment sources (cards & accounts)
+                </p>
+            </div>
+            <div class="current-screen">
+                <h3>📊 "Overview" Screen (CategoryDashboard.tsx)</h3>
+                <ul>
+                    <li>Bank income vs expenses totals</li>
+                    <li>Credit card totals</li>
+                    <li>Category-based expense grid</li>
+                    <li>Budget limits per category</li>
+                    <li>Over-budget warnings</li>
+                    <li>Full transactions table (toggle)</li>
+                </ul>
+                <p style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; font-size: 0.85rem;">
+                    <strong>Issue:</strong> "Overview" is too generic - this screen is really about categorized spending and budgets
+                </p>
+            </div>
+        </div>
+
+        <!-- OPTION 1 -->
+        <div class="proposal">
+            <div class="proposal-header">
+                <div class="proposal-number">1</div>
+                <div>
+                    <h2>Simple Rename: Accounts & Categories</h2>
+                    <div class="proposal-subtitle">Minimal change - just rename screens based on their primary focus</div>
+                </div>
+            </div>
+
+            <div class="screens-container">
+                <div class="screen-mockup">
+                    <div class="screen-header">
+                        <div class="screen-icon">💳</div>
+                        <div>
+                            <div class="screen-title">Accounts</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Cards & Bank Accounts</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">💳 Credit Cards</div>
+                            <div class="card-grid">
+                                <div class="mini-card">
+                                    <div class="mini-card-value">₪4,200</div>
+                                    <div class="mini-card-label">Visa •••• 1234</div>
+                                </div>
+                                <div class="mini-card">
+                                    <div class="mini-card-value">₪2,800</div>
+                                    <div class="mini-card-label">MC •••• 5678</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">🏦 Bank Accounts</div>
+                            <div class="card-grid">
+                                <div class="mini-card green">
+                                    <div class="mini-card-value">+₪12,500</div>
+                                    <div class="mini-card-label">Checking Net Flow</div>
+                                </div>
+                                <div class="mini-card red">
+                                    <div class="mini-card-value">-₪3,200</div>
+                                    <div class="mini-card-label">Savings Net Flow</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📊 Breakdown Table</div>
+                            <div class="module-content">Group by: Description | Card | Vendor</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen-mockup">
+                    <div class="screen-header green">
+                        <div class="screen-icon">📁</div>
+                        <div>
+                            <div class="screen-title">Categories</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Spending by Category</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">📈 Monthly Totals</div>
+                            <div class="card-grid">
+                                <div class="mini-card green">
+                                    <div class="mini-card-value">₪15,000</div>
+                                    <div class="mini-card-label">Income</div>
+                                </div>
+                                <div class="mini-card red">
+                                    <div class="mini-card-value">₪8,500</div>
+                                    <div class="mini-card-label">Expenses</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📁 Category Grid</div>
+                            <div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                                <div class="mini-card purple">
+                                    <div class="mini-card-value">₪2,400</div>
+                                    <div class="mini-card-label">Groceries</div>
+                                </div>
+                                <div class="mini-card purple">
+                                    <div class="mini-card-value">₪1,800</div>
+                                    <div class="mini-card-label">Dining</div>
+                                </div>
+                                <div class="mini-card purple">
+                                    <div class="mini-card-value">₪900</div>
+                                    <div class="mini-card-label">Transport</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">🎯 Budget Tracking</div>
+                            <div class="module-content">Per-category budgets with progress bars</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-preview">
+                <div class="nav-item active">
+                    <div class="nav-item-icon">💳</div>
+                    <div class="nav-item-label">Accounts</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">📁</div>
+                    <div class="nav-item-label">Categories</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🎯</div>
+                    <div class="nav-item-label">Budget</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🔄</div>
+                    <div class="nav-item-label">Recurring</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">📜</div>
+                    <div class="nav-item-label">Audit</div>
+                </div>
+            </div>
+
+            <div class="rationale">
+                <h4>Rationale</h4>
+                <ul>
+                    <li><strong>Minimal effort:</strong> Only navigation labels change, no code restructuring</li>
+                    <li><strong>"Accounts"</strong> clearly indicates this is about payment sources</li>
+                    <li><strong>"Categories"</strong> clearly indicates spending breakdown by type</li>
+                    <li>Users can ask: "Which card am I overspending on?" → Accounts</li>
+                    <li>Users can ask: "Am I over budget on groceries?" → Categories</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- OPTION 2 -->
+        <div class="proposal">
+            <div class="proposal-header">
+                <div class="proposal-number">2</div>
+                <div>
+                    <h2>Action-Oriented: Spend & Track</h2>
+                    <div class="proposal-subtitle">Name screens by what users DO on them</div>
+                </div>
+            </div>
+
+            <div class="screens-container">
+                <div class="screen-mockup">
+                    <div class="screen-header orange">
+                        <div class="screen-icon">💸</div>
+                        <div>
+                            <div class="screen-title">Spending</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">See where money flows</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">💳 Payment Methods</div>
+                            <div class="module-content">All credit cards with individual spending totals</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">🏦 Account Flows</div>
+                            <div class="module-content">Bank accounts with income/expense tracking</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">🔍 Transaction Search</div>
+                            <div class="module-content">Find specific transactions across all sources</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📊 Breakdown Analysis</div>
+                            <div class="module-content">Group transactions by description, card, or vendor</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen-mockup">
+                    <div class="screen-header purple">
+                        <div class="screen-icon">🎯</div>
+                        <div>
+                            <div class="screen-title">Tracking</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Monitor goals & budgets</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">📊 Category Overview</div>
+                            <div class="module-content">Spending organized by category with visual cards</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">🎯 Budget Progress</div>
+                            <div class="module-content">Visual progress bars for each budget limit</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">⚠️ Alerts</div>
+                            <div class="module-content">Over-budget warnings and spending alerts</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📈 Trends</div>
+                            <div class="module-content">Month-over-month category comparisons</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-preview">
+                <div class="nav-item active">
+                    <div class="nav-item-icon">💸</div>
+                    <div class="nav-item-label">Spending</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🎯</div>
+                    <div class="nav-item-label">Tracking</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">💰</div>
+                    <div class="nav-item-label">Budgets</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🔄</div>
+                    <div class="nav-item-label">Recurring</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">📜</div>
+                    <div class="nav-item-label">History</div>
+                </div>
+            </div>
+
+            <div class="rationale">
+                <h4>Rationale</h4>
+                <ul>
+                    <li><strong>"Spending"</strong> focuses on the raw data - where money went</li>
+                    <li><strong>"Tracking"</strong> focuses on goals - are you on target?</li>
+                    <li>Action-oriented names help users navigate by intent</li>
+                    <li>Clear mental model: View data → Track progress</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- OPTION 3 -->
+        <div class="proposal">
+            <div class="proposal-header">
+                <div class="proposal-number">3</div>
+                <div>
+                    <h2>Dashboard-First: Home & Details</h2>
+                    <div class="proposal-subtitle">Create a true dashboard as entry point, details screen for deep dives</div>
+                </div>
+            </div>
+
+            <div class="screens-container">
+                <div class="screen-mockup">
+                    <div class="screen-header cyan">
+                        <div class="screen-icon">🏠</div>
+                        <div>
+                            <div class="screen-title">Dashboard</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Your financial snapshot</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">💰 Monthly Summary</div>
+                            <div class="card-grid">
+                                <div class="mini-card green">
+                                    <div class="mini-card-value">₪15,000</div>
+                                    <div class="mini-card-label">Total Income</div>
+                                </div>
+                                <div class="mini-card red">
+                                    <div class="mini-card-value">₪11,200</div>
+                                    <div class="mini-card-label">Total Expenses</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">⚠️ Budget Alerts</div>
+                            <div class="module-content">
+                                <div style="color: #f87171; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 6px; margin-bottom: 4px;">
+                                    Dining: 120% of budget
+                                </div>
+                                <div style="color: #fbbf24; padding: 8px; background: rgba(251, 191, 36, 0.1); border-radius: 6px;">
+                                    Shopping: 85% of budget
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📊 Top Categories</div>
+                            <div class="module-content">Quick view of highest spending categories</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">💳 Card Summary</div>
+                            <div class="module-content">Total credit card spending this month</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen-mockup">
+                    <div class="screen-header">
+                        <div class="screen-icon">🔍</div>
+                        <div>
+                            <div class="screen-title">Transactions</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Detailed transaction analysis</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">🔀 View Mode Toggle</div>
+                            <div class="card-grid">
+                                <div class="mini-card" style="background: rgba(59, 130, 246, 0.2);">
+                                    <div class="mini-card-label" style="font-size: 0.8rem;">By Card</div>
+                                </div>
+                                <div class="mini-card">
+                                    <div class="mini-card-label" style="font-size: 0.8rem;">By Category</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">💳 Card Details</div>
+                            <div class="module-content">Individual card spending, vendors, nicknames</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📁 Category Details</div>
+                            <div class="module-content">Category breakdowns with budget info</div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📋 Transaction Table</div>
+                            <div class="module-content">Full searchable transaction list</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-preview">
+                <div class="nav-item active">
+                    <div class="nav-item-icon">🏠</div>
+                    <div class="nav-item-label">Dashboard</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🔍</div>
+                    <div class="nav-item-label">Transactions</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🎯</div>
+                    <div class="nav-item-label">Budgets</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🔄</div>
+                    <div class="nav-item-label">Recurring</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">📜</div>
+                    <div class="nav-item-label">Audit</div>
+                </div>
+            </div>
+
+            <div class="rationale">
+                <h4>Rationale</h4>
+                <ul>
+                    <li><strong>Dashboard</strong> becomes the true "at a glance" view - shows alerts, summaries</li>
+                    <li><strong>Transactions</strong> consolidates both card and category views with a toggle</li>
+                    <li>Reduces navigation decisions - one place for all detailed analysis</li>
+                    <li>Dashboard answers "How am I doing?" - Transactions answers "Show me details"</li>
+                    <li><strong>Note:</strong> This requires more significant code changes</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- OPTION 4 - RECOMMENDED -->
+        <div class="proposal" style="border: 2px solid #10b981;">
+            <div class="proposal-header">
+                <div class="proposal-number" style="background: linear-gradient(135deg, #10b981, #059669);">4</div>
+                <div>
+                    <h2>Hybrid: Cards & Budgets <span class="badge new" style="margin-left: 12px;">RECOMMENDED</span></h2>
+                    <div class="proposal-subtitle">Clear names + slight reorganization for better UX</div>
+                </div>
+            </div>
+
+            <div class="screens-container">
+                <div class="screen-mockup">
+                    <div class="screen-header" style="background: linear-gradient(135deg, #0369a1, #0ea5e9);">
+                        <div class="screen-icon">💳</div>
+                        <div>
+                            <div class="screen-title">Cards & Accounts</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Your payment sources</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">💳 Credit Cards</div>
+                            <div class="module-content">
+                                • Individual card totals with % of spending<br>
+                                • Card vendor & nickname management<br>
+                                • Click to see card transactions
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">🏦 Bank Accounts</div>
+                            <div class="module-content">
+                                • Account net flows (income - expenses)<br>
+                                • Click to see account transactions
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📊 Transaction Breakdown</div>
+                            <div class="module-content">
+                                • Group by: Description | Card | Vendor<br>
+                                • Search transactions<br>
+                                • Sortable table with pagination
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen-mockup">
+                    <div class="screen-header" style="background: linear-gradient(135deg, #7c3aed, #a855f7);">
+                        <div class="screen-icon">🎯</div>
+                        <div>
+                            <div class="screen-title">Budgets</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">Track spending by category</div>
+                        </div>
+                    </div>
+                    <div class="screen-content">
+                        <div class="module">
+                            <div class="module-title">📊 Monthly Overview</div>
+                            <div class="card-grid">
+                                <div class="mini-card green">
+                                    <div class="mini-card-value">₪15,000</div>
+                                    <div class="mini-card-label">Bank Income</div>
+                                </div>
+                                <div class="mini-card red">
+                                    <div class="mini-card-value">₪8,500</div>
+                                    <div class="mini-card-label">Card Expenses</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📁 Categories with Budgets</div>
+                            <div class="module-content">
+                                • Category cards sorted by: budgeted first, then by amount<br>
+                                • Budget progress bars<br>
+                                • Over-budget warnings<br>
+                                • Click to set/edit budgets<br>
+                                • Click category to see transactions
+                            </div>
+                        </div>
+                        <div class="module">
+                            <div class="module-title">📋 Transaction Table (Toggle)</div>
+                            <div class="module-content">
+                                • Full transaction list<br>
+                                • Edit amounts & categories<br>
+                                • Delete transactions
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-preview">
+                <div class="nav-item">
+                    <div class="nav-item-icon">💳</div>
+                    <div class="nav-item-label">Cards</div>
+                </div>
+                <div class="nav-item active">
+                    <div class="nav-item-icon">🎯</div>
+                    <div class="nav-item-label">Budgets</div>
+                </div>
+                <div class="nav-item" style="opacity: 0.5;">
+                    <div class="nav-item-icon">💰</div>
+                    <div class="nav-item-label" style="text-decoration: line-through;">Budget</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">🔄</div>
+                    <div class="nav-item-label">Recurring</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-item-icon">📜</div>
+                    <div class="nav-item-label">Audit</div>
+                </div>
+            </div>
+
+            <div class="rationale" style="border-color: #10b981;">
+                <h4 style="color: #10b981;">Why This is Recommended</h4>
+                <ul>
+                    <li><strong>"Cards & Accounts"</strong> - Users instantly know this shows payment methods</li>
+                    <li><strong>"Budgets"</strong> - Combines category view WITH budget tracking (they're naturally related)</li>
+                    <li>Consider <strong>removing the separate "Budget" screen</strong> since this screen now handles budgets</li>
+                    <li>Clear user questions: "What's on my Visa?" → Cards | "Am I over budget?" → Budgets</li>
+                    <li>Moderate effort - mostly renaming, minor feature consolidation</li>
+                    <li>The word "Budgets" is more actionable than "Categories" or "Overview"</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Summary Comparison -->
+        <div class="recommendation">
+            <h2>📊 Summary Comparison</h2>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Current "Summary"</th>
+                        <th></th>
+                        <th>Current "Overview"</th>
+                        <th>Effort</th>
+                        <th>Clarity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>1. Simple Rename</strong></td>
+                        <td>Summary</td>
+                        <td class="arrow">→</td>
+                        <td>Accounts / Categories</td>
+                        <td>⭐</td>
+                        <td>⭐⭐⭐</td>
+                    </tr>
+                    <tr>
+                        <td><strong>2. Action-Oriented</strong></td>
+                        <td>Summary</td>
+                        <td class="arrow">→</td>
+                        <td>Spending / Tracking</td>
+                        <td>⭐</td>
+                        <td>⭐⭐⭐</td>
+                    </tr>
+                    <tr>
+                        <td><strong>3. Dashboard-First</strong></td>
+                        <td colspan="3">Merge into Dashboard + Transactions</td>
+                        <td>⭐⭐⭐</td>
+                        <td>⭐⭐⭐⭐</td>
+                    </tr>
+                    <tr style="background: rgba(16, 185, 129, 0.1);">
+                        <td><strong>4. Hybrid (Recommended)</strong></td>
+                        <td>Summary</td>
+                        <td class="arrow">→</td>
+                        <td>Cards & Accounts / Budgets</td>
+                        <td>⭐⭐</td>
+                        <td>⭐⭐⭐⭐⭐</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 32px; padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px;">
+                <h4 style="color: #10b981; margin-bottom: 12px;">My Recommendation: Option 4</h4>
+                <p style="color: #94a3b8; line-height: 1.7;">
+                    <strong>"Cards & Accounts"</strong> clearly communicates this screen shows your payment sources.<br>
+                    <strong>"Budgets"</strong> shifts focus to what users actually care about - tracking their spending against limits.<br><br>
+                    This also opens the opportunity to <strong>consolidate the existing "Budget" screen</strong> into this view,
+                    reducing navigation complexity while making the app feel more intuitive.
+                </p>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
