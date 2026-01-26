@@ -236,12 +236,13 @@ const getVendorIcon = (vendor: string) => {
 
 import { useTheme } from '@mui/material/styles';
 import { useNotification } from './NotificationContext';
+import { useStatus } from '../context/StatusContext';
 
 const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange, onSyncSuccess }) => {
   const theme = useTheme();
   const { showNotification } = useNotification();
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { syncStatus: status, refreshStatus: fetchStatus, setFullPolling } = useStatus();
+  const loading = !status;
   const [isSyncing, setIsSyncing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [syncProgress, setSyncProgress] = useState<{
@@ -367,19 +368,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/scrapers/status');
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
-      }
-    } catch (error) {
-      logger.error('Failed to fetch sync status', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   // Sync state recovery on mount or status change
   useEffect(() => {
@@ -404,69 +392,20 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       setSyncProgress(null);
       setSyncStartTime(null);
     }
-  }, [status, isSyncing, isInitializing, isStopping]); // Removed syncProgress from dependencies to avoid loop
-
-
-
-  // Smart Polling Strategy
+  }, [status, isSyncing, isInitializing, isStopping]);
+  // Initial fetch and start
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      setFullPolling(true);
+      fetchStatus(true);
+    } else {
+      setFullPolling(false);
+    }
+  }, [open, fetchStatus, setFullPolling]);
 
-    let pollingInterval: NodeJS.Timeout | null = null;
-    let isTabVisible = true;
+  // No local polling, managed by StatusContext
 
-    const startPolling = () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-      if (!isTabVisible) return;
-
-      // Poll every 10 seconds to reduce CPU usage
-      const intervalTime = 10000;
-
-      pollingInterval = setInterval(async () => {
-        try {
-          const response = await fetch('/api/scrapers/status');
-          if (response.ok) {
-            const data = await response.json();
-            // Filter out non-sync events from history
-            if (data.history) {
-              data.history = data.history.filter((e: any) => e.vendor !== 'whatsapp_summary');
-            }
-            setStatus(data);
-          }
-        } catch (error) {
-          logger.error('Failed to fetch sync status', error);
-        }
-      }, intervalTime);
-    };
-
-    const handleVisibilityChange = () => {
-      isTabVisible = document.visibilityState === 'visible';
-      if (isTabVisible) {
-        fetchStatus();
-        startPolling();
-      } else {
-        if (pollingInterval) clearInterval(pollingInterval);
-      }
-    };
-
-    // Initial fetch and start
-    fetchStatus();
-    startPolling();
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [open, fetchStatus, isSyncing]);
-
-  // Also refresh when a data refresh event is dispatched
-  useEffect(() => {
-    const handleRefresh = () => fetchStatus();
-    window.addEventListener('dataRefresh', handleRefresh);
-    return () => window.removeEventListener('dataRefresh', handleRefresh);
-  }, [fetchStatus]);
+  // Context handles dataRefresh events
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
@@ -909,7 +848,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       return;
     }
 
-    setLoading(true);
+    // setLoading(true); // Redundant now as status is managed by context
     try {
       const response = await fetch(`/api/scrape-events/${event.id}/report`);
       if (response.ok) {
@@ -925,7 +864,7 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     } catch (err) {
       logger.error('Failed to fetch report', err, { eventId: event.id });
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 

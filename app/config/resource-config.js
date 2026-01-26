@@ -23,7 +23,7 @@ const PRESETS = {
         memory: {
             nodeHeapMB: 1024,          // Node.js --max-old-space-size
             chromeHeapMB: 512,         // Chrome js-flags heap for scrapers
-            whatsappHeapMB: 256,       // WhatsApp Chrome heap (needs more for encryption)
+            whatsappHeapMB: 512,       // WhatsApp Chrome heap (needs more for encryption)
             shmSizeMB: 512,            // Docker shared memory
         },
         database: {
