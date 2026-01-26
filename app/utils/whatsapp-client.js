@@ -102,7 +102,8 @@ export function initializeClient() {
             headless: true,
             // Use system chromium if available (Crucial for Docker)
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-            args: browserArgs
+            args: browserArgs,
+            pipe: true
         }
     });
 

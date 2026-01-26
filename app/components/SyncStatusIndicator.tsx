@@ -115,42 +115,14 @@ const formatRelativeTime = (dateStr: string) => {
   return date.toLocaleDateString();
 };
 
+import { useStatus } from '../context/StatusContext';
+
 interface SyncStatusIndicatorProps {
   onClick?: () => void;
 }
 
 const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) => {
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/scrapers/status');
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
-      }
-    } catch (error) {
-      logger.error('Failed to fetch sync status', error as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStatus();
-    // Poll every 10 seconds to reduce CPU usage
-    const intervalTime = 10000;
-    const interval = setInterval(fetchStatus, intervalTime);
-    return () => clearInterval(interval);
-  }, [fetchStatus, status?.syncHealth]);
-
-  // Also refresh when a data refresh event is dispatched
-  useEffect(() => {
-    const handleRefresh = () => fetchStatus();
-    window.addEventListener('dataRefresh', handleRefresh);
-    return () => window.removeEventListener('dataRefresh', handleRefresh);
-  }, [fetchStatus]);
+  const { syncStatus: status } = useStatus();
 
   // Update browser tab title based on sync status
   useEffect(() => {
@@ -165,104 +137,72 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
     };
   }, [status?.syncHealth]);
 
-  if (loading) {
+  if (!status) {
     return null;
   }
 
   const getStatusInfo = () => {
-    if (!status) {
-      return {
-        icon: <CloudOffIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-        label: 'Connecting...',
-        color: '#64748b',
-        tooltip: 'Fetching sync status...'
-      };
-    }
-
     const health = status.syncHealth;
-
-    // Determine sync status across all accounts
-    let oldestSyncDate: Date | null = null;
-    let oldestSyncLabel = 'Never';
-    let hasNeverSyncedAccount = false;
-
-    if (status.accountSyncStatus && status.accountSyncStatus.length > 0) {
-      hasNeverSyncedAccount = status.accountSyncStatus.some(a => !a.last_synced_at);
-      const syncDates = status.accountSyncStatus
-        .map((a: { last_synced_at: string | null }) => a.last_synced_at ? new Date(a.last_synced_at).getTime() : 0)
-        .filter((t: number) => t > 0);
-
-      if (syncDates.length > 0) {
-        oldestSyncDate = new Date(Math.min(...syncDates));
-        oldestSyncLabel = formatRelativeTime(oldestSyncDate.toISOString());
-      }
-    }
-
-    const isFullySynced = !hasNeverSyncedAccount && oldestSyncDate && (new Date().getTime() - oldestSyncDate.getTime()) < 24 * 60 * 60 * 1000;
+    const oldestSyncDate = status.summary?.oldest_sync_at ? new Date(status.summary.oldest_sync_at) : null;
+    const hasNeverSyncedAccount = status.summary?.has_never_synced || false;
 
     switch (health) {
+      case 'healthy':
+        return {
+          icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#4ADE80' }} />,
+          label: 'Healthy',
+          color: '#4ADE80',
+          tooltip: `All accounts synced. Last: ${oldestSyncDate ? formatRelativeTime(oldestSyncDate.toISOString()) : 'Unknown'}`
+        };
       case 'syncing':
         return {
-          icon: <SyncIcon sx={{ fontSize: 18, color: '#60a5fa', animation: `${spin} 1.5s linear infinite` }} />,
+          icon: <SyncIcon sx={{ fontSize: 18, color: '#60A5FA', animation: `${spin} 2s linear infinite` }} />,
           label: 'Syncing',
-          color: '#60a5fa',
+          color: '#60A5FA',
           tooltip: 'Sync in progress...'
         };
       case 'error':
         return {
-          icon: <ErrorIcon sx={{ fontSize: 18, color: '#ef4444', animation: `${pulse} 2s ease-in-out infinite` }} />,
+          icon: <ErrorIcon sx={{ fontSize: 18, color: '#F87171', animation: `${pulse} 2s ease-in-out infinite` }} />,
           label: 'Error',
-          color: '#ef4444',
-          tooltip: 'Last sync failed'
-        };
-      case 'healthy':
-        if (isFullySynced) {
-          return {
-            icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#22c55e' }} />,
-            label: 'Synced',
-            color: '#22c55e',
-            tooltip: `All accounts fresh (${oldestSyncLabel})`
-          };
-        }
-        return {
-          icon: <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />,
-          label: hasNeverSyncedAccount ? 'Needs Sync' : 'Stale',
-          color: '#f59e0b',
-          tooltip: hasNeverSyncedAccount ? 'Some accounts never synced' : `Oldest sync: ${oldestSyncLabel}`
+          color: '#F87171',
+          tooltip: 'Last sync failed. Check status for details.'
         };
       case 'stale':
-      case 'outdated':
-      case 'never_synced':
         return {
-          icon: <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />,
-          label: (health === 'never_synced' || hasNeverSyncedAccount) ? 'Needs Sync' : (health === 'stale' ? 'Stale' : 'Outdated'),
-          color: '#f59e0b',
-          tooltip: (hasNeverSyncedAccount || health === 'never_synced') ? 'Some accounts never synced' : `Oldest: ${oldestSyncLabel}`
+          icon: <WarningIcon sx={{ fontSize: 18, color: '#FBBF24' }} />,
+          label: 'Stale',
+          color: '#FBBF24',
+          tooltip: `Some accounts need sync. Oldest: ${oldestSyncDate ? formatRelativeTime(oldestSyncDate.toISOString()) : 'Unknown'}`
+        };
+      case 'outdated':
+        return {
+          icon: <WarningIcon sx={{ fontSize: 18, color: '#FBBF24' }} />,
+          label: 'Outdated',
+          color: '#FBBF24',
+          tooltip: `Accounts haven't synced in a while. Oldest: ${oldestSyncDate ? formatRelativeTime(oldestSyncDate.toISOString()) : 'Unknown'}`
         };
       case 'no_accounts':
         return {
-          icon: <SyncDisabledIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-          label: 'No accounts',
-          color: '#64748b',
+          icon: <SyncDisabledIcon sx={{ fontSize: 18, color: '#94A3B8' }} />,
+          label: 'No Accounts',
+          color: '#94A3B8',
           tooltip: 'Add accounts to start syncing'
         };
-      default: {
-        if (isFullySynced) {
-          return {
-            icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#22c55e' }} />,
-            label: 'Synced',
-            color: '#22c55e',
-            tooltip: `Last sync: ${oldestSyncLabel}`
-          };
-        }
-
+      case 'never_synced':
         return {
-          icon: <SyncIcon sx={{ fontSize: 18, color: '#64748b' }} />,
-          label: 'Sync Status',
-          color: '#64748b',
-          tooltip: hasNeverSyncedAccount ? 'Some accounts never synced' : `Oldest: ${oldestSyncLabel}`
+          icon: <SyncIcon sx={{ fontSize: 18, color: '#FBBF24' }} />,
+          label: 'Never Synced',
+          color: '#FBBF24',
+          tooltip: 'Accounts have never been synced.'
         };
-      }
+      default:
+        return {
+          icon: <CloudOffIcon sx={{ fontSize: 18, color: '#94A3B8' }} />,
+          label: 'Unknown',
+          color: '#94A3B8',
+          tooltip: 'Sync status unknown'
+        };
     }
   };
 

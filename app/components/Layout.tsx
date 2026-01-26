@@ -12,6 +12,7 @@ import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import DesignSystemShowcase from "./DesignSystemShowcase";
 import Footer from "./Footer";
 import { Box } from "@mui/material";
+import { StatusProvider, useStatus } from "../context/StatusContext";
 
 type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
 
@@ -75,36 +76,22 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
   const [screenContext, setScreenContext] = useState<ScreenContext>({ view: 'summary' });
   const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
   const [syncDrawerWidth, setSyncDrawerWidth] = useState(600);
-  const [dbError, setDbError] = useState(false);
+  const { dbError, checkDb } = useStatus();
   const [isRetrying, setIsRetrying] = useState(false);
   const [initialCheckDone, setInitialCheckDone] = useState(false);
 
-  const checkConnection = async () => {
-    try {
-      setIsRetrying(true);
-      const response = await fetch('/api/ping');
-      if (response.ok) {
-        const data = await response.json();
-        // A successful 200 OK means DB is up
-        setDbError(data.status !== 'ok');
-      } else {
-        // 500 or network error
-        setDbError(true);
-      }
-    } catch {
-      setDbError(true);
-    } finally {
-      setIsRetrying(false);
-      setInitialCheckDone(true);
-    }
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await checkDb();
+    setIsRetrying(false);
   };
 
-  // Check on mount
   useEffect(() => {
-    checkConnection();
-    // Poll every 30s as fallback health check
-    const interval = setInterval(checkConnection, 30000);
-    return () => clearInterval(interval);
+    // We consider it "done" once we have a status, but for simplicity
+    // we just wait 500ms or until dbError is determined.
+    // Actually, we can just use the context's state.
+    const timer = setTimeout(() => setInitialCheckDone(true), 500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Load saved width on mount
@@ -154,7 +141,7 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
   // If DB check failed, block UI
   // We wait for initial check to avoid flashing error screen on first load before ping returns.
   if (dbError && initialCheckDone) {
-    return <DatabaseErrorScreen onRetry={checkConnection} isRetrying={isRetrying} />;
+    return <DatabaseErrorScreen onRetry={handleRetry} isRetrying={isRetrying} />;
   }
 
   // Show nothing or a loader until we know the DB status to prevent children from crashing

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { styled } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import StorageIcon from '@mui/icons-material/Storage';
-import CircularProgress from '@mui/material/CircularProgress';
+// import CircularProgress from '@mui/material/CircularProgress';
+import { useStatus } from '../context/StatusContext';
 
 const Indicator = styled('div')(({ theme }) => ({
   display: 'flex',
@@ -25,44 +26,25 @@ const StatusDot = styled('div')<{ connected: boolean }>(({ connected }) => ({
   boxShadow: `0 0 8px ${connected ? '#4ADE80' : '#F87171'}`,
 }));
 
+/*
 const LoadingSpinner = styled(CircularProgress)({
   width: '8px !important',
   height: '8px !important',
   color: '#3b82f6',
 });
+*/
 
 const DatabaseIndicator: React.FC = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/ping');
-        const data = await response.json();
-        setIsConnected(response.ok && data.status === 'ok');
-      } catch (error) {
-        setIsConnected(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+  const { isDbConnected } = useStatus();
 
   return (
-    <Tooltip title={isLoading ? "Checking connection..." : (isConnected ? "Database Connected" : "Database Disconnected")}>
+    <Tooltip title={isDbConnected ? "Database Connected" : "Database Disconnected"}>
       <Indicator>
         <StorageIcon sx={{ fontSize: '16px', color: '#fff' }} />
-        {isLoading ? <LoadingSpinner /> : <StatusDot connected={isConnected} />}
+        <StatusDot connected={isDbConnected} />
       </Indicator>
     </Tooltip>
   );
 };
 
-export default DatabaseIndicator; 
+export default DatabaseIndicator;

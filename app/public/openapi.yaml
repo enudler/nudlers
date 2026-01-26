@@ -909,7 +909,14 @@ paths:
       tags:
         - Scraping
       summary: Get current scraping status
-      description: Get overall sync health, settings, latest scrape, and history.
+      description: Get overall sync health, settings, latest scrape, and optional history/account details.
+      parameters:
+        - name: minimal
+          in: query
+          description: If true, returns a summary without history or full account list
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Sync status
@@ -1851,6 +1858,15 @@ components:
           type: integer
         latestScrape:
           $ref: '#/components/schemas/ScrapeEvent'
+        summary:
+          type: object
+          properties:
+            oldest_sync_at:
+              type: string
+              format: date-time
+              nullable: true
+            has_never_synced:
+              type: boolean
         history:
           type: array
           items:
@@ -1869,6 +1885,7 @@ components:
               last_synced_at:
                 type: string
                 format: date-time
+                nullable: true
 
     InstallmentDetail:
       type: object
