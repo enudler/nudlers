@@ -1374,15 +1374,15 @@ const MonthlySummary: React.FC = () => {
         color: theme.palette.text.primary
       }}>
         <PageHeader
-          title="Monthly Summary"
+          title="Cards & Accounts"
           description={
             dateRangeMode === 'custom' && customStartDate && customEndDate
               ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
               : (selectedMonth && selectedYear
-                ? `Overview for ${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
-                : 'Track and analyze your expenses')
+                ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                : 'Your payment sources')
           }
-          icon={<SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+          icon={<CreditCardIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
           stats={
             <Box>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>

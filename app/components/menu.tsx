@@ -144,9 +144,8 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   }, [desktopDrawerOpen, isMobile]);
 
   const viewMenuItems = [
-    { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
-    { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
-    { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: 'var(--n-primary)' },
+    { label: 'Cards', icon: <CreditCardIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
+    { label: 'Budgets', icon: <SavingsIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
     { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
     { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: 'var(--n-primary)' },
     { label: 'Chat', icon: <ForumIcon />, view: 'chat' as const, color: 'var(--n-primary)' },

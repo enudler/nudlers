@@ -816,9 +816,9 @@ const CategoryDashboard: React.FC = () => {
       }}>
 
         <PageHeader
-          title="Financial Overview"
-          description="Analyze your financial health and spending patterns"
-          icon={<MonetizationOnIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+          title="Budgets"
+          description="Track spending by category and manage budgets"
+          icon={<SavingsIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
           showDateSelectors={true}
           dateRangeMode={dateRangeMode}
           onDateRangeModeChange={handleDateRangeModeChange}
