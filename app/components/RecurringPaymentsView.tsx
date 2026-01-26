@@ -21,6 +21,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import BlockIcon from '@mui/icons-material/Block';
 import IconButton from '@mui/material/IconButton';
 
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
@@ -290,6 +291,43 @@ const RecurringPaymentsView: React.FC = () => {
         setEditCategory('');
     };
 
+    const handleMarkNotRecurring = async (item: RecurringTransaction) => {
+        try {
+            const response = await fetch('/api/reports/non-recurring-exclusions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: item.name,
+                    account_number: item.account_number
+                }),
+            });
+
+            if (!response.ok) throw new Error('Failed to mark as non-recurring');
+
+            const result = await response.json();
+
+            setSnackbar({
+                open: true,
+                message: result.alreadyExisted
+                    ? `"${item.name}" was already marked as non-recurring`
+                    : `"${item.name}" marked as non-recurring`,
+                severity: 'success'
+            });
+
+            // Refresh data to remove the item from the list
+            fetchData();
+            window.dispatchEvent(new CustomEvent('dataRefresh'));
+
+        } catch (err) {
+            logger.error('Error marking as non-recurring', err as Error);
+            setSnackbar({
+                open: true,
+                message: 'Failed to mark as non-recurring',
+                severity: 'error'
+            });
+        }
+    };
+
     return (
         <Box sx={{
             padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
@@ -496,6 +534,31 @@ const RecurringPaymentsView: React.FC = () => {
                                                 const isExpanded = expandedRows.has(`${row.name}-${row.month_count}`);
                                                 return isExpanded ? 'Hide' : 'History';
                                             }
+                                        },
+                                        {
+                                            id: 'actions',
+                                            label: '',
+                                            align: 'center',
+                                            format: (_, row) => (
+                                                <Tooltip title="Not a recurring payment">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleMarkNotRecurring(row);
+                                                        }}
+                                                        sx={{
+                                                            color: 'text.secondary',
+                                                            '&:hover': {
+                                                                color: 'error.main',
+                                                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.08)'
+                                                            }
+                                                        }}
+                                                    >
+                                                        <BlockIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            )
                                         }
                                     ]}
                                     renderSubRow={(row) => (
@@ -513,7 +576,21 @@ const RecurringPaymentsView: React.FC = () => {
                                         <Box>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                                 <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}</Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}</Typography>
+                                                    <Tooltip title="Not a recurring payment">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleMarkNotRecurring(row);
+                                                            }}
+                                                            sx={{ color: 'text.secondary', p: 0.5 }}
+                                                        >
+                                                            <BlockIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </Box>
                                             </Box>
                                             <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

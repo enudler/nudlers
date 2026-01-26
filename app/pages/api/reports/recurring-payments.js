@@ -167,6 +167,10 @@ export default async function handler(req, res) {
           SELECT DISTINCT LOWER(TRIM(name)) as name
           FROM transactions
           WHERE installments_total > 1
+        ),
+        excluded_recurring AS (
+          SELECT LOWER(TRIM(name)) as name, account_number
+          FROM non_recurring_exclusions
         )
         SELECT
           t.name, t.price, t.category, t.vendor, t.account_number, t.date, t.transaction_type,
@@ -178,6 +182,11 @@ export default async function handler(req, res) {
           AND (t.installments_total IS NULL OR t.installments_total <= 1)
           AND t.category NOT IN ('Bank', 'Income')
           AND LOWER(TRIM(t.name)) NOT IN (SELECT name FROM known_installments)
+          AND NOT EXISTS (
+            SELECT 1 FROM excluded_recurring e
+            WHERE LOWER(TRIM(t.name)) = e.name
+              AND (e.account_number IS NULL OR e.account_number = t.account_number)
+          )
         ORDER BY t.date DESC
       `);
 
