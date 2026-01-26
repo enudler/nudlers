@@ -489,7 +489,7 @@ const RecurringPaymentsView: React.FC = () => {
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <Chip label={row.frequency} size="small" color={row.frequency === 'bi-monthly' ? 'warning' : 'info'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Next: {formatDate(row.next_payment_date)}
+                                                    Last: {formatDate(row.last_charge_date)}
                                                 </Typography>
                                             </Box>
                                         </Box>
