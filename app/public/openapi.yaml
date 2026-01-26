@@ -1031,8 +1031,8 @@ paths:
               properties:
                 action:
                   type: string
-                  enum: [connect, restart, disconnect]
-                  description: 'connect: Start client and generate QR code; restart: Restart client; disconnect: disconnect session'
+                  enum: [connect, restart, disconnect, renewQr]
+                  description: 'connect: Start client and generate QR code; restart: Restart client; disconnect: disconnect session; renewQr: Clear session and generate new QR'
       responses:
         '200':
           description: Action performed

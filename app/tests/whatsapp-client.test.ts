@@ -39,6 +39,11 @@ vi.mock('fs', () => ({
     },
 }));
 
+// Mock child_process
+vi.mock('child_process', () => ({
+    execSync: vi.fn().mockReturnValue(Buffer.from('')),
+}));
+
 describe('WhatsApp Client Utils', () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -142,7 +147,32 @@ describe('WhatsApp Client Utils', () => {
 
             expect(fs.unlinkSync).toHaveBeenCalled();
             expect(mockClient.initialize).toHaveBeenCalledTimes(2);
-            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('SingletonLock'));
+            expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({ err: expect.stringContaining('SingletonLock') }), expect.stringContaining('profile lock error'));
+        });
+
+        it('should recover from "browser is already running" error', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn()
+                    .mockRejectedValueOnce(new Error('The browser is already running for /path/to/session'))
+                    .mockResolvedValueOnce(undefined),
+                destroy: vi.fn(),
+            };
+            (pkg.Client as any).mockReturnValueOnce(mockClient);
+            (fs.existsSync as any).mockReturnValue(true);
+
+            initializeClient();
+
+            // Process recovery logic
+            await vi.runOnlyPendingTimersAsync();
+            await vi.advanceTimersByTimeAsync(2000);
+
+            expect(fs.unlinkSync).toHaveBeenCalled();
+            expect(mockClient.initialize).toHaveBeenCalledTimes(2);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.objectContaining({ err: expect.stringContaining('browser is already running') }),
+                expect.stringContaining('profile lock error')
+            );
         });
     });
 
@@ -384,6 +414,34 @@ describe('WhatsApp Client Utils', () => {
 
             // Should still have created new client
             expect(pkg.Client).toHaveBeenCalled();
+        });
+    });
+
+    describe('Concurrency Protection', () => {
+        it('should prevent multiple concurrent initializations', async () => {
+            const client1 = initializeClient();
+            const client2 = initializeClient();
+
+            expect(pkg.Client).toHaveBeenCalledTimes(1);
+            expect(client2).toBe(client1);
+        });
+
+        it('should prevent multiple concurrent renewals', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+                destroy: vi.fn().mockResolvedValue(undefined),
+            };
+            (pkg.Client as any).mockReturnValue(mockClient);
+
+            const renew1Promise = renewQrCode();
+            const renew2Promise = renewQrCode();
+
+            expect(logger.info).toHaveBeenCalledWith('WhatsApp QR code renewal already in progress, skipping');
+
+            await vi.runAllTimersAsync();
+            await renew1Promise;
+            await renew2Promise;
         });
     });
 });

@@ -4,6 +4,7 @@ import logger from '../utils/logger.js';
 import { getWhatsappChromeArgs } from '../config/resource-config.js';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 /**
  * WhatsApp Client Singleton
@@ -27,6 +28,8 @@ const SESSION_PATH = path.join(AUTH_PATH, `session-${CLIENT_ID}`);
 let clientInstance = globalAny.whatsappClient || null;
 let connectionStatus = globalAny.whatsappStatus || 'DISCONNECTED'; // DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY
 let qrCode = globalAny.whatsappQR || null;
+let isInitializing = false;
+let isRenewing = false;
 
 /**
  * Check if a persisted session exists on disk.
@@ -80,11 +83,18 @@ export function getOrCreateClient() {
  * Call this when user explicitly requests to connect/generate QR.
  */
 export function initializeClient() {
-    // Return existing client if already initialized
+    // Return existing client if already initialized or initializing
     if (clientInstance) {
         logger.info('WhatsApp client already exists, returning existing instance');
         return clientInstance;
     }
+
+    if (isInitializing) {
+        logger.info('WhatsApp client is already initializing, skipping');
+        return null;
+    }
+
+    isInitializing = true;
 
     const hasSession = hasPersistedSession();
     logger.info({ hasPersistedSession: hasSession }, 'Initializing new WhatsApp Client instance...');
@@ -157,26 +167,57 @@ export function initializeClient() {
     let initRetries = 0;
 
     const initializeWithRetry = async () => {
+        if (!clientInstance) {
+            logger.warn('WhatsApp client instance was cleared before initialization could complete');
+            isInitializing = false;
+            return;
+        }
         try {
             await clientInstance.initialize();
+            isInitializing = false;
             logger.info('WhatsApp client initialized successfully');
         } catch (err) {
             initRetries++;
             logger.error({ err: err.message, retry: initRetries }, 'Failed to initialize WhatsApp client');
 
             // Specialized recovery for Puppeteer SingletonLock
-            if (err.message && (err.message.includes('SingletonLock') || err.message.includes('profile appears to be in use'))) {
-                logger.warn('Detected SingletonLock error, attempting automatic cleanup...');
+            if (err.message && (
+                err.message.includes('SingletonLock') ||
+                err.message.includes('profile appears to be in use') ||
+                err.message.includes('browser is already running')
+            )) {
+                logger.warn({ err: err.message }, 'Detected profile lock error, attempting automatic cleanup...');
                 try {
-                    const lockPath = path.join(SESSION_PATH, 'SingletonLock');
-                    if (fs.existsSync(lockPath)) {
-                        fs.unlinkSync(lockPath);
-                        logger.info('Removed SingletonLock file, retrying...');
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
+                    let removedAny = false;
+
+                    for (const fileName of lockFiles) {
+                        const filePath = path.join(SESSION_PATH, fileName);
+                        try {
+                            // Check for both file existence and symlink existence (common on macOS/Linux)
+                            const exists = fs.existsSync(filePath);
+                            let isSymlink = false;
+                            try { isSymlink = fs.lstatSync(filePath).isSymbolicLink(); } catch (e) { }
+
+                            if (exists || isSymlink) {
+                                fs.unlinkSync(filePath);
+                                logger.info({ fileName }, 'Removed stale Chromium lock file');
+                                removedAny = true;
+                            }
+                        } catch (e) {
+                            // Ignore errors for individual files
+                        }
+                    }
+
+                    if (removedAny) {
+                        logger.info('Stale lock files cleared, retrying WhatsApp initialization...');
+                        await new Promise(resolve => setTimeout(resolve, 2000));
                         return initializeWithRetry();
+                    } else {
+                        logger.warn('No stale lock files found to clear, despite lock error');
                     }
                 } catch (retryErr) {
-                    logger.error({ err: retryErr.message }, 'Failed to recover from SingletonLock');
+                    logger.error({ err: retryErr.message }, 'Failed to recover from profile lock error');
                 }
             }
 
@@ -188,6 +229,7 @@ export function initializeClient() {
                 logger.error('Max retries reached for WhatsApp initialization');
                 connectionStatus = 'DISCONNECTED';
                 globalAny.whatsappStatus = 'DISCONNECTED';
+                isInitializing = false;
                 // Reset client so it can be re-tried manually later
                 clientInstance = null;
                 globalAny.whatsappClient = null;
@@ -213,19 +255,60 @@ export async function destroyClient() {
         const client = clientInstance || globalAny.whatsappClient;
         try {
             logger.info('Destroying WhatsApp client instance...');
-            await client.destroy();
+            // Add a timeout to prevent hanging if client.destroy() gets stuck
+            await Promise.race([
+                client.destroy(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Destroy timed out')), 5000))
+            ]);
         } catch (e) {
             logger.error({ err: e.message }, 'Error destroying WhatsApp client');
         }
+    }
 
-        // Reset all local and global states
-        clientInstance = null;
-        qrCode = null;
-        connectionStatus = 'DISCONNECTED';
+    // Reset all local and global states
+    clientInstance = null;
+    qrCode = null;
+    connectionStatus = 'DISCONNECTED';
 
-        globalAny.whatsappClient = null;
-        globalAny.whatsappQR = null;
-        globalAny.whatsappStatus = 'DISCONNECTED';
+    globalAny.whatsappClient = null;
+    globalAny.whatsappQR = null;
+    globalAny.whatsappStatus = 'DISCONNECTED';
+
+    // Aggressively kill any remaining chrome processes associated with this session
+    killStrayProcesses();
+}
+
+/**
+ * Find and kill any orphan Chromium processes holding the session lock.
+ * This is a failsafe for when puppetter/whatsapp-web.js fails to close the browser.
+ */
+function killStrayProcesses() {
+    try {
+        const platform = process.platform;
+        logger.info({ platform }, 'Checking for stale WhatsApp Chromium processes...');
+
+        if (platform === 'darwin' || platform === 'linux') {
+            // Find PIDs of processes using our session directory
+            // We use a broader pattern to include helpers and renderers
+            const cmd = `ps aux | grep "session-${CLIENT_ID}" | grep -v grep | awk '{print $2}'`;
+            const output = execSync(cmd).toString().trim();
+
+            if (output) {
+                const pids = output.split('\n').filter(Boolean);
+                logger.warn({ pids }, 'Found orphan WhatsApp processes, killing...');
+                for (const pid of pids) {
+                    try {
+                        process.kill(parseInt(pid, 10), 'SIGKILL');
+                    } catch (e) {
+                        // Ignore if process already gone
+                    }
+                }
+            } else {
+                logger.info('No stale WhatsApp processes found');
+            }
+        }
+    } catch (err) {
+        logger.error({ err: err.message }, 'Failed to kill stray WhatsApp processes');
     }
 }
 
@@ -269,22 +352,32 @@ export function clearSession() {
  * - The session state is corrupted
  */
 export async function renewQrCode() {
-    logger.info('Renewing WhatsApp QR code...');
-
-    // First destroy the existing client
-    await destroyClient();
-
-    // Clear the persisted session
-    const cleared = clearSession();
-    if (!cleared) {
-        logger.warn('Failed to clear session, but continuing with QR renewal');
+    if (isRenewing) {
+        logger.info('WhatsApp QR code renewal already in progress, skipping');
+        return getClient();
     }
 
-    // Wait a bit to ensure everything is cleaned up
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    logger.info('Renewing WhatsApp QR code...');
+    isRenewing = true;
 
-    // Initialize fresh client - this will generate a new QR code
-    return initializeClient();
+    try {
+        // First destroy the existing client
+        await destroyClient();
+
+        // Clear the persisted session
+        const cleared = clearSession();
+        if (!cleared) {
+            logger.warn('Failed to clear session, but continuing with QR renewal');
+        }
+
+        // Wait a bit to ensure everything is cleaned up
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Initialize fresh client - this will generate a new QR code
+        return initializeClient();
+    } finally {
+        isRenewing = false;
+    }
 }
 
 /**

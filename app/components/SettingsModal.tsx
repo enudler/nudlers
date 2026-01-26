@@ -280,11 +280,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING', qr: null }));
       }
 
-      await fetch('/api/whatsapp/status', {
+      const response = await fetch('/api/whatsapp/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || `Failed to ${action} WhatsApp client`);
+      }
 
       // Force a status check after action
       const res = await fetch('/api/whatsapp/status');
@@ -294,6 +299,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       }
     } catch (e) {
       console.error(`Failed to ${action} WhatsApp client`, e);
+      setResult({
+        type: 'error',
+        message: e instanceof Error ? e.message : `Failed to ${action} WhatsApp client`
+      });
     }
   };
 
@@ -853,6 +862,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
                     <QRCode value={whatsappStatus.qr} size={200} />
                   </Box>
+                  <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleWhatsAppAction('renewQr')}
+                      startIcon={<SyncIcon />}
+                      sx={{
+                        borderColor: '#10b981',
+                        color: '#10b981',
+                        '&:hover': {
+                          borderColor: '#059669',
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        },
+                      }}
+                    >
+                      Refresh
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => handleWhatsAppAction('disconnect')}
+                    >
+                      Cancel
+                    </Button>
+                  </Box>
                 </Box>
               )}
 
@@ -891,6 +925,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                     Please wait, this may take a few seconds
                   </Typography>
+                  <Button
+                    size="small"
+                    color="error"
+                    onClick={() => handleWhatsAppAction('disconnect')}
+                    sx={{ mt: 1 }}
+                  >
+                    Cancel
+                  </Button>
                 </Box>
               )}
 
