@@ -238,6 +238,56 @@ export async function restartClient() {
 }
 
 /**
+ * Clear the persisted WhatsApp session from disk.
+ * This removes the stored authentication data, requiring a fresh QR scan.
+ * Useful when:
+ * - WhatsApp session expires or becomes invalid
+ * - User wants to link a different WhatsApp account
+ * - Troubleshooting authentication issues
+ */
+export function clearSession() {
+    try {
+        if (fs.existsSync(SESSION_PATH)) {
+            logger.info({ sessionPath: SESSION_PATH }, 'Clearing persisted WhatsApp session...');
+            fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+            logger.info('WhatsApp session cleared successfully');
+            return true;
+        }
+        logger.info('No persisted session to clear');
+        return true;
+    } catch (err) {
+        logger.error({ err: err.message, sessionPath: SESSION_PATH }, 'Failed to clear WhatsApp session');
+        return false;
+    }
+}
+
+/**
+ * Renew the QR code by destroying the client, clearing the session, and reinitializing.
+ * This forces a fresh QR code to be generated, useful when:
+ * - The current session has expired
+ * - The user wants to link a different WhatsApp account
+ * - The session state is corrupted
+ */
+export async function renewQrCode() {
+    logger.info('Renewing WhatsApp QR code...');
+
+    // First destroy the existing client
+    await destroyClient();
+
+    // Clear the persisted session
+    const cleared = clearSession();
+    if (!cleared) {
+        logger.warn('Failed to clear session, but continuing with QR renewal');
+    }
+
+    // Wait a bit to ensure everything is cleaned up
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Initialize fresh client - this will generate a new QR code
+    return initializeClient();
+}
+
+/**
  * Auto-restore session on module load.
  * If a persisted session exists and no client is currently running,
  * automatically initialize the client to restore the session.

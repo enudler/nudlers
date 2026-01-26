@@ -273,11 +273,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     return () => clearInterval(interval);
   }, [open, whatsappStatus.status]);
 
-  const handleWhatsAppAction = async (action: 'connect' | 'restart' | 'disconnect') => {
+  const handleWhatsAppAction = async (action: 'connect' | 'restart' | 'disconnect' | 'renewQr') => {
     try {
       // Optimistic update
-      if (action === 'connect' || action === 'restart') {
-        setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING' }));
+      if (action === 'connect' || action === 'restart' || action === 'renewQr') {
+        setWhatsappStatus(prev => ({ ...prev, status: 'INITIALIZING', qr: null }));
       }
 
       await fetch('/api/whatsapp/status', {
@@ -896,14 +896,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
               {/* Connected Controls */}
               {(whatsappStatus.status === 'READY' || whatsappStatus.status === 'AUTHENTICATED') && (
-                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-                  <Button
-                    size="small"
-                    color="error"
-                    onClick={() => handleWhatsAppAction('disconnect')}
-                  >
-                    Disconnect Session
-                  </Button>
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleWhatsAppAction('renewQr')}
+                      startIcon={<SyncIcon />}
+                      sx={{
+                        borderColor: '#f59e0b',
+                        color: '#f59e0b',
+                        '&:hover': {
+                          borderColor: '#d97706',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        },
+                      }}
+                    >
+                      Renew QR Code
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => handleWhatsAppAction('disconnect')}
+                    >
+                      Disconnect Session
+                    </Button>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
+                    Renew QR to link a different WhatsApp account or fix connection issues
+                  </Typography>
                 </Box>
               )}
 
