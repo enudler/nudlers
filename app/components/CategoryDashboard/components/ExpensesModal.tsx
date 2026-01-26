@@ -868,7 +868,10 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="caption" color="text.secondary">{dateUtils.formatDate(expense.date)}</Typography>
-                    <span style={{ fontSize: '11px', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                    <span
+                      style={{ fontSize: '11px', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }}
+                    >
                       {expense.category || 'Uncategorized'}
                     </span>
                   </Box>
