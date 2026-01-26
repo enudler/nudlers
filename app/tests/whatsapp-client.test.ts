@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import pkg from 'whatsapp-web.js';
-import { getClient, getOrCreateClient, initializeClient, getStatus, destroyClient, restartClient, hasPersistedSession } from '../utils/whatsapp-client.js';
+import { getClient, getOrCreateClient, initializeClient, getStatus, destroyClient, restartClient, hasPersistedSession, clearSession, renewQrCode } from '../utils/whatsapp-client.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
@@ -35,6 +35,7 @@ vi.mock('fs', () => ({
     default: {
         existsSync: vi.fn(),
         unlinkSync: vi.fn(),
+        rmSync: vi.fn(),
     },
 }));
 
@@ -264,6 +265,125 @@ describe('WhatsApp Client Utils', () => {
                 expect.objectContaining({ err: 'File system error' }),
                 'Error checking for persisted session'
             );
+        });
+    });
+
+    describe('clearSession', () => {
+        it('should clear session when session path exists', () => {
+            (fs.existsSync as any).mockReturnValue(true);
+
+            const result = clearSession();
+
+            expect(result).toBe(true);
+            expect(fs.rmSync).toHaveBeenCalledWith(
+                expect.stringContaining('session-nudlers-client'),
+                { recursive: true, force: true }
+            );
+            expect(logger.info).toHaveBeenCalledWith(
+                expect.objectContaining({ sessionPath: expect.any(String) }),
+                'Clearing persisted WhatsApp session...'
+            );
+            expect(logger.info).toHaveBeenCalledWith('WhatsApp session cleared successfully');
+        });
+
+        it('should return true when no session exists', () => {
+            (fs.existsSync as any).mockReturnValue(false);
+
+            const result = clearSession();
+
+            expect(result).toBe(true);
+            expect(fs.rmSync).not.toHaveBeenCalled();
+            expect(logger.info).toHaveBeenCalledWith('No persisted session to clear');
+        });
+
+        it('should return false and log error when rmSync fails', () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.rmSync as any).mockImplementation(() => {
+                throw new Error('Permission denied');
+            });
+
+            const result = clearSession();
+
+            expect(result).toBe(false);
+            expect(logger.error).toHaveBeenCalledWith(
+                expect.objectContaining({ err: 'Permission denied' }),
+                'Failed to clear WhatsApp session'
+            );
+        });
+    });
+
+    describe('renewQrCode', () => {
+        it('should destroy client, clear session, and initialize new client', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+                destroy: vi.fn().mockResolvedValue(undefined),
+            };
+            (pkg.Client as any).mockReturnValue(mockClient);
+            (fs.existsSync as any).mockReturnValue(true);
+
+            // Initialize first client
+            initializeClient();
+            await vi.runAllTimersAsync();
+
+            // Reset mocks to track renewal calls
+            vi.clearAllMocks();
+            (fs.existsSync as any).mockReturnValue(true);
+
+            // Renew QR code
+            const renewPromise = renewQrCode();
+            await vi.runAllTimersAsync();
+            await renewPromise;
+
+            // Should have destroyed old client
+            expect(mockClient.destroy).toHaveBeenCalled();
+
+            // Should have cleared session
+            expect(fs.rmSync).toHaveBeenCalledWith(
+                expect.stringContaining('session-nudlers-client'),
+                { recursive: true, force: true }
+            );
+
+            // Should have created new client
+            expect(pkg.Client).toHaveBeenCalled();
+
+            // Should log the renewal
+            expect(logger.info).toHaveBeenCalledWith('Renewing WhatsApp QR code...');
+        });
+
+        it('should continue even if clearSession fails', async () => {
+            const mockClient = {
+                on: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+                destroy: vi.fn().mockResolvedValue(undefined),
+            };
+            (pkg.Client as any).mockReturnValue(mockClient);
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.rmSync as any).mockImplementation(() => {
+                throw new Error('Permission denied');
+            });
+
+            // Initialize first client
+            initializeClient();
+            await vi.runAllTimersAsync();
+
+            // Reset mocks to track renewal calls
+            vi.clearAllMocks();
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.rmSync as any).mockImplementation(() => {
+                throw new Error('Permission denied');
+            });
+
+            // Renew QR code
+            const renewPromise = renewQrCode();
+            await vi.runAllTimersAsync();
+            await renewPromise;
+
+            // Should have logged warning but continued
+            expect(logger.warn).toHaveBeenCalledWith('Failed to clear session, but continuing with QR renewal');
+
+            // Should still have created new client
+            expect(pkg.Client).toHaveBeenCalled();
         });
     });
 });

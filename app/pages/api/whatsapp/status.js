@@ -1,5 +1,5 @@
 
-import { getStatus, restartClient, destroyClient, initializeClient } from '../../../utils/whatsapp-client.js';
+import { getStatus, restartClient, destroyClient, initializeClient, renewQrCode } from '../../../utils/whatsapp-client.js';
 
 export default async function handler(req, res) {
     if (req.method === 'GET') {
@@ -24,6 +24,12 @@ export default async function handler(req, res) {
         if (action === 'disconnect') {
             await destroyClient();
             return res.status(200).json({ message: 'Client disconnected' });
+        }
+
+        if (action === 'renewQr') {
+            // Renew QR code by clearing session and reinitializing
+            renewQrCode();
+            return res.status(200).json({ message: 'Renewing QR code... New QR will be generated shortly.' });
         }
 
         return res.status(400).json({ error: 'Invalid action' });
