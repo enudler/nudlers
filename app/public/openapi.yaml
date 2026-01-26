@@ -446,7 +446,7 @@ paths:
           description: |
             Field to sort by. Available options depend on type:
             - Installments: status, amount, next_payment_date, name
-            - Recurring: amount, frequency, month_count, last_charge_date, name
+            - Recurring: amount, frequency, month_count, last_charge_date, next_payment_date, name
           schema:
             type: string
             enum: [status, amount, next_payment_date, name, frequency, month_count, last_charge_date]

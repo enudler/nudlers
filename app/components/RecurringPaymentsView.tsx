@@ -85,8 +85,16 @@ const RecurringPaymentsView: React.FC = () => {
     const [activeTab, setActiveTab] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-    const [sortBy, setSortBy] = useState<'amount' | 'count'>('count');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    // Sorting state - different defaults for each tab
+    const [installmentSortBy, setInstallmentSortBy] = useState<'status' | 'amount' | 'next_payment_date' | 'name'>('status');
+    const [installmentSortOrder, setInstallmentSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date' | 'next_payment_date'>('amount');
+    const [recurringSortOrder, setRecurringSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    // Pagination state
+    const [totalInstallments, setTotalInstallments] = useState(0);
+    const [totalRecurring, setTotalRecurring] = useState(0);
 
     const [categories, setCategories] = useState<string[]>([]);
     const [editingItem, setEditingItem] = useState<{ type: 'installment' | 'recurring', index: number, item: Installment | RecurringTransaction } | null>(null);
@@ -109,20 +117,43 @@ const RecurringPaymentsView: React.FC = () => {
             }
         };
         loadCategories();
-        fetchData();
     }, []);
+
+    // Fetch data when tab or sort changes
+    useEffect(() => {
+        fetchData();
+    }, [activeTab, installmentSortBy, installmentSortOrder, recurringSortBy, recurringSortOrder]);
 
     const fetchData = async () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await fetch('/api/reports/recurring-payments');
+
+            // Determine which type to fetch based on active tab
+            const type = activeTab === 0 ? 'installments' : 'recurring';
+            const sortBy = activeTab === 0 ? installmentSortBy : recurringSortBy;
+            const sortOrder = activeTab === 0 ? installmentSortOrder : recurringSortOrder;
+
+            const params = new URLSearchParams({
+                type,
+                sortBy,
+                sortOrder,
+                limit: '500' // Fetch all for now, can add pagination UI later
+            });
+
+            const response = await fetch(`/api/reports/recurring-payments?${params}`);
             if (!response.ok) {
                 throw new Error('Failed to fetch recurring payments');
             }
             const data = await response.json();
-            setInstallments(data.installments || []);
-            setRecurring(data.recurring || []);
+
+            if (activeTab === 0) {
+                setInstallments(data.installments || []);
+                setTotalInstallments(data.pagination?.totalInstallments || 0);
+            } else {
+                setRecurring(data.recurring || []);
+                setTotalRecurring(data.pagination?.totalRecurring || 0);
+            }
         } catch (err) {
             logger.error('Error fetching recurring payments', err as Error);
             setError(err instanceof Error ? err.message : 'An error occurred');
@@ -149,28 +180,25 @@ const RecurringPaymentsView: React.FC = () => {
         setExpandedRows(newExpanded);
     };
 
-    const sortedRecurring = [...recurring].sort((a, b) => {
-        let comparison = 0;
-        if (sortBy === 'amount') {
-            comparison = Math.abs(a.price) - Math.abs(b.price);
-            if (comparison === 0) {
-                comparison = a.month_count - b.month_count;
-            }
-        } else if (sortBy === 'count') {
-            comparison = a.month_count - b.month_count;
-            if (comparison === 0) {
-                comparison = Math.abs(a.price) - Math.abs(b.price);
-            }
-        }
-        return sortOrder === 'desc' ? -comparison : comparison;
-    });
-
-    const handleSort = (field: 'amount' | 'count') => {
-        if (sortBy === field) {
-            setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    // Handle sorting for recurring tab (server-side)
+    const handleRecurringSort = (field: string) => {
+        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date' | 'next_payment_date';
+        if (recurringSortBy === sortField) {
+            setRecurringSortOrder(recurringSortOrder === 'desc' ? 'asc' : 'desc');
         } else {
-            setSortBy(field);
-            setSortOrder('desc');
+            setRecurringSortBy(sortField);
+            setRecurringSortOrder('desc');
+        }
+    };
+
+    // Handle sorting for installments tab (server-side)
+    const handleInstallmentSort = (field: string) => {
+        const sortField = field === 'price' ? 'amount' : field as 'status' | 'amount' | 'next_payment_date' | 'name';
+        if (installmentSortBy === sortField) {
+            setInstallmentSortOrder(installmentSortOrder === 'desc' ? 'asc' : 'desc');
+        } else {
+            setInstallmentSortBy(sortField);
+            setInstallmentSortOrder('desc');
         }
     };
 
@@ -302,8 +330,8 @@ const RecurringPaymentsView: React.FC = () => {
                             '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main, height: '3px', borderRadius: '3px 3px 0 0' }
                         }}
                     >
-                        <Tab label={`Installments (${installments.length})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
-                        <Tab label={`Recurring (${recurring.length})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Installments (${activeTab === 0 ? installments.length : totalInstallments || '...'})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Recurring (${activeTab === 1 ? recurring.length : totalRecurring || '...'})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
                     </Tabs>
                 </Box>
 
@@ -319,8 +347,11 @@ const RecurringPaymentsView: React.FC = () => {
                                     rows={installments}
                                     rowKey={(row) => `${row.name}-${row.current_installment}-${row.total_installments}`}
                                     emptyMessage="No installment payments found"
+                                    onSort={handleInstallmentSort}
+                                    sortField={installmentSortBy === 'amount' ? 'price' : installmentSortBy}
+                                    sortDirection={installmentSortOrder}
                                     columns={[
-                                        { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
+                                        { id: 'name', label: 'Description', sortable: true, format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
                                         { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
                                         {
                                             id: 'category',
@@ -364,11 +395,11 @@ const RecurringPaymentsView: React.FC = () => {
                                                 );
                                             }
                                         },
-                                        { id: 'price', label: 'Monthly', align: 'right', format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                        { id: 'price', label: 'Monthly', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
                                         { id: 'original_amount', label: 'Original', align: 'right', format: (val) => <span style={{ color: 'text.secondary' }}>{val ? `₪${formatNumber(val)}` : '-'}</span> },
-                                        { id: 'next_payment_date', label: 'Next', align: 'center', format: (val) => val ? formatDate(val) : 'Completed' },
+                                        { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => val ? formatDate(val) : 'Completed' },
                                         { id: 'last_payment_date', label: 'End', align: 'center', format: (val) => formatDate(val) },
-                                        { id: 'status', label: 'Status', align: 'center', format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
+                                        { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
                                     ]}
                                     mobileCardRenderer={(row) => (
                                         <Box>
@@ -388,12 +419,12 @@ const RecurringPaymentsView: React.FC = () => {
                                 />
                             ) : (
                                 <Table
-                                    rows={sortedRecurring}
+                                    rows={recurring}
                                     rowKey={(row) => `${row.name}-${row.month_count}`}
                                     emptyMessage="No recurring payments detected"
-                                    onSort={(field) => handleSort(field as 'amount' | 'count')}
-                                    sortField={sortBy}
-                                    sortDirection={sortOrder}
+                                    onSort={handleRecurringSort}
+                                    sortField={recurringSortBy === 'amount' ? 'price' : recurringSortBy}
+                                    sortDirection={recurringSortOrder}
                                     expandedRowIds={expandedRows}
                                     onRowToggle={(rowKey) => toggleRow(rowKey as string)}
                                     columns={[
@@ -403,7 +434,7 @@ const RecurringPaymentsView: React.FC = () => {
                                             id: 'category',
                                             label: 'Category',
                                             format: (_, row) => {
-                                                const index = sortedRecurring.indexOf(row);
+                                                const index = recurring.indexOf(row);
                                                 if (editingItem?.type === 'recurring' && editingItem.index === index) {
                                                     return (
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -425,15 +456,16 @@ const RecurringPaymentsView: React.FC = () => {
                                         },
                                         { id: 'frequency', label: 'Frequency', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'bi-monthly' ? 'warning' : 'info'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> },
                                         { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
-                                        { id: 'next_payment_date', label: 'Next', align: 'center', format: (val) => formatDate(val) },
-                                        { id: 'last_charge_date', label: 'Last', align: 'center', format: (val) => formatDate(val) },
+                                        { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => formatDate(val) },
+                                        { id: 'last_charge_date', label: 'Last', align: 'center', sortable: true, format: (val) => formatDate(val) },
+                                        { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
                                         {
                                             id: 'details',
-                                            label: 'Details',
+                                            label: '',
                                             align: 'center',
                                             format: (_, row) => {
                                                 const isExpanded = expandedRows.has(`${row.name}-${row.month_count}`);
-                                                return isExpanded ? 'Hide' : `History (${row.month_count})`;
+                                                return isExpanded ? 'Hide' : 'History';
                                             }
                                         }
                                     ]}

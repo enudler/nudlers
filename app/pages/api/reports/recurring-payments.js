@@ -200,6 +200,9 @@ export default async function handler(req, res) {
           case 'last_charge_date':
             comparison = new Date(b.last_charge_date) - new Date(a.last_charge_date);
             break;
+          case 'next_payment_date':
+            comparison = new Date(b.next_payment_date) - new Date(a.next_payment_date);
+            break;
           case 'amount':
           default:
             comparison = Math.abs(b.monthly_amount) - Math.abs(a.monthly_amount);
