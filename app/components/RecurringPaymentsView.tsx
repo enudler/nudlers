@@ -19,6 +19,9 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import IconButton from '@mui/material/IconButton';
 
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
 import { fetchCategories } from './CategoryDashboard/utils/categoryUtils';
@@ -89,12 +92,19 @@ const RecurringPaymentsView: React.FC = () => {
     // Sorting state - different defaults for each tab
     const [installmentSortBy, setInstallmentSortBy] = useState<'status' | 'amount' | 'next_payment_date' | 'name'>('status');
     const [installmentSortOrder, setInstallmentSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date'>('amount');
+    const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'name' | 'last_charge_date'>('amount');
     const [recurringSortOrder, setRecurringSortOrder] = useState<'asc' | 'desc'>('desc');
 
     // Pagination state
+    const PAGE_SIZE = 25;
+    const [installmentPage, setInstallmentPage] = useState(1);
+    const [recurringPage, setRecurringPage] = useState(1);
     const [totalInstallments, setTotalInstallments] = useState(0);
     const [totalRecurring, setTotalRecurring] = useState(0);
+
+    // Summary stats
+    const [activeInstallmentsCount, setActiveInstallmentsCount] = useState(0);
+    const [activeInstallmentsAmount, setActiveInstallmentsAmount] = useState(0);
 
     const [categories, setCategories] = useState<string[]>([]);
     const [editingItem, setEditingItem] = useState<{ type: 'installment' | 'recurring', index: number, item: Installment | RecurringTransaction } | null>(null);
@@ -119,10 +129,10 @@ const RecurringPaymentsView: React.FC = () => {
         loadCategories();
     }, []);
 
-    // Fetch data when tab or sort changes
+    // Fetch data when tab, sort, or page changes
     useEffect(() => {
         fetchData();
-    }, [activeTab, installmentSortBy, installmentSortOrder, recurringSortBy, recurringSortOrder]);
+    }, [activeTab, installmentSortBy, installmentSortOrder, recurringSortBy, recurringSortOrder, installmentPage, recurringPage]);
 
     const fetchData = async () => {
         try {
@@ -133,12 +143,16 @@ const RecurringPaymentsView: React.FC = () => {
             const type = activeTab === 0 ? 'installments' : 'recurring';
             const sortBy = activeTab === 0 ? installmentSortBy : recurringSortBy;
             const sortOrder = activeTab === 0 ? installmentSortOrder : recurringSortOrder;
+            const page = activeTab === 0 ? installmentPage : recurringPage;
+            const offset = (page - 1) * PAGE_SIZE;
 
             const params = new URLSearchParams({
                 type,
                 sortBy,
                 sortOrder,
-                limit: '500' // Fetch all for now, can add pagination UI later
+                limit: String(PAGE_SIZE),
+                offset: String(offset),
+                ...(type === 'recurring' && { frequency: 'monthly' })
             });
 
             const response = await fetch(`/api/reports/recurring-payments?${params}`);
@@ -150,6 +164,8 @@ const RecurringPaymentsView: React.FC = () => {
             if (activeTab === 0) {
                 setInstallments(data.installments || []);
                 setTotalInstallments(data.pagination?.totalInstallments || 0);
+                setActiveInstallmentsCount(data.summary?.activeInstallmentsCount || 0);
+                setActiveInstallmentsAmount(data.summary?.activeInstallmentsAmount || 0);
             } else {
                 setRecurring(data.recurring || []);
                 setTotalRecurring(data.pagination?.totalRecurring || 0);
@@ -166,10 +182,6 @@ const RecurringPaymentsView: React.FC = () => {
         setActiveTab(newValue);
     };
 
-    const activeInstallments = installments.filter(i => i.status === 'active');
-    const completedInstallments = installments.filter(i => i.status === 'completed');
-    const totalMonthlyInstallments = activeInstallments.reduce((sum, i) => sum + Math.abs(i.price), 0);
-
     const toggleRow = (id: string) => {
         const newExpanded = new Set(expandedRows);
         if (newExpanded.has(id)) {
@@ -182,13 +194,14 @@ const RecurringPaymentsView: React.FC = () => {
 
     // Handle sorting for recurring tab (server-side)
     const handleRecurringSort = (field: string) => {
-        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'frequency' | 'name' | 'last_charge_date';
+        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'name' | 'last_charge_date';
         if (recurringSortBy === sortField) {
             setRecurringSortOrder(recurringSortOrder === 'desc' ? 'asc' : 'desc');
         } else {
             setRecurringSortBy(sortField);
             setRecurringSortOrder('desc');
         }
+        setRecurringPage(1); // Reset to first page on sort change
     };
 
     // Handle sorting for installments tab (server-side)
@@ -200,6 +213,7 @@ const RecurringPaymentsView: React.FC = () => {
             setInstallmentSortBy(sortField);
             setInstallmentSortOrder('desc');
         }
+        setInstallmentPage(1); // Reset to first page on sort change
     };
 
     const renderAccountInfo = (item: Installment | RecurringTransaction) => {
@@ -288,20 +302,6 @@ const RecurringPaymentsView: React.FC = () => {
                 title="Recurring Payments"
                 description="Monitor your active installments and recurring subscriptions"
                 icon={<RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
-                stats={
-                    <Box sx={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>INSTALLMENTS</Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(totalMonthlyInstallments)}</Typography>
-                        </Box>
-                        <Box sx={{ width: '1px', height: '32px', bgcolor: 'divider' }} />
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>ACTIVE</Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>{activeInstallments.length + recurring.length}</Typography>
-                        </Box>
-                    </Box>
-                }
-                onRefresh={fetchData}
             />
 
             {/* Main Content Card */}
@@ -330,8 +330,8 @@ const RecurringPaymentsView: React.FC = () => {
                             '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main, height: '3px', borderRadius: '3px 3px 0 0' }
                         }}
                     >
-                        <Tab label={`Installments (${activeTab === 0 ? installments.length : totalInstallments || '...'})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
-                        <Tab label={`Recurring (${activeTab === 1 ? recurring.length : totalRecurring || '...'})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Installments (${totalInstallments || '...'})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Recurring (${totalRecurring || '...'})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
                     </Tabs>
                 </Box>
 
@@ -342,6 +342,37 @@ const RecurringPaymentsView: React.FC = () => {
                         <Box sx={{ p: 4, textAlign: 'center', color: 'error.main' }}>Error: {error}</Box>
                     ) : (
                         <>
+                            {/* Summary Box for Installments */}
+                            {activeTab === 0 && (
+                                <Box sx={{
+                                    display: 'flex',
+                                    gap: 3,
+                                    mb: 3,
+                                    p: 2,
+                                    borderRadius: 2,
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                    border: `1px solid ${theme.palette.divider}`
+                                }}>
+                                    <Box sx={{ textAlign: 'center', flex: 1 }}>
+                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                            ACTIVE INSTALLMENTS
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                                            {activeInstallmentsCount}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ width: '1px', bgcolor: 'divider' }} />
+                                    <Box sx={{ textAlign: 'center', flex: 1 }}>
+                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                            MONTHLY TOTAL
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.success.main }}>
+                                            ₪{formatNumber(activeInstallmentsAmount)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
                             {activeTab === 0 ? (
                                 <Table
                                     rows={installments}
@@ -454,7 +485,6 @@ const RecurringPaymentsView: React.FC = () => {
                                                 );
                                             }
                                         },
-                                        { id: 'frequency', label: 'Frequency', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'bi-monthly' ? 'warning' : 'info'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> },
                                         { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
                                         { id: 'last_charge_date', label: 'Last Charge', align: 'center', sortable: true, format: (val) => formatDate(val) },
                                         { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
@@ -487,7 +517,9 @@ const RecurringPaymentsView: React.FC = () => {
                                             </Box>
                                             <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Chip label={row.frequency} size="small" color={row.frequency === 'bi-monthly' ? 'warning' : 'info'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {row.month_count} months
+                                                </Typography>
                                                 <Typography variant="caption" color="text.secondary">
                                                     Last: {formatDate(row.last_charge_date)}
                                                 </Typography>
@@ -496,6 +528,38 @@ const RecurringPaymentsView: React.FC = () => {
                                     )}
                                 />
                             )}
+
+                            {/* Pagination */}
+                            {(() => {
+                                const total = activeTab === 0 ? totalInstallments : totalRecurring;
+                                const page = activeTab === 0 ? installmentPage : recurringPage;
+                                const setPage = activeTab === 0 ? setInstallmentPage : setRecurringPage;
+                                const totalPages = Math.ceil(total / PAGE_SIZE);
+
+                                if (totalPages <= 1) return null;
+
+                                return (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 2 }}>
+                                        <IconButton
+                                            onClick={() => setPage(Math.max(1, page - 1))}
+                                            disabled={page === 1}
+                                            size="small"
+                                        >
+                                            <ChevronLeftIcon />
+                                        </IconButton>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            Page {page} of {totalPages} ({total} items)
+                                        </Typography>
+                                        <IconButton
+                                            onClick={() => setPage(Math.min(totalPages, page + 1))}
+                                            disabled={page === totalPages}
+                                            size="small"
+                                        >
+                                            <ChevronRightIcon />
+                                        </IconButton>
+                                    </Box>
+                                );
+                            })()}
                         </>
                     )}
                 </Box>

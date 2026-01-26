@@ -39,6 +39,8 @@ export default async function handler(req, res) {
 
     let installments = [];
     let totalInstallments = 0;
+    let activeInstallmentsCount = 0;
+    let activeInstallmentsAmount = 0;
     let recurring = [];
     let totalRecurring = 0;
 
@@ -136,7 +138,9 @@ export default async function handler(req, res) {
           l.next_payment_date, l.last_payment_date,
           vc.nickname as bank_nickname,
           vc.bank_account_number as bank_account_display,
-          COUNT(*) OVER() as total_count
+          COUNT(*) OVER() as total_count,
+          COUNT(*) FILTER (WHERE l.status = 'active') OVER() as active_count,
+          COALESCE(SUM(ABS(l.price)) FILTER (WHERE l.status = 'active') OVER(), 0) as active_amount
         FROM final_installments l
         LEFT JOIN vendor_credentials vc ON l.account_number = vc.bank_account_number AND l.transaction_type = 'bank'
         ORDER BY ${installmentOrderClause}
@@ -146,7 +150,13 @@ export default async function handler(req, res) {
       totalInstallments = installmentsResult.rows.length > 0
         ? parseInt(installmentsResult.rows[0].total_count, 10)
         : 0;
-      installments = installmentsResult.rows.map(({ total_count, ...row }) => row);
+      activeInstallmentsCount = installmentsResult.rows.length > 0
+        ? parseInt(installmentsResult.rows[0].active_count, 10)
+        : 0;
+      activeInstallmentsAmount = installmentsResult.rows.length > 0
+        ? parseFloat(installmentsResult.rows[0].active_amount)
+        : 0;
+      installments = installmentsResult.rows.map(({ total_count, active_count, active_amount, ...row }) => row);
     }
 
     // Fetch recurring if type is 'all' or 'recurring'
@@ -242,6 +252,10 @@ export default async function handler(req, res) {
         totalInstallments,
         totalRecurring,
         total: totalInstallments + totalRecurring
+      },
+      summary: {
+        activeInstallmentsCount,
+        activeInstallmentsAmount
       }
     });
   } catch (error) {

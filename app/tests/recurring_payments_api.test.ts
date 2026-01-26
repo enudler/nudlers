@@ -138,7 +138,30 @@ describe('Recurring Payments API', () => {
                 totalInstallments: expect.any(Number),
                 totalRecurring: expect.any(Number),
                 total: expect.any(Number)
+            }),
+            summary: expect.objectContaining({
+                activeInstallmentsCount: expect.any(Number),
+                activeInstallmentsAmount: expect.any(Number)
             })
+        }));
+    });
+
+    it('should correctly calculate summary statistics', async () => {
+        const mockInstallments = [
+            { name: 'Sofa', price: -500, total_count: '2', active_count: '1', active_amount: '500' }
+        ];
+
+        mockClient.query
+            .mockResolvedValueOnce({ rows: mockInstallments })
+            .mockResolvedValueOnce({ rows: [] });
+
+        await handler(mockReq, mockRes);
+
+        expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+            summary: {
+                activeInstallmentsCount: 1,
+                activeInstallmentsAmount: 500
+            }
         }));
     });
 
@@ -154,13 +177,15 @@ describe('Recurring Payments API', () => {
 
     it('should apply frequency filter for recurring', async () => {
         mockReq.query = { type: 'recurring', frequency: 'monthly' };
-        mockClient.query.mockResolvedValueOnce({ rows: [
-            { name: 'Netflix', price: -50, date: '2023-01-01' },
-            { name: 'Netflix', price: -50, date: '2023-02-01' },
-            { name: 'Netflix', price: -50, date: '2023-03-01' },
-            { name: 'BiMonthly', price: -100, date: '2023-01-01' },
-            { name: 'BiMonthly', price: -100, date: '2023-03-01' }
-        ] });
+        mockClient.query.mockResolvedValueOnce({
+            rows: [
+                { name: 'Netflix', price: -50, date: '2023-01-01' },
+                { name: 'Netflix', price: -50, date: '2023-02-01' },
+                { name: 'Netflix', price: -50, date: '2023-03-01' },
+                { name: 'BiMonthly', price: -100, date: '2023-01-01' },
+                { name: 'BiMonthly', price: -100, date: '2023-03-01' }
+            ]
+        });
 
         await handler(mockReq, mockRes);
 
