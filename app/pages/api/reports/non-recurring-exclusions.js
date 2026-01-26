@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       const result = await client.query(`
         INSERT INTO non_recurring_exclusions (name, account_number)
         VALUES ($1, $2)
-        ON CONFLICT (name, COALESCE(account_number, '')) DO NOTHING
+        ON CONFLICT ((LOWER(TRIM(name))), COALESCE(account_number, '')) DO NOTHING
         RETURNING id, name, account_number, created_at
       `, [name.trim(), account_number || null]);
 
