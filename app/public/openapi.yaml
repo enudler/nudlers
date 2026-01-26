@@ -398,9 +398,68 @@ paths:
       tags:
         - Reports
       summary: Get recurring payments (installments and smart subscriptions)
+      description: |
+        Returns paginated lists of installment transactions and detected recurring payments.
+
+        **Sorting defaults:**
+        - Installments: active first (status), then by amount descending
+        - Recurring: by monthly amount descending
+      parameters:
+        - name: type
+          in: query
+          description: Filter by payment type
+          schema:
+            type: string
+            enum: [all, installments, recurring]
+            default: all
+        - name: status
+          in: query
+          description: Filter installments by status (only applies when type is 'installments' or 'all')
+          schema:
+            type: string
+            enum: [all, active, completed]
+            default: all
+        - name: frequency
+          in: query
+          description: Filter recurring payments by frequency (only applies when type is 'recurring' or 'all')
+          schema:
+            type: string
+            enum: [all, monthly, bi-monthly]
+            default: all
+        - name: limit
+          in: query
+          description: Maximum number of results per type (max 500)
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 500
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: sortBy
+          in: query
+          description: |
+            Field to sort by. Available options depend on type:
+            - Installments: status, amount, next_payment_date, name
+            - Recurring: amount, frequency, month_count, last_charge_date, name
+          schema:
+            type: string
+            enum: [status, amount, next_payment_date, name, frequency, month_count, last_charge_date]
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         '200':
-          description: List of recurring payments and active installments
+          description: List of recurring payments and active installments with pagination info
           content:
             application/json:
               schema:
@@ -414,6 +473,26 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/RecurringPaymentDetail'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                        description: Maximum number of results per type
+                      offset:
+                        type: integer
+                        description: Pagination offset
+                      totalInstallments:
+                        type: integer
+                        description: Total count of installments matching filters
+                      totalRecurring:
+                        type: integer
+                        description: Total count of recurring payments matching filters
+                      total:
+                        type: integer
+                        description: Combined total count
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /budgets:
     get:
