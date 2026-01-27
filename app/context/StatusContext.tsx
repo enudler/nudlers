@@ -158,7 +158,12 @@ export const StatusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Listen for dataRefresh events to force update
         const handleDataRefresh = () => {
             checkDb();
-            refreshStatus();
+            // Immediate refresh
+            refreshStatus(true);
+            // Most sync operations take a moment to reflect in status
+            // We poll a few times to ensure we catch the 'syncing' status
+            setTimeout(() => refreshStatus(true), 1000);
+            setTimeout(() => refreshStatus(true), 3000);
         };
         window.addEventListener('dataRefresh', handleDataRefresh);
 

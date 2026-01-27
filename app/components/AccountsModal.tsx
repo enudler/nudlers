@@ -36,6 +36,7 @@ import { CREDIT_CARD_VENDORS, BANK_VENDORS, BEINLEUMI_GROUP_VENDORS, STANDARD_BA
 import { dateUtils } from './CategoryDashboard/utils/dateUtils';
 import { useNotification } from './NotificationContext';
 import ModalHeader from './ModalHeader';
+import { useView } from './Layout';
 
 // Format a date as a relative time string (e.g., "2 hours ago", "3 days ago")
 function formatRelativeTime(dateString: string): string {
@@ -142,6 +143,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   const [editingCardBankAccount, setEditingCardBankAccount] = useState<number | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const { showNotification } = useNotification();
+  const { setSyncDrawerOpen } = useView();
   const theme = useTheme();
   const [formAccount, setFormAccount] = useState({
     vendor: 'isracard',
@@ -451,20 +453,22 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
   };
 
   const handleScrape = async (account: Account) => {
-    try {
-      // SECURITY: Fetch full credentials including password from secure endpoint
-      const response = await fetch(`/api/credentials/${account.id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch account credentials');
-      }
-      const accountWithPassword: AccountWithPassword = await response.json();
+    // Open the sync drawer
+    setSyncDrawerOpen(true);
 
-      setSelectedAccount(accountWithPassword);
-      setIsScrapeModalOpen(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load credentials for scraping');
-      showNotification('Failed to load credentials for scraping', 'error');
-    }
+    // Close accounts modal to show the drawer clearly
+    onClose();
+
+    // Trigger the sync via global event
+    window.dispatchEvent(new CustomEvent('triggerSync', {
+      detail: {
+        accountId: account.id,
+        vendor: account.vendor,
+        nickname: account.nickname
+      }
+    }));
+
+    showNotification(`Starting sync for ${account.nickname || account.vendor}...`, 'info');
   };
 
   const handleScrapeSuccess = () => {

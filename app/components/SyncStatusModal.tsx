@@ -209,6 +209,7 @@ const getStatusColor = (status: string) => {
 
   switch (status) {
     case 'completed':
+    case 'success':
     case 'healthy':
       return getVar('--status-success');
     case 'started':
@@ -404,8 +405,6 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
   }, [open, fetchStatus, setFullPolling]);
 
   // No local polling, managed by StatusContext
-
-  // Context handles dataRefresh events
 
   const fetchLastTransactionDate = async (vendor: string): Promise<Date | null> => {
     try {
@@ -654,20 +653,8 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     runSync();
   };
 
-  const handleSyncSingle = async (accountId: number) => {
+  const handleSyncSingle = async (accountId: number, initialNickname?: string, initialVendor?: string) => {
     if (isSyncing || isInitializing) return;
-
-    // Fetch account details first (quickly, from local API)
-    let account;
-    try {
-      const response = await fetch(`/api/credentials/${accountId}`);
-      if (!response.ok) throw new Error('Failed to fetch account credentials');
-      account = await response.json();
-    } catch (err) {
-      logger.error('Failed to fetch account credentials', err);
-      showNotification('Failed to start sync: Could not fetch account details', 'error');
-      return;
-    }
 
     // Optimistic UI update - set state immediately for instant feedback
     setIsSyncing(true);
@@ -678,12 +665,35 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
     setSyncStartTime(Date.now());
     setElapsedSeconds(0);
     setSyncQueue([{
+      id: accountId,
+      accountName: initialNickname || 'Loading...',
+      vendor: initialVendor || 'Loading...',
+      status: 'active'
+    }]);
+    window.dispatchEvent(new CustomEvent('dataRefresh'));
+
+    // Fetch account details 
+    let account;
+    try {
+      const response = await fetch(`/api/credentials/${accountId}`);
+      if (!response.ok) throw new Error('Failed to fetch account credentials');
+      account = await response.json();
+    } catch (err) {
+      logger.error('Failed to fetch account credentials', err);
+      showNotification('Failed to start sync: Could not fetch account details', 'error');
+      setIsSyncing(false);
+      setSyncProgress(null);
+      setSyncStartTime(null);
+      return;
+    }
+
+    // Update queue with real data from fetch
+    setSyncQueue([{
       id: account.id,
       accountName: account.nickname || account.vendor,
       vendor: account.vendor,
       status: 'active'
     }]);
-    window.dispatchEvent(new CustomEvent('dataRefresh'));
 
     const runSingle = async () => {
       abortControllerRef.current = new AbortController();

@@ -1848,6 +1848,7 @@ components:
           type: string
         status:
           type: string
+          enum: [started, completed, success, failed, error, cancelled]
         message:
           type: string
         created_at:
