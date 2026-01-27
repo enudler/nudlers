@@ -195,6 +195,45 @@ paths:
 
 
 
+  /accounts:
+    get:
+      summary: List all accounts
+      description: Returns a list of all bank and credit card accounts with their latest balances.
+      responses:
+        '200':
+          description: A list of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    vendor:
+                      type: string
+                    account_number:
+                      type: string
+                    balance:
+                      type: number
+                      nullable: true
+                    balance_updated_at:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    nickname:
+                      type: string
+                    credential:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        vendor:
+                          type: string
+                        nickname:
+                          type: string
+
   /reports/monthly-summary:
     get:
       tags:

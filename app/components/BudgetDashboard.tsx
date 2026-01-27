@@ -15,7 +15,6 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import Dialog from '@mui/material/Dialog';
@@ -29,7 +28,6 @@ import LinearProgress from '@mui/material/LinearProgress';
 import CircularProgress from '@mui/material/CircularProgress';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
-import { LineChart } from '@mui/x-charts/LineChart';
 import { useNotification } from './NotificationContext';
 import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 
@@ -48,14 +46,7 @@ interface BudgetWithSpending extends Budget {
   is_over_budget: boolean;
 }
 
-interface DailyData {
-  day: number;
-  date: string;
-  daily_spent: number;
-  cumulative_spent: number;
-  ideal_remaining: number;
-  actual_remaining: number;
-}
+
 
 interface TotalSpendBudget {
   is_set: boolean;
@@ -66,13 +57,7 @@ interface TotalSpendBudget {
   is_over_budget: boolean;
 }
 
-interface BurndownData {
-  cycle: string;
-  days_in_month: number;
-  total_budget: number;
-  is_current_month: boolean;
-  daily_data: DailyData[];
-}
+
 
 
 
@@ -120,9 +105,7 @@ const BudgetDashboard: React.FC = () => {
   const [newBudgetLimit, setNewBudgetLimit] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
 
-  // Burndown data
-  const [burndownData, setBurndownData] = useState<BurndownData | null>(null);
-  const [burndownLoading, setBurndownLoading] = useState(false);
+
 
   // Total spend budget state
   const [totalSpendBudget, setTotalSpendBudget] = useState<TotalSpendBudget | null>(null);
@@ -202,29 +185,7 @@ const BudgetDashboard: React.FC = () => {
     }
   }, []);
 
-  const fetchBurndownData = useCallback(async (year: string, month: string, mode: DateRangeMode) => {
-    setBurndownLoading(true);
-    try {
-      const url = new URL('/api/reports/daily-spending', window.location.origin);
 
-      if (mode === 'billing') {
-        url.searchParams.append('cycle', `${year}-${month}`);
-      } else {
-        url.searchParams.append('startDate', startDate);
-        url.searchParams.append('endDate', endDate);
-      }
-
-      const response = await fetch(url.toString());
-      if (!response.ok) throw new Error('Failed to fetch burndown data');
-      const data = await response.json();
-      setBurndownData(data);
-    } catch (error) {
-      logger.error('Error fetching burndown data', error as Error);
-      setBurndownData(null);
-    } finally {
-      setBurndownLoading(false);
-    }
-  }, [startDate, endDate]);
 
   useEffect(() => {
     const init = async () => {
@@ -237,18 +198,16 @@ const BudgetDashboard: React.FC = () => {
       // If we have selected dates from context, fetch data
       if (startDate && endDate && budgetList) {
         fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgetList);
-        fetchBurndownData(selectedYear, selectedMonth, dateRangeMode);
         setLoading(false);
       }
     };
     init();
-  }, [startDate, endDate, dateRangeMode, fetchBudgets, fetchAllCategories, fetchSpendingData, fetchBurndownData]);
+  }, [startDate, endDate, dateRangeMode, fetchBudgets, fetchAllCategories, fetchSpendingData]);
 
   const handleRefresh = async () => {
     const budgetList = await fetchBudgets();
     if (selectedYear && selectedMonth) {
       fetchSpendingData(selectedYear, selectedMonth, dateRangeMode, budgetList);
-      fetchBurndownData(selectedYear, selectedMonth, dateRangeMode);
     }
   };
 
@@ -807,137 +766,7 @@ const BudgetDashboard: React.FC = () => {
               </div>
             </Box>
 
-            {/* Burndown Chart */}
-            {burndownData && burndownData.total_budget > 0 && burndownData.daily_data.length > 0 && (
-              <div style={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                padding: '24px',
-                margin: '0 24px 32px',
-                border: `1px solid ${theme.palette.divider}`,
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  <ShowChartIcon style={{ color: theme.palette.secondary.main, fontSize: '24px' }} />
-                  <span style={{ color: theme.palette.text.primary, fontSize: '16px', fontWeight: 700 }}>Budget Burndown</span>
-                  <span style={{
-                    color: theme.palette.text.secondary,
-                    fontSize: '13px',
-                    marginLeft: 'auto',
-                    background: theme.palette.mode === 'dark' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.1)',
-                    padding: '4px 12px',
-                    borderRadius: '8px'
-                  }}>
-                    {burndownData.is_current_month ? 'Current month' : 'Complete month'}
-                  </span>
-                </div>
-                {burndownLoading ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-                    <CircularProgress size={32} style={{ color: theme.palette.secondary.main }} />
-                  </div>
-                ) : (
-                  <div style={{ height: '200px', width: '100%' }}>
-                    <LineChart
-                      xAxis={[{
-                        data: burndownData.daily_data.map(d => d.day),
-                        label: 'Day of Month',
-                        scaleType: 'linear',
-                        min: 1,
-                        max: burndownData.days_in_month,
-                        tickMinStep: 1
-                      }]}
-                      yAxis={[{
-                        label: 'Remaining (₪)',
-                        min: Math.min(0, ...burndownData.daily_data.map(d => d.actual_remaining)),
-                        max: burndownData.total_budget
-                      }]}
-                      series={[
-                        {
-                          data: burndownData.daily_data.map(d => d.ideal_remaining),
-                          label: 'Ideal',
-                          color: theme.palette.text.secondary,
-                          showMark: false,
-                          curve: 'linear'
-                        },
-                        {
-                          data: burndownData.daily_data.map(d => d.actual_remaining),
-                          label: 'Actual',
-                          color: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0
-                            ? theme.palette.success.main
-                            : theme.palette.error.main,
-                          showMark: false,
-                          curve: 'monotoneX'
-                        }
-                      ]}
-                      height={200}
-                      margin={{ left: 70, right: 20, top: 20, bottom: 40 }}
-                      slotProps={{
-                        legend: {
-                          direction: 'row',
-                          position: { vertical: 'top', horizontal: 'right' },
-                          padding: 0,
-                          itemMarkWidth: 10,
-                          itemMarkHeight: 10,
-                          markGap: 5,
-                          itemGap: 15
-                        }
-                      }}
-                      sx={{
-                        '.MuiLineElement-root': {
-                          strokeWidth: 2.5
-                        },
-                        '.MuiChartsAxis-tickLabel': {
-                          fill: theme.palette.text.secondary,
-                          fontSize: '11px'
-                        },
-                        '.MuiChartsAxis-label': {
-                          fill: theme.palette.text.disabled,
-                          fontSize: '12px'
-                        },
-                        '.MuiChartsLegend-label': {
-                          fill: theme.palette.text.disabled,
-                          fontSize: '12px'
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: '24px',
-                  marginTop: '12px',
-                  fontSize: '12px',
-                  color: theme.palette.text.secondary
-                }}>
-                  <span>
-                    <span style={{
-                      display: 'inline-block',
-                      width: '12px',
-                      height: '3px',
-                      background: theme.palette.text.secondary,
-                      marginRight: '6px',
-                      verticalAlign: 'middle'
-                    }}></span>
-                    Ideal pace
-                  </span>
-                  <span>
-                    <span style={{
-                      display: 'inline-block',
-                      width: '12px',
-                      height: '3px',
-                      background: burndownData.daily_data[burndownData.daily_data.length - 1]?.actual_remaining >= 0
-                        ? theme.palette.success.main
-                        : theme.palette.error.main,
-                      marginRight: '6px',
-                      verticalAlign: 'middle'
-                    }}></span>
-                    Your spending
-                  </span>
-                </div>
-              </div>
-            )}
+
 
             {/* Budget List */}
             {budgets.length > 0 ? (

@@ -143,12 +143,17 @@ const getTransactions = createApiHandler({
         // 5. Bank Account specific filters (supporting transactions_by_bank_account logic)
         if (bankAccountId && bankAccountId !== 'null') {
             const bankId = parseInt(bankAccountId);
-            // Filter by linked bank account: 
-            // 1. Bank transactions (where t.account_number matches ba.bank_account_number)
-            // 2. Credit card transactions (where card is linked to this bank account)
+            // Filter by bank account:
+            // 1. Direct ownership (credential_id)
+            // 2. Linked cards (linked_bank_account_id)
+            // 3. Number matching (fallback for unclaimed/manual)
             conditions.push(`(
-                (ba.id IS NOT NULL AND t.account_number LIKE '%' || ba.bank_account_number) OR
-                (co.linked_bank_account_id = $${paramIndex})
+                (co.credential_id = $${paramIndex}) OR
+                (co.linked_bank_account_id = $${paramIndex}) OR
+                (ba.id IS NOT NULL AND (
+                    REPLACE(t.account_number, '-', '') LIKE '%' || REPLACE(ba.bank_account_number, '-', '') OR
+                    REPLACE(t.account_number, '-', '') LIKE REPLACE(ba.bank_account_number, '-', '') || '%'
+                ))
             )`);
             params.push(bankId);
             paramIndex++;

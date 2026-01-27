@@ -59,6 +59,8 @@ interface MonthlySummaryData {
   transaction_count?: number;
   card_expenses: number;
   amount?: number; // Amount with original sign (positive = income, negative = expense)
+  balance?: number | null;
+  balance_updated_at?: string | null;
 }
 
 interface CardSummary {
@@ -74,9 +76,9 @@ interface CardSummary {
   custom_bank_account_number?: string | null;
   custom_bank_account_nickname?: string | null;
   transaction_vendor?: string | null;
+  balance?: number | null;
+  balance_updated_at?: string | null;
 }
-
-
 
 interface ScrapedBankSummary {
   bank_account_id: number | null;
@@ -86,6 +88,8 @@ interface ScrapedBankSummary {
   net_flow: number; // Income - Expenses
   income: number;
   expenses: number;
+  balance: number | null;
+  balance_updated_at: string | null;
 }
 
 interface BankCCSummary {
@@ -97,9 +101,30 @@ interface BankCCSummary {
   card_count: number;
 }
 
+interface Account {
+  id: number;
+  vendor: string;
+  account_number: string;
+  last4: string;
+  balance: number | null;
+  balance_updated_at: string | null;
+  nickname: string;
+  credential: {
+    id: number;
+    vendor: string;
+    nickname: string;
+  };
+  linked_bank_account_id: number | null;
+  metadata: {
+    is_bank: boolean;
+    custom_number?: string | null;
+    mapped_vendor?: string | null;
+  };
+}
+
 type GroupByType = 'vendor' | 'description' | 'last4digits';
 // DateRangeMode imported from context
-type SortField = 'name' | 'transaction_count' | 'card_expenses';
+type SortField = 'name' | 'transaction_count' | 'card_expenses' | 'category';
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to calculate date range based on mode
@@ -159,6 +184,7 @@ const MonthlySummary: React.FC = () => {
   // Removed old bankAccountSummary in favor of separated states
   const [scrapedBankSummary, setScrapedBankSummary] = useState<ScrapedBankSummary[]>([]);
   const [creditCardBankSummary, setCreditCardBankSummary] = useState<BankCCSummary[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
   // Category editing
   const [editingDescription, setEditingDescription] = useState<string | null>(null);
@@ -408,15 +434,20 @@ const MonthlySummary: React.FC = () => {
       cardParams.delete('excludeBankTransactions'); // Sidebar must always show bank balances
       cardUrl = `/api/reports/monthly-summary?${cardParams.toString()}`;
 
-      // Fetch both main data and card summary in parallel
-      const [mainResponse, cardResponse] = await Promise.all([
+      // Fetch main data, card summary, and master account list in parallel
+      const [mainResponse, cardResponse, accountsResponse] = await Promise.all([
         fetch(url),
-        fetch(cardUrl)
+        fetch(cardUrl),
+        fetch('/api/accounts')
       ]);
 
       const result = await mainResponse.json();
       const items = result.items || [];
       const newTotal = result.total || 0;
+
+      if (accountsResponse.ok) {
+        setAccounts(await accountsResponse.json());
+      }
 
       if (offsetValue === 0) {
         setData(items);
@@ -441,6 +472,8 @@ const MonthlySummary: React.FC = () => {
           card_nickname?: string | null;
           total_income?: string | number;
           total_outflow?: string | number;
+          balance?: number | null;
+          balance_updated_at?: string | null;
         }
         const cardResponseData = await cardResponse.json();
         const cardResult: CardAPIResponse[] = cardResponseData.items || [];
@@ -460,6 +493,8 @@ const MonthlySummary: React.FC = () => {
             custom_bank_account_number: c.custom_bank_account_number || null,
             custom_bank_account_nickname: c.custom_bank_account_nickname || null,
             transaction_vendor: c.transaction_vendor || null,
+            balance: c.balance !== null ? Number(c.balance) : null,
+            balance_updated_at: c.balance_updated_at || null,
           }));
         setCardSummary(cards);
 
@@ -508,7 +543,9 @@ const MonthlySummary: React.FC = () => {
                 bank_account_vendor: transVendor,
                 net_flow: 0,
                 income: 0,
-                expenses: 0
+                expenses: 0,
+                balance: item.balance !== null ? Number(item.balance) : null,
+                balance_updated_at: item.balance_updated_at || null
               });
             }
 
@@ -580,6 +617,42 @@ const MonthlySummary: React.FC = () => {
       });
     }
   }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions, selectedYear, selectedMonth, sortField, sortDirection]);
+
+  // Derived bank summary that includes ALL accounts from the REST API
+  const finalBankSummary = useMemo(() => {
+    // Start with master list of accounts from the restful API
+    const banks = accounts.filter(acc => acc.metadata.is_bank);
+
+    return banks.map(acc => {
+      // Find matching flow data from the reports API processing
+      const flowData = scrapedBankSummary.find(s =>
+        s.bank_account_id === acc.credential.id ||
+        s.bank_account_number === acc.account_number
+      );
+
+      return {
+        bank_account_id: acc.credential.id,
+        bank_account_nickname: acc.nickname,
+        bank_account_number: acc.account_number,
+        bank_account_vendor: acc.vendor,
+        net_flow: flowData?.net_flow || 0,
+        income: flowData?.income || 0,
+        expenses: flowData?.expenses || 0,
+        balance: acc.balance,
+        balance_updated_at: acc.balance_updated_at
+      };
+    }).filter(bank => {
+      // Logic to hide "phantom" accounts:
+      // Hide if the bank never reported a balance AND has no transaction activity in this view
+      const hasBalance = bank.balance !== null;
+      const hasActivity = bank.income !== 0 || bank.expenses !== 0;
+      return hasBalance || hasActivity;
+    }).sort((a, b) => {
+      // Sort by balance (highest first) or fallback to net flow
+      if (a.balance !== null && b.balance !== null) return b.balance - a.balance;
+      return b.net_flow - a.net_flow;
+    });
+  }, [accounts, scrapedBankSummary]);
 
   useEffect(() => {
     setOffset(0); // Reset offset when filters change
@@ -1168,6 +1241,7 @@ const MonthlySummary: React.FC = () => {
       cols.push({
         id: 'category',
         label: 'Category',
+        sortable: true,
         format: (val, row) => (
           <div onClick={(e) => e.stopPropagation()}>
             {editingDescription === row.description ? (
@@ -1279,11 +1353,17 @@ const MonthlySummary: React.FC = () => {
 
   // Update document title and data
   useEffect(() => {
-    if (selectedMonth && selectedYear) {
+    if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
+      const start = new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const end = new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      document.title = `Nudlers | ${start} - ${end}`;
+    } else if (selectedMonth && selectedYear) {
       const monthName = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long' });
       document.title = `Nudlers | ${monthName} ${selectedYear}`;
+    } else {
+      document.title = 'Nudlers | Summary';
     }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, dateRangeMode, customStartDate, customEndDate]);
 
   if (error) {
     return (
@@ -1340,7 +1420,7 @@ const MonthlySummary: React.FC = () => {
         color: theme.palette.text.primary
       }}>
         <PageHeader
-          title="Monthly Summary"
+          title="Summary"
           description={
             dateRangeMode === 'custom' && customStartDate && customEndDate
               ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
@@ -1447,7 +1527,7 @@ const MonthlySummary: React.FC = () => {
                       <CreditCardIcon sx={{ color: 'white', fontSize: '20px' }} />
                     )}
                     <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                      {selectedMonth && selectedYear ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'short' })} Expenses` : 'Total Expenses'}
+                      Credit Card Expenses
                     </span>
                   </div>
                   <div style={{ fontSize: '24px', fontWeight: 700, color: 'white' }}>
@@ -1607,14 +1687,14 @@ const MonthlySummary: React.FC = () => {
                     );
                   })}
 
-                {/* 1. Bank Accounts Section (Scraped Data) */}
-                {scrapedBankSummary.length > 0 && (
+                {/* 1. Bank Accounts Section (RESTful Master List) */}
+                {finalBankSummary.length > 0 && (
                   <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
                     <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
-                      Bank Accounts (Net Flow)
+                      Bank Accounts
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                      {scrapedBankSummary.map((bank) => (
+                      {finalBankSummary.map((bank) => (
                         <Box
                           key={bank.bank_account_id ? `id-${bank.bank_account_id}` : `vend-${bank.bank_account_vendor}`}
                           onClick={() => handleBankAccountClick(bank)}
@@ -1675,12 +1755,28 @@ const MonthlySummary: React.FC = () => {
                             )}
                           </Box>
                           <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="body2" sx={{
-                              fontWeight: 700,
-                              color: bank.net_flow >= 0 ? '#10B981' : '#F43F5E'
+                            {bank.balance !== null && (
+                              <Typography variant="body2" sx={{
+                                fontWeight: 800,
+                                color: 'text.primary',
+                                fontSize: '15px'
+                              }}>
+                                ₪{formatNumber(bank.balance)}
+                              </Typography>
+                            )}
+                            <Typography variant="caption" sx={{
+                              fontWeight: 600,
+                              color: bank.net_flow >= 0 ? '#10B981' : '#F43F5E',
+                              display: 'block',
+                              fontSize: bank.balance !== null ? '10px' : '14px'
                             }}>
                               {bank.net_flow >= 0 ? '+' : ''}₪{formatNumber(bank.net_flow)}
                             </Typography>
+                            {bank.balance_updated_at && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '9px', display: 'block', mt: 0.5 }}>
+                                Updated: {new Date(bank.balance_updated_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </Typography>
+                            )}
                           </Box>
                         </Box>
                       ))}
@@ -1905,55 +2001,7 @@ const MonthlySummary: React.FC = () => {
                   )}
                 </Box>
 
-                {/* Sorting Controls */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
-                    <SortIcon sx={{ fontSize: '16px' }} />
-                    Sort:
-                  </div>
-                  {[
-                    { field: 'name' as SortField, label: 'Name' },
-                    ...(groupBy === 'description' || groupBy === 'last4digits' ? [{ field: 'transaction_count' as SortField, label: 'Count' }] : []),
-                    { field: 'card_expenses' as SortField, label: 'Amount' }
-                  ].map(({ field, label }) => (
-                    <button
-                      key={field}
-                      onClick={() => handleSortChange(field)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        padding: '6px 10px',
-                        borderRadius: '8px',
-                        border: sortField === field
-                          ? (theme.palette.mode === 'dark' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(59, 130, 246, 0.4)')
-                          : `1px solid ${theme.palette.divider}`,
-                        background: sortField === field
-                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)'
-                          : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
-                        color: sortField === field ? '#3b82f6' : 'text.secondary',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease-in-out',
-                      }}
-                    >
-                      {label}
-                      {sortField === field && (
-                        sortDirection === 'asc'
-                          ? <ArrowUpwardIcon sx={{ fontSize: '14px' }} />
-                          : <ArrowDownwardIcon sx={{ fontSize: '14px' }} />
-                      )}
-                    </button>
-                  ))}
-                </div>
               </Box>
-
               {sortedData.length === 0 ? (
                 <Box sx={{
                   textAlign: 'center',

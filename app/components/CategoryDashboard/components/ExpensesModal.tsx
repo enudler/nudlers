@@ -22,8 +22,6 @@ import { useTheme } from '@mui/material/styles';
 import { ExpensesModalProps, Expense } from '../types';
 import { formatNumber } from '../utils/format';
 import { dateUtils } from '../utils/dateUtils';
-import dynamic from 'next/dynamic';
-const LineChart = dynamic(() => import('@mui/x-charts').then(m => m.LineChart), { ssr: false });
 import Box from '@mui/material/Box';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SortIcon from '@mui/icons-material/Sort';
@@ -34,18 +32,14 @@ import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
-type SortField = 'date' | 'amount' | 'installments';
+type SortField = 'date' | 'price' | 'installments_number' | 'name' | 'category' | 'card';
 type SortDirection = 'asc' | 'desc';
 
-interface ChartDataPoint {
-  date: Date;
-  amount: number;
-}
+
 
 const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, color, setModalData, currentMonth }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [chartData, setChartData] = React.useState<ChartDataPoint[]>([]);
   const [editingExpense, setEditingExpense] = React.useState<Expense | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
   const [editCategory, setEditCategory] = React.useState<string>('');
@@ -76,14 +70,25 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
         case 'date':
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
           break;
-        case 'amount':
+        case 'price':
           // Sort by actual value (including sign) - negative amounts come before positive in ascending order
           comparison = a.price - b.price;
           break;
-        case 'installments':
+        case 'installments_number':
           const installA = a.installments_total || 0;
           const installB = b.installments_total || 0;
           comparison = installA - installB;
+          break;
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'category':
+          comparison = (a.category || '').localeCompare(b.category || '');
+          break;
+        case 'card':
+          const cardA = a.vendor_nickname || a.vendor || '';
+          const cardB = b.vendor_nickname || b.vendor || '';
+          comparison = cardA.localeCompare(cardB);
           break;
       }
 
@@ -91,121 +96,19 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     });
   }, [sortField, sortDirection]);
 
-  const handleSortChange = (field: SortField) => {
-    if (field === sortField) {
+  const handleSortChange = (field: string) => {
+    const sField = field as SortField;
+    if (sField === sortField) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field);
+      setSortField(sField);
       setSortDirection('desc');
     }
   };
 
   const sortedExpenses = React.useMemo(() => getSortedData(data.data), [data.data, getSortedData]);
 
-  React.useEffect(() => {
-    // Determine if we should treat values as signed (Net) or absolute (Magnitude)
-    // Bank View = Signed (Net). Category View = Absolute (Magnitude)
-    const useSignedValues = isBankView;
 
-    // if (isBankView) {
-    //   setChartData([]);
-    //   return;
-    // }
-
-    if (!data.data || data.data.length === 0) {
-      setChartData([]);
-      return;
-    }
-
-    const timestamps = data.data.map(e => new Date(e.date).getTime()).filter(t => !isNaN(t));
-    if (timestamps.length === 0) {
-      setChartData([]);
-      return;
-    }
-
-    const minTime = Math.min(...timestamps);
-    const maxTime = Math.max(...timestamps);
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const diffDays = Math.ceil((maxTime - minTime) / msPerDay);
-
-    // If range is up to 31 days (inclusive of end date implies we might technically span simple checks, 
-    // but diffDays is usually accurate enough). Data point per day.
-    // If multiple months (implied by > 31 days), per month.
-    // If range is up to 90 days (approx 3 months), show daily data points.
-    // If > 90 days, switch to monthly aggregation.
-    const isDaily = diffDays <= 90;
-
-    const aggregated = new Map<string, number>();
-
-    const getKey = (date: Date) => {
-      if (isDaily) {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; // YYYY-MM-DD
-      } else {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
-      }
-    };
-
-    // Fill gaps
-    const startDate = new Date(minTime);
-    const endDate = new Date(maxTime);
-
-    if (isDaily) {
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
-    } else {
-      startDate.setDate(1); startDate.setHours(0, 0, 0, 0);
-      endDate.setDate(1); endDate.setHours(0, 0, 0, 0);
-    }
-
-    // Create a range of keys initialized to 0
-    const current = new Date(startDate);
-    // Add a safety limit to loop to prevent infinite loop if something is wrong with dates
-    let safety = 0;
-    while (current <= endDate && safety < 1000) {
-      aggregated.set(getKey(current), 0);
-      if (isDaily) {
-        current.setDate(current.getDate() + 1);
-      } else {
-        current.setMonth(current.getMonth() + 1);
-      }
-      safety++;
-    }
-
-    // Sum data
-    data.data.forEach(expense => {
-      const d = new Date(expense.date);
-      if (isNaN(d.getTime())) return;
-      const key = getKey(d);
-      // Expenses are usually summed by absolute value for these charts
-      // But for Bank View, we might want Net (Signed)
-      const val = useSignedValues ? expense.price : Math.abs(expense.price);
-
-      if (aggregated.has(key)) {
-        aggregated.set(key, (aggregated.get(key) || 0) + val);
-      } else {
-        // If data point falls outside the generated range (e.g. late month data vs 1st of month logic), 
-        // for monthly we keyed by YYYY-MM so it should match.
-        // For daily, strict YYYY-MM-DD match.
-        // Just in case, set it.
-        aggregated.set(key, (aggregated.get(key) || 0) + val);
-      }
-    });
-
-    // Convert to sorted array
-    const result = Array.from(aggregated.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([key, amount]) => {
-        const parts = key.split('-').map(Number);
-        // Daily: YYYY-MM-DD, Monthly: YYYY-MM
-        const date = isDaily
-          ? new Date(parts[0], parts[1] - 1, parts[2])
-          : new Date(parts[0], parts[1] - 1);
-        return { date, amount };
-      });
-
-    setChartData(result);
-
-  }, [data.data, data.type]);
 
   const handleEditClick = (expense: Expense) => {
     setEditingExpense(expense);
@@ -467,125 +370,8 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
     >
       <ModalHeader title={data.type} onClose={onClose} />
       <DialogContent sx={{ padding: { xs: '12px', sm: '16px', md: '32px' } }}>
-        {chartData.length > 0 && (
-          <Box sx={{
-            mb: 4,
-            p: 3,
-            borderRadius: '20px',
-            background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%)',
-            border: `1px solid ${theme.palette.divider}`,
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <Box sx={{ width: '100%', overflow: 'hidden' }}>
-              <LineChart
-                xAxis={[
-                  {
-                    data: chartData.map(d => d.date),
-                    valueFormatter: (value) => {
-                      if (!value) return "";
-                      return new Intl.DateTimeFormat("en-US", {
-                        day: "numeric",
-                        month: "short",
-                        year: chartData.length > 31 ? "2-digit" : undefined
-                      }).format(value);
-                    },
-                    tickLabelStyle: { fill: theme.palette.text.secondary },
-                    scaleType: 'time',
-                  },
-                ]}
-                yAxis={[
-                  {
-                    tickLabelStyle: { fill: theme.palette.text.secondary },
-                    valueFormatter: (value) => `₪${formatNumber(value)}`,
-                  },
-                ]}
-                series={[
-                  {
-                    data: chartData.map(d => d.amount),
-                    color: color,
-                    area: true,
-                    showMark: true,
-                    label: data.type,
-                  },
-                ]}
-                height={300}
-                margin={{ left: 70 }}
-                grid={{ horizontal: true, vertical: false }}
-                sx={{
-                  '.MuiLineElement-root': {
-                    stroke: color,
-                    strokeWidth: 2,
-                  },
-                  '.MuiAreaElement-root': {
-                    fill: color,
-                    opacity: 0.1,
-                  },
-                  '.MuiMarkElement-root': {
-                    stroke: color,
-                    strokeWidth: 2,
-                    fill: '#ffffff',
-                  },
-                  '.MuiChartsAxis-line': {
-                    stroke: '#e2e8f0',
-                  },
-                  '.MuiChartsAxis-tick': {
-                    stroke: '#e2e8f0',
-                  },
-                  '.MuiChartsGrid-root': {
-                    stroke: '#e2e8f0',
-                  },
-                }}
-              />
-            </Box>
-          </Box>
-        )}
-        {/* Sorting Controls */}
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          mb: 2,
-          flexWrap: 'wrap'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>
-            <SortIcon sx={{ fontSize: '18px' }} />
-            Sort by:
-          </Box>
-          {[
-            { field: 'date' as SortField, label: 'Date' },
-            { field: 'amount' as SortField, label: 'Amount' },
-            { field: 'installments' as SortField, label: 'Installments' }
-          ].map(({ field, label }) => (
-            <button
-              key={field}
-              onClick={() => handleSortChange(field)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '8px 14px',
-                borderRadius: '10px',
-                border: sortField === field ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(148, 163, 184, 0.2)',
-                background: sortField === field
-                  ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%)'
-                  : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
-                color: sortField === field ? '#3b82f6' : theme.palette.text.secondary,
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease-in-out',
-              }}
-            >
-              {label}
-              {sortField === field && (
-                sortDirection === 'asc'
-                  ? <ArrowUpwardIcon sx={{ fontSize: '16px' }} />
-                  : <ArrowDownwardIcon sx={{ fontSize: '16px' }} />
-              )}
-            </button>
-          ))}
-        </Box>
+
+
 
         <Box sx={{
           borderRadius: '20px',
@@ -608,16 +394,21 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
               rows={Array.isArray(sortedExpenses) ? sortedExpenses : []}
               rowKey={(row) => row.identifier ? `${row.identifier}-${row.vendor}` : JSON.stringify(row)} // Better unique key if possible
               emptyMessage="No data available"
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSortChange}
               columns={React.useMemo(() => [
                 {
                   id: 'name',
                   label: 'Description',
                   minWidth: 200,
+                  sortable: true,
                   format: (val) => val
                 },
                 {
                   id: 'category',
                   label: 'Category',
+                  sortable: true,
                   format: (_, expense) => {
                     const isEditing = editingExpense?.identifier === expense.identifier && editingExpense?.vendor === expense.vendor;
                     if (isEditing) {
@@ -707,6 +498,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   id: 'price',
                   label: 'Amount',
                   align: 'right',
+                  sortable: true,
                   format: (_, expense) => {
                     const isEditing = editingExpense?.identifier === expense.identifier && editingExpense?.vendor === expense.vendor;
                     const displayAmount = Math.abs(expense.price);
@@ -768,6 +560,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   id: 'installments_number',
                   label: 'Installment',
                   align: 'center',
+                  sortable: true,
                   format: (_, expense) => expense.installments_total && expense.installments_total > 1 ? (
                     <span style={{
                       backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -786,6 +579,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                 {
                   id: 'card',
                   label: 'Card',
+                  sortable: true,
                   format: (_, expense) => {
                     const hasCardInfo = expense.vendor_nickname || expense.vendor || expense.card6_digits || expense.account_number;
                     if (!hasCardInfo) return <span style={{ color: '#94a3b8' }}>—</span>;
@@ -817,6 +611,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                 {
                   id: 'date',
                   label: 'Date',
+                  sortable: true,
                   format: (val) => <span style={{ color: theme.palette.text.secondary }}>{dateUtils.formatDate(val)}</span>
                 },
                 {
