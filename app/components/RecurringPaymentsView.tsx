@@ -470,21 +470,80 @@ const RecurringPaymentsView: React.FC = () => {
                                         { id: 'last_payment_date', label: 'End', align: 'center', format: (val) => formatDate(val) },
                                         { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
                                     ]}
-                                    mobileCardRenderer={(row) => (
-                                        <Box>
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                                <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}/mo</Typography>
+                                    mobileCardRenderer={(row) => {
+                                        const index = installments.indexOf(row);
+                                        const isEditing = editingItem?.type === 'installment' && editingItem.index === index;
+
+                                        if (isEditing) {
+                                            return (
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 0.5 }}>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Category</Typography>
+                                                        <CategoryAutocomplete
+                                                            value={editCategory}
+                                                            onChange={setEditCategory}
+                                                            options={categories}
+                                                            autoFocus
+                                                            placeholder="Category"
+                                                        />
+                                                    </Box>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
+                                                        <IconButton
+                                                            onClick={(e) => { e.stopPropagation(); handleCancelCategory(); }}
+                                                            size="small"
+                                                            sx={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
+                                                        >
+                                                            <CloseIcon />
+                                                        </IconButton>
+                                                        <IconButton
+                                                            onClick={(e) => { e.stopPropagation(); handleSaveCategory(); }}
+                                                            size="small"
+                                                            sx={{ color: '#4ADE80', backgroundColor: 'rgba(74, 222, 128, 0.1)' }}
+                                                        >
+                                                            <CheckIcon />
+                                                        </IconButton>
+                                                    </Box>
+                                                </Box>
+                                            );
+                                        }
+
+                                        return (
+                                            <Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}/mo</Typography>
+                                                </Box>
+                                                <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <Box
+                                                        onClick={(e) => handleCategoryClick(e, row, index, 'installment')}
+                                                        sx={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            bgcolor: theme.palette.primary.main,
+                                                            color: 'white',
+                                                            px: 1,
+                                                            py: 0.5,
+                                                            borderRadius: 1.5,
+                                                            cursor: 'pointer',
+                                                            fontSize: '11px',
+                                                            fontWeight: 600
+                                                        }}
+                                                    >
+                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '11px' }} />
+                                                    </Box>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {row.current_installment}/{row.total_installments}
+                                                        </Typography>
+                                                        <Chip label={row.status} size="small" color={row.status === 'completed' ? 'success' : 'primary'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
+                                                    </Box>
+                                                </Box>
                                             </Box>
-                                            <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {row.current_installment}/{row.total_installments} payments
-                                                </Typography>
-                                                <Chip label={row.status} size="small" color={row.status === 'completed' ? 'success' : 'primary'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
-                                            </Box>
-                                        </Box>
-                                    )}
+                                        );
+                                    }}
                                 />
                             ) : (
                                 <Table
@@ -572,37 +631,96 @@ const RecurringPaymentsView: React.FC = () => {
                                             ))}
                                         </Box>
                                     )}
-                                    mobileCardRenderer={(row) => (
-                                        <Box>
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                                <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}</Typography>
-                                                    <Tooltip title="Not a recurring payment">
+                                    mobileCardRenderer={(row) => {
+                                        const index = recurring.indexOf(row);
+                                        const isEditing = editingItem?.type === 'recurring' && editingItem.index === index;
+
+                                        if (isEditing) {
+                                            return (
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 0.5 }}>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Category</Typography>
+                                                        <CategoryAutocomplete
+                                                            value={editCategory}
+                                                            onChange={setEditCategory}
+                                                            options={categories}
+                                                            autoFocus
+                                                            placeholder="Category"
+                                                        />
+                                                    </Box>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
                                                         <IconButton
+                                                            onClick={(e) => { e.stopPropagation(); handleCancelCategory(); }}
                                                             size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleMarkNotRecurring(row);
-                                                            }}
-                                                            sx={{ color: 'text.secondary', p: 0.5 }}
+                                                            sx={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
                                                         >
-                                                            <BlockIcon fontSize="small" />
+                                                            <CloseIcon />
                                                         </IconButton>
-                                                    </Tooltip>
+                                                        <IconButton
+                                                            onClick={(e) => { e.stopPropagation(); handleSaveCategory(); }}
+                                                            size="small"
+                                                            sx={{ color: '#4ADE80', backgroundColor: 'rgba(74, 222, 128, 0.1)' }}
+                                                        >
+                                                            <CheckIcon />
+                                                        </IconButton>
+                                                    </Box>
+                                                </Box>
+                                            );
+                                        }
+
+                                        return (
+                                            <Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}</Typography>
+                                                        <Tooltip title="Not a recurring payment">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleMarkNotRecurring(row);
+                                                                }}
+                                                                sx={{ color: 'text.secondary', p: 0.5 }}
+                                                            >
+                                                                <BlockIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Box>
+                                                </Box>
+                                                <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <Box
+                                                        onClick={(e) => handleCategoryClick(e, row, index, 'recurring')}
+                                                        sx={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            bgcolor: theme.palette.primary.main,
+                                                            color: 'white',
+                                                            px: 1,
+                                                            py: 0.5,
+                                                            borderRadius: 1.5,
+                                                            cursor: 'pointer',
+                                                            fontSize: '11px',
+                                                            fontWeight: 600
+                                                        }}
+                                                    >
+                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '11px' }} />
+                                                    </Box>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {row.month_count} months
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '10px' }}>
+                                                            Last: {formatDate(row.last_charge_date)}
+                                                        </Typography>
+                                                    </Box>
                                                 </Box>
                                             </Box>
-                                            <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {row.month_count} months
-                                                </Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Last: {formatDate(row.last_charge_date)}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    )}
+                                        );
+                                    }}
                                 />
                             )}
 

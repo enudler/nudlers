@@ -74,7 +74,7 @@ export default async function handler(req, res) {
       const lastSyncTime = new Date(latestScrape.created_at);
       const hoursSinceSync = (now.getTime() - lastSyncTime.getTime()) / (1000 * 60 * 60);
 
-      if (latestScrape.status === 'completed') {
+      if (latestScrape.status === 'completed' || latestScrape.status === 'success') {
         if (hoursSinceSync < intervalHours) {
           syncHealth = 'healthy';
         } else if (hoursSinceSync < intervalHours * 2) {
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
         } else {
           syncHealth = 'syncing';
         }
-      } else if (latestScrape.status === 'failed') {
+      } else if (latestScrape.status === 'failed' || latestScrape.status === 'error') {
         syncHealth = 'error';
       } else if (latestScrape.status === 'cancelled') {
         syncHealth = 'healthy';

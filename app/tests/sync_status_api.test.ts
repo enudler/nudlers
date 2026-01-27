@@ -125,6 +125,62 @@ describe('API: /api/sync_status', () => {
         expect(responseData.syncHealth).toBe('healthy');
     });
 
+    it("should handle 'success' status as healthy", async () => {
+        mockReq = { method: 'GET', query: {} };
+
+        // Mock settings
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+        // Mock counts
+        mockClient.query.mockResolvedValueOnce({ rows: [{ count: '1' }] });
+
+        // Mock latest scrape with 'success' status
+        mockClient.query.mockResolvedValueOnce({
+            rows: [{
+                id: 1,
+                status: 'success',
+                created_at: new Date().toISOString()
+            }]
+        });
+
+        // Mock account status
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+        // Mock history
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+
+        await syncStatusHandler(mockReq, mockRes);
+
+        const responseData = mockRes.json.mock.calls[0][0];
+        expect(responseData.syncHealth).toBe('healthy');
+    });
+
+    it("should handle 'error' status as error health", async () => {
+        mockReq = { method: 'GET', query: {} };
+
+        // Mock settings
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+        // Mock counts
+        mockClient.query.mockResolvedValueOnce({ rows: [{ count: '1' }] });
+
+        // Mock latest scrape with 'error' status
+        mockClient.query.mockResolvedValueOnce({
+            rows: [{
+                id: 1,
+                status: 'error',
+                created_at: new Date().toISOString()
+            }]
+        });
+
+        // Mock account status
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+        // Mock history
+        mockClient.query.mockResolvedValueOnce({ rows: [] });
+
+        await syncStatusHandler(mockReq, mockRes);
+
+        const responseData = mockRes.json.mock.calls[0][0];
+        expect(responseData.syncHealth).toBe('error');
+    });
+
     it('should return minimal response when minimal query param is true', async () => {
         mockReq = { method: 'GET', query: { minimal: 'true' } };
 
