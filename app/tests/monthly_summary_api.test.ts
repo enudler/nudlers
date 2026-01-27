@@ -171,4 +171,57 @@ describe('Monthly Summary API Endpoint', () => {
             });
         });
     });
+
+    describe('Balance and Nicknames', () => {
+        it('should return balance and fallback nicknames', async () => {
+            mockReq = {
+                method: 'GET',
+                query: {
+                    groupBy: 'last4digits',
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31',
+                }
+            };
+
+            const mockRow = {
+                last4digits: '1234',
+                transaction_count: 5,
+                bank_income: 1000,
+                bank_expenses: 500,
+                card_expenses: 200,
+                total_income: 1000,
+                total_outflow: 700,
+                net_balance: 300,
+                bank_account_id: 1,
+                bank_account_nickname: 'My Bank',
+                bank_account_number: '123456',
+                bank_account_vendor: 'hapoalim',
+                transaction_vendor: 'hapoalim',
+                balance: 5000,
+                balance_updated_at: '2023-01-27T20:00:00Z',
+                total_count: 1
+            };
+
+            mockClient.query.mockResolvedValue({
+                rowCount: 1,
+                rows: [mockRow]
+            });
+
+            await handler(mockReq, mockRes);
+
+            const [sql] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('co.balance');
+            expect(sql).toContain('co.balance_updated_at');
+            expect(sql).toContain('COALESCE(ba.id, vc.id)');
+
+            expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+                items: expect.arrayContaining([
+                    expect.objectContaining({
+                        balance: 5000,
+                        balance_updated_at: '2023-01-27T20:00:00Z'
+                    })
+                ])
+            }));
+        });
+    });
 });

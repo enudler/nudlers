@@ -540,15 +540,25 @@ export async function checkCardOwnership(client, accountNumber, vendor, currentC
 /**
  * Claim ownership of a card for a specific credential
  */
-export async function claimCardOwnership(client, accountNumber, vendor, credentialId) {
+export async function claimCardOwnership(client, accountNumber, vendor, credentialId, balance = null) {
   // Insert or update card ownership
-  await client.query(
-    `INSERT INTO card_ownership (vendor, account_number, credential_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (vendor, account_number) 
-     DO UPDATE SET credential_id = $3`,
-    [vendor, accountNumber, credentialId]
-  );
+  if (balance !== null) {
+    await client.query(
+      `INSERT INTO card_ownership (vendor, account_number, credential_id, balance, balance_updated_at)
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+       ON CONFLICT (vendor, account_number) 
+       DO UPDATE SET credential_id = $3, balance = $4, balance_updated_at = CURRENT_TIMESTAMP`,
+      [vendor, accountNumber, credentialId, balance]
+    );
+  } else {
+    await client.query(
+      `INSERT INTO card_ownership (vendor, account_number, credential_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (vendor, account_number) 
+       DO UPDATE SET credential_id = $3`,
+      [vendor, accountNumber, credentialId]
+    );
+  }
 }
 
 /**
@@ -1144,7 +1154,7 @@ export async function processScrapedAccounts({
         continue;
       }
 
-      await claimCardOwnership(client, account.accountNumber, companyId, credentialId);
+      await claimCardOwnership(client, account.accountNumber, companyId, credentialId, account.balance);
 
       if (!account.txns || !Array.isArray(account.txns)) {
         logger.warn({
