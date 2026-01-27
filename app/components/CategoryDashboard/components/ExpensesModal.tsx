@@ -858,33 +858,140 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   }
                 }
               ], [editingExpense, editCategory, editPrice, applyToAll, isBankView, availableCategories, theme, color])}
-              mobileCardRenderer={(expense) => (
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={700}>{expense.name}</Typography>
-                    <Typography variant="subtitle2" fontWeight={700} color={expense.price >= 0 && isBankView ? 'success.main' : 'error.main'}>
-                      {isBankView ? (expense.price >= 0 ? '+' : '') : (expense.price < 0 ? '-' : '')}₪{formatNumber(Math.abs(expense.price))}
-                    </Typography>
+              mobileCardRenderer={(expense) => {
+                const isEditing = editingExpense?.identifier === expense.identifier && editingExpense?.vendor === expense.vendor;
+
+                if (isEditing) {
+                  return (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '16px', p: 1 }}>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: theme.palette.text.primary }}>
+                        {expense.name}
+                      </Typography>
+
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                          Category
+                        </Typography>
+                        <Autocomplete
+                          value={editCategory}
+                          onChange={(event, newValue) => setEditCategory(newValue || '')}
+                          onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                          freeSolo
+                          options={availableCategories}
+                          size="small"
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '12px',
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Enter category..."
+                              sx={{ '& .MuiInputBase-input': { fontSize: '14px' } }}
+                            />
+                          )}
+                        />
+                        {editingExpense && editCategory !== editingExpense.category && editCategory !== (editingExpense.category || 'Uncategorized') && (
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={applyToAll}
+                                onChange={(e) => setApplyToAll(e.target.checked)}
+                                size="small"
+                                sx={{ color: '#94a3b8', '&.Mui-checked': { color: '#3b82f6' }, padding: '4px' }}
+                              />
+                            }
+                            label={
+                              <Typography sx={{ fontSize: '12px', color: theme.palette.text.secondary }}>
+                                Apply to all & create rule
+                              </Typography>
+                            }
+                            sx={{ margin: 0, mt: 0.5 }}
+                          />
+                        )}
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                          Amount (₪)
+                        </Typography>
+                        <TextField
+                          value={editPrice}
+                          onChange={(e) => setEditPrice(e.target.value)}
+                          size="small"
+                          type="number"
+                          fullWidth
+                          inputProps={{
+                            style: {
+                              fontSize: '14px',
+                            }
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '12px',
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                            }
+                          }}
+                        />
+                      </Box>
+
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', pt: 1 }}>
+                        <IconButton
+                          onClick={(e) => { e.stopPropagation(); handleCancelClick(); }}
+                          sx={{
+                            color: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.2)' }
+                          }}
+                        >
+                          <CloseIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={(e) => { e.stopPropagation(); handleSaveClick(); }}
+                          sx={{
+                            color: '#4ADE80',
+                            backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                            '&:hover': { backgroundColor: 'rgba(74, 222, 128, 0.2)' }
+                          }}
+                        >
+                          <CheckIcon />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  );
+                }
+
+                return (
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="subtitle2" fontWeight={700}>{expense.name}</Typography>
+                      <Typography variant="subtitle2" fontWeight={700} color={expense.price >= 0 && isBankView ? 'success.main' : 'error.main'}>
+                        {isBankView ? (expense.price >= 0 ? '+' : '') : (expense.price < 0 ? '-' : '')}₪{formatNumber(Math.abs(expense.price))}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="caption" color="text.secondary">{dateUtils.formatDate(expense.date)}</Typography>
+                      <span
+                        style={{ fontSize: '11px', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}
+                        onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }}
+                      >
+                        {expense.category || 'Uncategorized'}
+                      </span>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }} sx={{ color: '#3b82f6' }}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); setConfirmDeleteExpense(expense); }} sx={{ color: '#ef4444' }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="caption" color="text.secondary">{dateUtils.formatDate(expense.date)}</Typography>
-                    <span
-                      style={{ fontSize: '11px', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer' }}
-                      onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }}
-                    >
-                      {expense.category || 'Uncategorized'}
-                    </span>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleRowClick(expense); handleEditClick(expense); }} sx={{ color: '#3b82f6' }}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setConfirmDeleteExpense(expense); }} sx={{ color: '#ef4444' }}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </Box>
-              )}
+                );
+              }}
             />
           </Box>
 

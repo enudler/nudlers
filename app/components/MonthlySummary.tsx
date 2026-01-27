@@ -43,45 +43,11 @@ import { CardVendorIcon, CARD_VENDORS } from './CardVendorsModal';
 import { useScreenContext } from './Layout';
 import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 import { logger } from '../utils/client-logger';
+import { isBankTransaction, BankCheckTransaction } from '../utils/transactionUtils';
 import { CREDIT_CARD_VENDORS, BANK_VENDORS } from '../utils/constants';
 
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
-
-interface BankCheckTransaction {
-  card6_digits?: string;
-  account_number?: string | number;
-  installments_total?: number;
-  vendor?: string;
-  category?: string;
-}
-
-const isBankTransaction = (transaction: BankCheckTransaction) => {
-  // 1. Check for Credit Card signals FIRST
-  const hasCardSignals =
-    Boolean(transaction.card6_digits) ||
-    (transaction.account_number && String(transaction.account_number).length === 4) ||
-    (transaction.installments_total && transaction.installments_total > 0);
-
-  if (hasCardSignals) return false;
-
-  // 2. Check vendor source against known CC vendors
-  if (transaction.vendor) {
-    const vendorLower = transaction.vendor.toLowerCase();
-    if (CREDIT_CARD_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
-      return false;
-    }
-  }
-
-  // 3. Check vendor source against known Bank vendors
-  if (transaction.vendor) {
-    const vendorLower = transaction.vendor.toLowerCase();
-    if (BANK_VENDORS.some(v => vendorLower.includes(v.toLowerCase()))) {
-      return true;
-    }
-  }
-  return false;
-};
 
 interface MonthlySummaryData {
   month: string;
@@ -2012,42 +1978,95 @@ const MonthlySummary: React.FC = () => {
                     sortField={sortField}
                     sortDirection={sortDirection}
                     onSort={handleSortChange}
-                    mobileCardRenderer={(row) => (
-                      <Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                          <Typography variant="subtitle2" fontWeight={700}>
-                            {groupBy === 'description' ? row.description : (row.vendor_nickname || row.vendor || row.last4digits)}
-                          </Typography>
-                          <Typography variant="subtitle2" fontWeight={700} sx={{
-                            color: groupBy === 'description'
-                              ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
-                              : '#3B82F6'
-                          }}>
-                            {groupBy === 'description' && row.amount !== undefined
-                              ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
-                              : `₪${formatNumber(row.card_expenses)}`
-                            }
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          {groupBy === 'description' ? (
-                            <span style={{
-                              background: 'rgba(59, 130, 246, 0.1)',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              color: '#3b82f6',
-                            }}>
-                              {row.category || 'Uncategorized'}
-                            </span>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              {row.transaction_count} transactions
+                    mobileCardRenderer={(row) => {
+                      const isEditing = groupBy === 'description' && editingDescription === row.description;
+
+                      if (isEditing) {
+                        return (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 0.5 }}>
+                            <Typography variant="subtitle2" fontWeight={700}>{row.description}</Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <Typography variant="caption" color="text.secondary" fontWeight={600}>Category</Typography>
+                              <Autocomplete
+                                value={editCategory}
+                                onChange={(event, newValue) => setEditCategory(newValue || '')}
+                                onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                                freeSolo
+                                options={availableCategories}
+                                size="small"
+                                fullWidth
+                                renderInput={(params) => (
+                                  <TextField
+                                    {...params}
+                                    placeholder="Category"
+                                    autoFocus
+                                    sx={{ '& .MuiInputBase-input': { fontSize: '14px' } }}
+                                  />
+                                )}
+                              />
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
+                              <IconButton
+                                onClick={(e) => { e.stopPropagation(); handleCategoryCancel(); }}
+                                size="small"
+                                sx={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
+                              >
+                                <CloseIcon />
+                              </IconButton>
+                              <IconButton
+                                onClick={(e) => { e.stopPropagation(); handleCategorySave(row.description!); }}
+                                size="small"
+                                sx={{ color: '#4ADE80', backgroundColor: 'rgba(74, 222, 128, 0.1)' }}
+                              >
+                                <CheckIcon />
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        );
+                      }
+
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="subtitle2" fontWeight={700}>
+                              {groupBy === 'description' ? row.description : (row.vendor_nickname || row.vendor || row.last4digits)}
                             </Typography>
-                          )}
+                            <Typography variant="subtitle2" fontWeight={700} sx={{
+                              color: groupBy === 'description'
+                                ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
+                                : '#3B82F6'
+                            }}>
+                              {groupBy === 'description' && row.amount !== undefined
+                                ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+                                : `₪${formatNumber(row.card_expenses)}`
+                              }
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            {groupBy === 'description' ? (
+                              <span
+                                onClick={(e) => { e.stopPropagation(); handleCategoryEditClick(row.description!, row.category || ''); }}
+                                style={{
+                                  background: 'rgba(59, 130, 246, 0.1)',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  color: '#3b82f6',
+                                  cursor: 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                {row.category || 'Uncategorized'}
+                              </span>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                {row.transaction_count} transactions
+                              </Typography>
+                            )}
+                          </Box>
                         </Box>
-                      </Box>
-                    )}
+                      );
+                    }}
                     footer={
                       <TableRow sx={{
                         borderTop: `2px solid ${theme.palette.divider}`,
