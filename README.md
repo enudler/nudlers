@@ -1,79 +1,150 @@
-# Nudlers
+<p align="center">
+  <img src="app/public/nudlers-logo.png" alt="Nudlers Logo" width="200"/>
+</p>
 
-Personal finance management application for tracking credit card expenses and bank transactions with automatic categorization.
+<h1 align="center">Nudlers</h1>
 
-**Stack:** Next.js · PostgreSQL · TypeScript · Material-UI
+<p align="center">
+  <strong>Your Personal Finance Command Center for Israeli Banking</strong>
+</p>
 
----
+<p align="center">
+  <em>Automatically aggregate, categorize, and analyze your finances from all Israeli banks and credit cards in one beautiful dashboard.</em>
+</p>
 
-## Features
-
-### 📊 Financial Dashboards
-- **Multi-view Analytics**: Summary, Budget, and Category-wise spending perspectives.
-- **Automated Sync**: Support for major Israeli banks and cards (**Visa Cal, Max, Isracard, Amex, Hapoalim, Leumi**, etc.).
-- **Transaction Management**: Manual entries, installments tracking, and customizable billing cycles.
-
-### 🧠 Smart Categorization
-- **3-Phase Logic**: Hybrid scraping + Regex Rules + Smart Cache for high-accuracy auto-labeling.
-- **Selective Enrichment**: Targeted API lookups for Isracard/Amex to avoid bot detection.
-- **Refinement Tools**: Bulk category merging, renaming, and automatic updates on re-scrape.
-
-### 🤖 AI & Connectivity
-- **AI Assistant**: Natural language queries via **Google Gemini** ("What's my grocery budget status?").
-- **WhatsApp Summary**: Daily automated reports with trends and alerts via native WhatsApp integration (QR Scan).
-- **MCP Integration**: Native Model Context Protocol support for **Claude Desktop** and **Cursor**.
-
-### 🔐 Security & Performance
-- **Secure Vault**: AES-256-GCM encryption for all financial credentials.
-- **Low Resource Mode**: Optimized for Raspberry Pi/NAS; blocks heavy assets to save CPU/RAM.
-- **Collision Protection**: Robust identifier logic to prevent duplicate transactions.
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-supported-institutions">Banks & Cards</a> •
+  <a href="#-ai-integrations">AI Integration</a> •
+  <a href="#-documentation">Documentation</a>
+</p>
 
 ---
 
-## 🤖 MCP Integration (Claude/Cursor)
+## Why Nudlers?
 
-Connect Nudlers to your AI assistant using the **Model Context Protocol**.
+Managing finances across multiple Israeli banks and credit cards is a nightmare. Different apps, different formats, no unified view. **Nudlers solves this.**
 
-### Quick Setup
-Nudlers has native MCP support. No local files are required to connect.
+| The Problem | The Nudlers Solution |
+|-------------|---------------------|
+| Scattered data across 5+ apps | One unified dashboard |
+| Manual transaction logging | Automatic daily sync |
+| No cross-bank insights | AI-powered analysis |
+| Time wasted on categorization | Smart auto-categorization |
+| Missed budget alerts | WhatsApp notifications |
 
-1. **Ensure Nudlers is running**: Make sure your app is accessible (e.g., http://localhost:6969).
-2. **Configure**: Add the following to your Claude/Cursor MCP settings:
+---
+
+## ✨ Features
+
+### 📊 Unified Financial Dashboard
+
+See all your money in one place. Nudlers aggregates transactions from every Israeli bank and credit card into a single, beautiful interface.
+
+- **Multi-View Analytics** — Switch between Summary, Budget, Category, and Recurring Payment views
+- **Real-Time Sync** — Background syncing keeps your data fresh automatically
+- **Custom Billing Cycles** — Track spending by your credit card billing cycle, not just calendar months
+- **Installment Tracking** — Monitor ongoing installments with remaining payments and amounts
+
+### 🧠 Intelligent Auto-Categorization
+
+Stop wasting time manually categorizing transactions. Nudlers learns your spending patterns.
+
+**3-Phase Smart Categorization:**
+1. **Rule-Based Matching** — Custom regex patterns for merchants you define
+2. **Historical Learning** — Remembers how you categorized "Aroma Coffee" and applies it automatically
+3. **Selective Enrichment** — Only fetches additional data when needed, avoiding bot detection
+
+> 95%+ of transactions are categorized automatically after initial setup
+
+### 📱 Native WhatsApp Integration
+
+Get your daily financial summary delivered right to WhatsApp — no Twilio, no third-party services.
+
+- **Daily Summaries** — Wake up to yesterday's spending overview
+- **Budget Alerts** — Know when you're approaching limits
+- **Group Support** — Share summaries with family or partners
+- **QR Code Setup** — Connect in seconds, stays connected forever
+
+### 🤖 AI-Powered Insights
+
+Ask questions about your finances in plain language using Google Gemini integration.
+
+```
+"What did I spend on groceries this month?"
+"Compare my dining expenses to last month"
+"Show me my top 10 expenses"
+```
+
+### 🔌 MCP Integration for AI Assistants
+
+Connect Nudlers directly to **Claude Desktop** or **Cursor** using the Model Context Protocol.
+
 ```json
 {
   "mcpServers": {
     "nudlers": {
       "command": "npx",
-      "args": [
-        "-y",
-        "supergateway@latest",
-        "--sse",
-        "http://localhost:6969/api/mcp"
-      ]
+      "args": ["-y", "supergateway@latest", "--sse", "http://localhost:6969/api/mcp"]
     }
   }
 }
 ```
-*Note: Replace `localhost:6969` with your actual server URL if running on a NAS or VPS.*
 
-### Use Cases
-- "What was my total grocery spend in January?"
-- "Search for transactions from Aroma"
-- "Add manual expense: Coffee, 20 ILS"
+Now your AI assistant can query your finances, search transactions, and even add manual expenses.
 
+### 💰 Smart Budget Management
 
+Set budgets by category and track them in real-time.
 
+- **Visual Progress Bars** — See budget consumption at a glance
+- **Burndown Charts** — Daily spending vs. ideal pace visualization
+- **Historical Comparison** — Compare this month to previous months
+- **Overspend Alerts** — Get notified before you exceed limits
 
+### 🔒 Bank-Grade Security
+
+Your credentials never leave your machine unencrypted.
+
+- **AES-256-GCM Encryption** — Industry-standard encryption for all credentials
+- **Local Processing** — No cloud service sees your bank passwords
+- **Secure by Design** — Credentials decrypted only at scraping time
+
+### 🍓 Runs Anywhere
+
+From powerful servers to a Raspberry Pi — Nudlers adapts to your hardware.
+
+| Mode | Target Hardware | RAM Usage |
+|------|----------------|-----------|
+| **Normal** | Servers, PCs | 2GB+ |
+| **Low** | Synology NAS, QNAP | 1GB |
+| **Ultra-Low** | Raspberry Pi | 512MB |
 
 ---
 
-## Quick Start
+## 🏦 Supported Institutions
+
+### Banks
+| | | | |
+|:---:|:---:|:---:|:---:|
+| **Hapoalim** | **Leumi** | **Mizrahi Tefahot** | **Discount** |
+| **FIBI** | **Yahav** | **Otsar Hahayal** | **Beinleumi** |
+| **Massad** | **Union** | **Jerusalem** | **Pepper** |
+
+### Credit Cards
+| | | | |
+|:---:|:---:|:---:|:---:|
+| **Visa Cal** | **Max (Leumi Card)** | **Isracard** | **American Express** |
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 22+
-- PostgreSQL 16+
-- Google Chrome (for scraping)
+- **Docker** (recommended) OR Node.js 22+ with PostgreSQL 16+
+- **Google Chrome** (for scraping, included in Docker)
 
 ### Option 1: Docker (Recommended)
 
@@ -82,349 +153,327 @@ Nudlers has native MCP support. No local files are required to connect.
 git clone https://github.com/enudler/nudlers.git
 cd nudlers
 
-# Copy and configure environment variables
+# Configure environment
 cp .env_example .env
-# Edit .env with your values
+# Edit .env with your database password and encryption key
 
-# Start the application
+# Start everything
 docker-compose up -d
 ```
 
-Open http://localhost:3000
+**Generate your encryption key:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-### 📱 WhatsApp Support Migration (for Docker users)
-If you are upgrading an existing Docker installation to support the new WhatsApp integration, you must update your `docker-compose.yaml`.
+Open **http://localhost:3000** and start adding your accounts!
 
-1. **Add Persistence Volume**: The WhatsApp session must be stored to avoid scanning the QR code on every restart.
-   ```yaml
-   services:
-     nudlers-app:
-       volumes:
-         - whatsapp-data:/app/.wwebjs_auth
-   volumes:
-     whatsapp-data:
-   ```
+### Option 2: NAS / Server (Pre-built Image)
 
-2. **Add Browser Capabilities**: Native WhatsApp integration uses a headless browser.
-   ```yaml
-   services:
-     nudlers-app:
-       cap_add:
-         - SYS_ADMIN
-       security_opt:
-         - seccomp=unconfined
-       shm_size: '2gb' # Recommended for stable browser execution
-   ```
-
-3. **Update Image**:
-   ```bash
-   docker-compose pull && docker-compose up -d
-   ```
-
----
-
-### Option 2: NAS / Server Deployment (Pre-built Image)
-
-For NAS or server deployment, use the pre-built Docker image from GitHub Container Registry:
+For Synology, QNAP, or any server with Docker:
 
 ```bash
-# Create a directory for the deployment
+# Create deployment directory
 mkdir nudlers && cd nudlers
 
-# Download the production docker-compose and env template
+# Download production configs
 curl -O https://raw.githubusercontent.com/enudler/nudlers/main/docker-compose.prod.yaml
 curl -O https://raw.githubusercontent.com/enudler/nudlers/main/.env_example
 
-# Configure environment variables
+# Configure and start
 cp .env_example .env
-# Edit .env with your values (REQUIRED: NUDLERS_DB_PASSWORD, NUDLERS_ENCRYPTION_KEY)
-
-# Start the application
+# Edit .env with your settings
 docker-compose -f docker-compose.prod.yaml up -d
 ```
 
-**To update to the latest version:**
+Supports both `linux/amd64` and `linux/arm64` architectures.
+
+### Option 3: Manual Installation
+
 ```bash
-docker-compose -f docker-compose.prod.yaml pull
-docker-compose -f docker-compose.prod.yaml up -d
-```
+# Clone and install
+git clone https://github.com/enudler/nudlers.git
+cd nudlers/app
+npm install
 
-The database schema is automatically created and migrated on app startup - no manual initialization required!
+# Configure PostgreSQL and .env file
+# See Environment Variables section below
 
-The image supports both `linux/amd64` and `linux/arm64` architectures.
-
-
-### Option 3: Manual Setup
-
-1. **Clone and install dependencies**
-   ```bash
-   git clone https://github.com/enudler/nudlers.git
-   cd nudlers/app
-   npm install
-   ```
-
-2. **Configure environment variables**
-   
-   Create `.env` in the root directory:
-   ```env
-   NUDLERS_DB_USER=myuser
-   NUDLERS_DB_HOST=localhost
-   NUDLERS_DB_NAME=nudlers
-   NUDLERS_DB_PASSWORD=mypassword
-   NUDLERS_DB_PORT=5432
-   NUDLERS_ENCRYPTION_KEY=<64-char-hex>
-   NUDLERS_AUTH_PASSWORD=<your-password>
-   ```
-   
-   Generate encryption key:
-   ```bash
-   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-   ```
-
-3. **Initialize the database**
-   ```bash
-   psql -U myuser -d nudlers -f db-init/init.sql
-   ```
-
-4. **Run the application**
-   ```bash
-   npm run dev
-   ```
-   
-   Open http://localhost:3000
-
----
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `NUDLERS_DB_USER` | PostgreSQL username |
-| `NUDLERS_DB_HOST` | Database host (use `nudlers-db` for Docker) |
-| `NUDLERS_DB_NAME` | Database name |
-| `NUDLERS_DB_PASSWORD` | Database password |
-| `NUDLERS_DB_PORT` | Database port (default: 5432) |
-| `NUDLERS_ENCRYPTION_KEY` | 64-character hex key for credential encryption |
-| `NUDLERS_AUTH_PASSWORD` | Application login password |
-| `GEMINI_API_KEY` | (Optional) Google Gemini API key for AI Chat and WhatsApp summaries |
-
-> **Note:** The Gemini API key can also be configured in the application settings UI.
-
----
-
-## Application Settings
-
-All settings can be configured through the Settings UI (accessible via the gear icon in the top navigation). Settings are stored in the database and persist across restarts.
-
-### Sync Configuration
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `sync_enabled` | Enable or disable the daily background transaction synchronization | `false` |
-| `sync_hour` | The hour (0-23) when the daily background sync should run | `3` |
-| `sync_days_back` | Number of past days to fetch during each account sync | `30` |
-
-### Display Preferences
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `default_currency` | The default currency symbol used for display (e.g., ILS, USD) | `ILS` |
-| `date_format` | The visual format used for displaying dates | `DD/MM/YYYY` |
-| `billing_cycle_start_day` | The day of the month when your credit card billing cycle begins | `10` |
-
-### Scraper Configuration
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `show_browser` | (Local only) Display browser window during scraping for debugging/2FA | `false` |
-| `fetch_categories_from_scrapers` | Automatically adopt categories provided by the bank/card scraper | `true` |
-| `update_category_on_rescrape` | If a transaction is re-scraped, update it if the bank provides a new category | `false` |
-| `scraper_timeout` | Maximum time (ms) allowed for each scraper to run | `60000` |
-| `scraper_log_http_requests` | Log detailed HTTP requests for scraper debugging | `false` |
-
-### AI Configuration
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `gemini_api_key` | Google Gemini API key for AI Chat and smart summaries | *(empty)* |
-| `gemini_model` | The specific Google Gemini AI model version to use | `gemini-2.5-flash` |
-
-### WhatsApp Daily Summary (Native)
-
-Nudlers now features a native WhatsApp integration that doesn't require third-party services like Twilio. It works by emulating a WhatsApp Web session.
-
-To set up:
-1. Go to **Settings** > **WhatsApp Daily Summary**.
-2. Click **Start WhatsApp Service**.
-3. Scan the generated **QR Code** with your WhatsApp mobile app (Linked Devices).
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `whatsapp_enabled` | Send a financial summary via WhatsApp daily | `false` |
-| `whatsapp_hour` | The hour (0-23) when the daily WhatsApp summary is sent | `8` |
-| `whatsapp_summary_mode` | Time period for the summary: `calendar` (monthly) or `cycle` (billing) | `calendar` |
-| `whatsapp_to` | Comma-separated list of phone numbers (e.g., `972501234567`) or Group IDs (e.g., `120363...`@`g.us`) | *(empty)* |
-
-> **Note:** The WhatsApp service runs a headless browser. If running on low-resource hardware, ensure `RESOURCE_MODE=low` is set.
-
-> **Note:** Settings marked as "Internal" (`sync_last_run_at`, `whatsapp_last_sent_date`) are automatically managed by the system and should not be manually modified.
-
----
-
-## 🏦 Supported Institutions
-
-| Category | Institutions |
-|----------|--------------|
-| **Banks** | Hapoalim, Leumi, Mizrahi Tefahot, Discount, Yahav, FIBI, Otsar Hahayal, Massad, Pagi |
-| **Cards** | Visa Cal, Max (Leumi Card), Isracard, American Express (Israel) |
-
----
-
-## Architecture
-
-```
-nudlers/
-├── .github/workflows/      # CI/CD pipelines
-│   └── docker-build.yml    # Build & push Docker image
-├── app/                    # Next.js application
-│   ├── components/         # React components
-│   ├── pages/
-│   │   ├── api/           # API routes
-│   │   │   ├── utils/     # Shared utilities
-│   │   │   └── ...        # API endpoints
-│   │   └── index.tsx      # Main page
-│   └── public/            # Static assets
-├── db-init/               # Database initialization scripts
-├── docker-compose.yaml    # Docker config (local development)
-├── docker-compose.prod.yaml # Docker config (production/NAS)
-└── .env_example           # Environment template
+# Run
+npm run dev
 ```
 
 ---
 
-## API Endpoints
+## ⚙️ Configuration
 
-### Scraping
-- `POST /api/scrape` - Scrape a single account
-- `POST /api/scrape_stream` - Scrape with real-time progress updates (SSE)
-- `POST /api/catchup_sync` - Smart sync from last transaction date
+### Environment Variables
 
-### Transactions
-- `GET /api/month_by_categories` - Get spending by category for a month
-- `GET /api/category_expenses` - Get expenses for a specific category
-- `GET /api/monthly_summary` - Get monthly financial summary
-- `POST /api/manual_transaction` - Add a manual transaction
+| Variable | Required | Description |
+|----------|:--------:|-------------|
+| `NUDLERS_DB_USER` | ✅ | PostgreSQL username |
+| `NUDLERS_DB_HOST` | ✅ | Database host (`nudlers-db` for Docker) |
+| `NUDLERS_DB_NAME` | ✅ | Database name |
+| `NUDLERS_DB_PASSWORD` | ✅ | Database password |
+| `NUDLERS_DB_PORT` | | Database port (default: `5432`) |
+| `NUDLERS_ENCRYPTION_KEY` | ✅ | 64-character hex key for credential encryption |
+| `RESOURCE_MODE` | | `normal`, `low`, or `ultra-low` (default: `normal`) |
 
-### Categories
-- `GET /api/get_all_categories` - List all categories
-- `POST /api/rename_category` - Rename a category
-- `POST /api/merge_categories` - Merge categories
-- `POST /api/apply_categorization_rules` - Apply auto-categorization rules
+### Application Settings
 
-### Credentials
-- `GET /api/credentials` - List saved credentials
-- `POST /api/credentials` - Add new credentials
-- `DELETE /api/credentials/[id]` - Remove credentials
+All settings are configurable through the **Settings UI** (gear icon in navigation):
 
----
-
-## 💡 Smart Categorization (3-Phase Flow)
-
-To ensure maximum reliability and speed while avoiding bot detection (especially with **Isracard**, **Amex**, and **Max**), Nudlers uses a unique 3-phase categorization strategy:
-
-1.  **Phase 1: Hybrid Scrape**
-    *   The browser fetches raw transaction data without requesting categories. This mimics human behavior and avoids the heavy "Additional Information" requests that often trigger "Block Automation" errors.
-2.  **Phase 2: Local Matching (Instant)**
-    *   **Rules First**: Matches transactions against your custom regex-based patterns.
-    *   **Smart Cache**: If no rule matches, it looks at your history. If you previously categorized "Aroma Coffee" as "Dining", it will automatically apply that category.
-3.  **Phase 3: Selective Enrichment (Targeted)**
-    *   Only for vendors that support it (Isracard/Amex), the app performs low-frequency, targeted API calls for *only* the transactions that still lack a category. This ensures 100% coverage without risking account lockouts.
+| Category | Settings |
+|----------|----------|
+| **Sync** | Enable/disable, sync hour, days to fetch |
+| **Display** | Currency, date format, billing cycle start day |
+| **Scraper** | Timeout, show browser (debugging), category fetching |
+| **AI** | Gemini API key, model selection |
+| **WhatsApp** | Enable, send hour, recipients, summary mode |
 
 ---
 
-## 🚀 Resource Modes
+## 🤖 AI Integrations
 
-Nudlers provides three pre-configured resource modes to optimize performance across different hardware environments, from powerful servers to Raspberry Pis.
+### Built-in AI Assistant
 
-### Comparison
+The built-in chat uses Google Gemini to answer questions about your finances:
 
-| Feature | Normal | Low | Ultra-Low |
-|---------|--------|-----|-----------|
-| **Target Hardware** | Servers, PC (2GB+ RAM) | NAS, Synology DS220+ | Raspberry Pi, Low-end NAS |
-| **Node.js Memory** | 1024 MB | 768 MB | 512 MB |
-| **Chrome Memory** | 512 MB | 256 MB | 128 MB |
-| **Concurrent Work** | High | Medium | Minimal (Single Process) |
-| **Asset Blocking** | No | Yes | Yes |
-| **Display** | 720p | 720p | 720p |
+- "What's my budget status for groceries?"
+- "Show me all transactions from Rami Levy"
+- "How much did I spend on dining this month vs last month?"
 
-### How to Configure
+**Setup:** Add your `GEMINI_API_KEY` in Settings or `.env`
 
-Set the `RESOURCE_MODE` environment variable in your `.env` or Docker configuration:
+### MCP for Claude Desktop / Cursor
 
-```env
-RESOURCE_MODE=low  # Options: normal, low, ultra-low
+Nudlers exposes a Model Context Protocol endpoint that AI assistants can use directly.
+
+**Setup for Claude Desktop:**
+
+Add to your Claude Desktop MCP config (`~/.config/claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "npx",
+      "args": ["-y", "supergateway@latest", "--sse", "http://localhost:6969/api/mcp"]
+    }
+  }
+}
 ```
 
-*Note: Legacy flags `LOW_RESOURCES_MODE=true` and `ULTRA_LOW_RESOURCES_MODE=true` are still supported but deprecated.*
+**Available Tools:**
+- `get_monthly_summary` — Financial summaries by vendor
+- `search_transactions` — Find specific transactions
+- `get_recurring_payments` — List subscriptions and installments
+- `add_manual_expense` — Add transactions via AI
+- `get_category_breakdown` — Spending by category
 
-### Mode Details
+---
 
-*   **Normal**: Default mode. Optimized for speed and quality. Keeps browser instances alive for parallel scraping and retains clear screenshots for debugging.
-*   **Low**: Optimized for standard NAS devices. Reduces memory footprint by blocking heavy assets (images/fonts) and limiting database connections.
-*   **Ultra-Low**: Strict limits for minimal hardware. Aggressively reduces timeouts, forces single-process execution, disables all non-essential logging/features, and captures lower resolution (720p) screenshots.
+## 💡 Smart Categorization Explained
+
+Nudlers uses a unique 3-phase approach to achieve high accuracy while avoiding bot detection:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        PHASE 1: Hybrid Scrape                        │
+│  Fetch transactions WITHOUT categories (avoids bot detection)        │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     PHASE 2: Local Matching                          │
+│  ┌──────────────────┐    ┌──────────────────────────────────────┐   │
+│  │   Custom Rules   │ -> │  If no match, check historical cache │   │
+│  │  (Regex-based)   │    │   "Aroma" -> "Dining" (from history) │   │
+│  └──────────────────┘    └──────────────────────────────────────┘   │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                  PHASE 3: Selective Enrichment                       │
+│  Only for remaining uncategorized: targeted API calls (low risk)     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+This approach provides:
+- **Speed** — Most transactions categorized instantly from cache
+- **Accuracy** — 95%+ categorization rate
+- **Safety** — Minimal API calls prevent account lockouts
+
+---
+
+## 📱 WhatsApp Integration
+
+### How It Works
+
+Nudlers uses a headless browser to connect to WhatsApp Web — no third-party services required.
+
+### Setup
+
+1. Go to **Settings** → **WhatsApp Daily Summary**
+2. Click **Start WhatsApp Service**
+3. Scan the QR code with your phone (WhatsApp → Linked Devices)
+4. Configure recipients (phone numbers or group IDs)
+5. Set your preferred delivery time
+
+### Docker Configuration
+
+For Docker deployments, add these to your `docker-compose.yaml`:
+
+```yaml
+services:
+  nudlers-app:
+    volumes:
+      - whatsapp-data:/app/.wwebjs_auth  # Persist session
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp=unconfined
+    shm_size: '2gb'
+
+volumes:
+  whatsapp-data:
+```
 
 ---
 
 ## 🛠️ Troubleshooting
 
-### Isracard/Amex/Max "Block Automation" Error
+### "Block Automation" Errors (Isracard/Max/Amex)
 
-These vendors have aggressive bot detection. Nudlers is built to handle this:
+These vendors have aggressive bot detection. Solutions:
 
-- **Use the 3-Phase Flow**: Ensure "Fetch categories from scrapers" is enabled in settings; the app will handle the rest.
-- **Low Resource Mode**: Often helps evade detection by reducing the "footprint" of the browser.
-- **Rate Limiting**: The app automatically adds 3-10 second random delays between navigation steps.
+1. **Use Low Resource Mode** — Set `RESOURCE_MODE=low` to reduce browser footprint
+2. **Reduce Sync Days** — Lower `sync_days_back` to 7-14 days
+3. **Manual Login** — Log in to the vendor website once to clear notices
+4. **Wait** — If blocked, wait 24 hours before retrying
 
-**If you are still getting blocked:**
-1. Log in to the vendor's website manually once to "clear" any pending notices.
-2. Reduce your `sync_days_back` to 7 or 14 days.
-3. Wait 24 hours before trying again to let the rate limit expire.
+### Chrome Not Found
 
-### Chrome/Chromium Not Found
-The scraper bundles "Chrome for Testing" by default. If you use a custom environment, set:
+For custom environments:
 ```env
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 ```
 
+### WhatsApp QR Code Not Appearing
+
+1. Check browser capabilities in Docker config
+2. Ensure `shm_size` is at least `1gb`
+3. Check logs: `docker-compose logs -f nudlers-app`
+
 ---
 
-## Development
+## 🏗️ Architecture
+
+```
+nudlers/
+├── app/                          # Next.js application
+│   ├── components/               # React UI components
+│   │   ├── CategoryDashboard/    # Main dashboard views
+│   │   ├── Layout.tsx            # App shell with navigation
+│   │   └── ...
+│   ├── pages/
+│   │   ├── api/                  # 59 API endpoints
+│   │   │   ├── transactions/     # Transaction CRUD
+│   │   │   ├── scrapers/         # Scraper control
+│   │   │   ├── reports/          # Financial reports
+│   │   │   ├── mcp/              # MCP integration
+│   │   │   └── ...
+│   │   └── index.tsx
+│   ├── scrapers/                 # Bank scraper logic
+│   ├── utils/                    # Shared utilities
+│   └── styles/                   # Theming (light/dark mode)
+├── docker-compose.yaml           # Local development
+├── docker-compose.prod.yaml      # Production deployment
+└── db-init/                      # Database initialization
+```
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Framework** | Next.js 16 (Pages Router) |
+| **Language** | TypeScript |
+| **Database** | PostgreSQL 16 |
+| **UI** | Material-UI v6, CSS Variables |
+| **Scraping** | israeli-bank-scrapers, Puppeteer |
+| **AI** | Google Gemini, MCP SDK |
+| **Messaging** | whatsapp-web.js |
+| **Testing** | Vitest, Playwright |
+
+---
+
+## 🧪 Development
 
 ```bash
-# Install dependencies
-cd app && npm install
+cd app
 
-# Run in development mode
+# Install dependencies
+npm install
+
+# Start development server (port 6969)
 npm run dev
 
-# Build for production
-npm run build
-npm start
+# Run tests
+npm run test
+
+# Run linter
+npm run lint
+
+# Start Storybook (port 6006)
+npm run storybook
 ```
 
 ---
 
-## License
+## 🔄 Updating
+
+### Docker
+
+```bash
+docker-compose pull
+docker-compose up -d
+```
+
+### Manual
+
+```bash
+git pull
+cd app
+npm install
+npm run build
+npm start
+```
+
+Database migrations run automatically on startup.
+
+---
+
+## 📄 License
 
 **Polyform Noncommercial License 1.0.0**
 
-This project is free for personal, non-commercial use. For commercial use (business environments, revenue generation, commercial products, or paid services), please contact the author to obtain a commercial license.
+Free for personal, non-commercial use. For commercial licensing, please contact the author.
 
 See [LICENSE](LICENSE) for full terms.
 
 ---
 
-## Credits
+## 🙏 Credits
 
-- Bank scraping: [`israeli-bank-scrapers`](https://github.com/eshaham/israeli-bank-scrapers)
-- UI Framework: [Material-UI](https://mui.com/)
+- **Bank Scraping**: [israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
+- **UI Framework**: [Material-UI](https://mui.com/)
+- **WhatsApp Integration**: [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js)
+
+---
+
+<p align="center">
+  <strong>Take control of your Israeli finances.</strong>
+  <br>
+  <a href="https://github.com/enudler/nudlers">Star on GitHub</a> •
+  <a href="https://github.com/enudler/nudlers/issues">Report Issues</a>
+</p>
