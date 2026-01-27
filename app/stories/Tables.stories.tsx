@@ -59,7 +59,7 @@ const transactionColumns: Column<Transaction>[] = [
         format: (val, row) => (
             <span style={{
                 fontWeight: 700,
-                color: val > 0 ? 'var(--n-success)' : 'var(--n-text-primary)'
+                color: val > 0 ? 'var(--n-success)' : val < 0 ? 'var(--n-error)' : 'var(--n-text-primary)'
             }}>
                 {val < 0 ? `-₪${Math.abs(val)}` : `₪${val}`}
             </span>
@@ -204,7 +204,7 @@ export const MobileView: Story = {
             <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="subtitle2" fontWeight={700}>{row.desc}</Typography>
-                    <Typography variant="subtitle2" fontWeight={700} color={row.amount > 0 ? 'success.main' : 'text.primary'}>
+                    <Typography variant="subtitle2" fontWeight={700} color={row.amount > 0 ? 'success.main' : row.amount < 0 ? 'error.main' : 'text.primary'}>
                         {row.amount < 0 ? `-₪${Math.abs(row.amount)}` : `₪${row.amount}`}
                     </Typography>
                 </Box>
