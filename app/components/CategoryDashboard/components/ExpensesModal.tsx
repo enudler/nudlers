@@ -731,14 +731,14 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                           inputProps={{
                             style: {
                               textAlign: 'right',
-                              color: isBankView ? (expense.price >= 0 ? '#4ADE80' : '#F87171') : color
+                              color: expense.price >= 0 ? '#4ADE80' : '#F87171'
                             }
                           }}
                           sx={{
                             width: '100px',
                             '& .MuiOutlinedInput-root': {
                               '& fieldset': {
-                                borderColor: isBankView ? (expense.price >= 0 ? '#4ADE80' : '#F87171') : color,
+                                borderColor: expense.price >= 0 ? '#4ADE80' : '#F87171',
                               },
                             },
                           }}
@@ -755,13 +755,13 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                       const originalDisplayAmount = Math.abs(expense.original_amount);
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-end' }}>
-                          <span style={{ fontWeight: 600, color: (expense.price < 0 ? '#F87171' : color) }}>{sign}₪{formatNumber(displayAmount)}</span>
+                          <span style={{ fontWeight: 600, color: (expense.price < 0 ? '#F87171' : '#4ADE80') }}>{sign}₪{formatNumber(displayAmount)}</span>
                           <span style={{ fontSize: '11px', color: '#64748b' }}>({symbol}{formatNumber(originalDisplayAmount)})</span>
                         </div>
                       );
                     }
 
-                    return <span style={{ fontWeight: 600, color: (expense.price < 0 ? '#F87171' : color) }}>{sign}₪{formatNumber(displayAmount)}</span>;
+                    return <span style={{ fontWeight: 600, color: (expense.price < 0 ? '#F87171' : '#4ADE80') }}>{sign}₪{formatNumber(displayAmount)}</span>;
                   }
                 },
                 {
@@ -862,7 +862,7 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                 <Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="subtitle2" fontWeight={700}>{expense.name}</Typography>
-                    <Typography variant="subtitle2" fontWeight={700} color={expense.price >= 0 && isBankView ? 'success.main' : 'error.main'}>
+                    <Typography variant="subtitle2" fontWeight={700} color={expense.price >= 0 ? 'success.main' : 'error.main'}>
                       {isBankView ? (expense.price >= 0 ? '+' : '') : (expense.price < 0 ? '-' : '')}₪{formatNumber(Math.abs(expense.price))}
                     </Typography>
                   </Box>
