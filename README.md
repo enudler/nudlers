@@ -217,8 +217,6 @@ npm run dev
 | `NUDLERS_DB_PASSWORD` | ✅ | Database password |
 | `NUDLERS_DB_PORT` | | Database port (default: `5432`) |
 | `NUDLERS_ENCRYPTION_KEY` | ✅ | 64-character hex key for credential encryption |
-| `NUDLERS_AUTH_PASSWORD` | ✅ | Application login password |
-| `GEMINI_API_KEY` | | Google Gemini API key for AI features |
 | `RESOURCE_MODE` | | `normal`, `low`, or `ultra-low` (default: `normal`) |
 
 ### Application Settings
