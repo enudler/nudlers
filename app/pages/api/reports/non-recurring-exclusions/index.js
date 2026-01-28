@@ -1,16 +1,13 @@
-import { getDB } from "../db";
-import logger from '../../../utils/logger.js';
+import { getDB } from "../../db";
+import logger from '../../../../utils/logger.js';
 
 /**
- * API endpoint to manage non-recurring exclusions.
+ * Non-Recurring Exclusions Collection
  *
- * GET: List all non-recurring exclusions
- * POST: Mark a transaction as non-recurring (add exclusion)
- * DELETE: Unmark a transaction as non-recurring (remove exclusion)
+ * GET /api/reports/non-recurring-exclusions - List all non-recurring exclusions
+ * POST /api/reports/non-recurring-exclusions - Mark a transaction as non-recurring (add exclusion)
  *
- * POST/DELETE Body:
- * - name: string (required) - The transaction name
- * - account_number: string (optional) - The account number for more specific exclusions
+ * For individual exclusion operations (GET/DELETE by ID), use /api/reports/non-recurring-exclusions/{id}
  */
 export default async function handler(req, res) {
   const client = await getDB();
@@ -62,38 +59,8 @@ export default async function handler(req, res) {
       });
     }
 
-    if (req.method === 'DELETE') {
-      // Remove an exclusion
-      const { name, account_number } = req.body;
-
-      if (!name) {
-        return res.status(400).json({ error: 'name is required' });
-      }
-
-      const result = await client.query(`
-        DELETE FROM non_recurring_exclusions
-        WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
-          AND (
-            (account_number IS NULL AND $2 IS NULL) OR
-            (account_number = $2)
-          )
-        RETURNING id
-      `, [name, account_number || null]);
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Exclusion not found'
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Unmarked as non-recurring'
-      });
-    }
-
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.setHeader('Allow', ['GET', 'POST']);
+    return res.status(405).json({ error: 'Method not allowed. Use /api/reports/non-recurring-exclusions/{id} for DELETE' });
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, "Error managing non-recurring exclusions");
     res.status(500).json({

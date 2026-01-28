@@ -1,22 +1,23 @@
 import { createApiHandler } from "../../utils/apiHandler";
 
+/**
+ * Category Mappings Collection
+ *
+ * GET /api/categories/mappings - List all category mappings
+ * POST /api/categories/mappings - Create or update a category mapping
+ *
+ * For individual mapping operations (GET/DELETE by ID), use /api/categories/mappings/{id}
+ */
 const handler = createApiHandler({
     validate: (req) => {
-        if (!['GET', 'POST', 'DELETE'].includes(req.method)) {
-            return "Only GET, POST, and DELETE methods are allowed";
+        if (!['GET', 'POST'].includes(req.method)) {
+            return "Only GET and POST methods are allowed. Use /api/categories/mappings/{id} for DELETE";
         }
 
         if (req.method === 'POST') {
             const { source_category, target_category } = req.body;
             if (!source_category || !target_category) {
                 return "source_category and target_category are required";
-            }
-        }
-
-        if (req.method === 'DELETE') {
-            const { id } = req.body;
-            if (!id) {
-                return "id is required";
             }
         }
     },
@@ -38,22 +39,11 @@ const handler = createApiHandler({
                 sql: `
           INSERT INTO category_mappings (source_category, target_category)
           VALUES ($1, $2)
-          ON CONFLICT (source_category) DO UPDATE 
+          ON CONFLICT (source_category) DO UPDATE
           SET target_category = EXCLUDED.target_category
           RETURNING id, source_category, target_category, created_at
         `,
                 params: [source_category, target_category]
-            };
-        }
-
-        if (req.method === 'DELETE') {
-            const { id } = req.body;
-            return {
-                sql: `
-          DELETE FROM category_mappings 
-          WHERE id = $1
-        `,
-                params: [id]
             };
         }
     },
@@ -64,8 +54,7 @@ const handler = createApiHandler({
         if (req.method === 'POST') {
             return result.rows[0];
         }
-        return { success: true };
     }
 });
 
-export default handler; 
+export default handler;

@@ -1,29 +1,23 @@
 import { createApiHandler } from "../../utils/apiHandler";
 
+/**
+ * Categorization Rules Collection
+ *
+ * GET /api/categories/rules - List all categorization rules
+ * POST /api/categories/rules - Create a new categorization rule
+ *
+ * For individual rule operations (GET/PUT/DELETE by ID), use /api/categories/rules/{id}
+ */
 const handler = createApiHandler({
   validate: (req) => {
-    if (!['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) {
-      return "Only GET, POST, PUT, and DELETE methods are allowed";
+    if (!['GET', 'POST'].includes(req.method)) {
+      return "Only GET and POST methods are allowed. Use /api/categories/rules/{id} for PUT/DELETE";
     }
-    
+
     if (req.method === 'POST') {
       const { name_pattern, target_category } = req.body;
       if (!name_pattern || !target_category) {
         return "name_pattern and target_category are required";
-      }
-    }
-    
-    if (req.method === 'PUT') {
-      const { id, name_pattern, target_category, is_active } = req.body;
-      if (!id || !name_pattern || !target_category) {
-        return "id, name_pattern, and target_category are required";
-      }
-    }
-    
-    if (req.method === 'DELETE') {
-      const { id } = req.body;
-      if (!id) {
-        return "id is required";
       }
     }
   },
@@ -38,7 +32,7 @@ const handler = createApiHandler({
         params: []
       };
     }
-    
+
     if (req.method === 'POST') {
       const { name_pattern, target_category } = req.body;
       return {
@@ -50,40 +44,15 @@ const handler = createApiHandler({
         params: [name_pattern, target_category]
       };
     }
-    
-    if (req.method === 'PUT') {
-      const { id, name_pattern, target_category, is_active } = req.body;
-      return {
-        sql: `
-          UPDATE categorization_rules 
-          SET name_pattern = $2, target_category = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1
-          RETURNING id, name_pattern, target_category, is_active, created_at, updated_at
-        `,
-        params: [id, name_pattern, target_category, is_active]
-      };
-    }
-    
-    if (req.method === 'DELETE') {
-      const { id } = req.body;
-      return {
-        sql: `
-          DELETE FROM categorization_rules 
-          WHERE id = $1
-        `,
-        params: [id]
-      };
-    }
   },
   transform: (result, req) => {
     if (req.method === 'GET') {
       return result.rows;
     }
-    if (req.method === 'POST' || req.method === 'PUT') {
+    if (req.method === 'POST') {
       return result.rows[0];
     }
-    return { success: true };
   }
 });
 
-export default handler; 
+export default handler;
