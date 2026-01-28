@@ -25,6 +25,8 @@ import HistoryIcon from '@mui/icons-material/History';
 import AddIcon from '@mui/icons-material/Add';
 import ChatIcon from '@mui/icons-material/Chat';
 import { useAI } from '../context/AIContext';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
@@ -72,6 +74,8 @@ const QUICK_PROMPTS = [
   { label: "📈 Monthly comparison", prompt: "Compare this month vs last month spending - what changed the most?" },
   { label: "🔄 Recurring costs", prompt: "Show all my recurring subscriptions and installment plans with monthly costs" },
 ];
+
+export const DRAWER_WIDTH = 400;
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
   const theme = useTheme();
@@ -349,10 +353,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
     }
   };
 
-  const formatContent = (content: string) => {
-    return content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br/>');
+  // Helper to detect Hebrew text
+  const isHebrew = (text: string) => {
+    return /[\u0590-\u05FF]/.test(text);
   };
 
   const getStatusIcon = (status?: string) => {
@@ -368,6 +371,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
       anchor="right"
       open={isOpen}
       onClose={closeAI}
+      variant={isMobile ? 'temporary' : 'persistent'}
+      ModalProps={{
+        keepMounted: true, // Better open performance
+        hideBackdrop: !isMobile, // No backdrop on desktop to allow interaction
+      }}
       PaperProps={{
         sx: {
           width: isMobile ? '100%' : 400,
@@ -588,7 +596,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
                       }}
                     >
                       {message.content ? (
-                        <span dangerouslySetInnerHTML={{ __html: formatContent(message.content) }} />
+                        <Box sx={{
+                          '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
+                          '& ul, & ol': { m: 0, pl: 2, mb: 1 },
+                          '& li': { mb: 0.5 },
+                          direction: isHebrew(message.content) ? 'rtl' : 'ltr',
+                          textAlign: isHebrew(message.content) ? 'right' : 'left',
+                        }}>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </Box>
                       ) : (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: theme.palette.text.secondary, fontSize: '0.8rem' }}>
                           <CircularProgress size={12} color="inherit" />
