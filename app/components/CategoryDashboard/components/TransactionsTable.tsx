@@ -433,7 +433,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
   if (disableWrapper) {
     return (
-      <Box sx={{ width: '100%', overflow: 'hidden' }}>
+      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+
         {Content}
         {/* Snackbar and Dialog still needed */}
         <Snackbar
@@ -463,7 +464,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   return (
     <Paper sx={{
       width: '100%',
-      overflow: 'hidden',
+      overflowX: 'auto',
       borderRadius: '24px',
       background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
       backdropFilter: 'blur(8px)',
