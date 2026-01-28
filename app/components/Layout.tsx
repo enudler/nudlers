@@ -12,8 +12,10 @@ import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import DesignSystemShowcase from "./DesignSystemShowcase";
 import Footer from "./Footer";
 import BreakdownView from "./BreakdownView";
-import { Box } from "@mui/material";
+import { Box, useMediaQuery, useTheme } from "@mui/material";
 import { StatusProvider, useStatus } from "../context/StatusContext";
+import { AIProvider, useAI } from "../context/AIContext";
+import { DRAWER_WIDTH } from "./AIAssistant";
 
 type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
 
@@ -154,69 +156,96 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
 
 
   return (
-    <DateSelectionProvider>
-      <NotificationProvider>
-        <ViewContext.Provider value={contextValue}>
+    <AIProvider>
+      <DateSelectionProvider>
+        <LayoutContent
+          contextValue={contextValue}
+          currentView={currentView}
+          handleViewChange={handleViewChange}
+          renderView={renderView}
+          screenContext={screenContext}
+        />
+      </DateSelectionProvider>
+    </AIProvider>
+  );
+};
+
+// Extracted inner component to use the AI context 
+const LayoutContent: React.FC<{
+  contextValue: ViewContextType;
+  currentView: ViewType;
+  handleViewChange: (view: ViewType) => void;
+  renderView: () => React.ReactNode;
+  screenContext: ScreenContext;
+}> = ({ contextValue, currentView, handleViewChange, renderView, screenContext }) => {
+  const { isOpen } = useAI();
+  const theme = useTheme();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+
+  return (
+    <NotificationProvider>
+      <ViewContext.Provider value={contextValue}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: '100vh',
+            position: 'relative',
+            overflow: 'hidden',
+            backgroundColor: 'var(--n-bg-main)',
+            transition: 'margin-right 0.3s ease',
+            marginRight: isDesktop ? `${(isOpen ? DRAWER_WIDTH : 0) + (contextValue.syncDrawerOpen ? contextValue.syncDrawerWidth : 0)}px` : 0,
+          }}
+        >
+          {/* Ambient Background Glows */}
           <Box
             sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: '100vh',
-              position: 'relative',
-              overflow: 'hidden',
-              backgroundColor: 'var(--n-bg-main)',
+              position: 'fixed',
+              top: '-10%',
+              left: '-10%',
+              width: '40%',
+              height: '40%',
+              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 70%)',
+              zIndex: 0,
+              pointerEvents: 'none',
+              filter: 'blur(40px)',
             }}
-          >
-            {/* Ambient Background Glows */}
-            <Box
-              sx={{
-                position: 'fixed',
-                top: '-10%',
-                left: '-10%',
-                width: '40%',
-                height: '40%',
-                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 70%)',
-                zIndex: 0,
-                pointerEvents: 'none',
-                filter: 'blur(40px)',
-              }}
-            />
-            <Box
-              sx={{
-                position: 'fixed',
-                bottom: '-10%',
-                right: '-10%',
-                width: '40%',
-                height: '40%',
-                background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%)',
-                zIndex: 0,
-                pointerEvents: 'none',
-                filter: 'blur(40px)',
-              }}
-            />
+          />
+          <Box
+            sx={{
+              position: 'fixed',
+              bottom: '-10%',
+              right: '-10%',
+              width: '40%',
+              height: '40%',
+              background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%)',
+              zIndex: 0,
+              pointerEvents: 'none',
+              filter: 'blur(40px)',
+            }}
+          />
 
-            <ResponsiveAppBar
-              currentView={currentView}
-              onViewChange={handleViewChange}
-            />
-            <Box
-              component="main"
-              sx={{
-                marginTop: { xs: '56px', md: '48px' },
-                flex: 1,
-                zIndex: 1,
-                position: 'relative',
-              }}
-              className="main-content"
-            >
-              {renderView()}
-            </Box>
-            {currentView !== 'chat' && <Footer />}
-            <AIAssistant screenContext={screenContext} />
+          <ResponsiveAppBar
+            currentView={currentView}
+            onViewChange={handleViewChange}
+          />
+          <Box
+            component="main"
+            sx={{
+              marginTop: { xs: '56px', md: '48px' },
+              flex: 1,
+              zIndex: 1,
+              position: 'relative',
+            }}
+            className="main-content"
+          >
+            {renderView()}
           </Box>
-        </ViewContext.Provider>
-      </NotificationProvider>
-    </DateSelectionProvider>
+          {currentView !== 'chat' && <Footer />}
+          <AIAssistant screenContext={screenContext} />
+        </Box>
+      </ViewContext.Provider>
+    </NotificationProvider>
   );
 };
 

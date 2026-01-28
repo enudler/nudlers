@@ -409,12 +409,14 @@ const BreakdownView: React.FC = () => {
                             }}
                             sx={{
                                 width: '100%',
-                                overflow: 'auto',
+                                overflowX: 'auto',
                                 maxHeight: '72vh',
                                 borderRadius: '24px',
-                                background: 'transparent',
+                                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.5)',
+                                backdropFilter: 'blur(8px)',
                                 boxShadow: 'none',
-                                '&::-webkit-scrollbar': { width: '8px' },
+                                border: `1px solid ${theme.palette.divider}`,
+                                '&::-webkit-scrollbar': { width: '8px', height: '8px' },
                                 '&::-webkit-scrollbar-track': { background: 'transparent' },
                                 '&::-webkit-scrollbar-thumb': {
                                     background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
@@ -427,7 +429,7 @@ const BreakdownView: React.FC = () => {
                                     backgroundClip: 'content-box'
                                 }
                             }}>
-                            <Table stickyHeader>
+                            <Table stickyHeader sx={{ minWidth: 'unset' }}>
                                 <TableHead>
                                     <TableRow>
                                         <TableCell

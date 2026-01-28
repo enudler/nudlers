@@ -154,7 +154,7 @@ const Table = <T,>({
                 }
             }}
         >
-            <MuiTable sx={{ minWidth: 650 }} stickyHeader={stickyHeader}>
+            <MuiTable sx={{ minWidth: 'unset' }} stickyHeader={stickyHeader}>
                 <TableHead>
                     <TableRow sx={{
                         borderBottom: `2px solid ${theme.palette.divider}`,

@@ -19,6 +19,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import EditIcon from '@mui/icons-material/Edit';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { useAI } from '../context/AIContext';
 
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
@@ -195,6 +197,7 @@ const DroppableBankWrapper = ({ id, children }: { id: number, children: React.Re
 
 const MonthlySummary: React.FC = () => {
   const theme = useTheme();
+  const { openAI, setInitialPrompt } = useAI();
   const [data, setData] = useState<MonthlySummaryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1330,13 +1333,41 @@ const MonthlySummary: React.FC = () => {
                     )}
                   </Box>
                 </Box>
-                <Button
-                  size="small"
-                  endIcon={<ChevronRightIcon sx={{ fontSize: 14 }} />}
-                  sx={{ width: 'fit-content', borderRadius: '12px', textTransform: 'none', fontWeight: 700, fontSize: '0.7rem', py: 0 }}
-                >
-                  All Transactions
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                  <Button
+                    size="small"
+                    endIcon={<ChevronRightIcon sx={{ fontSize: 14 }} />}
+                    sx={{ width: 'fit-content', borderRadius: '12px', textTransform: 'none', fontWeight: 700, fontSize: '0.7rem', py: 0 }}
+                  >
+                    All Transactions
+                  </Button>
+                  <Button
+                    size="small"
+                    startIcon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInitialPrompt("Analyze my spending trends for this month compared to the previous one");
+                      openAI();
+                    }}
+                    sx={{
+                      width: 'fit-content',
+                      borderRadius: '12px',
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.7rem',
+                      py: 0,
+                      color: '#8b5cf6',
+                      borderColor: 'rgba(139, 92, 246, 0.3)',
+                      '&:hover': {
+                        background: 'rgba(139, 92, 246, 0.05)',
+                        borderColor: '#8b5cf6'
+                      }
+                    }}
+                    variant="outlined"
+                  >
+                    Analyze
+                  </Button>
+                </Box>
               </Box>
 
               {/* Vertical Divider (Desktop) */}
@@ -1795,7 +1826,7 @@ const MonthlySummary: React.FC = () => {
           </Alert>
         </Snackbar>
       </Box>
-    </div>
+    </div >
   );
 };
 

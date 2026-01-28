@@ -1,5 +1,5 @@
 import * as React from "react";
-import { logger } from '../utils/client-logger';
+
 
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
@@ -21,16 +21,14 @@ import { useTheme, styled } from "@mui/material/styles";
 
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
-import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import BackupIcon from '@mui/icons-material/Backup';
 
-import ForumIcon from '@mui/icons-material/Forum';
+
 import dynamic from 'next/dynamic';
 import DatabaseIndicator from './DatabaseIndicator';
 import SyncStatusIndicator from './SyncStatusIndicator';
@@ -41,6 +39,8 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import { useColorMode } from '../context/ThemeContext';
 import Image from 'next/image';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { useAI } from '../context/AIContext';
 
 const ScrapeModal = dynamic(() => import('./ScrapeModal'), { ssr: false });
 const AccountsModal = dynamic(() => import('./AccountsModal'), { ssr: false });
@@ -59,7 +59,7 @@ interface ResponsiveAppBarProps {
 
 
 
-const StyledAppBar = styled(AppBar)(({ theme }) => ({
+const StyledAppBar = styled(AppBar)(({ }) => ({
   background: 'var(--n-glass-bg)',
   backdropFilter: 'blur(12px)',
   borderBottom: '1px solid var(--n-border)',
@@ -109,6 +109,7 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
 
   // Use global sync drawer state
   const { syncDrawerOpen, setSyncDrawerOpen, syncDrawerWidth, setSyncDrawerWidth } = useView();
+  const { toggleAI, isOpen: isAIOpen } = useAI();
 
   const { showNotification } = useNotification();
 
@@ -144,6 +145,23 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
     };
   }, [desktopDrawerOpen, isMobile]);
 
+  // Handle global Escape key to close AI assistant or Sync drawer
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (syncDrawerOpen) {
+          setSyncDrawerOpen(false);
+        }
+        if (isAIOpen) {
+          toggleAI();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [syncDrawerOpen, isAIOpen, setSyncDrawerOpen, toggleAI]);
+
   const viewMenuItems = [
 
     { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
@@ -152,8 +170,6 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
     { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: 'var(--n-primary)' },
 
     { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
-
-    { label: 'Chat', icon: <ForumIcon />, view: 'chat' as const, color: 'var(--n-primary)' },
   ];
 
 
@@ -325,19 +341,37 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
 
             {/* Desktop Actions - Only status indicators */}
             <Box sx={{ flexGrow: 0, display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: '8px' }}>
+              <IconButton
+                onClick={toggleAI}
+                sx={{
+                  color: isAIOpen ? '#8b5cf6' : 'text.primary',
+                  background: isAIOpen ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    background: 'rgba(139, 92, 246, 0.2)',
+                    transform: 'scale(1.1)'
+                  }
+                }}
+                title="AI Assistant"
+              >
+                <AutoAwesomeIcon />
+              </IconButton>
+              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
-              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <DatabaseIndicator />
             </Box>
 
             {/* Mobile Status Indicators */}
             <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' }, justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={toggleAI} sx={{ color: isAIOpen ? '#8b5cf6' : 'text.primary' }}>
+                <AutoAwesomeIcon />
+              </IconButton>
+              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
-              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <DatabaseIndicator />
             </Box>
           </Toolbar>
