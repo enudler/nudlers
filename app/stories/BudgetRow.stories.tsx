@@ -38,8 +38,8 @@ export const Healthy: Story = {
         remaining: 1800,
         percentUsed: 40,
         isOverBudget: false,
-        onEdit: () => console.log('Edit'),
-        onDelete: () => console.log('Delete'),
+        onEdit: () => { },
+        onDelete: () => { },
         formatCurrency
     },
 };
@@ -52,8 +52,8 @@ export const Warning: Story = {
         remaining: 150,
         percentUsed: 85,
         isOverBudget: false,
-        onEdit: () => console.log('Edit'),
-        onDelete: () => console.log('Delete'),
+        onEdit: () => { },
+        onDelete: () => { },
         formatCurrency
     },
 };
@@ -66,8 +66,8 @@ export const OverBudget: Story = {
         remaining: -350,
         percentUsed: 123,
         isOverBudget: true,
-        onEdit: () => console.log('Edit'),
-        onDelete: () => console.log('Delete'),
+        onEdit: () => { },
+        onDelete: () => { },
         formatCurrency
     },
 };
