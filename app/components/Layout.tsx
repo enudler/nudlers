@@ -14,6 +14,7 @@ import Footer from "./Footer";
 import BreakdownView from "./BreakdownView";
 import { Box } from "@mui/material";
 import { StatusProvider, useStatus } from "../context/StatusContext";
+import { AIProvider } from "../context/AIContext";
 
 type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
 
@@ -154,69 +155,71 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
 
 
   return (
-    <DateSelectionProvider>
-      <NotificationProvider>
-        <ViewContext.Provider value={contextValue}>
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: '100vh',
-              position: 'relative',
-              overflow: 'hidden',
-              backgroundColor: 'var(--n-bg-main)',
-            }}
-          >
-            {/* Ambient Background Glows */}
+    <AIProvider>
+      <DateSelectionProvider>
+        <NotificationProvider>
+          <ViewContext.Provider value={contextValue}>
             <Box
               sx={{
-                position: 'fixed',
-                top: '-10%',
-                left: '-10%',
-                width: '40%',
-                height: '40%',
-                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 70%)',
-                zIndex: 0,
-                pointerEvents: 'none',
-                filter: 'blur(40px)',
-              }}
-            />
-            <Box
-              sx={{
-                position: 'fixed',
-                bottom: '-10%',
-                right: '-10%',
-                width: '40%',
-                height: '40%',
-                background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%)',
-                zIndex: 0,
-                pointerEvents: 'none',
-                filter: 'blur(40px)',
-              }}
-            />
-
-            <ResponsiveAppBar
-              currentView={currentView}
-              onViewChange={handleViewChange}
-            />
-            <Box
-              component="main"
-              sx={{
-                marginTop: { xs: '56px', md: '48px' },
-                flex: 1,
-                zIndex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: '100vh',
                 position: 'relative',
+                overflow: 'hidden',
+                backgroundColor: 'var(--n-bg-main)',
               }}
-              className="main-content"
             >
-              {renderView()}
+              {/* Ambient Background Glows */}
+              <Box
+                sx={{
+                  position: 'fixed',
+                  top: '-10%',
+                  left: '-10%',
+                  width: '40%',
+                  height: '40%',
+                  background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 70%)',
+                  zIndex: 0,
+                  pointerEvents: 'none',
+                  filter: 'blur(40px)',
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'fixed',
+                  bottom: '-10%',
+                  right: '-10%',
+                  width: '40%',
+                  height: '40%',
+                  background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%)',
+                  zIndex: 0,
+                  pointerEvents: 'none',
+                  filter: 'blur(40px)',
+                }}
+              />
+
+              <ResponsiveAppBar
+                currentView={currentView}
+                onViewChange={handleViewChange}
+              />
+              <Box
+                component="main"
+                sx={{
+                  marginTop: { xs: '56px', md: '48px' },
+                  flex: 1,
+                  zIndex: 1,
+                  position: 'relative',
+                }}
+                className="main-content"
+              >
+                {renderView()}
+              </Box>
+              {currentView !== 'chat' && <Footer />}
+              <AIAssistant screenContext={screenContext} />
             </Box>
-            {currentView !== 'chat' && <Footer />}
-            <AIAssistant screenContext={screenContext} />
-          </Box>
-        </ViewContext.Provider>
-      </NotificationProvider>
-    </DateSelectionProvider>
+          </ViewContext.Provider>
+        </NotificationProvider>
+      </DateSelectionProvider>
+    </AIProvider>
   );
 };
 
