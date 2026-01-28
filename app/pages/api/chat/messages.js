@@ -15,7 +15,7 @@ const handler = createApiHandler({
         SELECT id, role, content, timestamp
         FROM chat_messages
         WHERE session_id = $1
-        ORDER BY timestamp ASC
+        ORDER BY id ASC
       `,
             params: [sessionId]
         };

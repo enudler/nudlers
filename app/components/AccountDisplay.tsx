@@ -46,7 +46,7 @@ const BANK_VENDORS = Object.keys(BANK_NAMES);
  * A unified component to display account or card information.
  * Handles both Bank accounts and Credit Cards.
  */
-const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = ({ transaction, vendorOverride, premium = false, compact = false }) => {
+const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = React.memo(({ transaction, vendorOverride, premium = false, compact = false }) => {
     const theme = useTheme();
     const { getCardVendor, getCardNickname } = useCardVendors();
 
@@ -82,7 +82,7 @@ const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = ({
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{
                         fontWeight: 700,
-                        fontSize: '13px',
+                        fontSize: compact ? '11px' : '13px',
                         color: theme.palette.text.primary,
                         whiteSpace: 'nowrap'
                     }}>
@@ -90,7 +90,7 @@ const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = ({
                     </span>
                     {bankAccount && (
                         <span style={{
-                            fontSize: '11px',
+                            fontSize: compact ? '10px' : '11px',
                             color: theme.palette.text.secondary,
                             fontWeight: 500
                         }}>
@@ -152,31 +152,39 @@ const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = ({
                         </span>
                     </Box>
                 ) : (
-                    <span style={{
-                        fontWeight: '500',
-                        color: '#334155',
-                        backgroundColor: 'rgba(148, 163, 184, 0.1)',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        fontSize: '13px'
-                    }}>
-                        {!compact && nickname ? (
-                            <>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                        {nickname && (
+                            <span style={{
+                                fontWeight: 700,
+                                color: theme.palette.text.primary,
+                                fontSize: compact ? '10px' : '12px',
+                                lineHeight: 1.1
+                            }}>
                                 {nickname}
-                                <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>
-                                    •••• {last4}
-                                </span>
-                            </>
-                        ) : (
-                            `•••• ${last4}`
+                            </span>
                         )}
-                    </span>
+                        <span style={{
+                            fontWeight: '500',
+                            color: '#334155',
+                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                            padding: compact ? '2px 4px' : '4px 8px',
+                            borderRadius: '6px',
+                            fontSize: compact ? '10px' : '11px',
+                            display: 'inline-block',
+                            width: 'fit-content'
+                        }}>
+                            •••• {last4}
+                        </span>
+                    </Box>
                 )}
             </Box>
         );
     }
 
     return <span style={{ color: theme.palette.text.disabled }}>—</span>;
-};
+});
+
+AccountDisplay.displayName = 'AccountDisplay';
+
 
 export default AccountDisplay;

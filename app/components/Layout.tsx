@@ -16,6 +16,7 @@ import { Box, useMediaQuery, useTheme } from "@mui/material";
 import { StatusProvider, useStatus } from "../context/StatusContext";
 import { AIProvider, useAI } from "../context/AIContext";
 import { DRAWER_WIDTH } from "./AIAssistant";
+import GlobalEasterEggManager from "./NumberEasterEgg";
 
 type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
 
@@ -106,10 +107,11 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
   }, []);
 
   // Update screen context when view changes
-  const handleViewChange = (view: ViewType) => {
+  const handleViewChange = React.useCallback((view: ViewType) => {
     setCurrentView(view);
     setScreenContext(prev => ({ ...prev, view }));
-  };
+  }, []);
+
 
   const contextValue = React.useMemo(() => ({
     currentView,
@@ -243,6 +245,7 @@ const LayoutContent: React.FC<{
           </Box>
           {currentView !== 'chat' && <Footer />}
           <AIAssistant screenContext={screenContext} />
+          <GlobalEasterEggManager />
         </Box>
       </ViewContext.Provider>
     </NotificationProvider>

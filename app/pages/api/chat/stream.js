@@ -550,16 +550,43 @@ export default async function handler(req, res) {
     sendEvent({ status: 'session_assigned', sessionId: currentSessionId });
 
     // 2. Fetch history if needed
+    // We fetch the 50 most recent messages and order them chronologically by ID
     const historyResult = await db.query(
-      'SELECT role, content FROM chat_messages WHERE session_id = $1 AND role != \'system\' ORDER BY timestamp ASC LIMIT 50',
+      `SELECT role, content FROM (
+        SELECT id, role, content FROM chat_messages 
+        WHERE session_id = $1 AND role != 'system' 
+        ORDER BY id DESC LIMIT 50
+      ) AS sub ORDER BY id ASC`,
       [currentSessionId]
     );
 
-    // Filter out the message we just saved for history (it will be the last one)
-    const previousMessages = historyResult.rows.slice(0, -1).map(r => ({
-      role: r.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: r.content }]
-    }));
+    // Filter out the message we just saved for history (it will be the last one in the chronological result)
+    // We also ensure it alternates correctly if somehow the DB has inconsistent state
+    const rawHistory = historyResult.rows.slice(0, -1);
+    const previousMessages = [];
+
+    for (let i = 0; i < rawHistory.length; i++) {
+      const r = rawHistory[i];
+      if (!r.content || r.content.trim() === '') continue;
+
+      const role = r.role === 'assistant' ? 'model' : 'user';
+
+      // Gemini history MUST alternate user/model. If consecutive, merge them.
+      if (previousMessages.length > 0 && previousMessages[previousMessages.length - 1].role === role) {
+        previousMessages[previousMessages.length - 1].parts[0].text += "\n" + r.content;
+        continue;
+      }
+
+      // History MUST start with a user message
+      if (previousMessages.length === 0 && role !== 'user') {
+        continue;
+      }
+
+      previousMessages.push({
+        role,
+        parts: [{ text: r.content }]
+      });
+    }
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -570,9 +597,18 @@ export default async function handler(req, res) {
 
     logger.info({ modelName }, 'Using model from settings');
 
+    // Build context
+    const now = new Date();
+    let contextInfo = `\nToday is ${now.toISOString().split('T')[0]}.`;
+    if (context?.view) contextInfo += ` User is viewing: ${context.view}.`;
+    if (context?.dateRange) {
+      contextInfo += ` Current date range filter: ${context.dateRange.startDate} to ${context.dateRange.endDate}.`;
+    }
+
     try {
       model = genAI.getGenerativeModel({
         model: modelName,
+        systemInstruction: SYSTEM_PROMPT + contextInfo,
         tools,
         generationConfig: { temperature: 0.2, maxOutputTokens: 2000 }
       });
@@ -602,24 +638,19 @@ export default async function handler(req, res) {
 
     sendEvent({ status: 'thinking', model: workingModel });
 
-    // Build context
-    const now = new Date();
-    let contextInfo = `\nToday is ${now.toISOString().split('T')[0]}.`;
-    if (context?.view) contextInfo += ` User is viewing: ${context.view}`;
-    if (context?.dateRange) {
-      contextInfo += ` Date range: ${context.dateRange.startDate} to ${context.dateRange.endDate}`;
-    }
-
     const chat = model.startChat({
-      history: [
-        { role: "user", parts: [{ text: SYSTEM_PROMPT + contextInfo }] },
-        { role: "model", parts: [{ text: "I'm ready to analyze your financial data. I'll fetch real transaction data to answer your questions accurately." }] },
-        ...previousMessages
-      ]
+      history: previousMessages
     });
 
     // 3. Send message with true streaming
-    let result = await chat.sendMessageStream(message);
+    let result;
+    try {
+      result = await chat.sendMessageStream(message);
+    } catch (err) {
+      logger.error({ error: err.message }, 'Initial sendMessageStream failed');
+      throw err;
+    }
+
     let fullText = '';
     let iterationCount = 0;
     const MAX_ITERATIONS = 5;
@@ -628,26 +659,45 @@ export default async function handler(req, res) {
     while (iterationCount < MAX_ITERATIONS) {
       iterationCount++;
       let functionCalls = [];
-      let turnText = '';
 
-      for await (const chunk of result.stream) {
-        // Handle text content
-        const chunkText = chunk.text();
-        if (chunkText) {
-          fullText += chunkText;
-          // Send streaming event to frontend
-          sendEvent({ status: 'streaming', text: fullText, done: false });
-          // Force flush if possible
-          if (res.flush) res.flush();
-          // Small delay to ensure network chunks are distinct
-          await new Promise(r => setTimeout(r, 10));
-        }
+      try {
+        for await (const chunk of result.stream) {
+          // Handle text content safely - chunk.text() throws if no text is present (e.g. function call chunks)
+          try {
+            const chunkText = chunk.text();
+            if (chunkText) {
+              fullText += chunkText;
+              // Send streaming event to frontend
+              sendEvent({ status: 'streaming', text: fullText, done: false });
+              // Force flush if possible
+              if (res.flush) res.flush();
+              // Small delay to ensure network chunks are distinct
+              await new Promise(r => setTimeout(r, 10));
+            }
+          } catch (e) {
+            // Ignore error when chunk contains no text (likely a function call chunk)
+            logger.debug('Chunk contains no text, skipping text extraction');
+          }
 
-        // Handle function calls
-        const calls = chunk.functionCalls();
-        if (calls && calls.length > 0) {
-          functionCalls = functionCalls.concat(calls);
+          // Handle function calls
+          try {
+            const calls = chunk.functionCalls();
+            if (calls && calls.length > 0) {
+              functionCalls = functionCalls.concat(calls);
+            }
+          } catch (e) {
+            logger.debug('Chunk contains no function calls');
+          }
         }
+      } catch (streamErr) {
+        logger.error({ error: streamErr.message }, 'Stream iteration failed');
+        if (streamErr.message?.includes('output text or tool calls')) {
+          // This specific error happens if the model output is empty
+          if (fullText) break; // If we already have some text, just finish
+          fullText = "I encountered an issue generating a response. This can happen with experimental models or safety filters. Please try rephrasing your question.";
+          break;
+        }
+        throw streamErr;
       }
 
       // If no function calls, we are done

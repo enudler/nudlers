@@ -48,26 +48,21 @@ async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Build the prompt with context
-    let fullPrompt = SYSTEM_PROMPT + "\n\n";
-
-    if (context) {
-      fullPrompt += "Current screen context:\n";
-      fullPrompt += JSON.stringify(context, null, 2);
-      fullPrompt += "\n\n";
-    }
-
-    fullPrompt += "User question: " + message;
+    // Build context info
+    const now = new Date();
+    let contextInfo = `\nToday is ${now.toISOString().split('T')[0]}.`;
+    if (context?.view) contextInfo += ` User is viewing: ${context.view}.`;
 
     try {
       const model = genAI.getGenerativeModel({
         model: modelName,
+        systemInstruction: SYSTEM_PROMPT + contextInfo,
         generationConfig: {
           maxOutputTokens: 500,
           temperature: 0.7,
         }
       });
-      const result = await model.generateContent(fullPrompt);
+      const result = await model.generateContent(message);
       const response = await result.response;
       const text = response.text();
 

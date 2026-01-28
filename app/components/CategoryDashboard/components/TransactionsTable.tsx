@@ -42,6 +42,8 @@ export interface TransactionsTableProps {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   onSort?: (field: string) => void;
+  hideActions?: boolean;
+  hideInstallmentsColumn?: boolean;
 }
 
 const TransactionsTable: React.FC<TransactionsTableProps> = ({
@@ -53,7 +55,9 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   disableWrapper,
   sortBy,
   sortOrder,
-  onSort
+  onSort,
+  hideActions,
+  hideInstallmentsColumn
 }) => {
   const theme = useTheme();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
@@ -70,7 +74,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [confirmDeleteTransaction, setConfirmDeleteTransaction] = React.useState<Transaction | null>(null);
 
 
-  const handleDeleteClick = () => {
+  const handleDeleteClick = React.useCallback(() => {
     if (!confirmDeleteTransaction) return;
 
     try {
@@ -88,16 +92,18 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
         severity: 'error'
       });
     }
-  };
+  }, [confirmDeleteTransaction, onDelete]);
 
-  const handleEditClick = (transaction: Transaction) => {
+
+  const handleEditClick = React.useCallback((transaction: Transaction) => {
     setEditingTransaction(transaction);
     setEditPrice(Math.abs(transaction.price).toString());
     setEditCategory(transaction.category);
     setApplyToAll(false); // Default to single transaction only
-  };
+  }, []);
 
-  const handleSaveClick = async () => {
+
+  const handleSaveClick = React.useCallback(async () => {
     if (editingTransaction && editPrice) {
       const newPrice = parseFloat(editPrice);
       if (!isNaN(newPrice)) {
@@ -195,25 +201,29 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
         setEditingTransaction(null);
       }
     }
-  };
+  }, [editingTransaction, editPrice, editCategory, applyToAll, onUpdate]);
 
-  const handleCancelClick = () => {
+
+  const handleCancelClick = React.useCallback(() => {
     setEditingTransaction(null);
-  };
+  }, []);
 
-  const handleRowClick = (transaction: Transaction) => {
+
+  const handleRowClick = React.useCallback((transaction: Transaction) => {
     // If clicking on a different row while editing, save the current changes
     if (editingTransaction && editingTransaction.identifier !== transaction.identifier) {
       handleSaveClick();
     }
-  };
+  }, [editingTransaction, handleSaveClick]);
 
-  const handleTableClick = (e: React.MouseEvent) => {
+
+  const handleTableClick = React.useCallback((e: React.MouseEvent) => {
     // If clicking on the table background (not on a row), save current changes
     if (editingTransaction && (e.target as HTMLElement).tagName === 'TABLE') {
       handleSaveClick();
     }
-  };
+  }, [editingTransaction, handleSaveClick]);
+
 
   // Group transactions by date
   const groupedTransactions = React.useMemo(() => {
@@ -275,11 +285,11 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
   /* Column widths configuration */
   const columnWidths = {
-    description: '35%',
+    description: hideActions && hideInstallmentsColumn ? '45%' : '35%',
     category: '15%',
     amount: '12%',
     installment: '8%',
-    card: '12%',
+    card: hideActions && hideInstallmentsColumn ? '18%' : '12%',
     date: '10%',
     actions: '8%'
   };
@@ -301,7 +311,9 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          width: width
+          width: width,
+          padding: disableWrapper ? '8px 12px' : headerStyle.padding,
+          fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
         }}
         sortDirection={isSorted ? sortOrder : false}
       >
@@ -339,33 +351,41 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
           {renderSortableHeader('Category', 'category', 'left', columnWidths.category)}
           {renderSortableHeader('Amount', 'price', 'right', columnWidths.amount)}
 
-          <TableCell
-            style={{
-              ...headerStyle,
-              position: 'sticky',
-              top: 0,
-              zIndex: 10,
-              width: columnWidths.installment
-            }}
-          >
-            Installment
-          </TableCell>
+          {!hideInstallmentsColumn && (
+            <TableCell
+              style={{
+                ...headerStyle,
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                width: columnWidths.installment,
+                padding: disableWrapper ? '8px 12px' : headerStyle.padding,
+                fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
+              }}
+            >
+              Inst.
+            </TableCell>
+          )}
 
           {renderSortableHeader('Card', 'account_number', 'left', columnWidths.card)}
           {renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
 
-          <TableCell
-            align="right"
-            style={{
-              ...headerStyle,
-              position: 'sticky',
-              top: 0,
-              zIndex: 10,
-              width: columnWidths.actions
-            }}
-          >
-            Actions
-          </TableCell>
+          {!hideActions && (
+            <TableCell
+              align="right"
+              style={{
+                ...headerStyle,
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                width: columnWidths.actions,
+                padding: disableWrapper ? '8px 12px' : headerStyle.padding,
+                fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
+              }}
+            >
+              Actions
+            </TableCell>
+          )}
 
         </TableRow>
       </TableHead>
@@ -376,15 +396,15 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
               <TableRow sx={{
                 backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(241, 245, 249, 0.95)',
                 position: 'sticky',
-                top: 53, // Consistent top offset
+                top: disableWrapper ? 35 : 53, // Adjusted offset for widget mode to prevent overlap
                 zIndex: 9,
                 backdropFilter: 'blur(8px)'
               }}>
                 <TableCell colSpan={7} sx={{
-                  padding: '8px 16px',
+                  padding: disableWrapper ? '4px 12px' : '8px 16px',
                   fontWeight: 700,
                   color: theme.palette.text.primary,
-                  fontSize: '13px',
+                  fontSize: disableWrapper ? '11px' : '13px',
                   borderBottom: `1px solid ${theme.palette.divider}`,
                   backgroundColor: 'inherit'
                 }}>
@@ -412,6 +432,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   getCardVendor={getCardVendor}
                   getCardNickname={getCardNickname}
                   isWidget={disableWrapper}
+                  hideActions={hideActions}
+                  hideInstallmentsColumn={hideInstallmentsColumn}
                 />
               ))}
             </React.Fragment>
@@ -438,6 +460,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
               getCardVendor={getCardVendor}
               getCardNickname={getCardNickname}
               isWidget={disableWrapper}
+              hideActions={hideActions}
+              hideInstallmentsColumn={hideInstallmentsColumn}
             />
           ))
         )}
@@ -540,9 +564,11 @@ interface TransactionRowProps {
   getCardVendor: (accountNumber: string | undefined | null) => string | null;
   getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
   isWidget?: boolean;
+  hideActions?: boolean;
+  hideInstallmentsColumn?: boolean;
 }
 
-const TransactionRow = ({
+const TransactionRow = React.memo(({
   transaction,
   theme,
   editingTransaction,
@@ -560,12 +586,14 @@ const TransactionRow = ({
   setConfirmDeleteTransaction,
   getCardVendor,
   getCardNickname,
-  isWidget
+  isWidget,
+  hideActions,
+  hideInstallmentsColumn
 }: TransactionRowProps) => {
   const cellStyle = {
     ...getTableBodyCellStyle(theme),
-    fontSize: '0.875rem', // Consistent font size
-    padding: '8px 16px' // Consistent padding
+    fontSize: isWidget ? '0.75rem' : '0.875rem', // Smaller when widget
+    padding: isWidget ? '4px 12px' : '8px 16px' // Smaller padding when widget
   };
   return (
     <TableRow
@@ -580,7 +608,7 @@ const TransactionRow = ({
     >
       <TableCell style={{
         ...cellStyle,
-        maxWidth: isWidget ? '120px' : '300px', // Limit width
+        maxWidth: isWidget ? '100px' : '300px', // Limit width
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis'
@@ -588,7 +616,7 @@ const TransactionRow = ({
         {transaction.name}
       </TableCell>
       <TableCell style={cellStyle}>
-        {editingTransaction?.identifier === transaction.identifier ? (
+        {editingTransaction?.identifier === transaction.identifier && !hideActions ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <CategoryAutocomplete
               value={editCategory}
@@ -602,7 +630,7 @@ const TransactionRow = ({
         ) : (
           <span
             style={{
-              cursor: 'pointer',
+              cursor: hideActions ? 'default' : 'pointer',
               padding: '4px 8px',
               borderRadius: '6px',
               transition: 'all 0.2s ease-in-out',
@@ -615,15 +643,18 @@ const TransactionRow = ({
               fontSize: isWidget ? '10px' : '13px'
             }}
             onClick={(e) => {
+              if (hideActions) return;
               e.stopPropagation();
               handleRowClick(transaction);
               handleEditClick(transaction);
             }}
             onMouseEnter={(e) => {
+              if (hideActions) return;
               e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
               e.currentTarget.style.transform = 'scale(1.02)';
             }}
             onMouseLeave={(e) => {
+              if (hideActions) return;
               e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
               e.currentTarget.style.transform = 'scale(1)';
             }}
@@ -640,7 +671,7 @@ const TransactionRow = ({
           fontWeight: 600
         }}
       >
-        {editingTransaction?.identifier === transaction.identifier ? (
+        {editingTransaction?.identifier === transaction.identifier && !hideActions ? (
           <TextField
             value={editPrice}
             onChange={(e) => setEditPrice(e.target.value)}
@@ -662,63 +693,76 @@ const TransactionRow = ({
             }}
           />
         ) : (
-          (() => {
-            // Price is already the per-installment amount (combineInstallments: false)
-            const displayAmount = Math.abs(transaction.price);
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+            {(() => {
+              // Price is already the per-installment amount (combineInstallments: false)
+              const displayAmount = Math.abs(transaction.price);
 
-            // Check if original currency is different from ILS (foreign transaction)
-            const isForeignCurrency = transaction.original_currency &&
-              !['ILS', '₪', 'NIS'].includes(transaction.original_currency);
+              // Check if original currency is different from ILS (foreign transaction)
+              const isForeignCurrency = transaction.original_currency &&
+                !['ILS', '₪', 'NIS'].includes(transaction.original_currency);
 
-            // Get the appropriate currency symbol
-            const getCurrencySymbol = (currency?: string) => {
-              if (!currency) return '₪';
-              if (['EUR', '€'].includes(currency)) return '€';
-              if (['USD', '$'].includes(currency)) return '$';
-              if (['GBP', '£'].includes(currency)) return '£';
-              if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
-              return currency + ' ';
-            };
+              // Get the appropriate currency symbol
+              const getCurrencySymbol = (currency?: string) => {
+                if (!currency) return '₪';
+                if (['EUR', '€'].includes(currency)) return '€';
+                if (['USD', '$'].includes(currency)) return '$';
+                if (['GBP', '£'].includes(currency)) return '£';
+                if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
+                return currency + ' ';
+              };
 
-            // For foreign currency transactions, show ILS amount with original amount below
-            if (isForeignCurrency && transaction.original_amount) {
-              const symbol = getCurrencySymbol(transaction.original_currency);
-              // original_amount is also already the per-installment amount
-              const originalDisplayAmount = Math.abs(transaction.original_amount);
+              // For foreign currency transactions, show ILS amount with original amount below
+              if (isForeignCurrency && transaction.original_amount) {
+                const symbol = getCurrencySymbol(transaction.original_currency);
+                // original_amount is also already the per-installment amount
+                const originalDisplayAmount = Math.abs(transaction.original_amount);
 
-              return (
-                <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span>₪{formatNumber(displayAmount)}</span>
-                  <span style={{
-                    fontSize: '11px',
-                    color: theme.palette.text.secondary
-                  }}>
-                    ({symbol}{formatNumber(originalDisplayAmount)})
-                  </span>
-                </span>
-              );
-            }
+                return (
+                  <>
+                    <span>₪{formatNumber(displayAmount)}</span>
+                    <span style={{
+                      fontSize: '11px',
+                      color: theme.palette.text.secondary
+                    }}>
+                      ({symbol}{formatNumber(originalDisplayAmount)})
+                    </span>
+                  </>
+                );
+              }
 
-            return `₪${formatNumber(displayAmount)}`;
-          })()
+              return <span>₪{formatNumber(displayAmount)}</span>;
+            })()}
+            {hideInstallmentsColumn && transaction.installments_total && transaction.installments_total > 1 && (
+              <span style={{
+                color: '#6366f1',
+                fontSize: '10px',
+                fontWeight: '500'
+              }}>
+                {transaction.installments_number}/{transaction.installments_total}
+              </span>
+            )}
+          </Box>
         )}
       </TableCell>
-      <TableCell style={{ ...cellStyle, textAlign: 'center' }}>
-        {transaction.installments_total && transaction.installments_total > 1 ? (
-          <span style={{
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            color: '#6366f1',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontWeight: '500'
-          }}>
-            {transaction.installments_number}/{transaction.installments_total}
-          </span>
-        ) : (
-          <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
-        )}
-      </TableCell>
+      {!hideInstallmentsColumn && (
+        <TableCell style={{ ...cellStyle, textAlign: 'center' }}>
+          {transaction.installments_total && transaction.installments_total > 1 ? (
+            <span style={{
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              color: '#6366f1',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}>
+              {transaction.installments_number}/{transaction.installments_total}
+            </span>
+          ) : (
+            <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
+          )}
+        </TableCell>
+      )}
 
       <TableCell style={cellStyle}>
         <AccountDisplay transaction={transaction} premium={false} compact={isWidget} />
@@ -729,48 +773,53 @@ const TransactionRow = ({
       </TableCell>
 
 
-      <TableCell align="right" style={cellStyle}>
-        {editingTransaction?.identifier === transaction.identifier ? (
-          <>
-            <IconButton
-              onClick={handleSaveClick}
-              sx={{ color: '#4ADE80' }}
-            >
-              <CheckIcon />
-            </IconButton>
-            <IconButton
-              onClick={handleCancelClick}
-              sx={{ color: '#ef4444' }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </>
-        ) : (
-          <>
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRowClick(transaction);
-                handleEditClick(transaction);
-              }}
-              sx={{ color: '#3b82f6' }}
-            >
-              <EditIcon />
-            </IconButton>
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmDeleteTransaction(transaction);
-              }}
-              sx={{ color: '#ef4444' }}
-            >
-              <DeleteIcon />
-            </IconButton>
-          </>
-        )}
-      </TableCell>
+      {!hideActions && (
+        <TableCell align="right" style={cellStyle}>
+          {editingTransaction?.identifier === transaction.identifier ? (
+            <>
+              <IconButton
+                onClick={handleSaveClick}
+                sx={{ color: '#4ADE80' }}
+              >
+                <CheckIcon />
+              </IconButton>
+              <IconButton
+                onClick={handleCancelClick}
+                sx={{ color: '#ef4444' }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRowClick(transaction);
+                  handleEditClick(transaction);
+                }}
+                sx={{ color: '#3b82f6' }}
+              >
+                <EditIcon />
+              </IconButton>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmDeleteTransaction(transaction);
+                }}
+                sx={{ color: '#ef4444' }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </>
+          )}
+        </TableCell>
+      )}
     </TableRow>
   );
-};
+});
+
+TransactionRow.displayName = 'TransactionRow';
+
 
 export default TransactionsTable;
