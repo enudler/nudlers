@@ -1,7 +1,7 @@
 import React from 'react';
 import { logger } from '../../../utils/client-logger';
 import { useTheme } from '@mui/material/styles';
-import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip } from '@mui/material';
+import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip, TableSortLabel } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -39,9 +39,22 @@ export interface TransactionsTableProps {
   onUpdate?: (transaction: Transaction, newPrice: number, newCategory?: string) => void;
   groupByDate?: boolean;
   disableWrapper?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  onSort?: (field: string) => void;
 }
 
-const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, groupByDate, disableWrapper }) => {
+const TransactionsTable: React.FC<TransactionsTableProps> = ({
+  transactions,
+  isLoading,
+  onDelete,
+  onUpdate,
+  groupByDate,
+  disableWrapper,
+  sortBy,
+  sortOrder,
+  onSort
+}) => {
   const theme = useTheme();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
@@ -208,10 +221,10 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
 
     const groups: { [date: string]: Transaction[] } = {};
     transactions.forEach(transaction => {
-      // Assuming transaction.date is in YYYY-MM-DD format based on other code
-      // If it includes time, we might need to split.
-      // Based on API responses typically being dates for transactions:
-      const dateKey = transaction.date.split('T')[0];
+      // Use local date for grouping to match displayed row dates
+      const d = new Date(transaction.date);
+      const dateKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -226,13 +239,17 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
   }, [groupedTransactions, groupByDate]);
 
   const formatDateHeader = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // dateStr is YYYY-MM-DD in local time
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    const isToday = date.toDateString() === today.toDateString();
-    const isYesterday = date.toDateString() === yesterday.toDateString();
+    const isToday = date.getTime() === today.getTime();
+    const isYesterday = date.getTime() === yesterday.getTime();
 
     if (isToday) return 'Today';
     if (isYesterday) return 'Yesterday';
@@ -259,20 +276,83 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
   const tableHeaderBaseStyle = getTableHeaderCellStyle(theme);
   const widgetHeaderStyle = disableWrapper ? { ...tableHeaderBaseStyle, fontSize: '0.7rem', padding: '8px 12px' } : tableHeaderBaseStyle;
 
+  const renderSortableHeader = (label: string, field: string, align: 'left' | 'right' = 'left') => {
+    const isSorted = sortBy === field;
+    return (
+      <TableCell
+        align={align}
+        style={{
+          ...widgetHeaderStyle,
+          cursor: onSort ? 'pointer' : 'default',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+        }}
+        sortDirection={isSorted ? sortOrder : false}
+      >
+        {onSort ? (
+          <TableSortLabel
+            active={isSorted}
+            direction={isSorted ? sortOrder : 'desc'}
+            onClick={() => onSort(field)}
+            sx={{
+              color: 'inherit !important',
+              '& .MuiTableSortLabel-icon': {
+                color: 'inherit !important',
+                opacity: isSorted ? 1 : 0.3
+              }
+            }}
+          >
+            {label}
+          </TableSortLabel>
+        ) : (
+          label
+        )}
+      </TableCell>
+    );
+  };
+
   const Content = (
     <Table
       onClick={handleTableClick}
       size={disableWrapper ? "small" : "medium"}
+      stickyHeader
     >
       <TableHead>
         <TableRow>
-          <TableCell style={widgetHeaderStyle}>Description</TableCell>
-          <TableCell style={widgetHeaderStyle}>Category</TableCell>
-          <TableCell align="right" style={widgetHeaderStyle}>Amount</TableCell>
-          {!disableWrapper && <TableCell style={widgetHeaderStyle}>Installment</TableCell>}
-          <TableCell style={widgetHeaderStyle}>Card</TableCell>
-          {!disableWrapper && <TableCell style={widgetHeaderStyle}>Date</TableCell>}
-          {!disableWrapper && <TableCell align="right" style={widgetHeaderStyle}>Actions</TableCell>}
+          {renderSortableHeader('Description', 'name')}
+          {renderSortableHeader('Category', 'category')}
+          {renderSortableHeader('Amount', 'price', 'right')}
+          {!disableWrapper && (
+            <TableCell
+              style={{
+                ...widgetHeaderStyle,
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+              }}
+            >
+              Installment
+            </TableCell>
+          )}
+          {renderSortableHeader('Card', 'account_number')}
+          {!disableWrapper && renderSortableHeader('Date', 'date')}
+          {!disableWrapper && (
+            <TableCell
+              align="right"
+              style={{
+                ...widgetHeaderStyle,
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+              }}
+            >
+              Actions
+            </TableCell>
+          )}
         </TableRow>
       </TableHead>
       <TableBody>
@@ -280,14 +360,19 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
           sortedDates.map(date => (
             <React.Fragment key={date}>
               <TableRow sx={{
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.9)' : 'rgba(241, 245, 249, 0.9)',
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(241, 245, 249, 0.95)',
+                position: 'sticky',
+                top: disableWrapper ? 32 : 53, // Offset for the main header (approx heights)
+                zIndex: 9,
+                backdropFilter: 'blur(8px)'
               }}>
                 <TableCell colSpan={disableWrapper ? 4 : 7} sx={{
                   padding: disableWrapper ? '4px 12px' : '8px 16px',
                   fontWeight: 700,
                   color: theme.palette.text.primary,
                   fontSize: disableWrapper ? '11px' : '13px',
-                  borderBottom: `1px solid ${theme.palette.divider}`
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: 'inherit'
                 }}>
                   {formatDateHeader(date)}
                 </TableCell>

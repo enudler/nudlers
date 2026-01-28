@@ -125,6 +125,12 @@ const CategoryDashboard: React.FC = () => {
   const [modalData, setModalData] = React.useState<ModalData>();
   const [transactions, setTransactions] = React.useState<Expense[]>([]);
   const [loadingTransactions, setLoadingTransactions] = React.useState(false);
+  const [sortBy, setSortBy] = React.useState<string>('date');
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc');
+  const pageRef = React.useRef(0);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const PAGE_SIZE = 50;
 
   const categoryIcons = useCategoryIcons();
   const categoryColors = useCategoryColors();
@@ -203,31 +209,62 @@ const CategoryDashboard: React.FC = () => {
   }, [selectedYear, selectedMonth]);
 
   // Helper moved up
-  const fetchTransactionsWithRange = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
-    setLoadingTransactions(true);
+  const fetchTransactionsWithRange = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string, isLoadMore: boolean = false) => {
+    if (!isLoadMore) {
+      setLoadingTransactions(true);
+      pageRef.current = 0;
+      setTransactions([]);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
-      const transactionsData = await fetchAllTransactions(startDate, endDate, billingCycle);
-      // Map and sort transactions by date descending (newest first)
-      const sortedTransactions = transactionsData
-        .map((t: { category?: string; identifier?: string; vendor?: string;[key: string]: unknown }) => ({
-          ...t,
-          category: t.category || 'Unassigned',
-          identifier: t.identifier || 'unknown',
-          vendor: t.vendor || 'unknown'
-        }))
-        .sort((a: Expense, b: Expense) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-      setTransactions(sortedTransactions);
+      const currentPage = isLoadMore ? pageRef.current + 1 : 0;
+      const url = new URL("/api/reports/category-expenses", window.location.origin);
+
+      if (billingCycle) {
+        url.searchParams.append("billingCycle", billingCycle);
+      } else {
+        url.searchParams.append("startDate", startDate);
+        url.searchParams.append("endDate", endDate);
+      }
+      url.searchParams.append("all", "true");
+      url.searchParams.append("sortBy", sortBy);
+      url.searchParams.append("sortOrder", sortOrder);
+      url.searchParams.append("limit", PAGE_SIZE.toString());
+      url.searchParams.append("offset", (currentPage * PAGE_SIZE).toString());
+
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const transactionsData = await response.json();
+      const mappedTransactions = transactionsData.map((t: any) => ({
+        ...t,
+        category: t.category || 'Unassigned',
+        identifier: t.identifier || 'unknown',
+        vendor: t.vendor || 'unknown'
+      }));
+
+      if (isLoadMore) {
+        setTransactions(prev => [...prev, ...mappedTransactions]);
+        pageRef.current = currentPage;
+      } else {
+        setTransactions(mappedTransactions);
+      }
+      setHasMore(transactionsData.length === PAGE_SIZE);
     } catch (error) {
       logger.error('Error fetching transactions data', error, {
         year: selectedYear,
         month: selectedMonth
       });
     } finally {
-      setLoadingTransactions(false);
+      if (!isLoadMore) {
+        setLoadingTransactions(false);
+      } else {
+        setLoadingMore(false);
+      }
     }
-  }, [selectedYear, selectedMonth]);
+  }, [selectedYear, selectedMonth, sortBy, sortOrder]);
 
   // fetchTransactions removed as it's unused
 
@@ -352,19 +389,27 @@ const CategoryDashboard: React.FC = () => {
     }
   };
 
-  const handleSearch = React.useCallback(async (e?: React.FormEvent) => {
+  const handleSearch = React.useCallback(async (e?: React.FormEvent, isLoadMore: boolean = false) => {
     e?.preventDefault();
     if (!searchQuery.trim()) {
       // If search is cleared, fetch regular data
       if (startDate && endDate) {
-        fetchTransactionsWithRange(startDate, endDate, billingCycle);
+        fetchTransactionsWithRange(startDate, endDate, billingCycle, isLoadMore);
       }
       return;
     }
 
-    setLoadingTransactions(true);
+    if (!isLoadMore) {
+      setLoadingTransactions(true);
+      pageRef.current = 0;
+      setTransactions([]);
+    } else {
+      setLoadingMore(true);
+    }
+
     setIsSearching(true);
     try {
+      const currentPage = isLoadMore ? pageRef.current + 1 : 0;
       let queryParams = `q=${encodeURIComponent(searchQuery)}`;
       if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
         queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
@@ -374,16 +419,29 @@ const CategoryDashboard: React.FC = () => {
         queryParams += `&startDate=${startDate}&endDate=${endDate}`;
       }
 
+      queryParams += `&sortBy=${sortBy}&sortOrder=${sortOrder}`;
+      queryParams += `&limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+
       const response = await fetch(`/api/transactions?${queryParams}`);
       if (response.ok) {
         const results = await response.json();
-        setTransactions(results);
+        if (isLoadMore) {
+          setTransactions(prev => [...prev, ...results]);
+          pageRef.current = currentPage;
+        } else {
+          setTransactions(results);
+        }
+        setHasMore(results.length === PAGE_SIZE);
       }
     } catch (error) {
       logger.error('Search error', error, { query: searchQuery });
       showNotification('Search failed', 'error');
     } finally {
-      setLoadingTransactions(false);
+      if (!isLoadMore) {
+        setLoadingTransactions(false);
+      } else {
+        setLoadingMore(false);
+      }
       setIsSearching(false);
     }
   }, [
@@ -397,8 +455,27 @@ const CategoryDashboard: React.FC = () => {
     customEndDate,
     selectedYear,
     selectedMonth,
+    sortBy,
+    sortOrder,
     showNotification
   ]);
+
+  const handleSort = (field: string) => {
+    const isAsc = sortBy === field && sortOrder === 'asc';
+    setSortOrder(isAsc ? 'desc' : 'asc');
+    setSortBy(field);
+    pageRef.current = 0; // Reset page on sort change
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingTransactions && !loadingMore && hasMore) {
+      if (searchQuery.trim()) {
+        handleSearch(undefined, true);
+      } else if (startDate && endDate) {
+        fetchTransactionsWithRange(startDate, endDate, billingCycle, true);
+      }
+    }
+  };
 
   // Initial data fetch and Refresh listener
   React.useEffect(() => {
@@ -826,23 +903,59 @@ const CategoryDashboard: React.FC = () => {
 
         {/* Summary Header - Horizontal & Minimal */}
         {/* Unified Financial Snapshot Hero */}
-        <Box sx={{
-          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: { xs: '20px', md: '32px' },
-          padding: { xs: '12px', md: '32px' },
-          marginTop: '24px',
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-          overflowX: 'auto'
-        }}>
+        <Box
+          onScroll={(e) => {
+            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+            if (scrollHeight - scrollTop <= clientHeight + 100) {
+              handleLoadMore();
+            }
+          }}
+          sx={{
+            background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: { xs: '20px', md: '32px' },
+            padding: { xs: '12px', md: '32px' },
+            marginTop: '24px',
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+            overflowX: 'auto',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            '&::-webkit-scrollbar': { width: '8px' },
+            '&::-webkit-scrollbar-track': { background: 'transparent' },
+            '&::-webkit-scrollbar-thumb': {
+              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              borderRadius: '10px',
+              border: '2px solid transparent',
+              backgroundClip: 'content-box'
+            },
+            '&:hover::-webkit-scrollbar-thumb': {
+              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+              backgroundClip: 'content-box'
+            }
+          }}>
           <TransactionsTable
             transactions={transactions}
             isLoading={loadingTransactions}
             onDelete={handleDeleteTransaction}
             onUpdate={handleUpdateTransaction}
-            groupByDate={true}
+            groupByDate={sortBy === 'date' && sortOrder === 'desc'}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSort={handleSort}
           />
+          {(loadingMore || loadingTransactions) && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress size={32} thickness={4} />
+            </Box>
+          )}
+          {!hasMore && transactions.length > 0 && (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                That's all for this period ✨
+              </Typography>
+            </Box>
+          )}
         </Box>
       </Box>
 

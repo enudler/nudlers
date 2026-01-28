@@ -41,6 +41,8 @@ export interface TableProps<T> {
     renderSubRow?: (row: T) => React.ReactNode;
     expandedRowIds?: Set<any>;
     onRowToggle?: (rowId: string | number) => void;
+    stickyHeader?: boolean;
+    maxHeight?: string | number;
 }
 
 const Table = <T,>({
@@ -57,7 +59,9 @@ const Table = <T,>({
     footer,
     renderSubRow,
     expandedRowIds,
-    onRowToggle
+    onRowToggle,
+    stickyHeader = false,
+    maxHeight = '70vh'
 }: TableProps<T>) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -134,10 +138,23 @@ const Table = <T,>({
                 border: `1px solid ${theme.palette.divider}`,
                 background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
                 backdropFilter: 'blur(20px)',
-                overflowX: 'auto'
+                overflowX: 'auto',
+                maxHeight: stickyHeader ? maxHeight : 'none',
+                '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+                '&::-webkit-scrollbar-track': { background: 'transparent' },
+                '&::-webkit-scrollbar-thumb': {
+                    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                    borderRadius: '10px',
+                    border: '2px solid transparent',
+                    backgroundClip: 'content-box'
+                },
+                '&:hover::-webkit-scrollbar-thumb': {
+                    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                    backgroundClip: 'content-box'
+                }
             }}
         >
-            <MuiTable sx={{ minWidth: 650 }}>
+            <MuiTable sx={{ minWidth: 650 }} stickyHeader={stickyHeader}>
                 <TableHead>
                     <TableRow sx={{
                         borderBottom: `2px solid ${theme.palette.divider}`,
@@ -147,7 +164,10 @@ const Table = <T,>({
                             textTransform: 'uppercase',
                             letterSpacing: '0.05em',
                             color: 'text.secondary',
-                            bgcolor: 'transparent'
+                            bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc',
+                            position: stickyHeader ? 'sticky' : 'static',
+                            top: 0,
+                            zIndex: 10
                         }
                     }}>
                         {columns.map((column) => (

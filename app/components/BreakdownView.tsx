@@ -89,7 +89,9 @@ const BreakdownView: React.FC = () => {
     const { categories: availableCategories } = useCategories();
 
     const [showBankTransactions, setShowBankTransactions] = useState<boolean>(false);
-    const [offset, setOffset] = useState(0);
+    const pageRef = React.useRef(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [total, setTotal] = useState(0);
     const PAGE_SIZE = 50;
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -116,18 +118,23 @@ const BreakdownView: React.FC = () => {
         return true;
     };
 
-    const fetchBreakdown = useCallback(async (skipLoadingState = false, offsetValue = 0) => {
+    const fetchBreakdown = useCallback(async (skipLoadingState = false, isLoadMore = false) => {
         if (dateRangeMode === 'custom') {
             if (!customStartDate || !customEndDate) return;
         } else {
             if (!selectedYear || !selectedMonth) return;
         }
 
-        try {
-            if (!skipLoadingState) {
-                setLoading(true);
-            }
+        if (!isLoadMore) {
+            setLoading(true);
+            pageRef.current = 0;
+            setData([]);
+        } else {
+            setLoadingMore(true);
+        }
 
+        try {
+            const currentPage = isLoadMore ? pageRef.current + 1 : 0;
             const queryParams = new URLSearchParams();
             if (billingCycle) {
                 queryParams.set('billingCycle', billingCycle);
@@ -137,7 +144,7 @@ const BreakdownView: React.FC = () => {
             }
             queryParams.set('groupBy', 'description');
             queryParams.set('limit', PAGE_SIZE.toString());
-            queryParams.set('offset', offsetValue.toString());
+            queryParams.set('offset', (currentPage * PAGE_SIZE).toString());
             queryParams.set('sortBy', sortField);
             queryParams.set('sortOrder', sortDirection);
             if (!showBankTransactions) {
@@ -151,31 +158,31 @@ const BreakdownView: React.FC = () => {
             const items = result.items || [];
             const newTotal = result.total || 0;
 
-            if (offsetValue === 0) {
-                setData(items);
-            } else {
+            if (isLoadMore) {
                 setData(prev => [...prev, ...items]);
+                pageRef.current = currentPage;
+            } else {
+                setData(items);
             }
             setTotal(newTotal);
+            setHasMore(items.length === PAGE_SIZE);
 
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
         } finally {
-            if (!skipLoadingState) {
-                setLoading(false);
-            }
+            setLoading(false);
+            setLoadingMore(false);
         }
     }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, showBankTransactions, selectedYear, selectedMonth, sortField, sortDirection]);
 
     useEffect(() => {
-        setOffset(0);
         // Debounce or just check required fields
         if (dateRangeMode === 'custom') {
             if (customStartDate && customEndDate) {
-                fetchBreakdown(false, 0);
+                fetchBreakdown(false, false);
             }
         } else if (startDate && endDate) {
-            fetchBreakdown(false, 0);
+            fetchBreakdown(false, false);
         }
     }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection, showBankTransactions]); // Added showBankTransactions here to trigger refetch
 
@@ -200,20 +207,19 @@ const BreakdownView: React.FC = () => {
     };
 
     const handleRefresh = () => {
-        setOffset(0);
         if (dateRangeMode === 'custom') {
             if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
-                fetchBreakdown(false, 0);
+                fetchBreakdown(false, false);
             }
         } else {
-            fetchBreakdown(false, 0);
+            fetchBreakdown(false, false);
         }
     };
 
     const handleLoadMore = () => {
-        const nextOffset = offset + PAGE_SIZE;
-        setOffset(nextOffset);
-        fetchBreakdown(true, nextOffset);
+        if (!loading && !loadingMore && hasMore) {
+            fetchBreakdown(true, true);
+        }
     };
 
     const handleDateRangeModeChange = (mode: DateRangeMode) => {
@@ -394,19 +400,46 @@ const BreakdownView: React.FC = () => {
                     </Typography>
                 ) : (
                     <>
-                        <Paper sx={{
-                            width: '100%',
-                            overflow: 'hidden',
-                            borderRadius: '24px',
-                            background: 'transparent',
-                            boxShadow: 'none'
-                        }}>
-                            <Table>
+                        <Paper
+                            onScroll={(e) => {
+                                const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+                                if (scrollHeight - scrollTop <= clientHeight + 100) {
+                                    handleLoadMore();
+                                }
+                            }}
+                            sx={{
+                                width: '100%',
+                                overflow: 'auto',
+                                maxHeight: '72vh',
+                                borderRadius: '24px',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                                '&::-webkit-scrollbar': { width: '8px' },
+                                '&::-webkit-scrollbar-track': { background: 'transparent' },
+                                '&::-webkit-scrollbar-thumb': {
+                                    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                                    borderRadius: '10px',
+                                    border: '2px solid transparent',
+                                    backgroundClip: 'content-box'
+                                },
+                                '&:hover::-webkit-scrollbar-thumb': {
+                                    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                                    backgroundClip: 'content-box'
+                                }
+                            }}>
+                            <Table stickyHeader>
                                 <TableHead>
                                     <TableRow>
                                         <TableCell
                                             onClick={() => handleSortChange('name')}
-                                            style={{ ...tableHeaderCellStyle, cursor: 'pointer' }}
+                                            style={{
+                                                ...tableHeaderCellStyle,
+                                                cursor: 'pointer',
+                                                position: 'sticky',
+                                                top: 0,
+                                                zIndex: 10,
+                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                            }}
                                         >
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                 Description
@@ -417,7 +450,14 @@ const BreakdownView: React.FC = () => {
                                         </TableCell>
                                         <TableCell
                                             onClick={() => handleSortChange('category')}
-                                            style={{ ...tableHeaderCellStyle, cursor: 'pointer' }}
+                                            style={{
+                                                ...tableHeaderCellStyle,
+                                                cursor: 'pointer',
+                                                position: 'sticky',
+                                                top: 0,
+                                                zIndex: 10,
+                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                            }}
                                         >
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                 Category
@@ -429,7 +469,14 @@ const BreakdownView: React.FC = () => {
                                         <TableCell
                                             align="center"
                                             onClick={() => handleSortChange('transaction_count')}
-                                            style={{ ...tableHeaderCellStyle, cursor: 'pointer' }}
+                                            style={{
+                                                ...tableHeaderCellStyle,
+                                                cursor: 'pointer',
+                                                position: 'sticky',
+                                                top: 0,
+                                                zIndex: 10,
+                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                            }}
                                         >
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                                                 Count
@@ -441,7 +488,14 @@ const BreakdownView: React.FC = () => {
                                         <TableCell
                                             align="right"
                                             onClick={() => handleSortChange('card_expenses')}
-                                            style={{ ...tableHeaderCellStyle, cursor: 'pointer' }}
+                                            style={{
+                                                ...tableHeaderCellStyle,
+                                                cursor: 'pointer',
+                                                position: 'sticky',
+                                                top: 0,
+                                                zIndex: 10,
+                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                            }}
                                         >
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                                                 Amount
@@ -535,7 +589,11 @@ const BreakdownView: React.FC = () => {
                                     {/* Totals Row */}
                                     <TableRow sx={{
                                         borderTop: `2px solid ${theme.palette.divider}`,
-                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.5)' : 'rgba(248, 250, 252, 0.8)'
+                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f1f5f9',
+                                        position: 'sticky',
+                                        bottom: 0,
+                                        zIndex: 10,
+                                        boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
                                     }}>
                                         <TableCell style={tableBodyCellStyle}><Typography fontWeight={700}>TOTAL</Typography></TableCell>
                                         <TableCell style={tableBodyCellStyle} />
@@ -553,20 +611,19 @@ const BreakdownView: React.FC = () => {
 
                                 </TableBody>
                             </Table>
+                            {(loadingMore || (loading && data.length > 0)) && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                                    <CircularProgress size={32} thickness={4} />
+                                </Box>
+                            )}
+                            {!hasMore && data.length > 0 && (
+                                <Box sx={{ p: 4, textAlign: 'center' }}>
+                                    <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                        That's all for this period ✨
+                                    </Typography>
+                                </Box>
+                            )}
                         </Paper>
-
-                        {data.length < total && (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                                <Button
-                                    startIcon={<RefreshIcon />}
-                                    onClick={handleLoadMore}
-                                    variant="outlined"
-                                    sx={{ borderRadius: '16px', textTransform: 'none' }}
-                                >
-                                    Load More Transactions ({total - data.length} remaining)
-                                </Button>
-                            </Box>
-                        )}
                     </>
                 )}
             </Box>
