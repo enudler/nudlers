@@ -376,8 +376,7 @@ const BreakdownView: React.FC = () => {
                 border: `1px solid ${theme.palette.divider}`,
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
             }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography variant="h6" fontWeight={700}>Breakdown by Description</Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 3 }}>
                     <FormControlLabel
                         control={
                             <Switch

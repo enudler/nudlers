@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { logger } from '../../../utils/client-logger';
 
 interface CardVendorMapping {
@@ -75,17 +75,17 @@ export function useCardVendors() {
     return () => window.removeEventListener('cardVendorsUpdated', handleUpdate);
   }, []);
 
-  const getCardVendor = (accountNumber: string | undefined | null): string | null => {
+  const getCardVendor = useCallback((accountNumber: string | undefined | null): string | null => {
     if (!accountNumber || accountNumber.length < 4) return null;
     const last4 = accountNumber.slice(-4);
     return vendorMap[last4]?.card_vendor || null;
-  };
+  }, [vendorMap]);
 
-  const getCardNickname = (accountNumber: string | undefined | null): string | null => {
+  const getCardNickname = useCallback((accountNumber: string | undefined | null): string | null => {
     if (!accountNumber || accountNumber.length < 4) return null;
     const last4 = accountNumber.slice(-4);
     return vendorMap[last4]?.card_nickname || null;
-  };
+  }, [vendorMap]);
 
   return { vendorMap, isLoading, getCardVendor, getCardNickname };
 }

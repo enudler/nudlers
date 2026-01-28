@@ -86,7 +86,7 @@ const RecentTransactionsModule: React.FC = () => {
             flexDirection: 'column',
         }}>
             <Box sx={{
-                p: 1.5,
+                p: 1.2,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -95,7 +95,7 @@ const RecentTransactionsModule: React.FC = () => {
             }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <ReceiptLongIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.85rem' }}>Recent Transactions</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Recent Transactions</Typography>
                 </Box>
                 {transactions.length > 0 && (
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
@@ -134,6 +134,8 @@ const RecentTransactionsModule: React.FC = () => {
                             transactions={transactions}
                             groupByDate={true}
                             disableWrapper={true}
+                            hideActions={true}
+                            hideInstallmentsColumn={true}
                         />
                         {loadingMore && (
                             <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
