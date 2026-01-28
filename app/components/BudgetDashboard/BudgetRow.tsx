@@ -48,7 +48,6 @@ const BudgetRow: React.FC<BudgetRowProps> = ({
                 mb: 2,
                 gap: 1.5,
                 position: 'relative',
-                overflow: 'hidden',
                 border: isOverBudget ? '1px solid var(--n-error-opacity)' : '1px solid var(--n-border)',
                 background: isOverBudget
                     ? 'linear-gradient(90deg, var(--n-bg-surface) 0%, rgba(239, 68, 68, 0.05) 100%)'

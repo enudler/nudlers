@@ -16,7 +16,7 @@ const GlobalEasterEggManager: React.FC = () => {
 
             // Avoid UI chrome and system elements
             if (target.tagName === 'SCRIPT' || target.tagName === 'STYLE' || target.tagName === 'CANVAS') return;
-            if (target.closest('.nudler-egg-digit')) return;
+            if (target.classList.contains('nudler-egg-digit') || target.closest('.nudler-egg-digit')) return;
 
             // Search for the specific text node that contains "67"
             // We use a walker to be precise even in nested structures
@@ -35,12 +35,18 @@ const GlobalEasterEggManager: React.FC = () => {
 
             if (found && textNode && textNode.parentElement) {
                 const parent = textNode.parentElement;
+
+                // Strict check: Only trigger if hovering the immediate container or the text itself
+                // This prevents the effect from triggering when hovering a large container row
+                if (target !== parent) return;
+
                 const matchIndex = (textNode.textContent || '').indexOf('67');
 
                 // Add to active set to prevent re-triggering while hovered
                 activeElements.add(parent);
 
                 // 1. Trigger Confetti
+                // ... (rest of logic)
                 const rect = parent.getBoundingClientRect();
                 const x = (rect.left + rect.width / 2) / window.innerWidth;
                 const y = (rect.top + rect.height / 2) / window.innerHeight;
@@ -69,24 +75,36 @@ const GlobalEasterEggManager: React.FC = () => {
 
                 parent.classList.add('nudler-row-active');
 
-                // 3. Cleanup on Leave
-                const handleLeave = (le: MouseEvent) => {
-                    const linkedTarget = le.relatedTarget as HTMLElement;
-                    if (parent.contains(linkedTarget)) return;
+                // Trigger entry animation
+                requestAnimationFrame(() => {
+                    span.classList.add('active');
+                });
 
-                    // Revert: Replace span back with text node
-                    if (parent.contains(span)) {
-                        const newText = document.createTextNode('67');
-                        parent.replaceChild(newText, span);
-                        // Normalize to merge adjacent text nodes
-                        parent.normalize();
+                // 3. Cleanup on Leave
+                // 3. Cleanup on Leave
+                const handleLeave = () => {
+                    // Trigger exit animation
+                    if (span && parent.contains(span)) {
+                        span.classList.remove('active');
                     }
 
-                    parent.classList.remove('nudler-row-active');
-                    activeElements.delete(parent);
-                    parent.removeEventListener('mouseout', handleLeave);
+                    parent.removeEventListener('mouseleave', handleLeave);
+
+                    // Wait for transition to finish before reverting DOM
+                    setTimeout(() => {
+                        parent.classList.remove('nudler-row-active');
+                        activeElements.delete(parent);
+
+                        // Revert: Replace span back with text node
+                        if (parent.contains(span)) {
+                            const newText = document.createTextNode('67');
+                            parent.replaceChild(newText, span);
+                            // Normalize to merge adjacent text nodes
+                            parent.normalize();
+                        }
+                    }, 400); // Matches CSS transition duration
                 };
-                parent.addEventListener('mouseout', handleLeave);
+                parent.addEventListener('mouseleave', handleLeave);
             }
         };
 
@@ -102,14 +120,19 @@ const GlobalEasterEggManager: React.FC = () => {
             }
             .nudler-egg-digit {
                 display: inline-block;
-                color: #ff4081 !important;
-                font-weight: 900 !important;
-                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                text-shadow: 0 0 10px rgba(255, 64, 129, 0.5);
-                transform: scale(1.4) translateY(-1px);
-                margin: 0 1px;
-                /* Clicks pass through */
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                /* Start state - resembles normal text */
+                transform: scale(1);
+                color: inherit;
+                margin: 0;
                 pointer-events: none;
+            }
+            .nudler-egg-digit.active {
+                color: #ff4081 !important;
+                font-weight: 800 !important;
+                text-shadow: 0 0 10px rgba(255, 64, 129, 0.5);
+                transform: scale(1.4);
+                margin: 0;
             }
         `;
         document.head.appendChild(style);
