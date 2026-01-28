@@ -273,10 +273,21 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     );
   }
 
+  /* Column widths configuration */
+  const columnWidths = {
+    description: '35%',
+    category: '15%',
+    amount: '12%',
+    installment: '8%',
+    card: '12%',
+    date: '10%',
+    actions: '8%'
+  };
+
   const tableHeaderBaseStyle = getTableHeaderCellStyle(theme);
   const widgetHeaderStyle = disableWrapper ? { ...tableHeaderBaseStyle, fontSize: '0.7rem', padding: '8px 12px' } : tableHeaderBaseStyle;
 
-  const renderSortableHeader = (label: string, field: string, align: 'left' | 'right' = 'left') => {
+  const renderSortableHeader = (label: string, field: string, align: 'left' | 'right' = 'left', width?: string) => {
     const isSorted = sortBy === field;
     return (
       <TableCell
@@ -287,7 +298,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc',
+          width: width // Apply width if provided
         }}
         sortDirection={isSorted ? sortOrder : false}
       >
@@ -321,9 +333,9 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     >
       <TableHead>
         <TableRow>
-          {renderSortableHeader('Description', 'name')}
-          {renderSortableHeader('Category', 'category')}
-          {renderSortableHeader('Amount', 'price', 'right')}
+          {renderSortableHeader('Description', 'name', 'left', !disableWrapper ? columnWidths.description : undefined)}
+          {renderSortableHeader('Category', 'category', 'left', !disableWrapper ? columnWidths.category : undefined)}
+          {renderSortableHeader('Amount', 'price', 'right', !disableWrapper ? columnWidths.amount : undefined)}
           {!disableWrapper && (
             <TableCell
               style={{
@@ -331,14 +343,15 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc',
+                width: columnWidths.installment
               }}
             >
               Installment
             </TableCell>
           )}
-          {renderSortableHeader('Card', 'account_number')}
-          {!disableWrapper && renderSortableHeader('Date', 'date')}
+          {renderSortableHeader('Card', 'account_number', 'left', !disableWrapper ? columnWidths.card : undefined)}
+          {!disableWrapper && renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
           {!disableWrapper && (
             <TableCell
               align="right"
@@ -347,7 +360,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc',
+                width: columnWidths.actions
               }}
             >
               Actions
@@ -564,7 +578,13 @@ const TransactionRow = ({
         e.currentTarget.style.background = 'transparent';
       }}
     >
-      <TableCell style={cellStyle}>
+      <TableCell style={{
+        ...cellStyle,
+        maxWidth: isWidget ? '120px' : '300px', // Limit width
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
+      }} title={transaction.name}>
         {transaction.name}
       </TableCell>
       <TableCell style={cellStyle}>
