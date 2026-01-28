@@ -285,7 +285,10 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   };
 
   const tableHeaderBaseStyle = getTableHeaderCellStyle(theme);
-  const widgetHeaderStyle = disableWrapper ? { ...tableHeaderBaseStyle, fontSize: '0.7rem', padding: '8px 12px' } : tableHeaderBaseStyle;
+  const headerStyle = {
+    ...tableHeaderBaseStyle,
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+  };
 
   const renderSortableHeader = (label: string, field: string, align: 'left' | 'right' = 'left', width?: string) => {
     const isSorted = sortBy === field;
@@ -293,13 +296,12 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
       <TableCell
         align={align}
         style={{
-          ...widgetHeaderStyle,
+          ...headerStyle,
           cursor: onSort ? 'pointer' : 'default',
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc',
-          width: width // Apply width if provided
+          width: width
         }}
         sortDirection={isSorted ? sortOrder : false}
       >
@@ -333,40 +335,38 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     >
       <TableHead>
         <TableRow>
-          {renderSortableHeader('Description', 'name', 'left', !disableWrapper ? columnWidths.description : undefined)}
-          {renderSortableHeader('Category', 'category', 'left', !disableWrapper ? columnWidths.category : undefined)}
-          {renderSortableHeader('Amount', 'price', 'right', !disableWrapper ? columnWidths.amount : undefined)}
-          {!disableWrapper && (
-            <TableCell
-              style={{
-                ...widgetHeaderStyle,
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc',
-                width: columnWidths.installment
-              }}
-            >
-              Installment
-            </TableCell>
-          )}
-          {renderSortableHeader('Card', 'account_number', 'left', !disableWrapper ? columnWidths.card : undefined)}
-          {!disableWrapper && renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
-          {!disableWrapper && (
-            <TableCell
-              align="right"
-              style={{
-                ...widgetHeaderStyle,
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc',
-                width: columnWidths.actions
-              }}
-            >
-              Actions
-            </TableCell>
-          )}
+          {renderSortableHeader('Description', 'name', 'left', columnWidths.description)}
+          {renderSortableHeader('Category', 'category', 'left', columnWidths.category)}
+          {renderSortableHeader('Amount', 'price', 'right', columnWidths.amount)}
+
+          <TableCell
+            style={{
+              ...headerStyle,
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+              width: columnWidths.installment
+            }}
+          >
+            Installment
+          </TableCell>
+
+          {renderSortableHeader('Card', 'account_number', 'left', columnWidths.card)}
+          {renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
+
+          <TableCell
+            align="right"
+            style={{
+              ...headerStyle,
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+              width: columnWidths.actions
+            }}
+          >
+            Actions
+          </TableCell>
+
         </TableRow>
       </TableHead>
       <TableBody>
@@ -376,15 +376,15 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
               <TableRow sx={{
                 backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(241, 245, 249, 0.95)',
                 position: 'sticky',
-                top: disableWrapper ? 32 : 53, // Offset for the main header (approx heights)
+                top: 53, // Consistent top offset
                 zIndex: 9,
                 backdropFilter: 'blur(8px)'
               }}>
-                <TableCell colSpan={disableWrapper ? 4 : 7} sx={{
-                  padding: disableWrapper ? '4px 12px' : '8px 16px',
+                <TableCell colSpan={7} sx={{
+                  padding: '8px 16px',
                   fontWeight: 700,
                   color: theme.palette.text.primary,
-                  fontSize: disableWrapper ? '11px' : '13px',
+                  fontSize: '13px',
                   borderBottom: `1px solid ${theme.palette.divider}`,
                   backgroundColor: 'inherit'
                 }}>
@@ -564,8 +564,8 @@ const TransactionRow = ({
 }: TransactionRowProps) => {
   const cellStyle = {
     ...getTableBodyCellStyle(theme),
-    fontSize: isWidget ? '11px' : '0.875rem',
-    padding: isWidget ? '4px 8px' : '8px 16px'
+    fontSize: '0.875rem', // Consistent font size
+    padding: '8px 16px' // Consistent padding
   };
   return (
     <TableRow
@@ -703,74 +703,72 @@ const TransactionRow = ({
           })()
         )}
       </TableCell>
-      {!isWidget && (
-        <TableCell style={{ ...cellStyle, textAlign: 'center' }}>
-          {transaction.installments_total && transaction.installments_total > 1 ? (
-            <span style={{
-              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-              color: '#6366f1',
-              padding: '4px 8px',
-              borderRadius: '6px',
-              fontSize: '12px',
-              fontWeight: '500'
-            }}>
-              {transaction.installments_number}/{transaction.installments_total}
-            </span>
-          ) : (
-            <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
-          )}
-        </TableCell>
-      )}
+      <TableCell style={{ ...cellStyle, textAlign: 'center' }}>
+        {transaction.installments_total && transaction.installments_total > 1 ? (
+          <span style={{
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            color: '#6366f1',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: '500'
+          }}>
+            {transaction.installments_number}/{transaction.installments_total}
+          </span>
+        ) : (
+          <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
+        )}
+      </TableCell>
+
       <TableCell style={cellStyle}>
         <AccountDisplay transaction={transaction} premium={false} compact={isWidget} />
       </TableCell>
-      {!isWidget && (
-        <TableCell style={{ ...cellStyle, color: theme.palette.text.secondary }}>
-          {dateUtils.formatDate(transaction.date)}
-        </TableCell>
-      )}
-      {!isWidget && (
-        <TableCell align="right" style={cellStyle}>
-          {editingTransaction?.identifier === transaction.identifier ? (
-            <>
-              <IconButton
-                onClick={handleSaveClick}
-                sx={{ color: '#4ADE80' }}
-              >
-                <CheckIcon />
-              </IconButton>
-              <IconButton
-                onClick={handleCancelClick}
-                sx={{ color: '#ef4444' }}
-              >
-                <CloseIcon />
-              </IconButton>
-            </>
-          ) : (
-            <>
-              <IconButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRowClick(transaction);
-                  handleEditClick(transaction);
-                }}
-                sx={{ color: '#3b82f6' }}
-              >
-                <EditIcon />
-              </IconButton>
-              <IconButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmDeleteTransaction(transaction);
-                }}
-                sx={{ color: '#ef4444' }}
-              >
-                <DeleteIcon />
-              </IconButton>
-            </>
-          )}
-        </TableCell>
-      )}
+
+      <TableCell style={{ ...cellStyle, color: theme.palette.text.secondary }}>
+        {dateUtils.formatDate(transaction.date)}
+      </TableCell>
+
+
+      <TableCell align="right" style={cellStyle}>
+        {editingTransaction?.identifier === transaction.identifier ? (
+          <>
+            <IconButton
+              onClick={handleSaveClick}
+              sx={{ color: '#4ADE80' }}
+            >
+              <CheckIcon />
+            </IconButton>
+            <IconButton
+              onClick={handleCancelClick}
+              sx={{ color: '#ef4444' }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </>
+        ) : (
+          <>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRowClick(transaction);
+                handleEditClick(transaction);
+              }}
+              sx={{ color: '#3b82f6' }}
+            >
+              <EditIcon />
+            </IconButton>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfirmDeleteTransaction(transaction);
+              }}
+              sx={{ color: '#ef4444' }}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </>
+        )}
+      </TableCell>
     </TableRow>
   );
 };

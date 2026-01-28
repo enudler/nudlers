@@ -14,7 +14,8 @@ import {
   ListItemSecondaryAction,
   Avatar,
   Button,
-  LinearProgress
+  LinearProgress,
+  useMediaQuery
 } from '@mui/material';
 import { logger } from '../utils/client-logger';
 import { styled, keyframes } from '@mui/material/styles';
@@ -241,6 +242,7 @@ import { useStatus } from '../context/StatusContext';
 
 const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width, onWidthChange, onSyncSuccess }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { showNotification } = useNotification();
   const { syncStatus: status, refreshStatus: fetchStatus, setFullPolling } = useStatus();
   const loading = !status;
@@ -956,7 +958,12 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
       anchor="right"
       open={open}
       onClose={onClose}
+      variant={isMobile ? 'temporary' : 'persistent'}
       width={width}
+      ModalProps={{
+        keepMounted: true,
+        hideBackdrop: !isMobile,
+      }}
     >
       <ResizeHandle onMouseDown={handleMouseDown} />
       {/* Header */}
@@ -1005,6 +1012,11 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
             </Tooltip>
           )}
 
+          <Tooltip title="Close">
+            <IconButton onClick={onClose} size="small" sx={{ ml: 1 }}>
+              <CloseIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 

@@ -194,7 +194,7 @@ const LayoutContent: React.FC<{
             overflow: 'hidden',
             backgroundColor: 'var(--n-bg-main)',
             transition: 'margin-right 0.3s ease',
-            marginRight: isOpen && isDesktop ? `${DRAWER_WIDTH}px` : 0,
+            marginRight: isDesktop ? `${(isOpen ? DRAWER_WIDTH : 0) + (contextValue.syncDrawerOpen ? contextValue.syncDrawerWidth : 0)}px` : 0,
           }}
         >
           {/* Ambient Background Glows */}
