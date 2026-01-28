@@ -549,7 +549,7 @@ const TransactionRow = ({
 }: TransactionRowProps) => {
   const cellStyle = {
     ...getTableBodyCellStyle(theme),
-    fontSize: isWidget ? '11px' : '13px',
+    fontSize: isWidget ? '11px' : '0.875rem',
     padding: isWidget ? '4px 8px' : '8px 16px'
   };
   return (

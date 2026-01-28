@@ -23,8 +23,7 @@ interface BudgetWithSpending extends Budget {
 
 const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('he-IL', {
-        style: 'currency',
-        currency: 'ILS',
+        style: 'decimal',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
     }).format(amount);
@@ -135,13 +134,22 @@ const MinimalBudgetRow: React.FC<{
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                        <span style={{ fontWeight: 700, color: hasBudget && budget.is_over_budget ? theme.palette.error.main : theme.palette.text.primary }}>
-                            {formatCurrency(budget.actual_spent)}
-                        </span>
-                        {hasBudget ?
-                            <span style={{ opacity: 0.6, fontSize: '0.75em' }}> / {formatCurrency(budget.budget_limit)}</span> :
-                            <span style={{ opacity: 0.6, fontSize: '0.65em', marginLeft: '4px' }}> (spent)</span>
-                        }
+                        {hasBudget ? (
+                            <>
+                                <span style={{ fontWeight: 500, color: hasBudget && budget.is_over_budget ? theme.palette.error.main : theme.palette.text.primary }}>
+                                    ₪{formatCurrency(budget.actual_spent)}
+                                </span>
+                                <span style={{ opacity: 0.6, fontWeight: 500 }}> / </span>
+                                <span style={{ fontWeight: 700, opacity: 0.9 }}>₪{formatCurrency(budget.budget_limit)}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span style={{ fontWeight: 700, color: theme.palette.text.primary }}>
+                                    ₪{formatCurrency(budget.actual_spent)}
+                                </span>
+                                <span style={{ opacity: 0.6, fontSize: '0.85em', marginLeft: '4px' }}> (spent)</span>
+                            </>
+                        )}
                     </Typography>
 
                     {/* Edit Button */}

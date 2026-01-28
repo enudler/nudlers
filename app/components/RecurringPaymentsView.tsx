@@ -428,7 +428,7 @@ const RecurringPaymentsView: React.FC = () => {
                                         stickyHeader
                                         maxHeight="none"
                                         columns={[
-                                            { id: 'name', label: 'Description', sortable: true, format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
+                                            { id: 'name', label: 'Description', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
                                             { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
                                             {
                                                 id: 'category',
@@ -463,7 +463,7 @@ const RecurringPaymentsView: React.FC = () => {
                                                     return (
                                                         <Tooltip title={`${row.current_installment} of ${row.total_installments}`}>
                                                             <Box>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700 }}>{row.current_installment}/{row.total_installments}</Typography>
+                                                                <Typography variant="caption" sx={{ fontWeight: 600 }}>{row.current_installment}/{row.total_installments}</Typography>
                                                                 <Box sx={{ width: '60px', height: '6px', bgcolor: 'action.hover', borderRadius: 3, mx: 'auto', mt: 0.5, overflow: 'hidden' }}>
                                                                     <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: row.status === 'completed' ? 'success.main' : 'primary.main' }} />
                                                                 </Box>
@@ -472,7 +472,7 @@ const RecurringPaymentsView: React.FC = () => {
                                                     );
                                                 }
                                             },
-                                            { id: 'price', label: 'Monthly', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                            { id: 'price', label: 'Monthly', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 700, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
                                             { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => val ? formatDate(val) : 'Completed' },
                                             { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
                                         ]}
@@ -490,7 +490,7 @@ const RecurringPaymentsView: React.FC = () => {
                                         stickyHeader
                                         maxHeight="none"
                                         columns={[
-                                            { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
+                                            { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
                                             { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
                                             {
                                                 id: 'category',
@@ -516,9 +516,9 @@ const RecurringPaymentsView: React.FC = () => {
                                                     );
                                                 }
                                             },
-                                            { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                            { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 700, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
                                             { id: 'last_charge_date', label: 'Last Charge', align: 'center', sortable: true, format: (val) => formatDate(val) },
-                                            { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
+                                            { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 500 }}>{val}</span> },
                                             {
                                                 id: 'actions',
                                                 label: '',

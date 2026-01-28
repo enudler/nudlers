@@ -226,7 +226,7 @@ const Table = <T,>({
                                     {columns.map((column) => {
                                         const value = (row as any)[column.id];
                                         return (
-                                            <TableCell key={column.id} align={column.align || 'left'}>
+                                            <TableCell key={column.id} align={column.align || 'left'} sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
                                                 {column.format ? column.format(value, row) : value}
                                             </TableCell>
                                         );

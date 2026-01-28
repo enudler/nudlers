@@ -57,6 +57,7 @@ const handler = createApiHandler({
             ABS(ROUND(SUM(price))) AS value
           FROM unique_transactions
           GROUP BY category
+          HAVING ROUND(SUM(price)) != 0
           ORDER BY value DESC
         `,
         params: [billingCycle]
@@ -83,6 +84,7 @@ const handler = createApiHandler({
             ABS(ROUND(SUM(price))) AS value
           FROM unique_transactions
           GROUP BY category
+          HAVING ROUND(SUM(price)) != 0
           ORDER BY value DESC
         `,
         params: [startDate, endDate]
@@ -106,6 +108,7 @@ const handler = createApiHandler({
           ABS(ROUND(SUM(price))) AS value
         FROM unique_transactions
         GROUP BY category
+        HAVING ROUND(SUM(price)) != 0
         ORDER BY value DESC
       `,
       params: [month]

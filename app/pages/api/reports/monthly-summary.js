@@ -26,7 +26,10 @@ const handler = createApiHandler({
       try {
         const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
         if (settingsResult.rows.length > 0) {
-          billingStartDay = parseInt(settingsResult.rows[0].value);
+          const val = parseInt(settingsResult.rows[0].value);
+          if (!isNaN(val)) {
+            billingStartDay = val;
+          }
         }
       } finally {
         client.release();
@@ -104,6 +107,7 @@ const handler = createApiHandler({
         ${credentialJoin}
         ${whereClause}
         GROUP BY TRIM(t.name)
+        HAVING ROUND(COALESCE(SUM(t.price), 0)) != 0
         ORDER BY ${orderClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;

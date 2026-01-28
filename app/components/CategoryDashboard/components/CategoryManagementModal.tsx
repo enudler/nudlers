@@ -1393,21 +1393,21 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                       <Table size="small" stickyHeader>
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '12px' }}>Date</TableCell>
-                            <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '12px' }}>Amount</TableCell>
-                            <TableCell sx={{ fontWeight: 600, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '12px' }}>Card</TableCell>
+                            <TableCell sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '0.75rem' }}>Date</TableCell>
+                            <TableCell sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '0.75rem' }}>Amount</TableCell>
+                            <TableCell sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f1f5f9', color: theme.palette.text.secondary, fontSize: '0.75rem' }}>Card</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {quickTransactions.slice(0, 5).map((tx, idx) => (
                             <TableRow key={idx}>
-                              <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '12px' }}>
+                              <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '0.8125rem' }}>
                                 {formatQuickDate(tx.date)}
                               </TableCell>
-                              <TableCell sx={{ color: tx.price < 0 ? '#ef4444' : '#22c55e', fontWeight: 600, fontSize: '12px' }}>
+                              <TableCell sx={{ color: tx.price < 0 ? '#ef4444' : '#22c55e', fontWeight: 600, fontSize: '0.8125rem' }}>
                                 {formatQuickCurrency(Math.abs(tx.price))}
                               </TableCell>
-                              <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '12px' }}>
+                              <TableCell sx={{ color: theme.palette.text.secondary, fontSize: '0.8125rem' }}>
                                 {tx.vendor_nickname || tx.vendor}
                               </TableCell>
                             </TableRow>

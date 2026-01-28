@@ -44,7 +44,7 @@ const handler = createApiHandler({
     const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'date';
     const sortDir = sortOrder?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     const orderByClause = `ORDER BY t.${sortCol} ${sortDir}, t.identifier, t.vendor`;
-    const paginationClause = `LIMIT $${useDateRange || billingCycle ? 3 : 2} OFFSET $${useDateRange || billingCycle ? 4 : 3}`;
+
 
     // If billingCycle is provided, use consistent Logic
     let billingStartDay = 10;
@@ -56,12 +56,16 @@ const handler = createApiHandler({
       try {
         const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
         if (settingsResult.rows.length > 0) {
-          billingStartDay = parseInt(settingsResult.rows[0].value);
+          const val = parseInt(settingsResult.rows[0].value);
+          if (!isNaN(val)) {
+            billingStartDay = val;
+          }
         }
       } finally {
         client.release();
       }
-      effectiveMonthSql = getBillingCycleSql(billingStartDay, 'date', 'processed_date');
+      // Use table alias 't' to avoid ambiguity and ensure correct column reference
+      effectiveMonthSql = getBillingCycleSql(billingStartDay, 't.date', 't.processed_date');
     }
 
     if (all === "true") {
@@ -88,7 +92,7 @@ const handler = createApiHandler({
             ${credentialJoin}
             WHERE (${effectiveMonthSql}) = $1
             ${orderByClause}
-            ${paginationClause}
+            LIMIT $2 OFFSET $3
           `,
           params: [billingCycle, limitVal, offsetVal]
         };
@@ -141,7 +145,7 @@ const handler = createApiHandler({
           ${credentialJoin}
           WHERE TO_CHAR(t.date, 'YYYY-MM') = $1
           ${orderByClause}
-          ${paginationClause}
+          LIMIT $2 OFFSET $3
         `,
         params: [month, limitVal, offsetVal]
       };
