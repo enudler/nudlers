@@ -24,6 +24,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import SummarizeIcon from '@mui/icons-material/Summarize';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -52,8 +53,8 @@ const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false 
 
 
 interface ResponsiveAppBarProps {
-  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
-  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design') => void;
+  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
+  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown') => void;
 }
 
 
@@ -144,11 +145,14 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
   }, [desktopDrawerOpen, isMobile]);
 
   const viewMenuItems = [
+
     { label: 'Summary', icon: <SummarizeIcon />, view: 'summary' as const, color: 'var(--n-primary)' },
-    { label: 'Overview', icon: <DashboardIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
-    { label: 'Budget', icon: <SavingsIcon />, view: 'budget' as const, color: 'var(--n-primary)' },
-    { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
+    { label: 'Transactions', icon: <DashboardIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
+    { label: 'Breakdown', icon: <ViewListIcon />, view: 'breakdown' as const, color: 'var(--n-primary)' },
     { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: 'var(--n-primary)' },
+
+    { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
+
     { label: 'Chat', icon: <ForumIcon />, view: 'chat' as const, color: 'var(--n-primary)' },
   ];
 

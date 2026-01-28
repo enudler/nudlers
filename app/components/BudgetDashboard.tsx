@@ -30,6 +30,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import { useNotification } from './NotificationContext';
 import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
+import BudgetRow from './BudgetDashboard/BudgetRow';
 
 // Helper function removed (handled by context)
 
@@ -463,307 +464,206 @@ const BudgetDashboard: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Total Spend Budget - Prominent Feature Card */}
-            <div className={`n-card n-card-hover ${totalSpendBudget?.is_over_budget ? '' : 'n-glass'}`} style={{
-              background: totalSpendBudget?.is_over_budget
-                ? (theme.palette.mode === 'dark' ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)')
-                : 'var(--n-glass-bg)',
-              margin: '0 24px 24px',
-              border: totalSpendBudget?.is_over_budget
-                ? '2px solid var(--n-error)'
-                : '1px solid var(--n-border)',
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                position: 'absolute',
-                top: '-50px',
-                right: '-50px',
-                width: '200px',
-                height: '200px',
+            {/* Total Spend Budget - sleek hero row */}
+            <Box
+              className={`n-card n-card-hover ${totalSpendBudget?.is_over_budget ? '' : 'n-glass'}`}
+              sx={{
+                margin: '0 24px 24px',
+                border: totalSpendBudget?.is_over_budget ? '2px solid var(--n-error)' : '1px solid var(--n-border)',
                 background: totalSpendBudget?.is_over_budget
-                  ? 'radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%)'
-                  : 'radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%)',
-                borderRadius: '50%',
-                filter: 'blur(20px)'
-              }} />
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '16px',
-                      background: totalSpendBudget?.is_over_budget
-                        ? `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`
-                        : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
-                    }}>
-                      <SavingsIcon style={{ color: theme.palette.common.white, fontSize: '28px' }} />
-                    </div>
-                    <div>
-                      <h2 style={{
-                        margin: 0,
-                        fontSize: '20px',
-                        fontWeight: 700,
-                        color: theme.palette.text.primary
-                      }}>
-                        Total Credit Card Budget
-                      </h2>
-                      <p style={{ margin: '4px 0 0', color: theme.palette.text.secondary, fontSize: '13px' }}>
-                        Overall spending limit across all credit cards
-                      </p>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <IconButton
-                      size="small"
-                      onClick={handleOpenTotalBudgetModal}
-                      style={{
-                        color: theme.palette.primary.main,
-                        background: 'rgba(59, 130, 246, 0.1)',
-                        borderRadius: '12px'
-                      }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    {totalSpendBudget?.is_set && (
-                      <IconButton
-                        size="small"
-                        onClick={handleDeleteTotalBudget}
-                        style={{
-                          color: theme.palette.error.main,
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          borderRadius: '12px'
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                  </div>
-                </div>
+                  ? (theme.palette.mode === 'dark' ? 'linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, var(--n-bg-surface) 100%)' : 'linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, #fff 100%)')
+                  : 'var(--n-glass-bg)',
+                display: 'flex',
+                flexDirection: { xs: 'column', lg: 'row' },
+                alignItems: { xs: 'stretch', lg: 'center' },
+                gap: 3,
+                p: 3,
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 0 auto' }}>
+                <Box sx={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '16px',
+                  background: totalSpendBudget?.is_over_budget
+                    ? 'linear-gradient(135deg, var(--n-error) 0%, #b91c1c 100%)'
+                    : 'linear-gradient(135deg, var(--n-primary) 0%, var(--n-primary-hover) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                }}>
+                  <SavingsIcon sx={{ color: '#fff', fontSize: '32px' }} />
+                </Box>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--n-text-primary)', lineHeight: 1.2 }}>
+                    Total Credit Card Budget
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'var(--n-text-muted)', fontWeight: 600 }}>
+                    Overall limit across cards
+                  </Typography>
+                </Box>
+              </Box>
 
-                {totalSpendBudget?.is_set ? (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', marginBottom: '16px' }}>
-                      <div style={{
-                        fontSize: '36px',
-                        fontWeight: 700,
-                        color: totalSpendBudget.is_over_budget ? theme.palette.error.main : theme.palette.text.primary
-                      }}>
-                        {formatCurrency(totalSpendBudget.actual_spent || 0)}
-                      </div>
-                      <div style={{ fontSize: '18px', color: theme.palette.text.secondary, fontWeight: 500 }}>
-                        / {formatCurrency(totalSpendBudget.budget_limit || 0)}
-                      </div>
-                      {totalSpendBudget.is_over_budget && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          background: 'rgba(239, 68, 68, 0.15)',
-                          color: theme.palette.error.main,
-                          padding: '6px 12px',
-                          borderRadius: '20px',
-                          fontSize: '13px',
-                          fontWeight: 600
+              {totalSpendBudget?.is_set ? (
+                <>
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 0.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
+                        <Typography variant="h4" sx={{ fontWeight: 800, color: totalSpendBudget.is_over_budget ? 'var(--n-error)' : 'var(--n-text-primary)' }}>
+                          {formatCurrency(totalSpendBudget.actual_spent || 0)}
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: 'var(--n-text-muted)', fontWeight: 600 }}>
+                          / {formatCurrency(totalSpendBudget.budget_limit || 0)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{
+                          fontWeight: 800,
+                          color: (totalSpendBudget.remaining ?? 0) >= 0 ? 'var(--n-success)' : 'var(--n-error)'
                         }}>
-                          <WarningIcon style={{ fontSize: '16px' }} />
-                          Over Budget!
-                        </div>
-                      )}
-                    </div>
+                          {(totalSpendBudget.remaining ?? 0) >= 0
+                            ? `${formatCurrency(totalSpendBudget.remaining ?? 0)} left`
+                            : `${formatCurrency(Math.abs(totalSpendBudget.remaining ?? 0))} over`
+                          }
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'var(--n-text-muted)', fontWeight: 700 }}>
+                          {totalSpendBudget.percent_used?.toFixed(1)}% used
+                        </Typography>
+                      </Box>
+                    </Box>
+
                     <LinearProgress
                       variant="determinate"
                       value={Math.min(totalSpendBudget.percent_used || 0, 100)}
                       sx={{
-                        height: 12,
-                        borderRadius: 6,
-                        backgroundColor: 'rgba(148, 163, 184, 0.2)',
+                        height: 10,
+                        borderRadius: 5,
+                        bgcolor: 'var(--n-bg-surface-alt)',
                         '& .MuiLinearProgress-bar': {
-                          borderRadius: 6,
+                          borderRadius: 5,
                           background: totalSpendBudget.is_over_budget
-                            ? `linear-gradient(90deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`
+                            ? 'linear-gradient(90deg, var(--n-error) 0%, #b91c1c 100%)'
                             : (totalSpendBudget.percent_used ?? 0) >= 80
-                              ? `linear-gradient(90deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`
-                              : `linear-gradient(90deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
+                              ? 'linear-gradient(90deg, var(--n-warning) 0%, #d97706 100%)'
+                              : 'linear-gradient(90deg, var(--n-primary) 0%, var(--n-primary-hover) 100%)',
                         }
                       }}
                     />
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginTop: '12px',
-                      fontSize: '14px'
-                    }}>
-                      <span style={{
-                        color: (totalSpendBudget.remaining ?? 0) > 0 ? theme.palette.success.main : theme.palette.error.main,
-                        fontWeight: 600
-                      }}>
-                        {(totalSpendBudget.remaining ?? 0) >= 0
-                          ? `${formatCurrency(totalSpendBudget.remaining ?? 0)} remaining`
-                          : `${formatCurrency(Math.abs(totalSpendBudget.remaining ?? 0))} over`
-                        }
-                      </span>
-                      <span style={{
-                        color: totalSpendBudget.is_over_budget
-                          ? theme.palette.error.main
-                          : ((totalSpendBudget.percent_used ?? 0) >= 80
-                            ? theme.palette.warning.main
-                            : theme.palette.secondary.main),
-                        fontWeight: 600
-                      }}>
-                        {totalSpendBudget.percent_used?.toFixed(1)}% used
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '20px 0'
-                  }}>
-                    <p style={{ color: theme.palette.text.secondary, margin: '0 0 16px' }}>
-                      Set a total spending limit to track your overall credit card usage
-                    </p>
-                    <Button
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <IconButton
+                      size="small"
                       onClick={handleOpenTotalBudgetModal}
-                      variant="contained"
-                      startIcon={<AddIcon />}
                       sx={{
-                        background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
-                        borderRadius: '12px',
-                        padding: '10px 24px',
-                        fontWeight: 600,
-                        textTransform: 'none',
-                        '&:hover': {
-                          background: `linear-gradient(135deg, ${theme.palette.secondary.dark} 0%, ${theme.palette.secondary.main} 100%)`
-                        }
+                        color: 'var(--n-primary)',
+                        bgcolor: 'rgba(99, 102, 241, 0.1)',
+                        '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                       }}
                     >
-                      Set Total Budget
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={handleDeleteTotalBudget}
+                      sx={{
+                        color: 'var(--n-error)',
+                        bgcolor: 'rgba(239, 68, 68, 0.1)',
+                        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.2)' }
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </>
+              ) : (
+                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Button
+                    onClick={handleOpenTotalBudgetModal}
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    className="n-btn n-btn-primary"
+                    sx={{ borderRadius: '12px', textTransform: 'none' }}
+                  >
+                    Set Total Budget
+                  </Button>
+                </Box>
+              )}
+            </Box>
 
-            {/* Summary Cards */}
+            {/* Summary Row - Horizontal & Minimal */}
             <Box sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(auto-fit, minmax(280px, 1fr))' },
-              gap: { xs: '12px', md: '24px' },
-              marginBottom: { xs: '16px', md: '32px' },
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              gap: { xs: '12px', md: '20px' },
+              marginBottom: { xs: '24px', md: '32px' },
               padding: { xs: '0 8px', md: '0 24px' }
             }}>
-              {/* Category Budget Total Card */}
-              <div style={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                padding: '28px',
-                border: `1px solid ${theme.palette.divider}`,
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  <SavingsIcon style={{ color: theme.palette.primary.main, fontSize: '24px' }} />
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>Category Budgets Total</span>
-                </div>
-                <div style={{ fontSize: '32px', fontWeight: 700, color: theme.palette.text.primary }}>
-                  {formatCurrency(totalBudget)}
-                </div>
-                {budgetsWithSpending.length > 0 && (
-                  <div style={{ marginTop: '16px' }}>
-                    <LinearProgress
-                      variant="determinate"
-                      value={Math.min(totalPercentUsed, 100)}
-                      sx={{
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: 'rgba(148, 163, 184, 0.2)',
-                        '& .MuiLinearProgress-bar': {
-                          borderRadius: 4,
-                          backgroundColor: getProgressColor(totalPercentUsed)
-                        }
-                      }}
-                    />
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginTop: '8px',
-                      fontSize: '12px',
-                      color: theme.palette.text.secondary
-                    }}>
-                      <span>Spent: {formatCurrency(totalSpent)}</span>
-                      <span>{Math.round(totalPercentUsed)}%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Remaining Budget Card */}
-              <div style={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                padding: '28px',
-                border: `1px solid ${theme.palette.divider}`,
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  {totalRemaining >= 0 ? (
-                    <TrendingUpIcon style={{ color: theme.palette.success.main, fontSize: '24px' }} />
-                  ) : (
-                    <TrendingDownIcon style={{ color: theme.palette.error.main, fontSize: '24px' }} />
-                  )}
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>Remaining This Month</span>
-                </div>
-                <div style={{
-                  fontSize: '32px',
-                  fontWeight: 700,
-                  color: totalRemaining >= 0 ? theme.palette.success.main : theme.palette.error.main
-                }}>
-                  {formatCurrency(Math.abs(totalRemaining))}
-                  {totalRemaining < 0 && (
-                    <span style={{ fontSize: '16px', marginLeft: '8px' }}>over</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Status Card */}
-              <div style={{
-                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '24px',
-                padding: '28px',
-                border: `1px solid ${theme.palette.divider}`,
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  {overBudgetCount > 0 ? (
-                    <WarningIcon style={{ color: theme.palette.warning.main, fontSize: '24px' }} />
-                  ) : (
-                    <CheckCircleIcon style={{ color: theme.palette.success.main, fontSize: '24px' }} />
-                  )}
-                  <span style={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 600 }}>Status</span>
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: 600, color: theme.palette.text.primary }}>
-                  {overBudgetCount > 0 ? (
-                    <span style={{ color: theme.palette.warning.main }}>
-                      {overBudgetCount} {overBudgetCount === 1 ? 'category' : 'categories'} over budget
-                    </span>
-                  ) : budgets.length > 0 ? (
-                    <span style={{ color: theme.palette.success.main }}>All categories on track</span>
-                  ) : (
-                    <span style={{ color: theme.palette.text.secondary }}>No budgets set yet</span>
-                  )}
-                </div>
-                <div style={{ marginTop: '8px', fontSize: '14px', color: theme.palette.text.secondary }}>
-                  {budgets.length} budget{budgets.length !== 1 ? 's' : ''} configured
-                </div>
-              </div>
+              {[
+                {
+                  label: 'Category Budgets Total',
+                  value: totalBudget,
+                  icon: <SavingsIcon />,
+                  color: 'var(--n-primary)',
+                  subValue: `Spent: ${formatCurrency(totalSpent)} (${Math.round(totalPercentUsed)}%)`
+                },
+                {
+                  label: 'Remaining This Month',
+                  value: Math.abs(totalRemaining),
+                  icon: totalRemaining >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />,
+                  color: totalRemaining >= 0 ? 'var(--n-success)' : 'var(--n-error)',
+                  subValue: totalRemaining < 0 ? 'Over limit' : 'Under limit'
+                },
+                {
+                  label: 'Status',
+                  value: overBudgetCount > 0 ? `${overBudgetCount} Over` : 'On Track',
+                  icon: overBudgetCount > 0 ? <WarningIcon /> : <CheckCircleIcon />,
+                  color: overBudgetCount > 0 ? 'var(--n-warning)' : 'var(--n-success)',
+                  subValue: `${budgets.length} budgets set`,
+                  isText: true
+                }
+              ].map((item, idx) => (
+                <Box
+                  key={idx}
+                  className="n-glass"
+                  sx={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    p: 2.5,
+                    borderRadius: 'var(--n-radius-xl)',
+                    border: '1px solid var(--n-border)'
+                  }}
+                >
+                  <Box sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: `${item.color}15`,
+                    color: item.color
+                  }}>
+                    {item.icon}
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'var(--n-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {item.label}
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 800, color: item.isText ? item.color : 'var(--n-text-primary)' }}>
+                      {item.isText ? item.value : formatCurrency(item.value as number)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--n-text-muted)', fontWeight: 600 }}>
+                      {item.subValue}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
             </Box>
 
 
@@ -771,113 +671,46 @@ const BudgetDashboard: React.FC = () => {
             {/* Budget List */}
             {budgets.length > 0 ? (
               <Box sx={{ padding: { xs: '0 8px', md: '0 24px' }, marginBottom: { xs: '16px', md: '32px' } }}>
-                <Box component="h2" sx={{
-                  fontSize: { xs: '16px', md: '18px' },
-                  fontWeight: 700,
-                  color: theme.palette.text.secondary,
-                  marginBottom: { xs: '12px', md: '20px' },
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <SavingsIcon style={{ fontSize: '20px' }} />
-                  Budget Limits
-                </Box>
                 <Box sx={{
-                  display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(auto-fill, minmax(360px, 1fr))' },
-                  gap: { xs: '12px', md: '20px' }
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: { xs: '12px', md: '20px' }
+                }}>
+                  <Box sx={{
+                    fontSize: { xs: '16px', md: '18px' },
+                    fontWeight: 700,
+                    color: 'var(--n-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <SavingsIcon style={{ fontSize: '20px' }} />
+                    Budget Limits
+                  </Box>
+                  <Typography variant="caption" sx={{ color: 'var(--n-text-muted)', fontWeight: 600 }}>
+                    {budgets.length} categories
+                  </Typography>
+                </Box>
+
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
                 }}>
                   {budgetsWithSpending.map((budget) => (
-                    <div
+                    <BudgetRow
                       key={budget.id}
-                      style={{
-                        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(20px)',
-                        borderRadius: '20px',
-                        padding: '24px',
-                        border: `2px solid ${budget.is_over_budget ? (theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)') : theme.palette.divider}`,
-                        boxShadow: budget.is_over_budget
-                          ? '0 4px 16px rgba(239, 68, 68, 0.1)'
-                          : '0 4px 16px rgba(0, 0, 0, 0.04)',
-                        transition: 'all 0.3s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                        <div>
-                          <h3 style={{
-                            margin: 0,
-                            fontSize: '18px',
-                            fontWeight: 600,
-                            color: theme.palette.text.primary
-                          }}>
-                            {budget.category}
-                          </h3>
-                          <div style={{
-                            fontSize: '24px',
-                            fontWeight: 700,
-                            color: getProgressColor(budget.percent_used),
-                            marginTop: '4px'
-                          }}>
-                            {formatCurrency(budget.actual_spent)}
-                            <span style={{ fontSize: '14px', color: theme.palette.text.secondary, fontWeight: 500 }}>
-                              {' '}/ {formatCurrency(budget.budget_limit)}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEditBudget(budget)}
-                            style={{ color: theme.palette.text.secondary }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteBudget(budget.id)}
-                            style={{ color: theme.palette.error.main }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </div>
-                      </div>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(budget.percent_used, 100)}
-                        sx={{
-                          height: 10,
-                          borderRadius: 5,
-                          backgroundColor: 'rgba(148, 163, 184, 0.2)',
-                          '& .MuiLinearProgress-bar': {
-                            borderRadius: 5,
-                            backgroundColor: getProgressColor(budget.percent_used)
-                          }
-                        }}
-                      />
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginTop: '12px',
-                        fontSize: '13px'
-                      }}>
-                        <span style={{
-                          color: budget.remaining >= 0 ? theme.palette.success.main : theme.palette.error.main,
-                          fontWeight: 600
-                        }}>
-                          {budget.remaining >= 0
-                            ? `${formatCurrency(budget.remaining)} left`
-                            : `${formatCurrency(Math.abs(budget.remaining))} over`
-                          }
-                        </span>
-                        <span style={{
-                          color: getProgressColor(budget.percent_used),
-                          fontWeight: 600
-                        }}>
-                          {budget.percent_used}%
-                        </span>
-                      </div>
-                    </div>
+                      category={budget.category}
+                      limit={budget.budget_limit}
+                      spent={budget.actual_spent}
+                      remaining={budget.remaining}
+                      percentUsed={budget.percent_used}
+                      isOverBudget={budget.is_over_budget}
+                      onEdit={() => handleEditBudget(budget)}
+                      onDelete={() => handleDeleteBudget(budget.id)}
+                      formatCurrency={formatCurrency}
+                    />
                   ))}
                 </Box>
               </Box>

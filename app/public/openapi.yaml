@@ -47,6 +47,7 @@ paths:
       description: |
         Retrieve transactions with optional filtering by type, date range, vendor, etc.
         Default returns all transactions (both bank and credit card).
+        Ordered by date DESC (newest first).
       parameters:
         - name: transactionType
           in: query

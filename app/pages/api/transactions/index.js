@@ -179,7 +179,7 @@ const getTransactions = createApiHandler({
 
         return {
             sql: `
-        SELECT DISTINCT ON (t.identifier, t.vendor)
+        SELECT 
           t.identifier,
           t.vendor,
           t.date,
@@ -206,7 +206,7 @@ const getTransactions = createApiHandler({
         LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
         LEFT JOIN vendor_credentials ba ON ba.id = ${bankAccountId && bankAccountId !== 'null' ? `$${params.indexOf(parseInt(bankAccountId)) + 1}` : 'NULL'}
         ${whereClause}
-        ORDER BY t.identifier, t.vendor, t.date DESC
+        ORDER BY t.date DESC, t.identifier, t.vendor
         LIMIT ${limitParam}
         OFFSET ${offsetParam}
       `,

@@ -134,7 +134,7 @@ describe('Monthly Summary API Endpoint', () => {
 
             const [sql, params] = mockClient.query.mock.calls[0];
             // StartDate/EndDate are $1/$2, so LIMIT/OFFSET are $3/$4
-            expect(sql).toContain('ORDER BY ABS(COALESCE(SUM(t.price), 0)) DESC, t.name ASC');
+            expect(sql).toContain('ORDER BY ABS(SUM(t.price)) DESC, LOWER(TRIM(t.name)) ASC');
             expect(sql).toContain('LIMIT $3 OFFSET $4');
             expect(params).toContain(50);
             expect(params).toContain(0);

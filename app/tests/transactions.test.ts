@@ -150,6 +150,19 @@ describe('Transactions API Endpoint', () => {
             expect(params).toEqual(['2023-01-01', '2023-01-31', 'visaCal', 100, 0]);
         });
 
+        it('should order by date DESC by default', async () => {
+            mockReq = {
+                method: 'GET',
+                query: { startDate: '2023-01-01', endDate: '2023-01-31' }
+            };
+            mockClient.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+            await handler(mockReq, mockRes);
+
+            const [sql] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('ORDER BY t.date DESC, t.identifier, t.vendor');
+        });
+
         it('should validate invalid transactionType', async () => {
             mockReq = {
                 method: 'GET',

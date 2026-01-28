@@ -38,9 +38,10 @@ export interface TransactionsTableProps {
   onDelete?: (transaction: Transaction) => void;
   onUpdate?: (transaction: Transaction, newPrice: number, newCategory?: string) => void;
   groupByDate?: boolean;
+  disableWrapper?: boolean;
 }
 
-const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, groupByDate }) => {
+const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isLoading, onDelete, onUpdate, groupByDate, disableWrapper }) => {
   const theme = useTheme();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
@@ -255,97 +256,137 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({ transactions, isL
     );
   }
 
+  const tableHeaderBaseStyle = getTableHeaderCellStyle(theme);
+  const widgetHeaderStyle = disableWrapper ? { ...tableHeaderBaseStyle, fontSize: '0.7rem', padding: '8px 12px' } : tableHeaderBaseStyle;
+
+  const Content = (
+    <Table
+      onClick={handleTableClick}
+      size={disableWrapper ? "small" : "medium"}
+    >
+      <TableHead>
+        <TableRow>
+          <TableCell style={widgetHeaderStyle}>Description</TableCell>
+          <TableCell style={widgetHeaderStyle}>Category</TableCell>
+          <TableCell align="right" style={widgetHeaderStyle}>Amount</TableCell>
+          {!disableWrapper && <TableCell style={widgetHeaderStyle}>Installment</TableCell>}
+          <TableCell style={widgetHeaderStyle}>Card</TableCell>
+          {!disableWrapper && <TableCell style={widgetHeaderStyle}>Date</TableCell>}
+          {!disableWrapper && <TableCell align="right" style={widgetHeaderStyle}>Actions</TableCell>}
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {groupByDate ? (
+          sortedDates.map(date => (
+            <React.Fragment key={date}>
+              <TableRow sx={{
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.9)' : 'rgba(241, 245, 249, 0.9)',
+              }}>
+                <TableCell colSpan={disableWrapper ? 4 : 7} sx={{
+                  padding: disableWrapper ? '4px 12px' : '8px 16px',
+                  fontWeight: 700,
+                  color: theme.palette.text.primary,
+                  fontSize: disableWrapper ? '11px' : '13px',
+                  borderBottom: `1px solid ${theme.palette.divider}`
+                }}>
+                  {formatDateHeader(date)}
+                </TableCell>
+              </TableRow>
+              {groupedTransactions[date].map((transaction, index) => (
+                <TransactionRow
+                  key={`${transaction.identifier}-${index}`}
+                  transaction={transaction}
+                  theme={theme}
+                  editingTransaction={editingTransaction}
+                  editCategory={editCategory}
+                  setEditCategory={setEditCategory}
+                  availableCategories={availableCategories}
+                  applyToAll={applyToAll}
+                  setApplyToAll={setApplyToAll}
+                  handleRowClick={handleRowClick}
+                  handleEditClick={handleEditClick}
+                  editPrice={editPrice}
+                  setEditPrice={setEditPrice}
+                  handleSaveClick={handleSaveClick}
+                  handleCancelClick={handleCancelClick}
+                  setConfirmDeleteTransaction={setConfirmDeleteTransaction}
+                  getCardVendor={getCardVendor}
+                  getCardNickname={getCardNickname}
+                  isWidget={disableWrapper}
+                />
+              ))}
+            </React.Fragment>
+          ))
+        ) : (
+          transactions.map((transaction, index) => (
+            <TransactionRow
+              key={index}
+              transaction={transaction}
+              theme={theme}
+              editingTransaction={editingTransaction}
+              editCategory={editCategory}
+              setEditCategory={setEditCategory}
+              availableCategories={availableCategories}
+              applyToAll={applyToAll}
+              setApplyToAll={setApplyToAll}
+              handleRowClick={handleRowClick}
+              handleEditClick={handleEditClick}
+              editPrice={editPrice}
+              setEditPrice={setEditPrice}
+              handleSaveClick={handleSaveClick}
+              handleCancelClick={handleCancelClick}
+              setConfirmDeleteTransaction={setConfirmDeleteTransaction}
+              getCardVendor={getCardVendor}
+              getCardNickname={getCardNickname}
+              isWidget={disableWrapper}
+            />
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+
+  if (disableWrapper) {
+    return (
+      <Box sx={{ width: '100%', overflow: 'hidden' }}>
+        {Content}
+        {/* Snackbar and Dialog still needed */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={5000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setSnackbar({ ...snackbar, open: false })}
+            severity={snackbar.severity}
+            sx={{ borderRadius: '12px' }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+        <DeleteConfirmationDialog
+          open={!!confirmDeleteTransaction}
+          onClose={() => setConfirmDeleteTransaction(null)}
+          onConfirm={handleDeleteClick}
+          transaction={confirmDeleteTransaction}
+        />
+      </Box>
+    );
+  }
+
   return (
     <Paper sx={{
       width: '100%',
       overflow: 'hidden',
       borderRadius: '24px',
       background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
-      backdropFilter: 'blur(20px)',
+      backdropFilter: 'blur(8px)',
       boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
       border: `1px solid ${theme.palette.divider}`
     }}>
-      <Table
-        onClick={handleTableClick}
-      >
-        <TableHead>
-          <TableRow>
-            <TableCell style={getTableHeaderCellStyle(theme)}>Description</TableCell>
-            <TableCell style={getTableHeaderCellStyle(theme)}>Category</TableCell>
-            <TableCell align="right" style={getTableHeaderCellStyle(theme)}>Amount</TableCell>
-            <TableCell style={getTableHeaderCellStyle(theme)}>Installment</TableCell>
-            <TableCell style={getTableHeaderCellStyle(theme)}>Card</TableCell>
-            <TableCell style={getTableHeaderCellStyle(theme)}>Date</TableCell>
-            <TableCell align="right" style={getTableHeaderCellStyle(theme)}>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {groupByDate ? (
-            sortedDates.map(date => (
-              <React.Fragment key={date}>
-                <TableRow sx={{
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.9)' : 'rgba(241, 245, 249, 0.9)',
-                }}>
-                  <TableCell colSpan={7} sx={{
-                    padding: '8px 16px',
-                    fontWeight: 700,
-                    color: theme.palette.text.primary,
-                    fontSize: '13px',
-                    borderBottom: `1px solid ${theme.palette.divider}`
-                  }}>
-                    {formatDateHeader(date)}
-                  </TableCell>
-                </TableRow>
-                {groupedTransactions[date].map((transaction, index) => (
-                  <TransactionRow
-                    key={`${transaction.identifier}-${index}`}
-                    transaction={transaction}
-                    theme={theme}
-                    editingTransaction={editingTransaction}
-                    editCategory={editCategory}
-                    setEditCategory={setEditCategory}
-                    availableCategories={availableCategories}
-                    applyToAll={applyToAll}
-                    setApplyToAll={setApplyToAll}
-                    handleRowClick={handleRowClick}
-                    handleEditClick={handleEditClick}
-                    editPrice={editPrice}
-                    setEditPrice={setEditPrice}
-                    handleSaveClick={handleSaveClick}
-                    handleCancelClick={handleCancelClick}
-                    setConfirmDeleteTransaction={setConfirmDeleteTransaction}
-                    getCardVendor={getCardVendor}
-                    getCardNickname={getCardNickname}
-                  />
-                ))}
-              </React.Fragment>
-            ))
-          ) : (
-            transactions.map((transaction, index) => (
-              <TransactionRow
-                key={index}
-                transaction={transaction}
-                theme={theme}
-                editingTransaction={editingTransaction}
-                editCategory={editCategory}
-                setEditCategory={setEditCategory}
-                availableCategories={availableCategories}
-                applyToAll={applyToAll}
-                setApplyToAll={setApplyToAll}
-                handleRowClick={handleRowClick}
-                handleEditClick={handleEditClick}
-                editPrice={editPrice}
-                setEditPrice={setEditPrice}
-                handleSaveClick={handleSaveClick}
-                handleCancelClick={handleCancelClick}
-                setConfirmDeleteTransaction={setConfirmDeleteTransaction}
-                getCardVendor={getCardVendor}
-                getCardNickname={getCardNickname}
-              />
-            ))
-          )}
-        </TableBody>
-      </Table>
+      {Content}
+
 
       {/* Snackbar for feedback messages */}
       <Snackbar
@@ -398,6 +439,7 @@ interface TransactionRowProps {
   setConfirmDeleteTransaction: (t: Transaction) => void;
   getCardVendor: (accountNumber: string | undefined | null) => string | null;
   getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
+  isWidget?: boolean;
 }
 
 const TransactionRow = ({
@@ -417,8 +459,14 @@ const TransactionRow = ({
   handleCancelClick,
   setConfirmDeleteTransaction,
   getCardVendor,
-  getCardNickname
+  getCardNickname,
+  isWidget
 }: TransactionRowProps) => {
+  const cellStyle = {
+    ...getTableBodyCellStyle(theme),
+    fontSize: isWidget ? '11px' : '13px',
+    padding: isWidget ? '4px 8px' : '8px 16px'
+  };
   return (
     <TableRow
       onClick={() => handleRowClick(transaction)}
@@ -430,10 +478,10 @@ const TransactionRow = ({
         e.currentTarget.style.background = 'transparent';
       }}
     >
-      <TableCell style={getTableBodyCellStyle(theme)}>
+      <TableCell style={cellStyle}>
         {transaction.name}
       </TableCell>
-      <TableCell style={getTableBodyCellStyle(theme)}>
+      <TableCell style={cellStyle}>
         {editingTransaction?.identifier === transaction.identifier ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <CategoryAutocomplete
@@ -458,7 +506,7 @@ const TransactionRow = ({
               backgroundColor: 'rgba(59, 130, 246, 0.1)',
               color: '#3b82f6',
               fontWeight: '400',
-              fontSize: '13px'
+              fontSize: isWidget ? '10px' : '13px'
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -481,7 +529,7 @@ const TransactionRow = ({
       <TableCell
         align="right"
         style={{
-          ...getTableBodyCellStyle(theme),
+          ...cellStyle,
           color: transaction.price < 0 ? '#ef4444' : '#10b981',
           fontWeight: 600
         }}
@@ -549,68 +597,74 @@ const TransactionRow = ({
           })()
         )}
       </TableCell>
-      <TableCell style={{ ...getTableBodyCellStyle(theme), textAlign: 'center' }}>
-        {transaction.installments_total && transaction.installments_total > 1 ? (
-          <span style={{
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            color: '#6366f1',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontWeight: '500'
-          }}>
-            {transaction.installments_number}/{transaction.installments_total}
-          </span>
-        ) : (
-          <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
-        )}
+      {!isWidget && (
+        <TableCell style={{ ...cellStyle, textAlign: 'center' }}>
+          {transaction.installments_total && transaction.installments_total > 1 ? (
+            <span style={{
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              color: '#6366f1',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}>
+              {transaction.installments_number}/{transaction.installments_total}
+            </span>
+          ) : (
+            <span style={{ color: theme.palette.text.disabled, fontSize: '12px' }}>—</span>
+          )}
+        </TableCell>
+      )}
+      <TableCell style={cellStyle}>
+        <AccountDisplay transaction={transaction} premium={false} compact={isWidget} />
       </TableCell>
-      <TableCell style={{ ...getTableBodyCellStyle(theme), fontSize: '12px' }}>
-        <AccountDisplay transaction={transaction} premium={false} />
-      </TableCell>
-      <TableCell style={{ ...getTableBodyCellStyle(theme), color: theme.palette.text.secondary }}>
-        {dateUtils.formatDate(transaction.date)}
-      </TableCell>
-      <TableCell align="right" style={getTableBodyCellStyle(theme)}>
-        {editingTransaction?.identifier === transaction.identifier ? (
-          <>
-            <IconButton
-              onClick={handleSaveClick}
-              sx={{ color: '#4ADE80' }}
-            >
-              <CheckIcon />
-            </IconButton>
-            <IconButton
-              onClick={handleCancelClick}
-              sx={{ color: '#ef4444' }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </>
-        ) : (
-          <>
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRowClick(transaction);
-                handleEditClick(transaction);
-              }}
-              sx={{ color: '#3b82f6' }}
-            >
-              <EditIcon />
-            </IconButton>
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmDeleteTransaction(transaction);
-              }}
-              sx={{ color: '#ef4444' }}
-            >
-              <DeleteIcon />
-            </IconButton>
-          </>
-        )}
-      </TableCell>
+      {!isWidget && (
+        <TableCell style={{ ...cellStyle, color: theme.palette.text.secondary }}>
+          {dateUtils.formatDate(transaction.date)}
+        </TableCell>
+      )}
+      {!isWidget && (
+        <TableCell align="right" style={cellStyle}>
+          {editingTransaction?.identifier === transaction.identifier ? (
+            <>
+              <IconButton
+                onClick={handleSaveClick}
+                sx={{ color: '#4ADE80' }}
+              >
+                <CheckIcon />
+              </IconButton>
+              <IconButton
+                onClick={handleCancelClick}
+                sx={{ color: '#ef4444' }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRowClick(transaction);
+                  handleEditClick(transaction);
+                }}
+                sx={{ color: '#3b82f6' }}
+              >
+                <EditIcon />
+              </IconButton>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmDeleteTransaction(transaction);
+                }}
+                sx={{ color: '#ef4444' }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </>
+          )}
+        </TableCell>
+      )}
     </TableRow>
   );
 };
