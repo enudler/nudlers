@@ -1,6 +1,14 @@
 import { getDB } from "../db";
 import logger from '../../../utils/logger.js';
 
+/**
+ * Card Vendors Collection
+ *
+ * GET /api/cards - Get all unique card endings from transactions with their vendor mappings
+ * POST /api/cards - Create or update a card vendor mapping
+ *
+ * For individual card operations (GET/PUT/DELETE by last4_digits), use /api/cards/{last4_digits}
+ */
 export default async function handler(req, res) {
   const client = await getDB();
 
@@ -10,17 +18,17 @@ export default async function handler(req, res) {
       // Also include card ownership and bank account information
       const result = await client.query(`
         WITH unique_cards AS (
-          SELECT DISTINCT 
+          SELECT DISTINCT
             RIGHT(account_number, 4) as last4_digits,
             COUNT(*) as transaction_count
           FROM transactions
-          WHERE account_number IS NOT NULL 
+          WHERE account_number IS NOT NULL
             AND account_number != ''
             AND LENGTH(account_number) >= 4
             AND (transaction_type IS NULL OR transaction_type != 'bank')
           GROUP BY RIGHT(account_number, 4)
         )
-        SELECT 
+        SELECT
           uc.last4_digits,
           uc.transaction_count,
           cv.card_vendor,
@@ -54,8 +62,8 @@ export default async function handler(req, res) {
       const result = await client.query(
         `INSERT INTO card_vendors (last4_digits, card_vendor, card_nickname, updated_at)
          VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-         ON CONFLICT (last4_digits) 
-         DO UPDATE SET 
+         ON CONFLICT (last4_digits)
+         DO UPDATE SET
            card_vendor = EXCLUDED.card_vendor,
            card_nickname = EXCLUDED.card_nickname,
            updated_at = CURRENT_TIMESTAMP
@@ -63,28 +71,13 @@ export default async function handler(req, res) {
         [last4_digits, card_vendor, card_nickname || null]
       );
 
-      res.status(200).json(result.rows[0]);
-    } else if (req.method === "DELETE") {
-      // Delete a card vendor mapping
-      const { last4_digits } = req.body;
-
-      if (!last4_digits) {
-        return res.status(400).json({ error: "last4_digits is required" });
-      }
-
-      await client.query(
-        "DELETE FROM card_vendors WHERE last4_digits = $1",
-        [last4_digits]
-      );
-
-      res.status(200).json({ success: true });
+      res.status(201).json(result.rows[0]);
     } else {
-      res.setHeader("Allow", ["GET", "POST", "DELETE"]);
-      res.status(405).end(`Method ${req.method} Not Allowed`);
+      res.setHeader("Allow", ["GET", "POST"]);
+      res.status(405).json({ error: `Method ${req.method} Not Allowed. Use /api/cards/{last4_digits} for DELETE` });
     }
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, "Error in card_vendors API");
-    // Debug logging handled by pino logger above
     res.status(500).json({ error: "Internal Server Error", details: error.message });
   } finally {
     client.release();

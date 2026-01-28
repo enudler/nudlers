@@ -3,14 +3,20 @@ info:
   title: Nudlers Finance API
   description: |
     API for managing personal finance transactions, budgets, and bank/credit card scraping.
-    
+
     ## Transaction Types
     Transactions can be of two types:
     - `credit_card` - Credit card transactions from vendors like visaCal, max, isracard, amex
     - `bank` - Bank account transactions from vendors like hapoalim, leumi, mizrahi, discount
-    
+
     Use the `transactionType` query parameter to filter transactions by type.
-  version: 1.0.0
+
+    ## RESTful Design
+    This API follows RESTful conventions:
+    - Collection endpoints use GET (list) and POST (create)
+    - Resource endpoints use GET (read), PUT/PATCH (update), and DELETE (remove)
+    - Path parameters identify specific resources
+  version: 1.1.0
   contact:
     name: Nudlers
   license:
@@ -31,12 +37,20 @@ tags:
     description: Bank and credit card scraping
   - name: Credentials
     description: Account credentials management
+  - name: Cards
+    description: Card vendor mapping management
   - name: Settings
     description: Application settings
   - name: Reports
     description: Financial reports and summaries
+  - name: Chat
+    description: AI chat assistant
   - name: WhatsApp
     description: WhatsApp notification service
+  - name: Debug
+    description: Debug and diagnostic tools
+  - name: Maintenance
+    description: Database maintenance operations
 
 paths:
   /transactions:
@@ -67,6 +81,11 @@ paths:
           schema:
             type: string
             format: date
+        - name: billingCycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
         - name: vendor
           in: query
           description: Filter by vendor
@@ -82,6 +101,27 @@ paths:
           description: Filter by category
           schema:
             type: string
+        - name: description
+          in: query
+          description: Filter by transaction description (exact match)
+          schema:
+            type: string
+        - name: last4digits
+          in: query
+          description: Filter by last 4 digits of card
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Search query (searches name, vendor, category, identifier)
+          schema:
+            type: string
+        - name: uncategorizedOnly
+          in: query
+          description: Only return uncategorized transactions
+          schema:
+            type: boolean
+            default: false
         - name: limit
           in: query
           description: Maximum number of results
@@ -103,6 +143,39 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags:
+        - Transactions
+      summary: Delete all transactions
+      description: Delete all transactions (requires confirmation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirm
+              properties:
+                confirm:
+                  type: boolean
+                  description: Must be true to confirm deletion
+      responses:
+        '200':
+          description: Transactions deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  deleted:
+                    type: integer
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -193,10 +266,10 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-
-
   /accounts:
     get:
+      tags:
+        - Credentials
       summary: List all accounts
       description: Returns a list of all bank and credit card accounts with their latest balances.
       responses:
@@ -207,556 +280,7 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    vendor:
-                      type: string
-                    account_number:
-                      type: string
-                    balance:
-                      type: number
-                      nullable: true
-                    balance_updated_at:
-                      type: string
-                      format: date-time
-                      nullable: true
-                    nickname:
-                      type: string
-                    credential:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                        vendor:
-                          type: string
-                        nickname:
-                          type: string
-
-  /reports/monthly-summary:
-    get:
-      tags:
-        - Reports
-      summary: Get monthly summary
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: billingCycle
-          in: query
-          description: Billing cycle (YYYY-MM)
-          schema:
-            type: string
-        - name: vendor
-          in: query
-          schema:
-            type: string
-        - name: groupBy
-          in: query
-          description: Group results by
-          schema:
-            type: string
-            enum: [description, last4digits]
-        - name: excludeBankTransactions
-          in: query
-          description: When true, filters out transactions originating from known bank vendors (e.g. hapoalim, leumi). Useful for isolating card-only expenses.
-          schema:
-            type: boolean
-            default: false
-        - name: sortBy
-          in: query
-          description: Field to sort by
-          schema:
-            type: string
-            enum: [name, count, card_expenses]
-            default: card_expenses
-        - name: sortOrder
-          in: query
-          description: Sort direction
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-        - name: limit
-          in: query
-          description: Maximum number of results
-          schema:
-            type: integer
-            default: 50
-        - name: offset
-          in: query
-          description: Pagination offset
-          schema:
-            type: integer
-            default: 0
-      responses:
-        '200':
-          description: Monthly summary data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total:
-                    type: integer
-                    description: Total number of items matching the filter
-                  items:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        bank_income:
-                          type: number
-                        bank_expenses:
-                          type: number
-                        card_expenses:
-                          type: number
-                        net_balance:
-                          type: number
-
-  /reports/budget-vs-actual:
-    get:
-      tags:
-        - Reports
-      summary: Compare budget vs actual spending
-      parameters:
-        - name: cycle
-          in: query
-          description: Billing cycle (YYYY-MM)
-          schema:
-            type: string
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: Budget vs actual comparison
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    category:
-                      type: string
-                    budget_limit:
-                      type: number
-                    actual_spent:
-                      type: number
-                    remaining:
-                      type: number
-
-  /reports/daily-spending:
-    get:
-      tags:
-        - Reports
-      summary: Get daily spending data
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: cycle
-          in: query
-          description: Billing cycle (YYYY-MM)
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Daily spending data
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    date:
-                      type: string
-                      format: date
-                    total:
-                      type: number
-
-  /reports/category-expenses:
-    get:
-      tags:
-        - Reports
-      summary: Get expenses by category
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: Category expenses
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    category:
-                      type: string
-                    total:
-                      type: number
-                    count:
-                      type: integer
-
-  /reports/recurring-payments:
-    get:
-      tags:
-        - Reports
-      summary: Get recurring payments (installments and smart subscriptions)
-      description: |
-        Returns paginated lists of installment transactions and detected recurring payments.
-
-        **Sorting defaults:**
-        - Installments: active first (status), then by amount descending
-        - Recurring: by monthly amount descending
-      parameters:
-        - name: type
-          in: query
-          description: Filter by payment type
-          schema:
-            type: string
-            enum: [all, installments, recurring]
-            default: all
-        - name: status
-          in: query
-          description: Filter installments by status (only applies when type is 'installments' or 'all')
-          schema:
-            type: string
-            enum: [all, active, completed]
-            default: all
-        - name: frequency
-          in: query
-          description: Filter recurring payments by frequency (only applies when type is 'recurring' or 'all')
-          schema:
-            type: string
-            enum: [all, monthly, bi-monthly]
-            default: all
-        - name: limit
-          in: query
-          description: Maximum number of results per type (max 500)
-          schema:
-            type: integer
-            default: 50
-            minimum: 1
-            maximum: 500
-        - name: offset
-          in: query
-          description: Pagination offset
-          schema:
-            type: integer
-            default: 0
-            minimum: 0
-        - name: sortBy
-          in: query
-          description: |
-            Field to sort by. Available options depend on type:
-            - Installments: status, amount, next_payment_date, name
-            - Recurring: amount, frequency, month_count, last_charge_date, next_payment_date, name
-          schema:
-            type: string
-            enum: [status, amount, next_payment_date, name, frequency, month_count, last_charge_date]
-        - name: sortOrder
-          in: query
-          description: Sort direction
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-      responses:
-        '200':
-          description: List of recurring payments and active installments with pagination info
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  installments:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/InstallmentDetail'
-                  recurring:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/RecurringPaymentDetail'
-                  pagination:
-                    type: object
-                    properties:
-                      limit:
-                        type: integer
-                        description: Maximum number of results per type
-                      offset:
-                        type: integer
-                        description: Pagination offset
-                      totalInstallments:
-                        type: integer
-                        description: Total count of installments matching filters
-                      totalRecurring:
-                        type: integer
-                        description: Total count of recurring payments matching filters
-                      total:
-                        type: integer
-                        description: Combined total count
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /reports/non-recurring-exclusions:
-    get:
-      tags:
-        - Reports
-      summary: List non-recurring exclusions
-      description: Returns a list of all transactions marked as non-recurring.
-      responses:
-        '200':
-          description: List of exclusions
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  exclusions:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/NonRecurringExclusion'
-                  total:
-                    type: integer
-        '500':
-          $ref: '#/components/responses/InternalError'
-    post:
-      tags:
-        - Reports
-      summary: Mark a transaction as non-recurring
-      description: Adds a transaction pattern to the exclusion list so it's not detected as recurring.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - name
-              properties:
-                name:
-                  type: string
-                  description: The transaction name to exclude
-                account_number:
-                  type: string
-                  description: Optional specific account number to exclude for
-      responses:
-        '201':
-          description: Exclusion created
-        '200':
-          description: Already existed
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-    delete:
-      tags:
-        - Reports
-      summary: Remove a non-recurring exclusion
-      description: Removes a transaction pattern from the exclusion list.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - name
-              properties:
-                name:
-                  type: string
-                account_number:
-                  type: string
-      responses:
-        '200':
-          description: Exclusion removed
-        '404':
-          description: Exclusion not found
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /budgets:
-    get:
-      tags:
-        - Budgets
-      summary: List all budgets
-      responses:
-        '200':
-          description: List of budgets
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Budget'
-    post:
-      tags:
-        - Budgets
-      summary: Create or update a budget
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - category
-                - budget_limit
-              properties:
-                category:
-                  type: string
-                budget_limit:
-                  type: number
-      responses:
-        '200':
-          description: Budget created/updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Budget'
-
-  /budgets/{id}:
-    get:
-      tags:
-        - Budgets
-      summary: Get a budget by ID
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Budget details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Budget'
-    put:
-      tags:
-        - Budgets
-      summary: Update a budget
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                budget_limit:
-                  type: number
-      responses:
-        '200':
-          description: Budget updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Budget'
-    delete:
-      tags:
-        - Budgets
-      summary: Delete a budget
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Budget deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-
-  /reports/total-budget:
-    get:
-      tags:
-        - Reports
-      summary: Get total budget limit
-      responses:
-        '200':
-          description: Total budget
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  budget_limit:
-                    type: number
-    post:
-      tags:
-        - Budgets
-      summary: Set total budget limit
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - budget_limit
-              properties:
-                budget_limit:
-                  type: number
-      responses:
-        '200':
-          description: Total budget set
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
+                  $ref: '#/components/schemas/Account'
 
   /categories:
     get:
@@ -772,6 +296,102 @@ paths:
                 type: array
                 items:
                   type: string
+
+  /categories/{name}:
+    patch:
+      tags:
+        - Categories
+      summary: Rename a category
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newName
+              properties:
+                newName:
+                  type: string
+      responses:
+        '200':
+          description: Category renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactionsUpdated:
+                    type: integer
+                  rulesUpdated:
+                    type: integer
+                  budgetsUpdated:
+                    type: integer
+    delete:
+      tags:
+        - Categories
+      summary: Delete a category
+      description: Uncategorizes all transactions with this category
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deleteRules:
+                  type: boolean
+                  default: true
+                deleteBudget:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactionsUncategorized:
+                    type: integer
+
+  /categories/uncategorized:
+    get:
+      tags:
+        - Categories
+      summary: Get uncategorized descriptions
+      responses:
+        '200':
+          description: List of descriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    description:
+                      type: string
+                    count:
+                      type: integer
+                    totalAmount:
+                      type: number
 
   /categories/rules:
     get:
@@ -815,6 +435,84 @@ paths:
               schema:
                 $ref: '#/components/schemas/CategorizationRule'
 
+  /categories/rules/{id}:
+    get:
+      tags:
+        - Categories
+      summary: Get a categorization rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Rule details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategorizationRule'
+        '404':
+          description: Rule not found
+    put:
+      tags:
+        - Categories
+      summary: Update a categorization rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name_pattern
+                - target_category
+              properties:
+                name_pattern:
+                  type: string
+                target_category:
+                  type: string
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategorizationRule'
+        '404':
+          description: Rule not found
+    delete:
+      tags:
+        - Categories
+      summary: Delete a categorization rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Rule deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '404':
+          description: Rule not found
+
   /categories/mappings:
     get:
       tags:
@@ -828,12 +526,7 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    source_category:
-                      type: string
-                    target_category:
-                      type: string
+                  $ref: '#/components/schemas/CategoryMapping'
     post:
       tags:
         - Categories
@@ -855,14 +548,415 @@ paths:
       responses:
         '200':
           description: Mapping created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryMapping'
 
+  /categories/mappings/{id}:
+    get:
+      tags:
+        - Categories
+      summary: Get a category mapping
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Mapping details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryMapping'
+        '404':
+          description: Mapping not found
+    delete:
+      tags:
+        - Categories
+      summary: Delete a category mapping
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Mapping deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '404':
+          description: Mapping not found
 
+  /categories/apply-rules:
+    post:
+      tags:
+        - Categories
+      summary: Apply categorization rules
+      description: Apply all active categorization rules to existing transactions
+      responses:
+        '200':
+          description: Rules applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  rulesApplied:
+                    type: integer
+                  transactionsUpdated:
+                    type: integer
+
+  /categories/merge:
+    post:
+      tags:
+        - Categories
+      summary: Merge categories
+      description: Merge multiple source categories into a single target category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceCategories
+                - newCategoryName
+              properties:
+                sourceCategories:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 2
+                newCategoryName:
+                  type: string
+      responses:
+        '200':
+          description: Categories merged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  updatedRows:
+                    type: integer
+
+  /categories/update-by-description:
+    post:
+      tags:
+        - Categories
+      summary: Update category for all transactions with a specific description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - description
+                - newCategory
+              properties:
+                description:
+                  type: string
+                newCategory:
+                  type: string
+                createRule:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactionsUpdated:
+                    type: integer
+                  ruleCreated:
+                    type: boolean
+                  ruleUpdated:
+                    type: boolean
+
+  /budgets:
+    get:
+      tags:
+        - Budgets
+      summary: List all budgets
+      responses:
+        '200':
+          description: List of budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+    post:
+      tags:
+        - Budgets
+      summary: Create or update a budget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category
+                - budget_limit
+              properties:
+                category:
+                  type: string
+                budget_limit:
+                  type: number
+      responses:
+        '201':
+          description: Budget created/updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+
+  /budgets/{id}:
+    put:
+      tags:
+        - Budgets
+      summary: Update a budget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - budget_limit
+              properties:
+                budget_limit:
+                  type: number
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '404':
+          description: Budget not found
+    delete:
+      tags:
+        - Budgets
+      summary: Delete a budget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Budget not found
+
+  /cards:
+    get:
+      tags:
+        - Cards
+      summary: Get credit card vendors and details
+      description: Returns all unique card endings from transactions with their vendor mappings
+      responses:
+        '200':
+          description: List of cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CardVendor'
+    post:
+      tags:
+        - Cards
+      summary: Create or update card vendor mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - last4_digits
+                - card_vendor
+              properties:
+                last4_digits:
+                  type: string
+                card_vendor:
+                  type: string
+                card_nickname:
+                  type: string
+      responses:
+        '201':
+          description: Created/Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardVendor'
+
+  /cards/{last4_digits}:
+    get:
+      tags:
+        - Cards
+      summary: Get a card vendor mapping
+      parameters:
+        - name: last4_digits
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Card vendor details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardVendor'
+        '404':
+          description: Card vendor not found
+    put:
+      tags:
+        - Cards
+      summary: Update a card vendor mapping
+      parameters:
+        - name: last4_digits
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - card_vendor
+              properties:
+                card_vendor:
+                  type: string
+                card_nickname:
+                  type: string
+      responses:
+        '200':
+          description: Card vendor updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardVendor'
+        '404':
+          description: Card vendor not found
+    delete:
+      tags:
+        - Cards
+      summary: Delete a card vendor mapping
+      parameters:
+        - name: last4_digits
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '404':
+          description: Card vendor not found
+
+  /cards/ownerships:
+    get:
+      tags:
+        - Cards
+      summary: Get card ownership mappings
+      responses:
+        '200':
+          description: List of card ownerships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CardOwnership'
+
+  /cards/ownerships/{id}:
+    patch:
+      tags:
+        - Cards
+      summary: Update card ownership
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                linked_bank_account_id:
+                  type: integer
+                custom_bank_account_number:
+                  type: string
+                custom_bank_account_nickname:
+                  type: string
+      responses:
+        '200':
+          description: Updated successfully
 
   /credentials:
     get:
       tags:
         - Credentials
       summary: List all credentials
+      parameters:
+        - name: vendor
+          in: query
+          description: Filter by vendor
+          schema:
+            type: string
       responses:
         '200':
           description: List of credentials
@@ -894,7 +988,7 @@ paths:
     get:
       tags:
         - Credentials
-      summary: Get a credential
+      summary: Get a credential (with decrypted passwords for scraping)
       parameters:
         - name: id
           in: path
@@ -927,6 +1021,30 @@ paths:
       responses:
         '200':
           description: Credential updated
+    patch:
+      tags:
+        - Credentials
+      summary: Toggle credential active status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - is_active
+              properties:
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Status updated
     delete:
       tags:
         - Credentials
@@ -940,6 +1058,22 @@ paths:
       responses:
         '200':
           description: Credential deleted
+
+  /credentials/truncate/{id}:
+    delete:
+      tags:
+        - Credentials
+      summary: Truncate credential transactions
+      description: Delete all transactions for a specific account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Data truncated
 
   /scrapers/run:
     post:
@@ -967,26 +1101,21 @@ paths:
                     type: array
                     items:
                       type: object
+                  duration:
+                    type: string
+                  durationSeconds:
+                    type: number
+        '409':
+          description: Scraper already running
         '500':
           description: Scrape failed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  error:
-                    type: string
 
   /scrapers/run-stream:
     post:
       tags:
         - Scraping
       summary: Run scraper (streaming)
-      description: |
-        Run scraper with Server-Sent Events for progress updates.
-        Returns SSE stream with events: progress, complete, error
+      description: Run scraper with Server-Sent Events for progress updates
       requestBody:
         required: true
         content:
@@ -1001,14 +1130,28 @@ paths:
               schema:
                 type: string
 
+  /scrapers/sync-all:
+    post:
+      tags:
+        - Scraping
+      summary: Get accounts ready for syncing
+      description: Get list of all active accounts ready for syncing
+      responses:
+        '200':
+          description: List of accounts to sync
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
   /scrapers/sync-all-stream:
     post:
       tags:
         - Scraping
       summary: Sync all credentials (streaming)
-      description: |
-        Trigger scrape for all active credentials with Server-Sent Events progress updates.
-        Returns SSE stream with events: queue, account_start, progress, account_complete, account_error, complete, error
+      description: Trigger scrape for all active credentials with SSE progress updates
       requestBody:
         content:
           application/json:
@@ -1022,12 +1165,30 @@ paths:
               schema:
                 type: string
 
+  /scrapers/stop:
+    post:
+      tags:
+        - Scraping
+      summary: Stop all running scrapers
+      responses:
+        '200':
+          description: Scrapers stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
   /scrapers/status:
     get:
       tags:
         - Scraping
       summary: Get current scraping status
-      description: Get overall sync health, settings, latest scrape, and optional history/account details.
+      description: Get overall sync health, settings, latest scrape, and optional history/account details
       parameters:
         - name: minimal
           in: query
@@ -1043,14 +1204,57 @@ paths:
               schema:
                 $ref: '#/components/schemas/SyncStatusResponse'
 
+  /scrapers/vendors:
+    get:
+      tags:
+        - Scraping
+      summary: List vendors
+      description: List all vendors from transactions with their type (bank/card)
+      responses:
+        '200':
+          description: List of vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    vendor:
+                      type: string
+                    type:
+                      type: string
+                      enum: [bank, card]
 
+  /scrapers/last-transaction-date:
+    get:
+      tags:
+        - Scraping
+      summary: Get last transaction date for a vendor
+      parameters:
+        - name: vendor
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Most recent transaction date
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastDate:
+                    type: string
+                    format: date-time
 
   /scrape-events:
     get:
       tags:
         - Scraping
       summary: List scrape and system events
-      description: Retrieve history of scraping events and system audit logs (like WhatsApp summaries).
+      description: Retrieve history of scraping events and system audit logs
       parameters:
         - name: limit
           in: query
@@ -1089,205 +1293,6 @@ paths:
         '404':
           description: Scrape report not found
 
-  /scrapers/last-transaction-date:
-    get:
-      tags:
-        - Scraping
-      summary: Get last transaction date for a vendor
-      parameters:
-        - name: vendor
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Most recent transaction date
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  lastDate:
-                    type: string
-                    format: date-time
-
-  /chat/message:
-    post:
-      tags:
-        - AI Chat
-      summary: Chat with financial AI assistant
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIChatRequest'
-      responses:
-        '200':
-          description: AI response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIChatResponse'
-
-  /chat/stream:
-    post:
-      tags:
-        - AI Chat
-      summary: Chat with financial AI assistant (streaming)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIChatRequest'
-      responses:
-        '200':
-          description: SSE stream of AI response
-          content:
-            text/event-stream:
-              schema:
-                type: string
-
-  /scrapers/stop:
-    post:
-      tags:
-        - Scraping
-      summary: Stop all running scrapers
-      responses:
-        '200':
-          description: Scrapers stopped
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-
-  /settings:
-    get:
-      tags:
-        - Settings
-      summary: Get all settings
-      responses:
-        '200':
-          description: Application settings
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-    put:
-      tags:
-        - Settings
-      summary: Update settings
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        '200':
-          description: Settings updated
-
-
-  /whatsapp/status:
-    get:
-      tags:
-        - WhatsApp
-      summary: Get WhatsApp connection status
-      responses:
-        '200':
-          description: WhatsApp status and QR code
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    enum: [DISCONNECTED, INITIALIZING, QR_READY, AUTHENTICATED, READY]
-                  qr:
-                    type: string
-                    nullable: true
-                    description: QR code string to be rendered
-                  timestamp:
-                    type: string
-                    format: date-time
-    post:
-      tags:
-        - WhatsApp
-      summary: Control WhatsApp client
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - action
-              properties:
-                action:
-                  type: string
-                  enum: [connect, restart, disconnect]
-                  description: 'connect: Start client and generate QR code; restart: Restart client; disconnect: disconnect session'
-      responses:
-        '200':
-          description: Action performed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-
-  /whatsapp-test:
-    post:
-      tags:
-        - WhatsApp
-      summary: Run WhatsApp integration test
-      description: Generates a daily summary and attempts to send it via WhatsApp.
-      responses:
-        '200':
-          description: Test completed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-                  results:
-                    type: array
-                    items:
-                      type: object
-        '400':
-          description: Invalid configuration
-        '500':
-          description: Test failed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  error:
-                    type: string
-                  message:
-                    type: string
-                    nullable: true
-
-
   /reports/available-months:
     get:
       tags:
@@ -1303,60 +1308,6 @@ paths:
                 type: array
                 items:
                   type: string
-
-  /ping:
-    get:
-      tags:
-        - Settings
-      summary: Health check
-      responses:
-        '200':
-          description: Service is healthy
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-
-  /reports/month-by-categories:
-    get:
-      tags:
-        - Reports
-      summary: Get monthly category breakdown
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: billingCycle
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Monthly category breakdown
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    category:
-                      type: string
-                    amount:
-                      type: number
-                    count:
-                      type: integer
 
   /reports/box-panel:
     get:
@@ -1395,16 +1346,30 @@ paths:
                   savings_rate:
                     type: number
 
-
-
-  /categories/uncategorized:
+  /reports/budget-vs-actual:
     get:
       tags:
-        - Categories
-      summary: Get uncategorized descriptions
+        - Reports
+      summary: Compare budget vs actual spending
+      parameters:
+        - name: cycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
       responses:
         '200':
-          description: List of descriptions
+          description: Budget vs actual comparison
           content:
             application/json:
               schema:
@@ -1412,38 +1377,303 @@ paths:
                 items:
                   type: object
                   properties:
-                    description:
+                    category:
                       type: string
-                    count:
-                      type: integer
-                    totalAmount:
+                    budget_limit:
+                      type: number
+                    actual_spent:
+                      type: number
+                    remaining:
                       type: number
 
-  /categories/apply-rules:
-    post:
+  /reports/category-expenses:
+    get:
       tags:
-        - Categories
-      summary: Apply categorization rules
+        - Reports
+      summary: Get expenses by category
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: billingCycle
+          in: query
+          schema:
+            type: string
       responses:
         '200':
-          description: Rules applied
+          description: Category expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                    total:
+                      type: number
+                    count:
+                      type: integer
+
+  /reports/daily-spending:
+    get:
+      tags:
+        - Reports
+      summary: Get daily spending data
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: cycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daily spending data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date:
+                      type: string
+                      format: date
+                    total:
+                      type: number
+
+  /reports/month-by-categories:
+    get:
+      tags:
+        - Reports
+      summary: Get monthly category breakdown
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: billingCycle
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monthly category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                    amount:
+                      type: number
+                    count:
+                      type: integer
+
+  /reports/monthly-summary:
+    get:
+      tags:
+        - Reports
+      summary: Get monthly summary
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: billingCycle
+          in: query
+          description: Billing cycle (YYYY-MM)
+          schema:
+            type: string
+        - name: vendor
+          in: query
+          schema:
+            type: string
+        - name: groupBy
+          in: query
+          description: Group results by
+          schema:
+            type: string
+            enum: [description, last4digits]
+        - name: excludeBankTransactions
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [name, count, card_expenses]
+            default: card_expenses
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Monthly summary data
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  rulesApplied:
+                  total:
                     type: integer
-                  transactionsUpdated:
-                    type: integer
+                  items:
+                    type: array
+                    items:
+                      type: object
 
-  /categories/update-by-description:
+  /reports/recurring-payments:
+    get:
+      tags:
+        - Reports
+      summary: Get recurring payments
+      description: Returns paginated lists of installment transactions and detected recurring payments
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, installments, recurring]
+            default: all
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, active, completed]
+            default: all
+        - name: frequency
+          in: query
+          schema:
+            type: string
+            enum: [all, monthly, bi-monthly]
+            default: all
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 500
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [status, amount, next_payment_date, name, frequency, month_count, last_charge_date]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of recurring payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  installments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InstallmentDetail'
+                  recurring:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecurringPaymentDetail'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      totalInstallments:
+                        type: integer
+                      totalRecurring:
+                        type: integer
+                      total:
+                        type: integer
+
+  /reports/non-recurring-exclusions:
+    get:
+      tags:
+        - Reports
+      summary: List non-recurring exclusions
+      responses:
+        '200':
+          description: List of exclusions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exclusions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NonRecurringExclusion'
+                  total:
+                    type: integer
     post:
       tags:
-        - Categories
-      summary: Update category for all transactions with a specific description
+        - Reports
+      summary: Mark a transaction as non-recurring
       requestBody:
         required: true
         content:
@@ -1451,119 +1681,42 @@ paths:
             schema:
               type: object
               required:
-                - description
-                - newCategory
+                - name
               properties:
-                description:
+                name:
                   type: string
-                newCategory:
+                account_number:
                   type: string
-                createRule:
-                  type: boolean
       responses:
+        '201':
+          description: Exclusion created
         '200':
-          description: Updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
+          description: Already existed
 
-  /cards/ownerships:
+  /reports/non-recurring-exclusions/{id}:
     get:
       tags:
-        - Credentials
-      summary: Get card ownership mappings
-      responses:
-        '200':
-          description: List of card ownerships
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CardOwnership'
-
-  /cards/ownerships/{id}:
-    patch:
-      tags:
-        - Credentials
-      summary: Update card ownership
+        - Reports
+      summary: Get a non-recurring exclusion
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                linked_bank_account_id:
-                  type: integer
-                custom_bank_account_number:
-                  type: string
-                custom_bank_account_nickname:
-                  type: string
       responses:
         '200':
-          description: Updated successfully
-
-  /cards:
-    get:
-      tags:
-        - Credentials
-      summary: Get credit card vendors and details (excludes bank accounts)
-      responses:
-        '200':
-          description: List of cards
+          description: Exclusion details
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CardVendor'
-    post:
-      tags:
-        - Credentials
-      summary: Create or update card vendor
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CardVendor'
-      responses:
-        '200':
-          description: Created/Updated
+                $ref: '#/components/schemas/NonRecurringExclusion'
+        '404':
+          description: Exclusion not found
     delete:
       tags:
-        - Credentials
-      summary: Delete card vendor
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - last4_digits
-              properties:
-                last4_digits:
-                  type: string
-      responses:
-        '200':
-          description: Deleted
-
-  /credentials/truncate/{id}:
-    delete:
-      tags:
-        - Credentials
-      summary: Truncate credential transactions
+        - Reports
+      summary: Remove a non-recurring exclusion
       parameters:
         - name: id
           in: path
@@ -1572,26 +1725,29 @@ paths:
             type: integer
       responses:
         '200':
-          description: Data truncated
+          description: Exclusion removed
+        '404':
+          description: Exclusion not found
 
-  /chat/history:
+  /reports/total-budget:
     get:
       tags:
         - Reports
-      summary: Get chat history (sessions)
+      summary: Get total budget limit
       responses:
         '200':
-          description: List of sessions
+          description: Total budget
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatSession'
-    delete:
+                type: object
+                properties:
+                  budget_limit:
+                    type: number
+    post:
       tags:
-        - Reports
-      summary: Delete chat session
+        - Budgets
+      summary: Set total budget limit
       requestBody:
         required: true
         content:
@@ -1599,18 +1755,81 @@ paths:
             schema:
               type: object
               required:
-                - id
+                - budget_limit
               properties:
-                id:
-                  type: string
+                budget_limit:
+                  type: number
       responses:
         '200':
-          description: Deleted
+          description: Total budget set
+    put:
+      tags:
+        - Budgets
+      summary: Update total budget limit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - budget_limit
+              properties:
+                budget_limit:
+                  type: number
+      responses:
+        '200':
+          description: Total budget updated
+    delete:
+      tags:
+        - Budgets
+      summary: Delete total budget
+      responses:
+        '200':
+          description: Total budget deleted
+
+  /chat:
+    post:
+      tags:
+        - Chat
+      summary: Chat with financial AI assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIChatRequest'
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIChatResponse'
+
+  /chat/stream:
+    post:
+      tags:
+        - Chat
+      summary: Chat with financial AI assistant (streaming)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIChatRequest'
+      responses:
+        '200':
+          description: SSE stream of AI response
+          content:
+            text/event-stream:
+              schema:
+                type: string
 
   /chat/messages:
     get:
       tags:
-        - Reports
+        - Chat
       summary: Get chat messages
       parameters:
         - name: sessionId
@@ -1628,10 +1847,314 @@ paths:
                 items:
                   $ref: '#/components/schemas/ChatMessage'
 
-  /maintenance/database/export:
+  /chat/history:
+    get:
+      tags:
+        - Chat
+      summary: Get chat history (sessions)
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatSession'
+
+  /chat/history/{id}:
+    get:
+      tags:
+        - Chat
+      summary: Get a chat session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '404':
+          description: Session not found
+    delete:
+      tags:
+        - Chat
+      summary: Delete chat session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+        '404':
+          description: Session not found
+
+  /settings:
     get:
       tags:
         - Settings
+      summary: Get all settings
+      parameters:
+        - name: key
+          in: query
+          description: Get a specific setting by key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: object
+                    additionalProperties: true
+                  descriptions:
+                    type: object
+                    additionalProperties:
+                      type: string
+    put:
+      tags:
+        - Settings
+      summary: Update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - settings
+              properties:
+                settings:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Settings updated
+
+  /ping:
+    get:
+      tags:
+        - Settings
+      summary: Health check
+      description: Check database connectivity
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /check-version:
+    get:
+      tags:
+        - Settings
+      summary: Check for updates
+      description: Check GitHub for latest release version
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currentVersion:
+                    type: string
+                  latestVersion:
+                    type: string
+                  updateAvailable:
+                    type: boolean
+
+  /migrate:
+    get:
+      tags:
+        - Maintenance
+      summary: Check migration status
+      responses:
+        '200':
+          description: Migration status
+    post:
+      tags:
+        - Maintenance
+      summary: Run database migrations
+      responses:
+        '200':
+          description: Migrations completed
+
+  /mcp:
+    get:
+      tags:
+        - Settings
+      summary: Establish MCP SSE connection
+      description: Server-Sent Events connection for Model Context Protocol
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+    post:
+      tags:
+        - Settings
+      summary: Send message to MCP server
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '202':
+          description: Accepted
+        '404':
+          description: Session not found
+
+  /whatsapp/status:
+    get:
+      tags:
+        - WhatsApp
+      summary: Get WhatsApp connection status
+      responses:
+        '200':
+          description: WhatsApp status and QR code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatsAppStatus'
+    post:
+      tags:
+        - WhatsApp
+      summary: Control WhatsApp client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [connect, restart, disconnect, renew_qr]
+      responses:
+        '200':
+          description: Action performed
+
+  /whatsapp-test:
+    post:
+      tags:
+        - WhatsApp
+      summary: Test WhatsApp integration
+      description: Generate and send a test WhatsApp message
+      responses:
+        '200':
+          description: Test completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /debug/screenshots:
+    get:
+      tags:
+        - Debug
+      summary: List debug screenshots
+      responses:
+        '200':
+          description: List of screenshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    filename:
+                      type: string
+                    timestamp:
+                      type: string
+    delete:
+      tags:
+        - Debug
+      summary: Delete all debug screenshots
+      responses:
+        '200':
+          description: Screenshots deleted
+
+  /debug/take_screenshot:
+    post:
+      tags:
+        - Debug
+      summary: Take a screenshot
+      description: Manually capture current scraper browser screenshot
+      responses:
+        '200':
+          description: Screenshot taken
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  filename:
+                    type: string
+
+  /debug/view_image:
+    get:
+      tags:
+        - Debug
+      summary: View a debug image
+      parameters:
+        - name: filename
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+
+  /maintenance/database/export:
+    get:
+      tags:
+        - Maintenance
       summary: Export database
       responses:
         '200':
@@ -1644,7 +2167,7 @@ paths:
   /maintenance/database/import:
     post:
       tags:
-        - Settings
+        - Maintenance
       summary: Import database
       requestBody:
         required: true
@@ -1661,48 +2184,6 @@ paths:
       responses:
         '200':
           description: Import result
-  /mcp:
-    get:
-      tags:
-        - Settings
-      summary: Establish MCP SSE connection
-      description: |
-        Endpoint for Server-Sent Events (SSE) connection in Model Context Protocol (MCP).
-        This keeps a long-running connection open to relay messages to the MCP server.
-      responses:
-        '200':
-          description: SSE stream
-          content:
-            text/event-stream:
-              schema:
-                type: string
-                format: binary
-    post:
-      tags:
-        - Settings
-      summary: Send message to MCP server
-      description: |
-        Relays a JSON-RPC message to an active MCP session identified by the sessionId.
-      parameters:
-        - name: sessionId
-          in: query
-          required: true
-          description: Unique session ID established via the GET /mcp request.
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        '202':
-          description: Accepted
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          description: Session not found
 
 components:
   schemas:
@@ -1711,64 +2192,73 @@ components:
       properties:
         identifier:
           type: string
-          description: Unique transaction identifier
         vendor:
           type: string
-          description: Source vendor (bank or credit card company)
         date:
           type: string
           format: date
-          description: Transaction date
         name:
           type: string
-          description: Transaction description
         price:
           type: number
-          description: Transaction amount
         category:
           type: string
-          description: Transaction category
         type:
           type: string
-          description: Transaction type (credit/debit)
         processed_date:
           type: string
           format: date
-          description: Processing date (for billing cycle)
         original_amount:
           type: number
-          description: Original amount (for foreign transactions)
         original_currency:
           type: string
-          description: Original currency code
         charged_currency:
           type: string
-          description: Charged currency code
         memo:
           type: string
-          description: Additional notes
         status:
           type: string
-          description: Transaction status
         installments_number:
           type: integer
-          description: Current installment number
         installments_total:
           type: integer
-          description: Total number of installments
         account_number:
           type: string
-          description: Card/account last 4 digits
         category_source:
           type: string
-          description: How the category was assigned (scraper/rule/cache)
         rule_matched:
           type: string
-          description: Pattern that matched for rule-based categorization
         transaction_type:
           type: string
           enum: [bank, credit_card]
-          description: Whether this is a bank or credit card transaction
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+        vendor:
+          type: string
+        account_number:
+          type: string
+        balance:
+          type: number
+          nullable: true
+        balance_updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        nickname:
+          type: string
+        credential:
+          type: object
+          properties:
+            id:
+              type: integer
+            vendor:
+              type: string
+            nickname:
+              type: string
 
     Budget:
       type: object
@@ -1777,10 +2267,8 @@ components:
           type: integer
         category:
           type: string
-          description: Category name
         budget_limit:
           type: number
-          description: Monthly budget limit
         created_at:
           type: string
           format: date-time
@@ -1795,12 +2283,65 @@ components:
           type: integer
         name_pattern:
           type: string
-          description: Pattern to match in transaction names
         target_category:
           type: string
-          description: Category to assign when matched
         is_active:
           type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CategoryMapping:
+      type: object
+      properties:
+        id:
+          type: integer
+        source_category:
+          type: string
+        target_category:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CardVendor:
+      type: object
+      properties:
+        id:
+          type: integer
+        last4_digits:
+          type: string
+        card_vendor:
+          type: string
+        card_nickname:
+          type: string
+        transaction_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CardOwnership:
+      type: object
+      properties:
+        id:
+          type: integer
+        vendor:
+          type: string
+        account_number:
+          type: string
+        linked_bank_account_id:
+          type: integer
+        custom_bank_account_number:
+          type: string
+        custom_bank_account_nickname:
+          type: string
 
     Credential:
       type: object
@@ -1809,16 +2350,22 @@ components:
           type: integer
         vendor:
           type: string
-          description: Bank or credit card vendor
+        username:
+          type: string
+        id_number:
+          type: string
+        card6_digits:
+          type: string
         nickname:
           type: string
-          description: Friendly name for this credential
+        bank_account_number:
+          type: string
         is_active:
           type: boolean
-        last_synced_at:
+        created_at:
           type: string
           format: date-time
-        created_at:
+        last_synced_at:
           type: string
           format: date-time
 
@@ -1829,18 +2376,17 @@ components:
       properties:
         vendor:
           type: string
-          description: Bank or credit card vendor ID
         username:
           type: string
         password:
           type: string
         id_number:
           type: string
-          description: ID number (for Israeli banks)
         card6_digits:
           type: string
-          description: First 6 digits of card (for Isracard/Amex)
         nickname:
+          type: string
+        bank_account_number:
           type: string
         is_active:
           type: boolean
@@ -1861,20 +2407,15 @@ components:
           properties:
             companyId:
               type: string
-              description: Vendor ID (e.g., visaCal, hapoalim)
             startDate:
               type: string
               format: date
-              description: Start date for scraping
             showBrowser:
               type: boolean
-              description: Show browser window (for debugging/2FA)
         credentials:
           type: object
-          description: Vendor-specific credentials
         credentialId:
           type: integer
-          description: Database credential ID
 
     ScrapeEvent:
       type: object
@@ -1895,8 +2436,6 @@ components:
           format: date-time
         duration_seconds:
           type: number
-        report_json:
-          $ref: '#/components/schemas/ScrapeReport'
 
     ScrapeReport:
       type: object
@@ -1905,51 +2444,10 @@ components:
           type: array
           items:
             type: object
-            properties:
-              date:
-                type: string
-                format: date
-              description:
-                type: string
-              amount:
-                type: number
-              currency:
-                type: string
-              category:
-                type: string
-              source:
-                type: string
-              rule:
-                type: string
-              cardLast4:
-                type: string
-              isUpdate:
-                type: boolean
-              isDuplicate:
-                type: boolean
-              isBank:
-                type: boolean
-              oldCategory:
-                type: string
-              installmentsNumber:
-                type: integer
-              installmentsTotal:
-                type: integer
-              totalAmount:
-                type: number
         savedTransactions:
           type: integer
         duration_seconds:
           type: number
-        body:
-          type: string
-          description: Full message body for notification events
-        to:
-          type: string
-          description: Recipient for notification events
-        error:
-          type: string
-          description: Error details if event failed
 
     SyncAllRequest:
       type: object
@@ -1977,15 +2475,6 @@ components:
           type: integer
         latestScrape:
           $ref: '#/components/schemas/ScrapeEvent'
-        summary:
-          type: object
-          properties:
-            oldest_sync_at:
-              type: string
-              format: date-time
-              nullable: true
-            has_never_synced:
-              type: boolean
         history:
           type: array
           items:
@@ -1994,17 +2483,6 @@ components:
           type: array
           items:
             type: object
-            properties:
-              id:
-                type: integer
-              nickname:
-                type: string
-              vendor:
-                type: string
-              last_synced_at:
-                type: string
-                format: date-time
-                nullable: true
 
     InstallmentDetail:
       type: object
@@ -2060,13 +2538,23 @@ components:
         frequency:
           type: string
           enum: [monthly, bi-monthly]
-        months:
-          type: array
-          items:
-            type: string
         next_payment_date:
           type: string
           format: date
+
+    NonRecurringExclusion:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        account_number:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
 
     AIChatRequest:
       type: object
@@ -2090,34 +2578,6 @@ components:
         model:
           type: string
 
-    CardOwnership:
-      type: object
-      properties:
-        id:
-          type: integer
-        vendor:
-          type: string
-        account_number:
-          type: string
-        linked_bank_account_id:
-          type: integer
-        custom_bank_account_number:
-          type: string
-        custom_bank_account_nickname:
-          type: string
-
-    CardVendor:
-      type: object
-      properties:
-        last4_digits:
-          type: string
-        card_vendor:
-          type: string
-        card_nickname:
-          type: string
-        transaction_count:
-          type: integer
-
     ChatSession:
       type: object
       properties:
@@ -2128,7 +2588,7 @@ components:
         created_at:
           type: string
           format: date-time
-        last_message_at:
+        updated_at:
           type: string
           format: date-time
 
@@ -2155,16 +2615,9 @@ components:
         qr:
           type: string
           nullable: true
-          description: QR code string if status is QR_READY
-
-    WhatsAppActionRequest:
-      type: object
-      required:
-        - action
-      properties:
-        action:
+        timestamp:
           type: string
-          enum: [restart, disconnect]
+          format: date-time
 
   responses:
     BadRequest:
@@ -2187,16 +2640,3 @@ components:
                 type: string
               details:
                 type: string
-    NonRecurringExclusion:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        account_number:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
