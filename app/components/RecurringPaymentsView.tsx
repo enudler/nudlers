@@ -13,14 +13,9 @@ import { useTheme } from '@mui/material/styles';
 
 import RepeatIcon from '@mui/icons-material/Repeat';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import PendingIcon from '@mui/icons-material/Pending';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import BlockIcon from '@mui/icons-material/Block';
 import IconButton from '@mui/material/IconButton';
 
@@ -90,20 +85,20 @@ const RecurringPaymentsView: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-    // Sorting state - different defaults for each tab
     const [installmentSortBy, setInstallmentSortBy] = useState<'status' | 'amount' | 'next_payment_date' | 'name'>('status');
     const [installmentSortOrder, setInstallmentSortOrder] = useState<'asc' | 'desc'>('desc');
     const [recurringSortBy, setRecurringSortBy] = useState<'amount' | 'month_count' | 'name' | 'last_charge_date'>('amount');
     const [recurringSortOrder, setRecurringSortOrder] = useState<'asc' | 'desc'>('desc');
 
-    // Pagination state
     const PAGE_SIZE = 25;
-    const [installmentPage, setInstallmentPage] = useState(1);
-    const [recurringPage, setRecurringPage] = useState(1);
+    const installmentPageRef = React.useRef(0);
+    const recurringPageRef = React.useRef(0);
+    const [hasMoreInstallments, setHasMoreInstallments] = useState(true);
+    const [hasMoreRecurring, setHasMoreRecurring] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [totalInstallments, setTotalInstallments] = useState(0);
     const [totalRecurring, setTotalRecurring] = useState(0);
 
-    // Summary stats
     const [activeInstallmentsCount, setActiveInstallmentsCount] = useState(0);
     const [activeInstallmentsAmount, setActiveInstallmentsAmount] = useState(0);
 
@@ -130,22 +125,30 @@ const RecurringPaymentsView: React.FC = () => {
         loadCategories();
     }, []);
 
-    // Fetch data when tab, sort, or page changes
-    useEffect(() => {
-        fetchData();
-    }, [activeTab, installmentSortBy, installmentSortOrder, recurringSortBy, recurringSortOrder, installmentPage, recurringPage]);
-
-    const fetchData = async () => {
+    const fetchData = async (isLoadMore = false) => {
         try {
-            setLoading(true);
+            if (!isLoadMore) {
+                setLoading(true);
+                if (activeTab === 0) {
+                    installmentPageRef.current = 0;
+                    setInstallments([]);
+                } else {
+                    recurringPageRef.current = 0;
+                    setRecurring([]);
+                }
+            } else {
+                setLoadingMore(true);
+            }
+
             setError(null);
 
-            // Determine which type to fetch based on active tab
             const type = activeTab === 0 ? 'installments' : 'recurring';
             const sortBy = activeTab === 0 ? installmentSortBy : recurringSortBy;
             const sortOrder = activeTab === 0 ? installmentSortOrder : recurringSortOrder;
-            const page = activeTab === 0 ? installmentPage : recurringPage;
-            const offset = (page - 1) * PAGE_SIZE;
+            const currentPage = isLoadMore
+                ? (activeTab === 0 ? installmentPageRef.current + 1 : recurringPageRef.current + 1)
+                : 0;
+            const offset = currentPage * PAGE_SIZE;
 
             const params = new URLSearchParams({
                 type,
@@ -157,27 +160,44 @@ const RecurringPaymentsView: React.FC = () => {
             });
 
             const response = await fetch(`/api/reports/recurring-payments?${params}`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch recurring payments');
-            }
+            if (!response.ok) throw new Error('Failed to fetch recurring payments');
             const data = await response.json();
 
             if (activeTab === 0) {
-                setInstallments(data.installments || []);
+                const newItems = data.installments || [];
+                if (isLoadMore) {
+                    setInstallments(prev => [...prev, ...newItems]);
+                    installmentPageRef.current = currentPage;
+                } else {
+                    setInstallments(newItems);
+                }
                 setTotalInstallments(data.pagination?.totalInstallments || 0);
+                setHasMoreInstallments(newItems.length === PAGE_SIZE);
                 setActiveInstallmentsCount(data.summary?.activeInstallmentsCount || 0);
                 setActiveInstallmentsAmount(data.summary?.activeInstallmentsAmount || 0);
             } else {
-                setRecurring(data.recurring || []);
+                const newItems = data.recurring || [];
+                if (isLoadMore) {
+                    setRecurring(prev => [...prev, ...newItems]);
+                    recurringPageRef.current = currentPage;
+                } else {
+                    setRecurring(newItems);
+                }
                 setTotalRecurring(data.pagination?.totalRecurring || 0);
+                setHasMoreRecurring(newItems.length === PAGE_SIZE);
             }
         } catch (err) {
             logger.error('Error fetching recurring payments', err as Error);
             setError(err instanceof Error ? err.message : 'An error occurred');
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
     };
+
+    useEffect(() => {
+        fetchData(false);
+    }, [activeTab, installmentSortBy, installmentSortOrder, recurringSortBy, recurringSortOrder]);
 
     const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
         setActiveTab(newValue);
@@ -193,28 +213,24 @@ const RecurringPaymentsView: React.FC = () => {
         setExpandedRows(newExpanded);
     };
 
-    // Handle sorting for recurring tab (server-side)
     const handleRecurringSort = (field: string) => {
-        const sortField = field === 'price' ? 'amount' : field as 'amount' | 'month_count' | 'name' | 'last_charge_date';
+        const sortField = field === 'price' ? 'amount' : field as any;
         if (recurringSortBy === sortField) {
             setRecurringSortOrder(recurringSortOrder === 'desc' ? 'asc' : 'desc');
         } else {
             setRecurringSortBy(sortField);
             setRecurringSortOrder('desc');
         }
-        setRecurringPage(1); // Reset to first page on sort change
     };
 
-    // Handle sorting for installments tab (server-side)
     const handleInstallmentSort = (field: string) => {
-        const sortField = field === 'price' ? 'amount' : field as 'status' | 'amount' | 'next_payment_date' | 'name';
+        const sortField = field === 'price' ? 'amount' : field as any;
         if (installmentSortBy === sortField) {
             setInstallmentSortOrder(installmentSortOrder === 'desc' ? 'asc' : 'desc');
         } else {
             setInstallmentSortBy(sortField);
             setInstallmentSortOrder('desc');
         }
-        setInstallmentPage(1); // Reset to first page on sort change
     };
 
     const renderAccountInfo = (item: Installment | RecurringTransaction) => {
@@ -229,7 +245,6 @@ const RecurringPaymentsView: React.FC = () => {
 
     const handleSaveCategory = async () => {
         if (!editingItem) return;
-
         try {
             const response = await fetch('/api/categories/update-by-description', {
                 method: 'POST',
@@ -240,17 +255,12 @@ const RecurringPaymentsView: React.FC = () => {
                     createRule: true
                 }),
             });
-
             if (!response.ok) throw new Error('Failed to update category');
-
             const result = await response.json();
-
             if (editCategory && !categories.includes(editCategory)) {
                 setCategories(prev => [...prev, editCategory].sort());
             }
-
             const updateItem = (item: any) => ({ ...item, category: editCategory });
-
             if (editingItem.type === 'installment') {
                 const newInstallments = [...installments];
                 newInstallments[editingItem.index] = updateItem(newInstallments[editingItem.index]);
@@ -260,29 +270,17 @@ const RecurringPaymentsView: React.FC = () => {
                 newRecurring[editingItem.index] = updateItem(newRecurring[editingItem.index]);
                 setRecurring(newRecurring);
             }
-
             const message = result.transactionsUpdated > 1
-                ? `Updated ${result.transactionsUpdated} transactions with "${editingItem.item.name}" to "${editCategory}". Rule saved.`
-                : `Category updated to "${editCategory}". Rule saved.`;
-
-            setSnackbar({
-                open: true,
-                message,
-                severity: 'success'
-            });
-
-            fetchData();
+                ? `Updated ${result.transactionsUpdated} transactions with "${editingItem.item.name}" to "${editCategory}".`
+                : `Category updated to "${editCategory}".`;
+            setSnackbar({ open: true, message, severity: 'success' });
             window.dispatchEvent(new CustomEvent('dataRefresh'));
-
         } catch (err) {
             logger.error('Error updating category', err as Error);
-            setSnackbar({
-                open: true,
-                message: 'Failed to update category',
-                severity: 'error'
-            });
+            setSnackbar({ open: true, message: 'Failed to update category', severity: 'error' });
         } finally {
-            handleCancelCategory();
+            setEditingItem(null);
+            setEditCategory('');
         }
     };
 
@@ -301,30 +299,13 @@ const RecurringPaymentsView: React.FC = () => {
                     account_number: item.account_number
                 }),
             });
-
             if (!response.ok) throw new Error('Failed to mark as non-recurring');
-
-            const result = await response.json();
-
-            setSnackbar({
-                open: true,
-                message: result.alreadyExisted
-                    ? `"${item.name}" was already marked as non-recurring`
-                    : `"${item.name}" marked as non-recurring`,
-                severity: 'success'
-            });
-
-            // Refresh data to remove the item from the list
-            fetchData();
+            setSnackbar({ open: true, message: `"${item.name}" marked as non-recurring`, severity: 'success' });
+            fetchData(false);
             window.dispatchEvent(new CustomEvent('dataRefresh'));
-
         } catch (err) {
             logger.error('Error marking as non-recurring', err as Error);
-            setSnackbar({
-                open: true,
-                message: 'Failed to mark as non-recurring',
-                severity: 'error'
-            });
+            setSnackbar({ open: true, message: 'Failed to mark as non-recurring', severity: 'error' });
         }
     };
 
@@ -342,9 +323,7 @@ const RecurringPaymentsView: React.FC = () => {
                 icon={<RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
             />
 
-            {/* Main Content Card */}
             <Box sx={{
-                padding: '0',
                 borderRadius: '32px',
                 border: `1px solid ${theme.palette.divider}`,
                 overflow: 'hidden',
@@ -374,13 +353,10 @@ const RecurringPaymentsView: React.FC = () => {
                 </Box>
 
                 <Box sx={{ p: { xs: 1, md: 3 } }}>
-                    {loading ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}><CircularProgress /></Box>
-                    ) : error ? (
+                    {error ? (
                         <Box sx={{ p: 4, textAlign: 'center', color: 'error.main' }}>Error: {error}</Box>
                     ) : (
                         <>
-                            {/* Summary Box for Installments */}
                             {activeTab === 0 && (
                                 <Box sx={{
                                     display: 'flex',
@@ -411,350 +387,166 @@ const RecurringPaymentsView: React.FC = () => {
                                 </Box>
                             )}
 
-                            {activeTab === 0 ? (
-                                <Table
-                                    rows={installments}
-                                    rowKey={(row) => `${row.name}-${row.current_installment}-${row.total_installments}`}
-                                    emptyMessage="No installment payments found"
-                                    onSort={handleInstallmentSort}
-                                    sortField={installmentSortBy === 'amount' ? 'price' : installmentSortBy}
-                                    sortDirection={installmentSortOrder}
-                                    columns={[
-                                        { id: 'name', label: 'Description', sortable: true, format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
-                                        { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
-                                        {
-                                            id: 'category',
-                                            label: 'Category',
-                                            format: (_, row: Installment,) => {
-                                                const index = installments.indexOf(row);
-                                                if (editingItem?.type === 'installment' && editingItem.index === index) {
-                                                    return (
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
-                                                            <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
-                                                            <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
-                                                        </Box>
-                                                    );
-                                                }
-                                                return (
-                                                    <Box
-                                                        onClick={(e) => handleCategoryClick(e, row, index, 'installment')}
-                                                        sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: theme.palette.primary.main, color: 'white', px: 1, py: 0.5, borderRadius: 1.5, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
-                                                    >
-                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
-                                                    </Box>
-                                                );
-                                            }
-                                        },
-                                        {
-                                            id: 'progress',
-                                            label: 'Progress',
-                                            align: 'center',
-                                            format: (_, row) => {
-                                                const progressPercent = Math.round((row.current_installment / row.total_installments) * 100);
-                                                return (
-                                                    <Tooltip title={`${row.current_installment} of ${row.total_installments}`}>
-                                                        <Box>
-                                                            <Typography variant="caption" sx={{ fontWeight: 700 }}>{row.current_installment}/{row.total_installments}</Typography>
-                                                            <Box sx={{ width: '60px', height: '6px', bgcolor: 'action.hover', borderRadius: 3, mx: 'auto', mt: 0.5, overflow: 'hidden' }}>
-                                                                <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: row.status === 'completed' ? 'success.main' : 'primary.main' }} />
+                            <Box
+                                onScroll={(e) => {
+                                    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+                                    if (scrollHeight - scrollTop <= clientHeight + 100) {
+                                        const hasMore = activeTab === 0 ? hasMoreInstallments : hasMoreRecurring;
+                                        if (hasMore && !loading && !loadingMore) {
+                                            fetchData(true);
+                                        }
+                                    }
+                                }}
+                                sx={{
+                                    maxHeight: '70vh',
+                                    overflow: 'auto',
+                                    borderRadius: '24px',
+                                    '&::-webkit-scrollbar': { width: '8px' },
+                                    '&::-webkit-scrollbar-track': { background: 'transparent' },
+                                    '&::-webkit-scrollbar-thumb': {
+                                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                                        borderRadius: '10px',
+                                        border: '2px solid transparent',
+                                        backgroundClip: 'content-box'
+                                    },
+                                    '&:hover::-webkit-scrollbar-thumb': {
+                                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                                        backgroundClip: 'content-box'
+                                    }
+                                }}
+                            >
+                                {loading && !loadingMore ? (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}><CircularProgress /></Box>
+                                ) : activeTab === 0 ? (
+                                    <Table
+                                        rows={installments}
+                                        rowKey={(row) => `${row.name}-${row.current_installment}-${row.total_installments}`}
+                                        emptyMessage="No installment payments found"
+                                        onSort={handleInstallmentSort}
+                                        sortField={installmentSortBy === 'amount' ? 'price' : installmentSortBy}
+                                        sortDirection={installmentSortOrder}
+                                        stickyHeader
+                                        maxHeight="none"
+                                        columns={[
+                                            { id: 'name', label: 'Description', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
+                                            { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
+                                            {
+                                                id: 'category',
+                                                label: 'Category',
+                                                format: (_, row: Installment,) => {
+                                                    const index = installments.indexOf(row);
+                                                    if (editingItem?.type === 'installment' && editingItem.index === index) {
+                                                        return (
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
+                                                                <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
+                                                                <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
                                                             </Box>
-                                                        </Box>
-                                                    </Tooltip>
-                                                );
-                                            }
-                                        },
-                                        { id: 'price', label: 'Monthly', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
-                                        { id: 'original_amount', label: 'Original', align: 'right', format: (val) => <span style={{ color: 'text.secondary' }}>{val ? `₪${formatNumber(val)}` : '-'}</span> },
-                                        { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => val ? formatDate(val) : 'Completed' },
-                                        { id: 'last_payment_date', label: 'End', align: 'center', format: (val) => formatDate(val) },
-                                        { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
-                                    ]}
-                                    mobileCardRenderer={(row) => {
-                                        const index = installments.indexOf(row);
-                                        const isEditing = editingItem?.type === 'installment' && editingItem.index === index;
-
-                                        if (isEditing) {
-                                            return (
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 0.5 }}>
-                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Category</Typography>
-                                                        <CategoryAutocomplete
-                                                            value={editCategory}
-                                                            onChange={setEditCategory}
-                                                            options={categories}
-                                                            autoFocus
-                                                            placeholder="Category"
-                                                        />
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
-                                                        <IconButton
-                                                            onClick={(e) => { e.stopPropagation(); handleCancelCategory(); }}
-                                                            size="small"
-                                                            sx={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                                                        >
-                                                            <CloseIcon />
-                                                        </IconButton>
-                                                        <IconButton
-                                                            onClick={(e) => { e.stopPropagation(); handleSaveCategory(); }}
-                                                            size="small"
-                                                            sx={{ color: '#4ADE80', backgroundColor: 'rgba(74, 222, 128, 0.1)' }}
-                                                        >
-                                                            <CheckIcon />
-                                                        </IconButton>
-                                                    </Box>
-                                                </Box>
-                                            );
-                                        }
-
-                                        return (
-                                            <Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                    <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}/mo</Typography>
-                                                </Box>
-                                                <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <Box
-                                                        onClick={(e) => handleCategoryClick(e, row, index, 'installment')}
-                                                        sx={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            bgcolor: theme.palette.primary.main,
-                                                            color: 'white',
-                                                            px: 1,
-                                                            py: 0.5,
-                                                            borderRadius: 1.5,
-                                                            cursor: 'pointer',
-                                                            fontSize: '11px',
-                                                            fontWeight: 600
-                                                        }}
-                                                    >
-                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '11px' }} />
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {row.current_installment}/{row.total_installments}
-                                                        </Typography>
-                                                        <Chip label={row.status} size="small" color={row.status === 'completed' ? 'success' : 'primary'} sx={{ height: 20, fontSize: '10px', borderRadius: '6px' }} />
-                                                    </Box>
-                                                </Box>
-                                            </Box>
-                                        );
-                                    }}
-                                />
-                            ) : (
-                                <Table
-                                    rows={recurring}
-                                    rowKey={(row) => `${row.name}-${row.month_count}`}
-                                    emptyMessage="No recurring payments detected"
-                                    onSort={handleRecurringSort}
-                                    sortField={recurringSortBy === 'amount' ? 'price' : recurringSortBy}
-                                    sortDirection={recurringSortOrder}
-                                    expandedRowIds={expandedRows}
-                                    onRowToggle={(rowKey) => toggleRow(rowKey as string)}
-                                    columns={[
-                                        { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 700 }}>{val}</span> },
-                                        { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
-                                        {
-                                            id: 'category',
-                                            label: 'Category',
-                                            format: (_, row) => {
-                                                const index = recurring.indexOf(row);
-                                                if (editingItem?.type === 'recurring' && editingItem.index === index) {
+                                                        );
+                                                    }
                                                     return (
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
-                                                            <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
-                                                            <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
+                                                        <Box
+                                                            onClick={(e) => handleCategoryClick(e, row, index, 'installment')}
+                                                            sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: theme.palette.primary.main, color: 'white', px: 1, py: 0.5, borderRadius: 1.5, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                                                        >
+                                                            {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
                                                         </Box>
                                                     );
                                                 }
-                                                return (
-                                                    <Box
-                                                        onClick={(e) => handleCategoryClick(e, row, index, 'recurring')}
-                                                        sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: theme.palette.primary.main, color: 'white', px: 1, py: 0.5, borderRadius: 1.5, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
-                                                    >
-                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
-                                                    </Box>
-                                                );
-                                            }
-                                        },
-                                        { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 800, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
-                                        { id: 'last_charge_date', label: 'Last Charge', align: 'center', sortable: true, format: (val) => formatDate(val) },
-                                        { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
-                                        {
-                                            id: 'details',
-                                            label: '',
-                                            align: 'center',
-                                            format: (_, row) => {
-                                                const isExpanded = expandedRows.has(`${row.name}-${row.month_count}`);
-                                                return isExpanded ? 'Hide' : 'History';
-                                            }
-                                        },
-                                        {
-                                            id: 'actions',
-                                            label: '',
-                                            align: 'center',
-                                            format: (_, row) => (
-                                                <Tooltip title="Not a recurring payment">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleMarkNotRecurring(row);
-                                                        }}
-                                                        sx={{
-                                                            color: 'text.secondary',
-                                                            '&:hover': {
-                                                                color: 'error.main',
-                                                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.08)'
-                                                            }
-                                                        }}
-                                                    >
-                                                        <BlockIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            )
-                                        }
-                                    ]}
-                                    renderSubRow={(row) => (
-                                        <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, mx: 2, mb: 2 }}>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Payment History</Typography>
-                                            {row.occurrences.map((occ, i) => (
-                                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                                    <Typography variant="body2">{formatDate(occ.date)}</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>₪{formatNumber(occ.amount)}</Typography>
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    )}
-                                    mobileCardRenderer={(row) => {
-                                        const index = recurring.indexOf(row);
-                                        const isEditing = editingItem?.type === 'recurring' && editingItem.index === index;
-
-                                        if (isEditing) {
-                                            return (
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 0.5 }}>
-                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Category</Typography>
-                                                        <CategoryAutocomplete
-                                                            value={editCategory}
-                                                            onChange={setEditCategory}
-                                                            options={categories}
-                                                            autoFocus
-                                                            placeholder="Category"
-                                                        />
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
-                                                        <IconButton
-                                                            onClick={(e) => { e.stopPropagation(); handleCancelCategory(); }}
-                                                            size="small"
-                                                            sx={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                                                        >
-                                                            <CloseIcon />
-                                                        </IconButton>
-                                                        <IconButton
-                                                            onClick={(e) => { e.stopPropagation(); handleSaveCategory(); }}
-                                                            size="small"
-                                                            sx={{ color: '#4ADE80', backgroundColor: 'rgba(74, 222, 128, 0.1)' }}
-                                                        >
-                                                            <CheckIcon />
-                                                        </IconButton>
-                                                    </Box>
-                                                </Box>
-                                            );
-                                        }
-
-                                        return (
-                                            <Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Typography variant="subtitle2" fontWeight={800} color="primary.main">₪{formatNumber(row.price)}</Typography>
-                                                        <Tooltip title="Not a recurring payment">
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleMarkNotRecurring(row);
-                                                                }}
-                                                                sx={{ color: 'text.secondary', p: 0.5 }}
-                                                            >
-                                                                <BlockIcon fontSize="small" />
-                                                            </IconButton>
+                                            },
+                                            {
+                                                id: 'progress',
+                                                label: 'Progress',
+                                                align: 'center',
+                                                format: (_, row) => {
+                                                    const progressPercent = Math.round((row.current_installment / row.total_installments) * 100);
+                                                    return (
+                                                        <Tooltip title={`${row.current_installment} of ${row.total_installments}`}>
+                                                            <Box>
+                                                                <Typography variant="caption" sx={{ fontWeight: 600 }}>{row.current_installment}/{row.total_installments}</Typography>
+                                                                <Box sx={{ width: '60px', height: '6px', bgcolor: 'action.hover', borderRadius: 3, mx: 'auto', mt: 0.5, overflow: 'hidden' }}>
+                                                                    <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: row.status === 'completed' ? 'success.main' : 'primary.main' }} />
+                                                                </Box>
+                                                            </Box>
                                                         </Tooltip>
-                                                    </Box>
-                                                </Box>
-                                                <Box sx={{ mb: 1 }}>{renderAccountInfo(row)}</Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <Box
-                                                        onClick={(e) => handleCategoryClick(e, row, index, 'recurring')}
-                                                        sx={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            bgcolor: theme.palette.primary.main,
-                                                            color: 'white',
-                                                            px: 1,
-                                                            py: 0.5,
-                                                            borderRadius: 1.5,
-                                                            cursor: 'pointer',
-                                                            fontSize: '11px',
-                                                            fontWeight: 600
-                                                        }}
-                                                    >
-                                                        {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '11px' }} />
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {row.month_count} months
-                                                        </Typography>
-                                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '10px' }}>
-                                                            Last: {formatDate(row.last_charge_date)}
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
-                                            </Box>
-                                        );
-                                    }}
-                                />
-                            )}
-
-                            {/* Pagination */}
-                            {(() => {
-                                const total = activeTab === 0 ? totalInstallments : totalRecurring;
-                                const page = activeTab === 0 ? installmentPage : recurringPage;
-                                const setPage = activeTab === 0 ? setInstallmentPage : setRecurringPage;
-                                const totalPages = Math.ceil(total / PAGE_SIZE);
-
-                                if (totalPages <= 1) return null;
-
-                                return (
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 2 }}>
-                                        <IconButton
-                                            onClick={() => setPage(Math.max(1, page - 1))}
-                                            disabled={page === 1}
-                                            size="small"
-                                        >
-                                            <ChevronLeftIcon />
-                                        </IconButton>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                            Page {page} of {totalPages} ({total} items)
-                                        </Typography>
-                                        <IconButton
-                                            onClick={() => setPage(Math.min(totalPages, page + 1))}
-                                            disabled={page === totalPages}
-                                            size="small"
-                                        >
-                                            <ChevronRightIcon />
-                                        </IconButton>
+                                                    );
+                                                }
+                                            },
+                                            { id: 'price', label: 'Monthly', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 700, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                            { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => val ? formatDate(val) : 'Completed' },
+                                            { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
+                                        ]}
+                                    />
+                                ) : (
+                                    <Table
+                                        rows={recurring}
+                                        rowKey={(row) => `${row.name}-${row.month_count}`}
+                                        emptyMessage="No recurring payments detected"
+                                        onSort={handleRecurringSort}
+                                        sortField={recurringSortBy === 'amount' ? 'price' : recurringSortBy}
+                                        sortDirection={recurringSortOrder}
+                                        expandedRowIds={expandedRows}
+                                        onRowToggle={(rowKey) => toggleRow(rowKey as string)}
+                                        stickyHeader
+                                        maxHeight="none"
+                                        columns={[
+                                            { id: 'name', label: 'Description', format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
+                                            { id: 'account', label: 'Account', format: (_, row) => renderAccountInfo(row) },
+                                            {
+                                                id: 'category',
+                                                label: 'Category',
+                                                format: (_, row) => {
+                                                    const index = recurring.indexOf(row);
+                                                    if (editingItem?.type === 'recurring' && editingItem.index === index) {
+                                                        return (
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <CategoryAutocomplete value={editCategory} onChange={setEditCategory} options={categories} autoFocus placeholder="Category" />
+                                                                <CheckIcon fontSize="small" sx={{ cursor: 'pointer', color: 'success.main' }} onClick={handleSaveCategory} />
+                                                                <CloseIcon fontSize="small" sx={{ cursor: 'pointer', color: 'error.main' }} onClick={handleCancelCategory} />
+                                                            </Box>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <Box
+                                                            onClick={(e) => handleCategoryClick(e, row, index, 'recurring')}
+                                                            sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px', bgcolor: theme.palette.primary.main, color: 'white', px: 1, py: 0.5, borderRadius: 1.5, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                                                        >
+                                                            {row.category || 'Uncategorized'} <EditIcon sx={{ fontSize: '12px' }} />
+                                                        </Box>
+                                                    );
+                                                }
+                                            },
+                                            { id: 'price', label: 'Amount (Avg)', align: 'right', sortable: true, format: (val) => <span style={{ fontWeight: 700, color: theme.palette.primary.main }}>₪{formatNumber(val)}</span> },
+                                            { id: 'last_charge_date', label: 'Last Charge', align: 'center', sortable: true, format: (val) => formatDate(val) },
+                                            { id: 'month_count', label: 'Months', align: 'center', sortable: true, format: (val) => <span style={{ fontWeight: 500 }}>{val}</span> },
+                                            {
+                                                id: 'actions',
+                                                label: '',
+                                                align: 'center',
+                                                format: (_, row) => (
+                                                    <Tooltip title="Not a recurring payment">
+                                                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleMarkNotRecurring(row); }}>
+                                                            <BlockIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )
+                                            }
+                                        ]}
+                                    />
+                                )}
+                                {(loadingMore || (loading && (installments.length > 0 || recurring.length > 0))) && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                                        <CircularProgress size={32} thickness={4} />
                                     </Box>
-                                );
-                            })()}
+                                )}
+                                {!(activeTab === 0 ? hasMoreInstallments : hasMoreRecurring) && (installments.length > 0 || recurring.length > 0) && (
+                                    <Box sx={{ p: 4, textAlign: 'center' }}>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                            That's all for now ✨
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
                         </>
                     )}
                 </Box>

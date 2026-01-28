@@ -156,29 +156,41 @@ export default function ScrapeAuditView() {
                             {
                                 id: 'message',
                                 label: 'Message',
-                                format: (val, row) => (
-                                    <Box sx={{
-                                        maxWidth: '300px',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        color: row.vendor === 'whatsapp_summary' ? 'primary.main' : 'inherit',
-                                        fontWeight: row.vendor === 'whatsapp_summary' ? 600 : 400
-                                    }} title={val}>
-                                        {val || '-'}
-                                        {row.vendor === 'whatsapp_summary' && row.report_json?.body && ' (Click to view)'}
-                                    </Box>
-                                )
+                                format: (val, row) => {
+                                    const hasDetails = !!(row.report_json || val);
+                                    return (
+                                        <Box sx={{
+                                            maxWidth: '300px',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            color: hasDetails ? 'primary.main' : 'inherit',
+                                            fontWeight: hasDetails ? 600 : 400
+                                        }} title={val}>
+                                            {val || '-'}
+                                            {hasDetails && ' (Click to view)'}
+                                        </Box>
+                                    );
+                                }
                             }
                         ]}
-                        renderSubRow={(row) => row.vendor === 'whatsapp_summary' && row.report_json?.body ? (
-                            <Box sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)', borderRadius: 2, m: 2 }}>
-                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, opacity: 0.7 }}>Full Message Body:</Typography>
-                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                                    {row.report_json.body}
-                                </Typography>
-                            </Box>
-                        ) : null}
+                        renderSubRow={(row) => {
+                            if (!row.report_json && !row.message) return null;
+                            return (
+                                <Box sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)', borderRadius: 2, m: 2 }}>
+                                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, opacity: 0.7 }}>
+                                        {row.vendor === 'whatsapp_summary' ? 'Full Message Body:' : 'Scrape Result / Details:'}
+                                    </Typography>
+                                    <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', overflowX: 'auto', fontSize: '0.8125rem' }}>
+                                        {row.vendor === 'whatsapp_summary' && row.report_json?.body
+                                            ? row.report_json.body
+                                            : row.report_json
+                                                ? JSON.stringify(row.report_json, null, 2)
+                                                : row.message}
+                                    </Typography>
+                                </Box>
+                            );
+                        }}
                         mobileCardRenderer={(row) => (
                             <Box>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -194,9 +206,9 @@ export default function ScrapeAuditView() {
                                     <Typography variant="caption" color="text.secondary">{new Date(row.created_at).toLocaleString()}</Typography>
                                     <Typography variant="caption" color="text.secondary">{row.message || '-'}</Typography>
                                 </Box>
-                                {row.vendor === 'whatsapp_summary' && row.report_json?.body && (
+                                {(row.report_json || row.message) && (
                                     <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block', fontWeight: 600 }}>
-                                        Tap to view summary body
+                                        Tap to view {row.vendor === 'whatsapp_summary' ? 'summary body' : 'details'}
                                     </Typography>
                                 )}
                             </Box>

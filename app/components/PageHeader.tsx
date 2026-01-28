@@ -93,7 +93,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
             overflow: 'hidden',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.04)',
             background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
-            backdropFilter: 'blur(20px)',
+            backdropFilter: 'blur(8px)',
         }} className="n-glass">
 
             {/* Background Decor */}

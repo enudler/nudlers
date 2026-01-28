@@ -20,9 +20,11 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
+import Typography from '@mui/material/Typography';
 import { ResponseData, Expense, ModalData } from './types';
 import { useCategoryIcons, useCategoryColors } from './utils/categoryUtils';
 import Card from './components/Card';
+import CategoryRow from './components/CategoryRow';
 import ExpensesModal from './components/ExpensesModal';
 import TransactionsTable from './components/TransactionsTable';
 import { useScreenContext } from '../Layout';
@@ -94,6 +96,10 @@ const fetchAllTransactions = async (startDate: string, endDate: string, billingC
   return response.json();
 };
 
+const formatNumber = (num: number) => {
+  return new Intl.NumberFormat('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num);
+};
+
 const CategoryDashboard: React.FC = () => {
   const theme = useTheme();
   const {
@@ -109,15 +115,22 @@ const CategoryDashboard: React.FC = () => {
 
   const [sumPerCategory, setSumPerCategory] = React.useState<ResponseData[]>([]);
   // Local UI State
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [isSearching, setIsSearching] = React.useState(false);
   const [bankTransactions, setBankTransactions] = React.useState({ income: 0, expenses: 0 });
   const [creditCardTransactions, setCreditCardTransactions] = React.useState(0);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [loadingCategory, setLoadingCategory] = React.useState<string | null>(null);
   const [loadingBankTransactions, setLoadingBankTransactions] = React.useState(false);
   const [modalData, setModalData] = React.useState<ModalData>();
-  const [showTransactionsTable, setShowTransactionsTable] = React.useState(false);
   const [transactions, setTransactions] = React.useState<Expense[]>([]);
   const [loadingTransactions, setLoadingTransactions] = React.useState(false);
+  const [sortBy, setSortBy] = React.useState<string>('date');
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc');
+  const pageRef = React.useRef(0);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const PAGE_SIZE = 50;
 
   const categoryIcons = useCategoryIcons();
   const categoryColors = useCategoryColors();
@@ -196,31 +209,62 @@ const CategoryDashboard: React.FC = () => {
   }, [selectedYear, selectedMonth]);
 
   // Helper moved up
-  const fetchTransactionsWithRange = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string) => {
-    setLoadingTransactions(true);
+  const fetchTransactionsWithRange = React.useCallback(async (startDate: string, endDate: string, billingCycle?: string, isLoadMore: boolean = false) => {
+    if (!isLoadMore) {
+      setLoadingTransactions(true);
+      pageRef.current = 0;
+      setTransactions([]);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
-      const transactionsData = await fetchAllTransactions(startDate, endDate, billingCycle);
-      // Map and sort transactions by date descending (newest first)
-      const sortedTransactions = transactionsData
-        .map((t: { category?: string; identifier?: string; vendor?: string;[key: string]: unknown }) => ({
-          ...t,
-          category: t.category || 'Unassigned',
-          identifier: t.identifier || 'unknown',
-          vendor: t.vendor || 'unknown'
-        }))
-        .sort((a: Expense, b: Expense) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-      setTransactions(sortedTransactions);
+      const currentPage = isLoadMore ? pageRef.current + 1 : 0;
+      const url = new URL("/api/reports/category-expenses", window.location.origin);
+
+      if (billingCycle) {
+        url.searchParams.append("billingCycle", billingCycle);
+      } else {
+        url.searchParams.append("startDate", startDate);
+        url.searchParams.append("endDate", endDate);
+      }
+      url.searchParams.append("all", "true");
+      url.searchParams.append("sortBy", sortBy);
+      url.searchParams.append("sortOrder", sortOrder);
+      url.searchParams.append("limit", PAGE_SIZE.toString());
+      url.searchParams.append("offset", (currentPage * PAGE_SIZE).toString());
+
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const transactionsData = await response.json();
+      const mappedTransactions = transactionsData.map((t: any) => ({
+        ...t,
+        category: t.category || 'Unassigned',
+        identifier: t.identifier || 'unknown',
+        vendor: t.vendor || 'unknown'
+      }));
+
+      if (isLoadMore) {
+        setTransactions(prev => [...prev, ...mappedTransactions]);
+        pageRef.current = currentPage;
+      } else {
+        setTransactions(mappedTransactions);
+      }
+      setHasMore(transactionsData.length === PAGE_SIZE);
     } catch (error) {
       logger.error('Error fetching transactions data', error, {
         year: selectedYear,
         month: selectedMonth
       });
     } finally {
-      setLoadingTransactions(false);
+      if (!isLoadMore) {
+        setLoadingTransactions(false);
+      } else {
+        setLoadingMore(false);
+      }
     }
-  }, [selectedYear, selectedMonth]);
+  }, [selectedYear, selectedMonth, sortBy, sortOrder]);
 
   // fetchTransactions removed as it's unused
 
@@ -250,48 +294,50 @@ const CategoryDashboard: React.FC = () => {
       // Fetch budget data in parallel
       fetchBudgetData(startDate, endDate, billingCycle);
 
-      // Fetch transactions:
-      // If in Billing Cycle mode, we need distinct handling:
-      // - Credit Cards: Use billingCycle (processed_date) to match the statement.
-      // - Bank: Use the calculated Date Range (e.g. 10th-10th) because Bank items don't have 'billing cycles'.
+      // Fetch summary stats efficiently using the summary API
+      // Optimized: Avoid fetching all transactions just to sum them up
+      const fetchSummary = async (start: string, end: string, cycle?: string) => {
+        const url = new URL("/api/reports/monthly-summary", window.location.origin);
+        if (cycle) url.searchParams.append("billingCycle", cycle);
+        else {
+          url.searchParams.append("startDate", start);
+          url.searchParams.append("endDate", end);
+        }
+        url.searchParams.append("limit", "500");
+        const res = await fetch(url.toString());
+        if (!res.ok) return { items: [] };
+        return res.json();
+      };
 
-      let bankData: { price: number; vendor?: string; category?: string; card6_digits?: string; account_number?: string | number; installments_total?: number; }[] = [];
-      let cardData: { price: number; vendor?: string; category?: string; card6_digits?: string; account_number?: string | number; installments_total?: number; }[] = [];
+      let totalBankIncome = 0;
+      let totalBankExpenses = 0;
+      let totalCardExpenses = 0;
 
       if (billingCycle) {
-        // Parallel fetch for speed
-        const [cycleResponse, rangeResponse] = await Promise.all([
-          fetchAllTransactions(startDate, endDate, billingCycle), // For Cards
-          fetchAllTransactions(startDate, endDate, undefined)     // For Bank (Force date range)
+        // In billing mode, we need cards for the cycle but bank for the date range
+        const [cycleSum, rangeSum] = await Promise.all([
+          fetchSummary(startDate, endDate, billingCycle),
+          fetchSummary(startDate, endDate, undefined)
         ]);
-        cardData = cycleResponse;
-        bankData = rangeResponse;
+
+        cycleSum.items?.forEach((item: any) => {
+          totalCardExpenses += Number(item.card_expenses || 0);
+        });
+        rangeSum.items?.forEach((item: any) => {
+          totalBankIncome += Number(item.bank_income || 0);
+          totalBankExpenses += Number(item.bank_expenses || 0);
+        });
       } else {
-        // Standard mode (Calendar/Custom): Use date range for both
-        const data = await fetchAllTransactions(startDate, endDate, undefined);
-        bankData = data;
-        cardData = data;
+        const summary = await fetchSummary(startDate, endDate, undefined);
+        summary.items?.forEach((item: any) => {
+          totalBankIncome += Number(item.bank_income || 0);
+          totalBankExpenses += Number(item.bank_expenses || 0);
+          totalCardExpenses += Number(item.card_expenses || 0);
+        });
       }
 
-      const totalIncome = bankData
-        .filter((transaction) =>
-          isBankTransaction(transaction) && transaction.price > 0
-        )
-        .reduce((acc: number, transaction) => acc + transaction.price, 0);
-
-      const totalExpenses = bankData
-        .filter((transaction) => isBankTransaction(transaction) && transaction.price < 0)
-        .reduce((acc: number, transaction) => acc + Math.abs(transaction.price), 0);
-
-      // Calculate net expenses for credit cards using cardData (Cycle based)
-      const creditCardNetSum = cardData
-        .filter((transaction) => !isBankTransaction(transaction))
-        .reduce((acc: number, transaction) => acc + transaction.price, 0);
-
-      const creditCardExpenses = Math.abs(creditCardNetSum);
-
-      setBankTransactions({ income: totalIncome, expenses: totalExpenses });
-      setCreditCardTransactions(creditCardExpenses);
+      setBankTransactions({ income: totalBankIncome, expenses: totalBankExpenses });
+      setCreditCardTransactions(totalCardExpenses);
     } catch (error) {
       logger.error('Error fetching data', error, {
         year: selectedYear,
@@ -335,10 +381,98 @@ const CategoryDashboard: React.FC = () => {
 
 
   const handleRefreshClick = () => {
-    if (startDate && endDate) {
+    if (searchQuery.trim()) {
+      handleSearch();
+    } else if (startDate && endDate) {
       fetchData(startDate, endDate, billingCycle);
-      if (showTransactionsTable) {
-        fetchTransactionsWithRange(startDate, endDate, billingCycle);
+      fetchTransactionsWithRange(startDate, endDate, billingCycle);
+    }
+  };
+
+  const handleSearch = React.useCallback(async (e?: React.FormEvent, isLoadMore: boolean = false) => {
+    e?.preventDefault();
+    if (!searchQuery.trim()) {
+      // If search is cleared, fetch regular data
+      if (startDate && endDate) {
+        fetchTransactionsWithRange(startDate, endDate, billingCycle, isLoadMore);
+      }
+      return;
+    }
+
+    if (!isLoadMore) {
+      setLoadingTransactions(true);
+      pageRef.current = 0;
+      setTransactions([]);
+    } else {
+      setLoadingMore(true);
+    }
+
+    setIsSearching(true);
+    try {
+      const currentPage = isLoadMore ? pageRef.current + 1 : 0;
+      let queryParams = `q=${encodeURIComponent(searchQuery)}`;
+      if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
+        queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {
+        queryParams += `&billingCycle=${selectedYear}-${selectedMonth}`;
+      } else if (startDate && endDate) {
+        queryParams += `&startDate=${startDate}&endDate=${endDate}`;
+      }
+
+      queryParams += `&sortBy=${sortBy}&sortOrder=${sortOrder}`;
+      queryParams += `&limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+
+      const response = await fetch(`/api/transactions?${queryParams}`);
+      if (response.ok) {
+        const results = await response.json();
+        if (isLoadMore) {
+          setTransactions(prev => [...prev, ...results]);
+          pageRef.current = currentPage;
+        } else {
+          setTransactions(results);
+        }
+        setHasMore(results.length === PAGE_SIZE);
+      }
+    } catch (error) {
+      logger.error('Search error', error, { query: searchQuery });
+      showNotification('Search failed', 'error');
+    } finally {
+      if (!isLoadMore) {
+        setLoadingTransactions(false);
+      } else {
+        setLoadingMore(false);
+      }
+      setIsSearching(false);
+    }
+  }, [
+    searchQuery,
+    startDate,
+    endDate,
+    billingCycle,
+    fetchTransactionsWithRange,
+    dateRangeMode,
+    customStartDate,
+    customEndDate,
+    selectedYear,
+    selectedMonth,
+    sortBy,
+    sortOrder,
+    showNotification
+  ]);
+
+  const handleSort = (field: string) => {
+    const isAsc = sortBy === field && sortOrder === 'asc';
+    setSortOrder(isAsc ? 'desc' : 'asc');
+    setSortBy(field);
+    pageRef.current = 0; // Reset page on sort change
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingTransactions && !loadingMore && hasMore) {
+      if (searchQuery.trim()) {
+        handleSearch(undefined, true);
+      } else if (startDate && endDate) {
+        fetchTransactionsWithRange(startDate, endDate, billingCycle, true);
       }
     }
   };
@@ -346,17 +480,27 @@ const CategoryDashboard: React.FC = () => {
   // Initial data fetch and Refresh listener
   React.useEffect(() => {
     if (startDate && endDate) {
-      fetchData(startDate, endDate, billingCycle);
+      if (searchQuery.trim()) {
+        handleSearch();
+      } else {
+        fetchData(startDate, endDate, billingCycle);
+        fetchTransactionsWithRange(startDate, endDate, billingCycle);
+      }
     }
 
     const handleRefresh = () => {
       if (startDate && endDate) {
-        fetchData(startDate, endDate, billingCycle);
+        if (searchQuery.trim()) {
+          handleSearch();
+        } else {
+          fetchData(startDate, endDate, billingCycle);
+          fetchTransactionsWithRange(startDate, endDate, billingCycle);
+        }
       }
     };
     window.addEventListener('dataRefresh', handleRefresh);
     return () => window.removeEventListener('dataRefresh', handleRefresh);
-  }, [startDate, endDate, billingCycle, fetchData]);
+  }, [startDate, endDate, billingCycle, fetchData, fetchTransactionsWithRange, searchQuery, handleSearch]);
 
   const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedYear(event.target.value);
@@ -410,7 +554,7 @@ const CategoryDashboard: React.FC = () => {
   // Update AI Assistant screen context when data changes
   React.useEffect(() => {
     setScreenContext({
-      view: 'dashboard',
+      view: 'transactions',
       dateRange: {
         startDate,
         endDate,
@@ -422,12 +566,12 @@ const CategoryDashboard: React.FC = () => {
         creditCardExpenses: creditCardTransactions,
         categories: categories.map(c => ({ name: c.name, value: c.value }))
       },
-      transactions: showTransactionsTable ? transactions.slice(0, 50).map(t => ({
+      transactions: transactions.slice(0, 50).map(t => ({
         name: t.name,
         amount: t.price,
         category: t.category || 'Unassigned',
         date: t.date
-      })) : undefined
+      }))
     });
   }, [
     bankTransactions,
@@ -436,7 +580,6 @@ const CategoryDashboard: React.FC = () => {
     dateRangeMode,
     startDate,
     endDate,
-    showTransactionsTable,
     transactions,
     setScreenContext
   ]);
@@ -583,17 +726,7 @@ const CategoryDashboard: React.FC = () => {
     }
   };
 
-  const handleTransactionsTableClick = async () => {
-    const newShowTransactionsTable = !showTransactionsTable;
-    setShowTransactionsTable(newShowTransactionsTable);
-    if (!newShowTransactionsTable) {
-      return;
-    }
 
-    if (startDate && endDate) {
-      fetchTransactionsWithRange(startDate, endDate, billingCycle);
-    }
-  };
 
   // Moved up
 
@@ -727,45 +860,8 @@ const CategoryDashboard: React.FC = () => {
       background: 'transparent',
       overflow: 'hidden'
     }}>
-      {/* Animated background elements - hidden on mobile */}
-      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-        <div style={{
-          position: 'absolute',
-          top: '-10%',
-          right: '-5%',
-          width: '600px',
-          height: '600px',
-          background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
-          borderRadius: '50%',
-          filter: 'blur(60px)',
-          animation: 'float 20s ease-in-out infinite',
-          zIndex: 0
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: '-10%',
-          left: '-5%',
-          width: '500px',
-          height: '500px',
-          background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
-          borderRadius: '50%',
-          filter: 'blur(60px)',
-          animation: 'float 25s ease-in-out infinite reverse',
-          zIndex: 0
-        }} />
-        <div style={{
-          position: 'absolute',
-          top: '40%',
-          right: '20%',
-          width: '400px',
-          height: '400px',
-          background: 'radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 70%)',
-          borderRadius: '50%',
-          filter: 'blur(60px)',
-          animation: 'float 30s ease-in-out infinite',
-          zIndex: 0
-        }} />
-      </Box>
+      {/* Background elements removed - handled by Layout.tsx */}
+
 
       {/* Main content container */}
       <Box sx={{
@@ -777,9 +873,9 @@ const CategoryDashboard: React.FC = () => {
       }}>
 
         <PageHeader
-          title="Financial Overview"
-          description="Analyze your financial health and spending patterns"
-          icon={<MonetizationOnIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
+          title="Transactions"
+          description="View and manage all your bank and credit card transactions"
+          icon={<TableChartIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
           showDateSelectors={true}
           dateRangeMode={dateRangeMode}
           onDateRangeModeChange={handleDateRangeModeChange}
@@ -794,177 +890,73 @@ const CategoryDashboard: React.FC = () => {
           customEndDate={customEndDate}
           onCustomEndDateChange={(val) => handleCustomDateChange('end', val)}
           onRefresh={handleRefreshClick}
-          extraControls={
-            <IconButton
-              onClick={handleTransactionsTableClick}
-              sx={{
-                background: showTransactionsTable
-                  ? (theme.palette.mode === 'dark' ? 'rgba(96, 165, 250, 0.2)' : 'rgba(96, 165, 250, 0.15)')
-                  : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)'),
-                backdropFilter: 'blur(10px)',
-                padding: '10px',
-                borderRadius: '12px',
-                border: showTransactionsTable
-                  ? `1px solid ${theme.palette.primary.main}`
-                  : `1px solid ${theme.palette.divider}`,
-                color: showTransactionsTable ? 'primary.main' : 'text.secondary',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 24px rgba(96, 165, 250, 0.3)',
-                  color: 'primary.main'
-                }
-              }}
-            >
-              <TableChartIcon fontSize="medium" />
-            </IconButton>
-          }
+          showSearch={true}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          onSearchSubmit={handleSearch}
+          isSearching={isSearching}
           startDate={startDate}
           endDate={endDate}
         />
 
 
 
-        {/* Summary Cards Section */}
-        <Box sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: { xs: '16px', md: '32px' },
-          marginTop: { xs: '24px', md: '48px' },
-          marginBottom: { xs: '24px', md: '40px' }
-        }}>
-          <Card
-            title="Bank Transactions"
-            value={bankTransactions.income}
-            color="#4ADE80"
-            icon={MonetizationOnIcon}
-            onClick={handleBankTransactionsClick}
-            isLoading={loadingBankTransactions}
-            size="medium"
-            secondaryValue={bankTransactions.expenses}
-            secondaryColor="#F87171"
-          />
-          <Card
-            title="Credit Card Transactions"
-            value={creditCardTransactions}
-            color="#3B82F6"
-            icon={CreditCardIcon}
-            onClick={handleTotalCreditCardExpensesClick}
-            isLoading={loadingBankTransactions}
-            size="medium"
-          />
-        </Box>
-
-        {showTransactionsTable ? (
-          <Box sx={{
+        {/* Summary Header - Horizontal & Minimal */}
+        {/* Unified Financial Snapshot Hero */}
+        <Box
+          onScroll={(e) => {
+            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+            if (scrollHeight - scrollTop <= clientHeight + 100) {
+              handleLoadMore();
+            }
+          }}
+          sx={{
             background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(20px)',
             borderRadius: { xs: '20px', md: '32px' },
             padding: { xs: '12px', md: '32px' },
+            marginTop: '24px',
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-            overflowX: 'auto'
+            overflowX: 'auto',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            '&::-webkit-scrollbar': { width: '8px' },
+            '&::-webkit-scrollbar-track': { background: 'transparent' },
+            '&::-webkit-scrollbar-thumb': {
+              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              borderRadius: '10px',
+              border: '2px solid transparent',
+              backgroundClip: 'content-box'
+            },
+            '&:hover::-webkit-scrollbar-thumb': {
+              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+              backgroundClip: 'content-box'
+            }
           }}>
-            <TransactionsTable
-              transactions={transactions}
-              isLoading={loadingTransactions}
-              onDelete={handleDeleteTransaction}
-              onUpdate={handleUpdateTransaction}
-              groupByDate={true}
-            />
-          </Box>
-        ) : (
-          <>
-            {/* Categories Section Header */}
-            <Box sx={{
-              marginBottom: { xs: '16px', md: '32px' },
-              display: 'flex',
-              alignItems: 'center',
-              gap: { xs: '8px', md: '16px' }
-            }}>
-              <Box sx={{
-                height: '2px',
-                flex: 1,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
-                borderRadius: '2px',
-                display: { xs: 'none', sm: 'block' }
-              }} />
-              <Box component="h2" sx={{
-                fontSize: { xs: '12px', md: '14px' },
-                fontWeight: 700,
-                margin: 0,
-                color: '#475569',
-                letterSpacing: { xs: '1px', md: '2px' },
-                textTransform: 'uppercase',
-                textAlign: 'center',
-                flex: { xs: 1, sm: 'none' }
-              }}>Expense Categories</Box>
-              <Box sx={{
-                height: '2px',
-                flex: 1,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.3) 50%, transparent 100%)',
-                borderRadius: '2px',
-                display: { xs: 'none', sm: 'block' }
-              }} />
+          <TransactionsTable
+            transactions={transactions}
+            isLoading={loadingTransactions}
+            onDelete={handleDeleteTransaction}
+            onUpdate={handleUpdateTransaction}
+            groupByDate={sortBy === 'date' && sortOrder === 'desc'}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSort={handleSort}
+          />
+          {(loadingMore || loadingTransactions) && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress size={32} thickness={4} />
             </Box>
-            <Box sx={{
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(auto-fill, minmax(280px, 1fr))'
-              },
-              gap: { xs: '12px', sm: '16px', md: '32px' },
-              width: '100%',
-              boxSizing: 'border-box'
-            }}>
-              {categories.length > 0 ? (
-                categories.map((category, index) => (
-                  <Card
-                    key={"category-" + index}
-                    title={category.name}
-                    value={category.value}
-                    color={category.color}
-                    icon={category.icon}
-                    onClick={() => handleCategoryClick(category.name)}
-                    isLoading={loadingCategory === category.name}
-                    size="medium"
-                    budget={category.budget}
-                    onSetBudget={handleSetBudget}
-                    onEditBudget={handleEditBudget}
-                  />
-                ))
-              ) : (
-                <div style={{
-                  gridColumn: '1 / -1',
-                  textAlign: 'center',
-                  padding: '64px',
-                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: '24px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  backdropFilter: 'blur(20px)',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
-                }}>
-                  <div style={{
-                    fontSize: '48px',
-                    marginBottom: '16px',
-                    opacity: 0.6
-                  }}>📊</div>
-                  <div style={{
-                    color: '#475569',
-                    fontSize: '18px',
-                    fontWeight: 600
-                  }}>
-                    {dateRangeMode === 'custom'
-                      ? `No transactions found for ${customStartDate && customEndDate ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'selected date range'}`
-                      : `No transactions found for ${new Date(`2024-${selectedMonth}-01`).toLocaleDateString('default', { month: 'long' })} ${selectedYear}`
-                    }
-                  </div>
-                </div>
-              )}
+          )}
+          {!hasMore && transactions.length > 0 && (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                That's all for this period ✨
+              </Typography>
             </Box>
-          </>
-        )}
+          )}
+        </Box>
       </Box>
 
       {

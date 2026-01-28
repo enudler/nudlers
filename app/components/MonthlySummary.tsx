@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '@mui/material/styles';
+import Button from '@mui/material/Button';
+import LinearProgress from '@mui/material/LinearProgress';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -15,6 +17,8 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import SearchIcon from '@mui/icons-material/Search';
 import SummarizeIcon from '@mui/icons-material/Summarize';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import EditIcon from '@mui/icons-material/Edit';
 
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
@@ -31,9 +35,10 @@ import Link from 'next/link';
 import PageHeader from './PageHeader';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
-import TableCell from '@mui/material/TableCell';
-import TableRow from '@mui/material/TableRow';
-import Table, { Column } from './Table';
+import BudgetModule from './BudgetModule';
+import RecentTransactionsModule from './RecentTransactionsModule';
+import { DndContext, useSensor, useSensors, PointerSensor, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 import ExpensesModal from './CategoryDashboard/components/ExpensesModal';
 import Typography from '@mui/material/Typography';
@@ -78,6 +83,7 @@ interface CardSummary {
   transaction_vendor?: string | null;
   balance?: number | null;
   balance_updated_at?: string | null;
+  card_nickname?: string | null;
 }
 
 interface ScrapedBankSummary {
@@ -143,11 +149,100 @@ const formatNumber = (num: number): string => {
 
 
 
+// Helper components for Drag and Drop
+const DraggableCardWrapper = ({ id, children, disabled }: { id: string, children: React.ReactNode, disabled?: boolean }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `card-${id}`,
+    data: { last4digits: id },
+    disabled
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    zIndex: isDragging ? 50 : 'auto',
+    position: 'relative',
+    touchAction: 'none',
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      {children}
+    </div>
+  );
+};
+
+const DroppableBankWrapper = ({ id, children }: { id: number, children: React.ReactNode }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `bank-${id}`,
+    data: { bankId: id }
+  });
+
+  const style: React.CSSProperties = {
+    transition: 'all 0.2s ease',
+    transform: isOver ? 'scale(1.02)' : 'none',
+    boxShadow: isOver ? '0 0 0 2px #3b82f6' : 'inherit',
+    borderRadius: '16px',
+    height: '100%'
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children}
+    </div>
+  );
+};
+
 const MonthlySummary: React.FC = () => {
   const theme = useTheme();
   const [data, setData] = useState<MonthlySummaryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !active) return;
+
+    const cardLast4 = active.data.current?.last4digits;
+    const bankIdStr = String(over.id).replace('bank-', '');
+    const targetBankId = parseInt(bankIdStr, 10);
+
+    if (!cardLast4 || isNaN(targetBankId)) return;
+
+    const cardOwnershipId = cardOwnershipMap[cardLast4];
+    if (!cardOwnershipId) {
+      setSnackbar({ open: true, message: 'Cannot move this card (System ID not found)', severity: 'error' });
+      return;
+    }
+
+    // Optimistic update could go here, but for now let's rely on refresh
+    try {
+      const response = await fetch(`/api/cards/ownerships/${cardOwnershipId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linked_bank_account_id: targetBankId })
+      });
+
+      if (response.ok) {
+        setSnackbar({ open: true, message: 'Card moved successfully', severity: 'success' });
+        fetchMonthlySummary(true);
+        // Also refresh vendors to update ownership map if needed, though ID shouldn't change
+      } else {
+        setSnackbar({ open: true, message: 'Failed to move card', severity: 'error' });
+      }
+    } catch (e) {
+      logger.error('Move failed', e);
+      setSnackbar({ open: true, message: 'Move failed', severity: 'error' });
+    }
+  };
 
   const {
     selectedYear, setSelectedYear,
@@ -162,7 +257,7 @@ const MonthlySummary: React.FC = () => {
   } = useDateSelection();
 
   // Grouping
-  const [groupBy] = useState<GroupByType>('description');
+
 
   // Date range error (local validation for custom range UI feedback if needed, 
   // though context handles valid start/end dates for fetching)
@@ -171,7 +266,6 @@ const MonthlySummary: React.FC = () => {
   // Modal for transaction details
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<ModalData | undefined>();
-  const [loadingDescription, setLoadingDescription] = useState<string | null>(null);
   const [loadingLast4, setLoadingLast4] = useState<string | null>(null);
 
   // Card summary for cards display (grouped by last 4 digits)
@@ -185,19 +279,13 @@ const MonthlySummary: React.FC = () => {
   const [scrapedBankSummary, setScrapedBankSummary] = useState<ScrapedBankSummary[]>([]);
   const [creditCardBankSummary, setCreditCardBankSummary] = useState<BankCCSummary[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [budgetLimit, setBudgetLimit] = useState<number | null>(null);
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [newBudgetLimit, setNewBudgetLimit] = useState<string>('');
 
   // Category editing
-  const [editingDescription, setEditingDescription] = useState<string | null>(null);
-  const [editCategory, setEditCategory] = useState<string>('');
-  const { categories: availableCategories } = useCategories();
 
-  // Filter for showing/hiding bank transactions in breakdown by description
-  // By default, bank transactions are hidden (showBankTransactions = false)
-  const [showBankTransactions, setShowBankTransactions] = useState<boolean>(false);
-  // Pagination
-  const [offset, setOffset] = useState(0);
-  const [total, setTotal] = useState(0);
-  const PAGE_SIZE = 50;
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -209,13 +297,13 @@ const MonthlySummary: React.FC = () => {
   const [selectedCardForVendor, setSelectedCardForVendor] = useState<string | null>(null);
   const [cardVendorMap, setCardVendorMap] = useState<Record<string, string>>({});
   const [cardNicknameMap, setCardNicknameMap] = useState<Record<string, string>>({});
+  const [cardOwnershipMap, setCardOwnershipMap] = useState<Record<string, number>>({});
   const [editingNickname, setEditingNickname] = useState<string>('');
 
 
 
-  // Search
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
+
+
 
   // AI context
   const { setScreenContext } = useScreenContext();
@@ -246,6 +334,32 @@ const MonthlySummary: React.FC = () => {
 
   // Theme-aware styles
 
+  const handleSaveBudget = async () => {
+    const limit = parseFloat(newBudgetLimit);
+    if (isNaN(limit) || limit <= 0) {
+      setSnackbar({ open: true, message: 'Please enter a valid budget amount', severity: 'error' });
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/reports/total-budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ budget_limit: limit })
+      });
+
+      if (res.ok) {
+        setBudgetLimit(limit);
+        setIsEditingBudget(false);
+        setSnackbar({ open: true, message: 'Budget updated successfully', severity: 'success' });
+      } else {
+        throw new Error('Failed to save');
+      }
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Failed to update budget', severity: 'error' });
+    }
+  };
+
   const fetchCardVendors = useCallback(async () => {
     try {
       const response = await fetch('/api/cards');
@@ -253,6 +367,7 @@ const MonthlySummary: React.FC = () => {
         const data = await response.json();
         const vendorMap: Record<string, string> = {};
         const nicknameMap: Record<string, string> = {};
+        const ownershipMap: Record<string, number> = {};
         for (const card of data) {
           if (card.card_vendor) {
             vendorMap[card.last4_digits] = card.card_vendor;
@@ -260,9 +375,13 @@ const MonthlySummary: React.FC = () => {
           if (card.card_nickname) {
             nicknameMap[card.last4_digits] = card.card_nickname;
           }
+          if (card.card_ownership_id) {
+            ownershipMap[card.last4_digits] = card.card_ownership_id;
+          }
         }
         setCardVendorMap(vendorMap);
         setCardNicknameMap(nicknameMap);
+        setCardOwnershipMap(ownershipMap);
       }
     } catch (error) {
       logger.error('Error fetching card vendors', error);
@@ -278,12 +397,21 @@ const MonthlySummary: React.FC = () => {
         setDateRangeMode(persistedMode);
       }
 
-      // Settings loaded by context
-
-
       // Fetch available dates and initialize selection
       fetchCardVendors();
 
+      // Fetch budget
+      try {
+        const res = await fetch('/api/reports/total-budget');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.is_set) {
+            setBudgetLimit(data.budget_limit);
+          }
+        }
+      } catch (e) {
+        logger.error('Failed to fetch budget', e);
+      }
     }
 
     init();
@@ -415,14 +543,11 @@ const MonthlySummary: React.FC = () => {
         queryParams.set('startDate', startDate);
         queryParams.set('endDate', endDate);
       }
-      queryParams.set('groupBy', groupBy);
-      queryParams.set('limit', PAGE_SIZE.toString());
-      queryParams.set('offset', offsetValue.toString());
+      queryParams.set('groupBy', 'description');
+      queryParams.set('limit', '50');
+      queryParams.set('offset', '0');
       queryParams.set('sortBy', sortField);
       queryParams.set('sortOrder', sortDirection);
-      if (groupBy === 'description' && !showBankTransactions) {
-        queryParams.set('excludeBankTransactions', 'true');
-      }
 
       url = `/api/reports/monthly-summary?${queryParams.toString()}`;
 
@@ -449,12 +574,7 @@ const MonthlySummary: React.FC = () => {
         setAccounts(await accountsResponse.json());
       }
 
-      if (offsetValue === 0) {
-        setData(items);
-      } else {
-        setData(prev => [...prev, ...items]);
-      }
-      setTotal(newTotal);
+      setData(items);
 
       if (cardResponse.ok) {
         interface CardAPIResponse {
@@ -495,6 +615,7 @@ const MonthlySummary: React.FC = () => {
             transaction_vendor: c.transaction_vendor || null,
             balance: c.balance !== null ? Number(c.balance) : null,
             balance_updated_at: c.balance_updated_at || null,
+            card_nickname: c.card_nickname || null,
           }));
         setCardSummary(cards);
 
@@ -616,7 +737,7 @@ const MonthlySummary: React.FC = () => {
         window.scrollTo(0, scrollY);
       });
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, showBankTransactions, selectedYear, selectedMonth, sortField, sortDirection]);
+  }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection]);
 
   // Derived bank summary that includes ALL accounts from the REST API
   const finalBankSummary = useMemo(() => {
@@ -655,7 +776,7 @@ const MonthlySummary: React.FC = () => {
   }, [accounts, scrapedBankSummary]);
 
   useEffect(() => {
-    setOffset(0); // Reset offset when filters change
+    // Reset offset logic removed as offset is no longer needed/used
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate) {
         fetchMonthlySummary(false, 0);
@@ -663,20 +784,10 @@ const MonthlySummary: React.FC = () => {
     } else if (startDate && endDate) {
       fetchMonthlySummary(false, 0);
     }
-  }, [startDate, endDate, billingCycle, groupBy, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection]);
+  }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection]);
 
   // Separate useEffect for filter toggle - skip loading state to prevent flicker
-  useEffect(() => {
-    if (dateRangeMode === 'custom') {
-      if (customStartDate && customEndDate) {
-        setOffset(0);
-        fetchMonthlySummary(true, 0); // skipLoadingState = true
-      }
-    } else if (startDate && endDate) {
-      setOffset(0);
-      fetchMonthlySummary(true, 0); // skipLoadingState = true
-    }
-  }, [showBankTransactions]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   useEffect(() => {
     const handleDataRefresh = () => {
@@ -718,7 +829,7 @@ const MonthlySummary: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    setOffset(0);
+
     if (dateRangeMode === 'custom') {
       if (customStartDate && customEndDate && validateDateRange(customStartDate, customEndDate)) {
         fetchMonthlySummary(false, 0);
@@ -728,11 +839,7 @@ const MonthlySummary: React.FC = () => {
     }
   };
 
-  const handleLoadMore = () => {
-    const nextOffset = offset + PAGE_SIZE;
-    setOffset(nextOffset);
-    fetchMonthlySummary(true, nextOffset);
-  };
+
 
   const [loadingAll, setLoadingAll] = useState(false);
 
@@ -783,158 +890,9 @@ const MonthlySummary: React.FC = () => {
 
 
   // Category editing handlers
-  const handleCategoryEditClick = (description: string, currentCategory: string) => {
-    setEditingDescription(description);
-    setEditCategory(currentCategory || '');
-  };
 
-  const handleCategorySave = async (description: string) => {
-    if (!editCategory.trim()) {
-      setSnackbar({
-        open: true,
-        message: 'Category cannot be empty',
-        severity: 'error'
-      });
-      return;
-    }
 
-    try {
-      const response = await fetch('/api/categories/update-by-description', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          description: description,
-          newCategory: editCategory.trim(),
-          createRule: true
-        }),
-      });
 
-      if (response.ok) {
-        const result = await response.json();
-
-        // Update local data
-        setData(prevData =>
-          prevData.map(row =>
-            row.description === description
-              ? { ...row, category: editCategory.trim() }
-              : row
-          )
-        );
-
-        const message = result.transactionsUpdated > 1
-          ? `Updated ${result.transactionsUpdated} transactions with "${description}" to "${editCategory}". Rule saved for future transactions.`
-          : `Category updated to "${editCategory}". Rule saved for future transactions.`;
-
-        setSnackbar({
-          open: true,
-          message,
-          severity: 'success'
-        });
-
-        // Trigger a refresh of any other open components
-        window.dispatchEvent(new CustomEvent('dataRefresh'));
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Failed to update category',
-          severity: 'error'
-        });
-      }
-    } catch (error) {
-      logger.error('Error updating category', error, { description });
-      setSnackbar({
-        open: true,
-        message: 'Error updating category',
-        severity: 'error'
-      });
-    }
-
-    setEditingDescription(null);
-  };
-
-  const handleCategoryCancel = () => {
-    setEditingDescription(null);
-    setEditCategory('');
-  };
-
-  const handleDescriptionClick = async (description: string) => {
-    if (dateRangeMode === 'custom') {
-      if (!customStartDate || !customEndDate) return;
-    } else {
-      if (!selectedYear || !selectedMonth) return;
-    }
-
-    try {
-      setLoadingDescription(description);
-
-      let url: string;
-      if (dateRangeMode === 'custom') {
-        url = `/api/transactions?startDate=${customStartDate}&endDate=${customEndDate}&description=${encodeURIComponent(description)}`;
-      } else if (dateRangeMode === 'billing') {
-        const billingCycle = `${selectedYear}-${selectedMonth}`;
-        url = `/api/transactions?billingCycle=${billingCycle}&description=${encodeURIComponent(description)}`;
-      } else {
-        url = `/api/transactions?startDate=${startDate}&endDate=${endDate}&description=${encodeURIComponent(description)}`;
-      }
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
-      }
-
-      const transactions = await response.json();
-
-      setModalData({
-        type: description,
-        data: transactions
-      });
-      setIsModalOpen(true);
-    } catch (err) {
-      logger.error('Error fetching transactions by description', err);
-    } finally {
-      setLoadingDescription(null);
-    }
-  };
-
-  const handleSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    try {
-      setIsSearching(true);
-
-      let queryParams = `q=${encodeURIComponent(searchQuery)}`;
-
-      if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
-        queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
-      } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {
-        queryParams += `&billingCycle=${selectedYear}-${selectedMonth}`;
-      } else if (startDate && endDate) {
-        queryParams += `&startDate=${startDate}&endDate=${endDate}`;
-      }
-
-      const response = await fetch(`/api/transactions?${queryParams}`);
-      if (response.ok) {
-        const results = await response.json();
-        setModalData({
-          type: `Search: "${searchQuery}"`,
-          data: results
-        });
-        setIsModalOpen(true);
-      }
-    } catch (error) {
-      logger.error('Search error', error, { query: searchQuery });
-      setSnackbar({
-        open: true,
-        message: 'Search failed',
-        severity: 'error'
-      });
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   const handleBankAccountClick = async (bank: ScrapedBankSummary) => {
     if (dateRangeMode === 'custom') {
@@ -1159,197 +1117,10 @@ const MonthlySummary: React.FC = () => {
   };
 
   // Sort the data
-  const sortedData = useMemo(() => {
-    if (!data.length) return data;
 
-    // For breakdown table, we now use server-side sorting for pagination consistency
-    if (groupBy === 'description' || groupBy === 'last4digits') {
-      return data;
-    }
-
-    return [...data].sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortField) {
-        case 'name':
-          const nameA = a.vendor_nickname || a.vendor || '';
-          const nameB = b.vendor_nickname || b.vendor || '';
-          comparison = nameA.localeCompare(nameB);
-          break;
-        case 'transaction_count':
-          comparison = (a.transaction_count || 0) - (b.transaction_count || 0);
-          break;
-        case 'card_expenses':
-          comparison = Number(a.card_expenses) - Number(b.card_expenses);
-          break;
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  }, [data, sortField, sortDirection, groupBy]);
 
   // Table columns configuration
-  const tableColumns = useMemo(() => {
-    const cols: Column<MonthlySummaryData>[] = [
-      {
-        id: 'name',
-        label: groupBy === 'description'
-          ? 'Description'
-          : groupBy === 'last4digits'
-            ? 'Last 4 Digits'
-            : 'Card / Account',
-        sortable: true,
-        format: (val, row) => {
-          const displayName = groupBy === 'description'
-            ? row.description
-            : groupBy === 'last4digits'
-              ? row.last4digits || 'Unknown'
-              : (row.vendor_nickname || row.vendor);
-          const isClickable = (groupBy === 'description' && row.description) || (groupBy === 'last4digits' && row.last4digits);
-          const isLoading = loadingDescription === row.description || loadingLast4 === row.last4digits;
 
-          return (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              opacity: isLoading ? 0.5 : 1
-            }}>
-              {isLoading ? (
-                <CircularProgress size={18} style={{ color: '#3b82f6' }} />
-              ) : groupBy === 'description' ? (
-                <DescriptionIcon sx={{ fontSize: '18px', color: '#64748b' }} />
-              ) : (
-                <CreditCardIcon sx={{ fontSize: '18px', color: '#3B82F6' }} />
-              )}
-              <span style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                textDecoration: isClickable ? 'underline' : 'none',
-                textDecorationColor: 'rgba(59, 130, 246, 0.3)'
-              }}>
-                {groupBy === 'last4digits' ? `****${displayName}` : displayName}
-              </span>
-            </div>
-          );
-        }
-      }
-    ];
-
-    if (groupBy === 'description') {
-      cols.push({
-        id: 'category',
-        label: 'Category',
-        sortable: true,
-        format: (val, row) => (
-          <div onClick={(e) => e.stopPropagation()}>
-            {editingDescription === row.description ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Autocomplete
-                  value={editCategory}
-                  onChange={(event, newValue) => setEditCategory(newValue || '')}
-                  onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                  freeSolo
-                  options={availableCategories}
-                  size="small"
-                  sx={{
-                    minWidth: 140,
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'white',
-                      color: 'text.primary',
-                      '& fieldset': { borderColor: theme.palette.divider },
-                      '&:hover fieldset': { borderColor: '#3b82f6' },
-                      '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
-                    },
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      placeholder="Category..."
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleCategorySave(row.description!);
-                        } else if (e.key === 'Escape') {
-                          handleCategoryCancel();
-                        }
-                      }}
-                      sx={{ '& .MuiInputBase-input': { fontSize: '13px', padding: '6px 10px' } }}
-                    />
-                  )}
-                />
-                <IconButton
-                  size="small"
-                  onClick={() => handleCategorySave(row.description!)}
-                  sx={{ color: '#4ADE80', padding: '4px', '&:hover': { backgroundColor: 'rgba(74, 222, 128, 0.1)' } }}
-                >
-                  <CheckIcon sx={{ fontSize: '18px' }} />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={handleCategoryCancel}
-                  sx={{ color: '#ef4444', padding: '4px', '&:hover': { backgroundColor: 'rgba(239, 68, 68, 0.1)' } }}
-                >
-                  <CloseIcon sx={{ fontSize: '18px' }} />
-                </IconButton>
-              </div>
-            ) : (
-              <span
-                style={{
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  color: '#3b82f6',
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease-in-out',
-                  display: 'inline-block'
-                }}
-                onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
-              >
-                {row.category || 'Uncategorized'}
-              </span>
-            )}
-          </div>
-        )
-      });
-    }
-
-    if (groupBy === 'description' || groupBy === 'last4digits') {
-      cols.push({
-        id: 'transaction_count',
-        label: 'Count',
-        sortable: true,
-        align: 'center',
-        format: (val) => <span style={{ color: '#64748b', fontWeight: 500 }}>{val}</span>
-      });
-    }
-
-    cols.push({
-      id: 'card_expenses',
-      label: 'Amount',
-      align: 'right',
-      sortable: true,
-      format: (val, row) => (
-        <div style={{
-          color: groupBy === 'description'
-            ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
-            : '#3B82F6',
-          fontWeight: 600
-        }}>
-          {groupBy === 'description' && row.amount !== undefined
-            ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
-            : `₪${formatNumber(row.card_expenses)}`
-          }
-        </div>
-      )
-    });
-
-    return cols;
-  }, [groupBy, theme, editingDescription, editCategory, availableCategories, loadingDescription, loadingLast4, sortField, sortDirection]);
 
   // Update document title and data
   useEffect(() => {
@@ -1384,31 +1155,8 @@ const MonthlySummary: React.FC = () => {
       background: 'transparent',
       overflow: 'hidden'
     }}>
-      {/* Animated background elements - hidden on mobile for performance */}
-      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-        <div style={{
-          position: 'absolute',
-          top: '-10%',
-          right: '-5%',
-          width: '600px',
-          height: '600px',
-          background: 'radial-gradient(circle, rgba(96, 165, 250, 0.08) 0%, transparent 70%)',
-          borderRadius: '50%',
-          filter: 'blur(60px)',
-          zIndex: 0
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: '-10%',
-          left: '-5%',
-          width: '500px',
-          height: '500px',
-          background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
-          borderRadius: '50%',
-          filter: 'blur(60px)',
-          zIndex: 0
-        }} />
-      </Box>
+      {/* Background elements removed - handled by Layout.tsx */}
+
 
       {/* Main content container */}
       <Box sx={{
@@ -1425,20 +1173,11 @@ const MonthlySummary: React.FC = () => {
             dateRangeMode === 'custom' && customStartDate && customEndDate
               ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
               : (selectedMonth && selectedYear
-                ? `Overview for ${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                ? `Summary for ${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
                 : 'Track and analyze your expenses')
           }
           icon={<SummarizeIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
-          stats={
-            <Box>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                {dateRangeMode === 'billing' ? 'Cycle Total' : 'Total Expenses'}
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1, mt: 0.5 }}>
-                ₪{formatNumber(totals.card_expenses)}
-              </Typography>
-            </Box>
-          }
+
           showDateSelectors={true}
           dateRangeMode={dateRangeMode}
           onDateRangeModeChange={handleDateRangeModeChange}
@@ -1453,11 +1192,6 @@ const MonthlySummary: React.FC = () => {
           customEndDate={customEndDate}
           onCustomEndDateChange={(val) => handleCustomDateChange('end', val)}
           onRefresh={handleRefresh}
-          showSearch={true}
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-          onSearchSubmit={handleSearch}
-          isSearching={isSearching}
           startDate={startDate}
           endDate={endDate}
         />
@@ -1475,761 +1209,593 @@ const MonthlySummary: React.FC = () => {
         ) : (
           <>
             {/* Summary Cards Section */}
+            {/* Unified Summary Hero Card */}
             <Box sx={{
-              background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(20px)',
-              borderRadius: { xs: '20px', md: '32px' },
-              padding: { xs: '16px', sm: '20px', md: '24px 32px' },
-              marginLeft: { xs: '8px', md: '24px' },
-              marginRight: { xs: '8px', md: '24px' },
-              marginBottom: { xs: '16px', md: '32px' },
+              margin: { xs: '12px 4px', md: '0 16px 24px' },
+              padding: { xs: '16px', md: '20px' },
+              borderRadius: '24px',
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                : 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.95) 100%)',
+              backdropFilter: 'blur(8px)',
               border: `1px solid ${theme.palette.divider}`,
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
+              boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)',
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              gap: { xs: '16px', lg: '24px' }
             }}>
-              <Box sx={{
-                display: 'flex',
-                gap: { xs: '12px', md: '16px' },
-                flexWrap: 'wrap',
-                justifyContent: 'flex-start',
-                alignItems: 'stretch'
-              }}>
-                {/* Total Card Expenses - Main Card */}
-                <Box
-                  onClick={handleAllTransactionsClick}
-                  sx={{
+              {/* Left Section: Total Summary */}
+              <Box
+                onClick={handleAllTransactionsClick}
+                sx={{
+                  flex: '0 0 auto',
+                  minWidth: { lg: '240px' },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  p: 1.5,
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s',
+                  '&:hover': { transform: 'scale(1.02)' }
+                }}
+              >
+                <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.1em', fontSize: '0.65rem' }}>
+                  Total Card Spend
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, mb: 1.5 }}>
+                  <Box sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                    borderRadius: '20px',
-                    padding: { xs: '16px', md: '20px 24px' },
-                    minWidth: { xs: '100%', sm: '200px' },
-                    flex: { xs: '1 1 100%', sm: '0 0 auto' },
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
-                    opacity: loadingAll ? 0.7 : 1,
-                    '&:hover': {
-                      transform: { xs: 'none', md: 'translateY(-2px)' },
-                      boxShadow: { xs: '0 4px 16px rgba(59, 130, 246, 0.3)', md: '0 8px 24px rgba(59, 130, 246, 0.4)' },
-                    }
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.3)';
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    {loadingAll ? (
-                      <CircularProgress size={20} style={{ color: 'white' }} />
-                    ) : (
-                      <CreditCardIcon sx={{ color: 'white', fontSize: '20px' }} />
-                    )}
-                    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: 600 }}>
-                      Credit Card Expenses
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'white' }}>
-                    ₪{formatNumber(totals.card_expenses)}
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
-                    Click to view all
-                  </div>
-                </Box>
-
-                {/* Individual Cards by Last 4 Digits */}
-                {cardSummary
-                  .filter(card => {
-                    const cardVendor = cardVendorMap[card.last4digits];
-                    const transVendor = card.transaction_vendor;
-                    const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
-                      (cardVendor && BANK_VENDORS.includes(cardVendor));
-                    return !isBank;
-                  })
-                  .map((card) => {
-                    const isLoading = loadingLast4 === card.last4digits;
-                    const percentage = totals.card_expenses > 0
-                      ? Math.round((card.card_expenses / totals.card_expenses) * 100)
-                      : 0;
-                    const cardVendor = cardVendorMap[card.last4digits];
-                    const transVendor = card.transaction_vendor;
-                    const isBank = (transVendor && BANK_VENDORS.includes(transVendor)) ||
-                      (cardVendor && BANK_VENDORS.includes(cardVendor));
-
-                    return (
-                      <Box
-                        key={card.last4digits}
-                        sx={{
-                          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
-                          borderRadius: '16px',
-                          padding: '16px 20px',
-                          minWidth: '160px',
-                          cursor: 'pointer',
-                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                          border: `1px solid ${theme.palette.divider}`,
-                          opacity: isLoading ? 0.7 : 1,
-                          position: 'relative',
-                          '&:hover': {
-                            transform: 'translateY(-2px)',
-                            background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
-                            borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                            '& .vendor-settings-btn': {
-                              opacity: 1
-                            }
-                          }
-                        }}
-                        onClick={() => handleLast4DigitsClick(card.last4digits)}
-                      >
-                        {/* Settings button for vendor selection */}
-                        <IconButton
-                          className="vendor-settings-btn"
-                          size="small"
-                          onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
-                          sx={{
-                            position: 'absolute',
-                            top: '4px',
-                            right: '4px',
-                            opacity: 0,
-                            transition: 'opacity 0.2s',
-                            padding: '4px',
-                            color: 'text.secondary',
-                            '&:hover': {
-                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                              color: 'primary.main'
-                            }
-                          }}
-                        >
-                          <SettingsIcon sx={{ fontSize: '16px' }} />
-                        </IconButton>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          {isLoading ? (
-                            <CircularProgress size={20} style={{ color: '#3b82f6' }} />
-                          ) : isBank ? (
-                            <AccountBalanceIcon sx={{ fontSize: 24, color: 'primary.main' }} />
-                          ) : (
-                            <CardVendorIcon vendor={cardVendor || null} size={28} />
-                          )}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                            {cardNicknameMap[card.last4digits] ? (
-                              <>
-                                <Box component="span" sx={{
-                                  color: 'text.primary',
-                                  fontSize: '13px',
-                                  fontWeight: 700,
-                                }}>
-                                  {cardNicknameMap[card.last4digits]}
-                                </Box>
-                                <Box component="span" sx={{
-                                  color: 'text.secondary',
-                                  fontSize: '11px',
-                                  fontFamily: 'monospace',
-                                  letterSpacing: '1px'
-                                }}>
-                                  {isBank ? 'Account' : '••••'} {card.last4digits}
-                                </Box>
-                              </>
-                            ) : (
-                              <Box component="span" sx={{
-                                color: 'text.secondary',
-                                fontSize: '13px',
-                                fontWeight: 700,
-                                fontFamily: 'monospace',
-                                letterSpacing: '1px'
-                              }}>
-                                {isBank ? 'Account' : '••••'} {card.last4digits}
-                              </Box>
-                            )}
-                            {card.bank_account_nickname && (
-                              <span style={{
-                                color: '#3b82f6',
-                                fontSize: '10px',
-                                fontWeight: 500,
-                                marginTop: '2px',
-                                opacity: 0.8
-                              }}>
-                                Bank: {card.bank_account_nickname}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Box sx={{ fontSize: '18px', fontWeight: 700, color: 'primary.main' }}>
-                          ₪{formatNumber(card.card_expenses > 0 ? card.card_expenses : card.bank_expenses)}
-                        </Box>
-                        <Box sx={{
-                          fontSize: '11px',
-                          color: 'text.secondary',
-                          marginTop: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}>
-                          <div style={{
-                            flex: 1,
-                            height: '4px',
-                            background: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.2)',
-                            borderRadius: '2px',
-                            overflow: 'hidden'
-                          }}>
-                            <div style={{
-                              width: `${percentage}%`,
-                              height: '100%',
-                              background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
-                              borderRadius: '2px',
-                              transition: 'width 0.3s ease'
-                            }} />
-                          </div>
-                          <span>{percentage}%</span>
-                        </Box>
-                      </Box>
-                    );
-                  })}
-
-                {/* 1. Bank Accounts Section (RESTful Master List) */}
-                {finalBankSummary.length > 0 && (
-                  <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 1 }}>
-                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
-                      Bank Accounts
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                      {finalBankSummary.map((bank) => (
-                        <Box
-                          key={bank.bank_account_id ? `id-${bank.bank_account_id}` : `vend-${bank.bank_account_vendor}`}
-                          onClick={() => handleBankAccountClick(bank)}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1.5,
-                            p: 1.5,
-                            borderRadius: '12px',
-                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
-                            border: `1px solid ${theme.palette.divider}`,
-                            minWidth: '220px',
-                            flex: '1 1 auto',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease-in-out',
-                            position: 'relative',
-                            overflow: 'hidden',
-                            '&:hover': {
-                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
-                              borderColor: 'primary.main',
-                              transform: 'translateY(-2px)'
-                            }
-                          }}
-                        >
-                          {/* Accent bar based on net flow */}
-                          <Box sx={{
-                            position: 'absolute',
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: '4px',
-                            backgroundColor: bank.net_flow >= 0 ? '#10B981' : '#F43F5E'
-                          }} />
-
-                          <Box
-                            sx={{
-                              width: 36,
-                              height: 36,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(241, 245, 249, 0.8)',
-                              borderRadius: '10px',
-                              color: 'text.secondary',
-                              ml: 1
-                            }}
-                          >
-                            <AccountBalanceIcon sx={{ fontSize: 20 }} />
-                          </Box>
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
-                              {bank.bank_account_nickname}
-                            </Typography>
-                            {(bank.bank_account_number || bank.bank_account_vendor) && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
-                                {bank.bank_account_vendor} {bank.bank_account_number ? `• ${bank.bank_account_number}` : ''}
-                              </Typography>
-                            )}
-                          </Box>
-                          <Box sx={{ textAlign: 'right' }}>
-                            {bank.balance !== null && (
-                              <Typography variant="body2" sx={{
-                                fontWeight: 800,
-                                color: 'text.primary',
-                                fontSize: '15px'
-                              }}>
-                                ₪{formatNumber(bank.balance)}
-                              </Typography>
-                            )}
-                            <Typography variant="caption" sx={{
-                              fontWeight: 600,
-                              color: bank.net_flow >= 0 ? '#10B981' : '#F43F5E',
-                              display: 'block',
-                              fontSize: bank.balance !== null ? '10px' : '14px'
-                            }}>
-                              {bank.net_flow >= 0 ? '+' : ''}₪{formatNumber(bank.net_flow)}
-                            </Typography>
-                            {bank.balance_updated_at && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '9px', display: 'block', mt: 0.5 }}>
-                                Updated: {new Date(bank.balance_updated_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
+                    boxShadow: '0 8px 16px rgba(59, 130, 246, 0.2)',
+                    color: 'white',
+                    flexShrink: 0
+                  }}>
+                    <CreditCardIcon sx={{ fontSize: 24 }} />
                   </Box>
-                )}
-
-                {/* 2. Credit Card Expenses by Bank Section */}
-                {creditCardBankSummary.length > 0 && (
-                  <Box sx={{ width: '100%', pt: 2, borderTop: `1px solid ${theme.palette.divider}`, mt: 2 }}>
-                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 1.5 }}>
-                      Credit Card Usage by Linked Bank
+                  <Box>
+                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', letterSpacing: '-0.02em', fontSize: { lg: '1.75rem' } }}>
+                      ₪{formatNumber(totals.card_expenses)}
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                      {creditCardBankSummary.map((bank) => (
-                        <Box
-                          key={bank.bank_account_id ? `cc-id-${bank.bank_account_id}` : `cc-nick-${bank.bank_account_nickname}`}
-                          onClick={() => handleBankCCClick(bank)}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1.5,
-                            p: 1.5,
-                            borderRadius: '12px',
-                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
-                            border: `1px solid ${theme.palette.divider}`,
-                            minWidth: '200px',
-                            flex: '1 1 auto',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
-                              borderColor: 'primary.main',
-                              transform: 'translateY(-2px)'
-                            }
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: 36,
-                              height: 36,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                              borderRadius: '10px',
-                              color: '#3B82F6'
-                            }}
-                          >
-                            <CreditCardIcon sx={{ fontSize: 20 }} />
-                          </Box>
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
-                              {bank.bank_account_nickname}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
-                              {bank.card_count} {bank.card_count === 1 ? 'card' : 'cards'} linked
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                            ₪{formatNumber(bank.total_cc_expenses)}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
 
-                {/* Vendor Selection Menu */}
-                <Menu
-                  anchorEl={vendorMenuAnchor}
-                  open={Boolean(vendorMenuAnchor)}
-                  onClose={handleVendorMenuClose}
-                  PaperProps={{
-                    sx: {
-                      borderRadius: '16px',
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-                      minWidth: '240px',
-                      maxHeight: '500px',
-                      background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : undefined,
-                      backdropFilter: 'blur(10px)',
-                      border: `1px solid ${theme.palette.divider}`
-                    }
-                  }}
-                >
-                  {/* Nickname Field */}
-                  <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <span style={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                      Card Nickname
-                    </span>
-                    <TextField
-                      size="small"
-                      fullWidth
-                      placeholder="e.g., My Personal Card"
-                      value={editingNickname}
-                      onChange={(e) => setEditingNickname(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && selectedCardForVendor) {
-                          handleNicknameSave(selectedCardForVendor, editingNickname);
-                        }
-                        e.stopPropagation();
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      InputProps={{
-                        endAdornment: editingNickname !== (cardNicknameMap[selectedCardForVendor || ''] || '') && (
-                          <IconButton
+                    {/* Budget Comparison */}
+                    {(dateRangeMode === 'billing' || dateRangeMode === 'calendar') && (
+                      <Box sx={{ mt: 0.5, minWidth: '180px' }}>
+                        {isEditingBudget ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} onClick={e => e.stopPropagation()}>
+                            <TextField
+                              size="small"
+                              placeholder="Set Budget..."
+                              value={newBudgetLimit}
+                              onChange={(e) => setNewBudgetLimit(e.target.value)}
+                              autoFocus
+                              type="number"
+                              sx={{
+                                width: '100px',
+                                '& .MuiInputBase-root': { bgcolor: theme.palette.background.paper, fontSize: '0.8125rem' }
+                              }}
+                            />
+                            <IconButton size="small" onClick={handleSaveBudget} sx={{ color: '#10b981', p: 0.5 }}>
+                              <CheckIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ) : budgetLimit !== null ? (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}>
+                              <LinearProgress
+                                variant="determinate"
+                                value={Math.min((totals.card_expenses / budgetLimit) * 100, 100)}
+                                sx={{
+                                  height: 4,
+                                  borderRadius: 2,
+                                  flex: 1,
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                  '& .MuiLinearProgress-bar': {
+                                    bgcolor: totals.card_expenses > budgetLimit ? '#ef4444' : '#10b981'
+                                  }
+                                }}
+                              />
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: totals.card_expenses > budgetLimit ? '#ef4444' : '#10b981', fontSize: '0.65rem' }}>
+                                {Math.round((totals.card_expenses / budgetLimit) * 100)}%
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontSize: '0.65rem' }}>
+                                {totals.card_expenses > budgetLimit
+                                  ? `Over by ₪${formatNumber(totals.card_expenses - budgetLimit)}`
+                                  : `₪${formatNumber(budgetLimit - totals.card_expenses)} left`
+                                }
+                              </Typography>
+                            </Box>
+                          </Box>
+                        ) : (
+                          <Button
+                            variant="outlined"
                             size="small"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (selectedCardForVendor) {
-                                handleNicknameSave(selectedCardForVendor, editingNickname);
-                              }
+                              setIsEditingBudget(true);
                             }}
-                            sx={{ color: '#10b981' }}
+                            sx={{ fontSize: '0.65rem', py: 0.25, borderRadius: '12px' }}
                           >
-                            <CheckIcon sx={{ fontSize: '18px' }} />
-                          </IconButton>
-                        )
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: '10px',
-                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc',
-                          color: 'text.primary'
-                        }
-                      }}
-                    />
+                            Set Budget
+                          </Button>
+                        )}
+                      </Box>
+                    )}
                   </Box>
-
-                  <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <span style={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
-                      Card Vendor
-                    </span>
-                  </Box>
-                  {Object.entries(CARD_VENDORS).map(([key, config]) => (
-                    <MenuItem
-                      key={key}
-                      onClick={() => handleVendorSelect(key)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        py: 1.5,
-                        '&:hover': {
-                          backgroundColor: 'rgba(59, 130, 246, 0.08)'
-                        }
-                      }}
-                    >
-                      <CardVendorIcon vendor={key} size={32} />
-                      <span style={{ fontWeight: 500, color: theme.palette.text.primary }}>{config.name}</span>
-                      {cardVendorMap[selectedCardForVendor || ''] === key && (
-                        <CheckIcon sx={{ fontSize: '18px', color: '#10b981', ml: 'auto' }} />
-                      )}
-                    </MenuItem>
-                  ))}
-                </Menu>
+                </Box>
+                <Button
+                  size="small"
+                  endIcon={<ChevronRightIcon sx={{ fontSize: 14 }} />}
+                  sx={{ width: 'fit-content', borderRadius: '12px', textTransform: 'none', fontWeight: 700, fontSize: '0.7rem', py: 0 }}
+                >
+                  All Transactions
+                </Button>
               </Box>
-            </Box>
 
-            {/* Breakdown Table */}
-            <Box sx={{
-              background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(20px)',
-              borderRadius: { xs: '20px', md: '32px' },
-              padding: { xs: '16px', md: '32px' },
-              marginLeft: { xs: '8px', md: '24px' },
-              marginRight: { xs: '8px', md: '24px' },
-              border: `1px solid ${theme.palette.divider}`,
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)'
-            }}>
-              <Box sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                justifyContent: 'space-between',
-                alignItems: { xs: 'flex-start', md: 'center' },
-                marginBottom: { xs: '16px', md: '24px' },
-                gap: { xs: '12px', md: '16px' }
-              }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Box component="h2" sx={{
-                    fontSize: { xs: '16px', md: '20px' },
-                    fontWeight: 700,
-                    margin: 0,
-                    color: 'text.primary'
+              {/* Vertical Divider (Desktop) */}
+              <Box sx={{ width: '1px', bgcolor: 'divider', display: { xs: 'none', lg: 'block' } }} />
+
+              {/* Horizontal Divider (Mobile) */}
+              <Box sx={{ height: '1px', bgcolor: 'divider', display: { xs: 'block', lg: 'none' } }} />
+
+              {/* Right Section: Card Breakdown Grid (Grouped by Bank) */}
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 600, mb: 2 }}>
+                  Credit Card Usage by Bank
+                </Typography>
+                <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                  <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: {
+                      xs: '1fr',
+                      sm: 'repeat(auto-fill, minmax(240px, 1fr))',
+                      md: 'repeat(auto-fill, minmax(280px, 1fr))'
+                    },
+                    gap: 1.5,
+                    alignItems: 'start'
                   }}>
-                    {groupBy === 'description'
-                      ? 'Breakdown by Description'
-                      : groupBy === 'last4digits'
-                        ? 'Breakdown by Last 4 Digits'
-                        : 'Breakdown by Card / Account'}
-                  </Box>
+                    {creditCardBankSummary.map((bank) => {
+                      const percentage = totals.card_expenses > 0
+                        ? Math.round((bank.total_cc_expenses / totals.card_expenses) * 100)
+                        : 0;
 
-                  {/* Filter toggle for excluding bank transactions - only show for description view */}
-                  {groupBy === 'description' && (
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={showBankTransactions}
-                          onChange={(e) => setShowBankTransactions(e.target.checked)}
-                          size="small"
+                      const isLargeBank = bank.card_count > 3;
+
+                      const BankContent = (
+                        <Box
+                          key={bank.bank_account_id ? `cc-id-${bank.bank_account_id}` : `cc-nick-${bank.bank_account_nickname}`}
                           sx={{
-                            '& .MuiSwitch-switchBase.Mui-checked': {
-                              color: '#3b82f6',
+                            p: 0,
+                            borderRadius: '16px',
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.8)',
+                            border: `1px solid ${theme.palette.divider}`,
+                            overflow: 'hidden',
+                            position: 'relative',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            transition: 'all 0.3s',
+                            gridColumn: {
+                              xs: 'span 1',
+                              sm: isLargeBank ? 'span 2' : 'span 1',
+                              md: isLargeBank ? 'span 2' : 'span 1'
                             },
-                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                              backgroundColor: '#3b82f6',
-                            },
+                            '&:hover': {
+                              boxShadow: '0 12px 24px -10px rgba(0, 0, 0, 0.1)',
+                              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 1)',
+                              borderColor: theme.palette.primary.main
+                            }
                           }}
-                        />
-                      }
-                      label={
-                        <Typography sx={{
-                          fontSize: '12px',
-                          color: 'text.secondary',
-                          fontWeight: 500
-                        }}>
-                          Show Bank Transactions
-                        </Typography>
-                      }
-                      sx={{ margin: 0 }}
-                    />
-                  )}
-                </Box>
+                        >
+                          {/* Unique Linked Bank Header */}
+                          {(() => {
+                            const bankDetails = finalBankSummary.find(b =>
+                              (b.bank_account_id && bank.bank_account_id && String(b.bank_account_id) === String(bank.bank_account_id)) ||
+                              (!b.bank_account_id && b.bank_account_nickname === bank.bank_account_nickname)
+                            );
 
-              </Box>
-              {sortedData.length === 0 ? (
-                <Box sx={{
-                  textAlign: 'center',
-                  padding: { xs: '24px', md: '48px' },
-                  color: '#64748b'
-                }}>
-                  No transactions found for this period.
-                </Box>
-              ) : (
-                <>
-                  <Table
-                    rows={sortedData}
-                    columns={tableColumns}
-                    rowKey={(row) => groupBy === 'description' ? `desc-${row.description}` : groupBy === 'last4digits' ? `last4-${row.last4digits}` : `vendor-${row.vendor}`}
-                    onRowClick={(row) => {
-                      if (groupBy === 'description' && row.description) {
-                        handleDescriptionClick(row.description);
-                      } else if (groupBy === 'last4digits' && row.last4digits) {
-                        handleLast4DigitsClick(row.last4digits);
-                      }
-                    }}
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSortChange}
-                    mobileCardRenderer={(row) => {
-                      const isEditing = groupBy === 'description' && editingDescription === row.description;
+                            const balance = bankDetails?.balance ?? 0;
+                            const hasBalance = bankDetails && bankDetails.balance !== null;
 
-                      if (isEditing) {
-                        return (
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 0.5 }}>
-                            <Typography variant="subtitle2" fontWeight={700}>{row.description}</Typography>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary" fontWeight={600}>Category</Typography>
-                              <Autocomplete
-                                value={editCategory}
-                                onChange={(event, newValue) => setEditCategory(newValue || '')}
-                                onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                                freeSolo
-                                options={availableCategories}
-                                size="small"
-                                fullWidth
-                                renderInput={(params) => (
-                                  <TextField
-                                    {...params}
-                                    placeholder="Category"
-                                    autoFocus
-                                    sx={{ '& .MuiInputBase-input': { fontSize: '14px' } }}
-                                  />
-                                )}
-                              />
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
-                              <IconButton
-                                onClick={(e) => { e.stopPropagation(); handleCategoryCancel(); }}
-                                size="small"
-                                sx={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                              >
-                                <CloseIcon />
-                              </IconButton>
-                              <IconButton
-                                onClick={(e) => { e.stopPropagation(); handleCategorySave(row.description!); }}
-                                size="small"
-                                sx={{ color: '#4ADE80', backgroundColor: 'rgba(74, 222, 128, 0.1)' }}
-                              >
-                                <CheckIcon />
-                              </IconButton>
-                            </Box>
-                          </Box>
-                        );
-                      }
-
-                      return (
-                        <Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="subtitle2" fontWeight={700}>
-                              {groupBy === 'description' ? row.description : (row.vendor_nickname || row.vendor || row.last4digits)}
-                            </Typography>
-                            <Typography variant="subtitle2" fontWeight={700} sx={{
-                              color: groupBy === 'description'
-                                ? (row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E')
-                                : '#3B82F6'
-                            }}>
-                              {groupBy === 'description' && row.amount !== undefined
-                                ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
-                                : `₪${formatNumber(row.card_expenses)}`
-                              }
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            {groupBy === 'description' ? (
-                              <span
-                                onClick={(e) => { e.stopPropagation(); handleCategoryEditClick(row.description!, row.category || ''); }}
-                                style={{
-                                  background: 'rgba(59, 130, 246, 0.1)',
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  color: '#3b82f6',
-                                  cursor: 'pointer',
-                                  fontWeight: 500
+                            return (
+                              <Box
+                                onClick={hasBalance ? () => handleBankCCClick(bank) : undefined}
+                                sx={{
+                                  p: 1.5,
+                                  background: hasBalance
+                                    ? `linear-gradient(to right, ${theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)'}, transparent)`
+                                    : 'transparent',
+                                  borderBottom: `1px solid ${theme.palette.divider}`,
+                                  cursor: hasBalance ? 'pointer' : 'default',
+                                  '&:hover': hasBalance ? { opacity: 0.8 } : {}
                                 }}
                               >
-                                {row.category || 'Uncategorized'}
-                              </span>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                {row.transaction_count} transactions
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', minWidth: 0 }}>
+                                    <Box sx={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: '8px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'white',
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      color: 'text.primary',
+                                      flexShrink: 0
+                                    }}>
+                                      <AccountBalanceIcon sx={{ fontSize: 18 }} />
+                                    </Box>
+                                    <Box sx={{ minWidth: 0 }}>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.1, fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {bank.bank_account_nickname}
+                                      </Typography>
+                                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.625rem' }}>
+                                        Linked Bank
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+
+                                  {hasBalance && (
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'flex-end',
+                                        flexShrink: 0,
+                                        ml: 1
+                                      }}
+                                    >
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                        <Typography
+                                          variant="subtitle2"
+                                          sx={{
+                                            fontWeight: 800,
+                                            fontSize: '0.8125rem',
+                                            color: balance >= 0 ? '#10B981' : '#F43F5E'
+                                          }}
+                                        >
+                                          ₪{formatNumber(balance)}
+                                        </Typography>
+                                        <ChevronRightIcon sx={{ fontSize: 14, color: 'text.secondary', opacity: 0.7 }} />
+                                      </Box>
+                                    </Box>
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })()}
+
+                          {/* Credit Card List Section */}
+                          <Box sx={{ p: 1.5, pt: 1 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 1 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.625rem' }}>
+                                {bank.card_count} Cards
                               </Typography>
-                            )}
+                              <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                                ₪{formatNumber(bank.total_cc_expenses)}
+                              </Typography>
+                            </Box>
+
+                            <Box sx={{
+                              display: 'grid',
+                              gridTemplateColumns: {
+                                xs: '1fr',
+                                sm: isLargeBank ? 'repeat(2, 1fr)' : '1fr'
+                              },
+                              gap: 1
+                            }}>
+                              {cardSummary
+                                .filter(card => {
+                                  const cardTransVendor = card.transaction_vendor;
+                                  const cardVendor = cardVendorMap[card.last4digits];
+                                  const isBankItem = (cardTransVendor && BANK_VENDORS.includes(cardTransVendor) && !card.card_vendor);
+                                  if (isBankItem) return false;
+
+                                  if (bank.bank_account_id && card.bank_account_id) {
+                                    return String(bank.bank_account_id) === String(card.bank_account_id);
+                                  }
+                                  return (
+                                    cardTransVendor === bank.bank_account_vendor ||
+                                    (cardVendor && cardVendor === bank.bank_account_vendor) ||
+                                    (card.bank_account_nickname && card.bank_account_nickname === bank.bank_account_nickname)
+                                  );
+                                })
+                                .map(card => {
+                                  const vendorKey = cardVendorMap[card.last4digits];
+                                  const nickname = cardNicknameMap[card.last4digits] || card.card_nickname;
+                                  const isBankItem = (card.transaction_vendor && BANK_VENDORS.includes(card.transaction_vendor) && !card.card_vendor);
+
+                                  return (
+                                    <DraggableCardWrapper key={card.last4digits} id={card.last4digits} disabled={!!isBankItem}>
+                                      <Box
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleLast4DigitsClick(card.last4digits);
+                                        }}
+                                        sx={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          p: 1,
+                                          borderRadius: '10px',
+                                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(241, 245, 249, 0.5)',
+                                          border: '1px solid transparent',
+                                          transition: 'all 0.2s',
+                                          position: 'relative',
+                                          minHeight: '44px',
+                                          '&:hover': {
+                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(241, 245, 249, 1)',
+                                            borderColor: theme.palette.divider,
+                                            '& .edit-card-button': {
+                                              opacity: 1,
+                                              transform: 'translateX(0)'
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+                                          {vendorKey ? (
+                                            <CardVendorIcon vendor={vendorKey} size={24} />
+                                          ) : (
+                                            <Box sx={{
+                                              width: 24,
+                                              height: 24,
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              backgroundColor: 'rgba(148, 163, 184, 0.2)',
+                                              borderRadius: '6px',
+                                              flexShrink: 0
+                                            }}>
+                                              <CreditCardIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                            </Box>
+                                          )}
+                                          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                            {nickname ? (
+                                              <>
+                                                <Typography variant="caption" sx={{ fontWeight: 700, lineHeight: 1.1, fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                  {nickname}
+                                                </Typography>
+                                                <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '9px', letterSpacing: '0.2px' }}>
+                                                  ••{card.last4digits}
+                                                </Typography>
+                                              </>
+                                            ) : (
+                                              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontFamily: 'monospace', letterSpacing: '0.5px', fontSize: '10px' }}>
+                                                •••• {card.last4digits}
+                                              </Typography>
+                                            )}
+                                          </Box>
+                                        </Box>
+
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, ml: 1 }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.75rem' }}>
+                                            ₪{formatNumber(card.card_expenses)}
+                                          </Typography>
+
+                                          <IconButton
+                                            className="edit-card-button"
+                                            size="small"
+                                            onClick={(e) => handleVendorMenuOpen(e, card.last4digits)}
+                                            sx={{
+                                              opacity: 0,
+                                              transform: 'translateX(5px)',
+                                              transition: 'all 0.2s',
+                                              padding: '2px',
+                                              color: 'text.secondary',
+                                              '&:hover': { color: 'primary.main', bgcolor: 'rgba(59, 130, 246, 0.1)' },
+                                              display: { xs: 'none', sm: 'flex' },
+                                              ...(theme.breakpoints.down('sm') ? { opacity: 1, transform: 'none', display: 'flex' } : {})
+                                            }}
+                                          >
+                                            <TuneIcon sx={{ fontSize: 12 }} />
+                                          </IconButton>
+                                        </Box>
+                                      </Box>
+                                    </DraggableCardWrapper>
+                                  );
+                                })}
+                            </Box>
                           </Box>
                         </Box>
                       );
-                    }}
-                    footer={
-                      <TableRow sx={{
-                        borderTop: `2px solid ${theme.palette.divider}`,
-                        bgcolor: theme.palette.mode === 'dark'
-                          ? 'rgba(30, 41, 59, 0.5)'
-                          : 'rgba(248, 250, 252, 0.8)'
-                      }}>
-                        <TableCell sx={{ fontWeight: 700 }}>TOTAL</TableCell>
-                        {groupBy === 'description' && <TableCell />}
-                        {(groupBy === 'description' || groupBy === 'last4digits') && (
-                          <TableCell align="center" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                            {sortedData.reduce((sum, row) => sum + Number(row.transaction_count || 0), 0)}
-                          </TableCell>
-                        )}
-                        <TableCell align="right" sx={{
-                          fontWeight: 700,
-                          color: groupBy === 'description'
-                            ? (sortedData.reduce((sum, row) => sum + Number(row.amount || 0), 0) >= 0 ? '#10B981' : '#F43F5E')
-                            : '#3B82F6',
-                        }}>
-                          {groupBy === 'description'
-                            ? (() => {
-                              const total = sortedData.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-                              return `${total >= 0 ? '+' : ''}₪${formatNumber(Math.abs(total))}`;
-                            })()
-                            : `₪${formatNumber(totals.card_expenses)}`
-                          }
-                        </TableCell>
-                      </TableRow>
-                    }
-                  />
 
-                  {data.length < total && (
-                    <Box sx={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      marginTop: '24px',
-                      padding: '16px'
-                    }}>
-                      <button
-                        onClick={handleLoadMore}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '12px 24px',
-                          borderRadius: '16px',
-                          border: `1px solid ${theme.palette.divider}`,
-                          background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                          color: '#3b82f6',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                          backdropFilter: 'blur(10px)'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-                          e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.2)';
-                          e.currentTarget.style.background = theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.05)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                          e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.08)';
-                          e.currentTarget.style.background = theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-                        }}
-                      >
-                        <RefreshIcon sx={{ fontSize: '18px' }} />
-                        Load More Transactions ({total - data.length} remaining)
-                      </button>
-                    </Box>
-                  )}
-                </>
-              )
-              }
+                      return bank.bank_account_id ? (
+                        <DroppableBankWrapper key={bank.bank_account_id} id={bank.bank_account_id}>
+                          {BankContent}
+                        </DroppableBankWrapper>
+                      ) : (
+                        <React.Fragment key={`cc-nick-${bank.bank_account_nickname}`}>
+                          {BankContent}
+                        </React.Fragment>
+                      );
+                    })}
+                  </Box>
+                </DndContext>
+              </Box>
             </Box>
+
+
+
+
+
+            {/* 2. Credit Card Expenses by Bank Section */}
+
+
+            {/* Vendor Selection Menu */}
+            <Menu
+              anchorEl={vendorMenuAnchor}
+              open={Boolean(vendorMenuAnchor)}
+              onClose={handleVendorMenuClose}
+              PaperProps={{
+                sx: {
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                  minWidth: '240px',
+                  maxHeight: '500px',
+                  background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : undefined,
+                  backdropFilter: 'blur(10px)',
+                  border: `1px solid ${theme.palette.divider}`
+                }
+              }}
+            >
+              {/* Nickname Field */}
+              <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <span style={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                  Card Nickname
+                </span>
+                <TextField
+                  size="small"
+                  fullWidth
+                  placeholder="e.g., My Personal Card"
+                  value={editingNickname}
+                  onChange={(e) => setEditingNickname(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && selectedCardForVendor) {
+                      handleNicknameSave(selectedCardForVendor, editingNickname);
+                    }
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  InputProps={{
+                    endAdornment: editingNickname !== (cardNicknameMap[selectedCardForVendor || ''] || '') && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (selectedCardForVendor) {
+                            handleNicknameSave(selectedCardForVendor, editingNickname);
+                          }
+                        }}
+                        sx={{ color: '#10b981' }}
+                      >
+                        <CheckIcon sx={{ fontSize: '18px' }} />
+                      </IconButton>
+                    )
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '10px',
+                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc',
+                      color: 'text.primary'
+                    }
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <span style={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Card Vendor
+                </span>
+              </Box>
+              {Object.entries(CARD_VENDORS).map(([key, config]) => (
+                <MenuItem
+                  key={key}
+                  onClick={() => handleVendorSelect(key)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    py: 1.5,
+                    '&:hover': {
+                      backgroundColor: 'rgba(59, 130, 246, 0.08)'
+                    }
+                  }}
+                >
+                  <CardVendorIcon vendor={key} size={32} />
+                  <span style={{ fontWeight: 500, color: theme.palette.text.primary }}>{config.name}</span>
+                  {cardVendorMap[selectedCardForVendor || ''] === key && (
+                    <CheckIcon sx={{ fontSize: '18px', color: '#10b981', ml: 'auto' }} />
+                  )}
+                </MenuItem>
+              ))}
+            </Menu>
+
+
+
+            {/* Budget and Other Modules Section */}
+            <Box sx={{
+              px: { xs: 1, md: 3 },
+              mb: 3
+            }}>
+              <Grid container spacing={3}>
+                {/* Left Side: Budget Module */}
+                <Grid item xs={12} md={6}>
+                  <BudgetModule onViewTransactions={async (category) => {
+                    try {
+                      let queryParams = `q=${encodeURIComponent(category)}`;
+                      if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
+                        queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+                      } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {
+                        queryParams += `&billingCycle=${selectedYear}-${selectedMonth}`;
+                      } else if (startDate && endDate) {
+                        queryParams += `&startDate=${startDate}&endDate=${endDate}`;
+                      }
+
+                      const response = await fetch(`/api/transactions?${queryParams}`);
+                      if (response.ok) {
+                        const results = await response.json();
+                        setModalData({
+                          type: `Category: ${category}`,
+                          data: results
+                        });
+                        setIsModalOpen(true);
+                      }
+                    } catch (e) {
+                      console.error("Failed to view category transactions", e);
+                    }
+                  }} />
+                </Grid>
+
+                {/* Right Side: Recent Transactions Module */}
+                <Grid item xs={12} md={6}>
+                  <RecentTransactionsModule />
+                </Grid>
+              </Grid>
+            </Box>
+
+
           </>
         )}
-      </Box>
 
-      {/* Transaction Details Modal */}
-      {
-        modalData && (
+        {modalData && (
           <ExpensesModal
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             data={modalData}
             color="#3b82f6"
             setModalData={setModalData}
-            currentMonth={dateRangeMode === 'custom' ? `${customStartDate}` : `${selectedYear}-${selectedMonth}`}
+            currentMonth={dateRangeMode === "custom" ? `${customStartDate}` : `${selectedYear}-${selectedMonth}`}
           />
-        )
-      }
+        )}
 
-      {/* Snackbar for feedback messages */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={5000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={5000}
           onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{
-            width: '100%',
-            borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
-          }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </div >
+          <Alert
+            onClose={() => setSnackbar({ ...snackbar, open: false })}
+            severity={snackbar.severity}
+            sx={{
+              width: "100%",
+              borderRadius: "12px",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)"
+            }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </div>
   );
 };
 

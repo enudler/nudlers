@@ -26,7 +26,10 @@ const handler = createApiHandler({
       try {
         const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
         if (settingsResult.rows.length > 0) {
-          billingStartDay = parseInt(settingsResult.rows[0].value);
+          const val = parseInt(settingsResult.rows[0].value);
+          if (!isNaN(val)) {
+            billingStartDay = val;
+          }
         }
       } finally {
         client.release();
@@ -72,10 +75,10 @@ const handler = createApiHandler({
     const dir = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     if (groupBy === 'description') {
-      if (sortBy === 'name') orderClause = `t.name ${dir}`;
-      else if (sortBy === 'category') orderClause = `t.category ${dir}, t.name ASC`;
-      else if (sortBy === 'count' || sortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, t.name ASC`;
-      else orderClause = `ABS(COALESCE(SUM(t.price), 0)) ${dir}, t.name ASC`;
+      if (sortBy === 'name') orderClause = `LOWER(TRIM(t.name)) ${dir}`;
+      else if (sortBy === 'category') orderClause = `LOWER(MAX(t.category)) ${dir}, LOWER(TRIM(t.name)) ASC`;
+      else if (sortBy === 'count' || sortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, LOWER(TRIM(t.name)) ASC`;
+      else orderClause = `ABS(SUM(t.price)) ${dir}, LOWER(TRIM(t.name)) ASC`;
     } else if (groupBy === 'last4digits') {
       if (sortBy === 'name') orderClause = `COALESCE(RIGHT(t.account_number, 4), 'Unknown') ${dir}`;
       else if (sortBy === 'count' || sortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, COALESCE(RIGHT(t.account_number, 4), 'Unknown') ASC`;
@@ -95,15 +98,16 @@ const handler = createApiHandler({
     if (groupBy === 'description') {
       sql = `
         SELECT 
-          t.name as description,
-          t.category,
+          TRIM(t.name) as description,
+          MAX(t.category) as category,
           COUNT(DISTINCT (t.identifier, t.vendor)) as transaction_count,
           COALESCE(SUM(t.price), 0)::numeric as amount,
           COUNT(*) OVER() as total_count
         FROM transactions t
         ${credentialJoin}
         ${whereClause}
-        GROUP BY t.name, t.category
+        GROUP BY TRIM(t.name)
+        HAVING ROUND(COALESCE(SUM(t.price), 0)) != 0
         ORDER BY ${orderClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;

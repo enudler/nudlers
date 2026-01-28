@@ -581,7 +581,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ screenContext }) => {
             background: theme.palette.mode === 'dark'
               ? 'rgba(15, 23, 42, 0.95)'
               : 'rgba(255, 255, 255, 0.98)',
-            backdropFilter: 'blur(20px)',
+            backdropFilter: 'blur(8px)',
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: theme.palette.mode === 'dark'
               ? '0 20px 50px rgba(0, 0, 0, 0.5)'

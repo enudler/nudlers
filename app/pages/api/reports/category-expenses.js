@@ -13,7 +13,21 @@ const handler = createApiHandler({
     if (!category && all !== "true") return "Either category or all=true is required";
   },
   query: async (req) => {
-    const { month, startDate, endDate, category, all, billingCycle } = req.query;
+    const {
+      month,
+      startDate,
+      endDate,
+      category,
+      all,
+      billingCycle,
+      sortBy = 'date',
+      sortOrder = 'desc',
+      limit = 50,
+      offset = 0
+    } = req.query;
+
+    const limitVal = parseInt(limit);
+    const offsetVal = parseInt(offset);
 
     // Use date range if provided, otherwise fall back to month
     const useDateRange = startDate && endDate;
@@ -25,6 +39,13 @@ const handler = createApiHandler({
       LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
     `;
 
+    // Sorting
+    const validSortColumns = ['name', 'price', 'date', 'category', 'account_number', 'vendor'];
+    const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'date';
+    const sortDir = sortOrder?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const orderByClause = `ORDER BY t.${sortCol} ${sortDir}, t.identifier, t.vendor`;
+
+
     // If billingCycle is provided, use consistent Logic
     let billingStartDay = 10;
     let effectiveMonthSql = null;
@@ -35,12 +56,16 @@ const handler = createApiHandler({
       try {
         const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
         if (settingsResult.rows.length > 0) {
-          billingStartDay = parseInt(settingsResult.rows[0].value);
+          const val = parseInt(settingsResult.rows[0].value);
+          if (!isNaN(val)) {
+            billingStartDay = val;
+          }
         }
       } finally {
         client.release();
       }
-      effectiveMonthSql = getBillingCycleSql(billingStartDay, 'date', 'processed_date');
+      // Use table alias 't' to avoid ambiguity and ensure correct column reference
+      effectiveMonthSql = getBillingCycleSql(billingStartDay, 't.date', 't.processed_date');
     }
 
     if (all === "true") {
@@ -48,7 +73,7 @@ const handler = createApiHandler({
       if (billingCycle) {
         return {
           sql: `
-            SELECT DISTINCT ON (t.identifier, t.vendor)
+            SELECT 
               t.name,
               t.price,
               t.date,
@@ -66,15 +91,16 @@ const handler = createApiHandler({
             FROM transactions t
             ${credentialJoin}
             WHERE (${effectiveMonthSql}) = $1
-            ORDER BY t.identifier, t.vendor, t.date DESC
+            ${orderByClause}
+            LIMIT $2 OFFSET $3
           `,
-          params: [billingCycle]
+          params: [billingCycle, limitVal, offsetVal]
         };
       }
       if (useDateRange) {
         return {
           sql: `
-            SELECT DISTINCT ON (t.identifier, t.vendor)
+            SELECT 
               t.name,
               t.price,
               t.date,
@@ -92,14 +118,15 @@ const handler = createApiHandler({
             FROM transactions t
             ${credentialJoin}
             WHERE t.date >= $1::date AND t.date <= $2::date
-            ORDER BY t.identifier, t.vendor, t.date DESC
+            ${orderByClause}
+            LIMIT $3 OFFSET $4
           `,
-          params: [startDate, endDate]
+          params: [startDate, endDate, limitVal, offsetVal]
         };
       }
       return {
         sql: `
-          SELECT DISTINCT ON (t.identifier, t.vendor)
+          SELECT 
             t.name,
             t.price,
             t.date,
@@ -117,9 +144,10 @@ const handler = createApiHandler({
           FROM transactions t
           ${credentialJoin}
           WHERE TO_CHAR(t.date, 'YYYY-MM') = $1
-          ORDER BY t.identifier, t.vendor, t.date DESC
+          ${orderByClause}
+          LIMIT $2 OFFSET $3
         `,
-        params: [month]
+        params: [month, limitVal, offsetVal]
       };
     }
 
@@ -127,7 +155,7 @@ const handler = createApiHandler({
     if (billingCycle) {
       return {
         sql: `
-          SELECT DISTINCT ON (t.identifier, t.vendor)
+          SELECT 
             t.name,
             t.price,
             t.date,
@@ -146,16 +174,17 @@ const handler = createApiHandler({
           ${credentialJoin}
           WHERE (${effectiveMonthSql}) = $1
           AND t.category = $2
-          ORDER BY t.identifier, t.vendor, t.date DESC
+          ${orderByClause}
+          LIMIT $3 OFFSET $4
         `,
-        params: [billingCycle, category]
+        params: [billingCycle, category, limitVal, offsetVal]
       };
     }
 
     if (useDateRange) {
       return {
         sql: `
-          SELECT DISTINCT ON (t.identifier, t.vendor)
+          SELECT 
             t.name,
             t.price,
             t.date,
@@ -174,15 +203,16 @@ const handler = createApiHandler({
           ${credentialJoin}
           WHERE t.date >= $1::date AND t.date <= $2::date
           AND t.category = $3
-          ORDER BY t.identifier, t.vendor, t.date DESC
+          ${orderByClause}
+          LIMIT $4 OFFSET $5
         `,
-        params: [startDate, endDate, category]
+        params: [startDate, endDate, category, limitVal, offsetVal]
       };
     }
 
     return {
       sql: `
-        SELECT DISTINCT ON (t.identifier, t.vendor)
+        SELECT 
           t.name,
           t.price,
           t.date,
@@ -201,9 +231,10 @@ const handler = createApiHandler({
         ${credentialJoin}
         WHERE TO_CHAR(t.date, 'YYYY-MM') = $1 
         AND t.category = $2
-        ORDER BY t.identifier, t.vendor, t.date DESC
+        ${orderByClause}
+        LIMIT $3 OFFSET $4
       `,
-      params: [month, category]
+      params: [month, category, limitVal, offsetVal]
     };
   },
   transform: (result) => {

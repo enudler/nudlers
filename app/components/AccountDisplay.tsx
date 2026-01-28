@@ -13,6 +13,7 @@ interface AccountDisplayProps {
         account_number?: string | null;
         transaction_type?: string | null;
         bank_nickname?: string | null;
+        vendor_nickname?: string | null;
         bank_account_display?: string | null;
     };
     /**
@@ -45,7 +46,7 @@ const BANK_VENDORS = Object.keys(BANK_NAMES);
  * A unified component to display account or card information.
  * Handles both Bank accounts and Credit Cards.
  */
-const AccountDisplay: React.FC<AccountDisplayProps> = ({ transaction, vendorOverride, premium = false }) => {
+const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = ({ transaction, vendorOverride, premium = false, compact = false }) => {
     const theme = useTheme();
     const { getCardVendor, getCardNickname } = useCardVendors();
 
@@ -55,8 +56,9 @@ const AccountDisplay: React.FC<AccountDisplayProps> = ({ transaction, vendorOver
 
     if (isBank) {
         const vendor = transaction.vendor || vendorOverride || 'unknown';
-        const bankName = BANK_NAMES[vendor] || transaction.bank_nickname || 'Bank Account';
-        const bankAccount = transaction.bank_account_display || transaction.account_number;
+        const nickname = transaction.vendor_nickname || transaction.bank_nickname;
+        const bankName = nickname || BANK_NAMES[vendor] || 'Bank Account';
+        const bankAccount = nickname ? null : (transaction.bank_account_display || transaction.account_number);
 
         return (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -82,6 +84,7 @@ const AccountDisplay: React.FC<AccountDisplayProps> = ({ transaction, vendorOver
                         fontWeight: 700,
                         fontSize: '13px',
                         color: theme.palette.text.primary,
+                        whiteSpace: 'nowrap'
                     }}>
                         {bankName}
                     </span>
@@ -126,13 +129,19 @@ const AccountDisplay: React.FC<AccountDisplayProps> = ({ transaction, vendorOver
 
                 {premium ? (
                     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{
-                            fontWeight: 700,
-                            fontSize: '13px',
-                            color: theme.palette.text.primary,
-                        }}>
-                            {nickname || vendor || 'Credit Card'}
-                        </span>
+                        {!compact && (
+                            <span style={{
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: theme.palette.text.primary,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '100px'
+                            }}>
+                                {nickname || vendor || 'Credit Card'}
+                            </span>
+                        )}
                         <span style={{
                             fontSize: '11px',
                             color: theme.palette.text.secondary,
@@ -151,7 +160,7 @@ const AccountDisplay: React.FC<AccountDisplayProps> = ({ transaction, vendorOver
                         borderRadius: '6px',
                         fontSize: '13px'
                     }}>
-                        {nickname ? (
+                        {!compact && nickname ? (
                             <>
                                 {nickname}
                                 <span style={{ color: '#64748b', marginLeft: '4px', fontSize: '11px' }}>

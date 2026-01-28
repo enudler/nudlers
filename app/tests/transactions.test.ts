@@ -150,6 +150,56 @@ describe('Transactions API Endpoint', () => {
             expect(params).toEqual(['2023-01-01', '2023-01-31', 'visaCal', 100, 0]);
         });
 
+        it('should order by date DESC by default', async () => {
+            mockReq = {
+                method: 'GET',
+                query: { startDate: '2023-01-01', endDate: '2023-01-31' }
+            };
+            mockClient.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+            await handler(mockReq, mockRes);
+
+            const [sql] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('ORDER BY t.date DESC');
+        });
+
+        it('should support custom sorting', async () => {
+            mockReq = {
+                method: 'GET',
+                query: {
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31',
+                    sortBy: 'price',
+                    sortOrder: 'asc'
+                }
+            };
+            mockClient.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+            await handler(mockReq, mockRes);
+
+            const [sql] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('ORDER BY t.price ASC');
+        });
+
+        it('should support pagination (limit and offset)', async () => {
+            mockReq = {
+                method: 'GET',
+                query: {
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31',
+                    limit: '25',
+                    offset: '50'
+                }
+            };
+            mockClient.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+            await handler(mockReq, mockRes);
+
+            const [, params] = mockClient.query.mock.calls[0];
+            // Params order for /api/transactions/index.js: startDate, endDate, limit, offset
+            expect(params).toEqual(['2023-01-01', '2023-01-31', 25, 50]);
+        });
+
         it('should validate invalid transactionType', async () => {
             mockReq = {
                 method: 'GET',

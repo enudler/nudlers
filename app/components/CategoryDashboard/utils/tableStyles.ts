@@ -4,10 +4,10 @@ import { Theme } from '@mui/material/styles';
 export const getTableHeaderCellStyle = (theme: Theme) => ({
   color: theme.palette.text.secondary,
   borderBottom: `2px solid ${theme.palette.divider}`,
-  fontWeight: 600,
-  fontSize: '13px',
+  fontWeight: 700,
+  fontSize: '0.75rem',
   textTransform: 'uppercase' as const,
-  letterSpacing: '0.5px',
+  letterSpacing: '0.05em',
   background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
   padding: '16px'
 });
@@ -17,6 +17,7 @@ export const getTableBodyCellStyle = (theme: Theme) => ({
   color: theme.palette.text.primary,
   borderBottom: `1px solid ${theme.palette.divider}`,
   fontWeight: 500,
+  fontSize: '0.875rem',
   padding: '16px'
 });
 

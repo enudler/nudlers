@@ -47,6 +47,7 @@ paths:
       description: |
         Retrieve transactions with optional filtering by type, date range, vendor, etc.
         Default returns all transactions (both bank and credit card).
+        Ordered by date DESC (newest first).
       parameters:
         - name: transactionType
           in: query
@@ -82,6 +83,20 @@ paths:
           description: Filter by category
           schema:
             type: string
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum: [name, price, date, category, account_number, vendor]
+            default: date
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - name: limit
           in: query
           description: Maximum number of results
@@ -415,6 +430,43 @@ paths:
           schema:
             type: string
             format: date
+        - name: all
+          in: query
+          description: Return all transactions instead of grouped by category
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - name: billingCycle
+          in: query
+          description: Filter by billing cycle (YYYY-MM)
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum: [name, price, date, category, account_number, vendor]
+            default: date
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
           description: Category expenses

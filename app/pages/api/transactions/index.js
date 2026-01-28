@@ -52,6 +52,8 @@ const getTransactions = createApiHandler({
             bankAccountNumber,
             transactionType = 'all',
             uncategorizedOnly,
+            sortBy = 'date',
+            sortOrder = 'desc',
             limit = 100,
             offset = 0
         } = req.query;
@@ -171,6 +173,11 @@ const getTransactions = createApiHandler({
 
         const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
+        // 6. Sorting
+        const validSortColumns = ['name', 'price', 'date', 'category', 'account_number', 'vendor'];
+        const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'date';
+        const sortDir = sortOrder?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
         const limitVal = parseInt(limit) || 100;
         const offsetVal = parseInt(offset) || 0;
         params.push(limitVal, offsetVal);
@@ -179,7 +186,7 @@ const getTransactions = createApiHandler({
 
         return {
             sql: `
-        SELECT DISTINCT ON (t.identifier, t.vendor)
+        SELECT 
           t.identifier,
           t.vendor,
           t.date,
@@ -206,7 +213,7 @@ const getTransactions = createApiHandler({
         LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
         LEFT JOIN vendor_credentials ba ON ba.id = ${bankAccountId && bankAccountId !== 'null' ? `$${params.indexOf(parseInt(bankAccountId)) + 1}` : 'NULL'}
         ${whereClause}
-        ORDER BY t.identifier, t.vendor, t.date DESC
+        ORDER BY t.${sortCol} ${sortDir}, t.identifier, t.vendor
         LIMIT ${limitParam}
         OFFSET ${offsetParam}
       `,

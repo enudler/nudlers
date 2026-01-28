@@ -11,10 +11,11 @@ import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import DesignSystemShowcase from "./DesignSystemShowcase";
 import Footer from "./Footer";
+import BreakdownView from "./BreakdownView";
 import { Box } from "@mui/material";
 import { StatusProvider, useStatus } from "../context/StatusContext";
 
-type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design';
+type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
 
 // Screen context for AI Assistant
 interface ScreenContext {
@@ -133,6 +134,8 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
         return <RecurringPaymentsView />;
       case 'design':
         return <DesignSystemShowcase />;
+      case 'breakdown':
+        return <BreakdownView />;
       default:
         return children;
     }
@@ -172,10 +175,10 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
                 left: '-10%',
                 width: '40%',
                 height: '40%',
-                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0) 70%)',
+                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 70%)',
                 zIndex: 0,
                 pointerEvents: 'none',
-                filter: 'blur(100px)',
+                filter: 'blur(40px)',
               }}
             />
             <Box
@@ -185,10 +188,10 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
                 right: '-10%',
                 width: '40%',
                 height: '40%',
-                background: 'radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, rgba(236, 72, 153, 0) 70%)',
+                background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%)',
                 zIndex: 0,
                 pointerEvents: 'none',
-                filter: 'blur(100px)',
+                filter: 'blur(40px)',
               }}
             />
 
