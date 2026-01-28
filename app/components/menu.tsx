@@ -1,5 +1,5 @@
 import * as React from "react";
-import { logger } from '../utils/client-logger';
+
 
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
@@ -21,12 +21,10 @@ import { useTheme, styled } from "@mui/material/styles";
 
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
-import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import SavingsIcon from '@mui/icons-material/Savings';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import BackupIcon from '@mui/icons-material/Backup';
 
@@ -61,7 +59,7 @@ interface ResponsiveAppBarProps {
 
 
 
-const StyledAppBar = styled(AppBar)(({ theme }) => ({
+const StyledAppBar = styled(AppBar)(({ }) => ({
   background: 'var(--n-glass-bg)',
   backdropFilter: 'blur(12px)',
   borderBottom: '1px solid var(--n-border)',
@@ -146,6 +144,23 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
       document.body.classList.remove('drawer-open', 'drawer-closed');
     };
   }, [desktopDrawerOpen, isMobile]);
+
+  // Handle global Escape key to close AI assistant or Sync drawer
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (syncDrawerOpen) {
+          setSyncDrawerOpen(false);
+        }
+        if (isAIOpen) {
+          toggleAI();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [syncDrawerOpen, isAIOpen, setSyncDrawerOpen, toggleAI]);
 
   const viewMenuItems = [
 
@@ -341,10 +356,10 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
               >
                 <AutoAwesomeIcon />
               </IconButton>
+              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
-              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <DatabaseIndicator />
             </Box>
 
@@ -353,10 +368,10 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
               <IconButton onClick={toggleAI} sx={{ color: isAIOpen ? '#8b5cf6' : 'text.primary' }}>
                 <AutoAwesomeIcon />
               </IconButton>
+              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
-              <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <DatabaseIndicator />
             </Box>
           </Toolbar>
