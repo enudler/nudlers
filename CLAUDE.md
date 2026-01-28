@@ -93,6 +93,143 @@ npm run lint         # Run ESLint
 npm run storybook    # Start Storybook on port 6006
 ```
 
+## API Standards & OpenAPI Specification
+
+### OpenAPI 3 Specification
+
+The API is fully documented in **`app/public/openapi.yaml`**. This is the source of truth for all API endpoints.
+
+**IMPORTANT:** When adding or modifying API endpoints:
+1. Always update `app/public/openapi.yaml` to reflect changes
+2. Follow the existing RESTful patterns documented in the spec
+3. Ensure request/response schemas match the implementation
+
+### RESTful API Design Principles
+
+All APIs must follow these RESTful conventions:
+
+#### Collection Endpoints (`/api/resources`)
+- **GET** - List all resources (supports pagination via `limit`/`offset`)
+- **POST** - Create a new resource
+
+#### Resource Endpoints (`/api/resources/{id}`)
+- **GET** - Retrieve a single resource
+- **PUT** - Full update of a resource
+- **PATCH** - Partial update of a resource
+- **DELETE** - Remove a resource
+
+#### Key Rules
+
+1. **Use path parameters for resource identification, NOT request body:**
+   ```javascript
+   // CORRECT - RESTful
+   DELETE /api/categories/rules/123
+
+   // INCORRECT - Non-RESTful
+   DELETE /api/categories/rules  (body: { id: 123 })
+   ```
+
+2. **HTTP Status Codes:**
+   - `200` - Success (GET, PUT, PATCH, DELETE)
+   - `201` - Created (POST)
+   - `400` - Bad Request (validation error)
+   - `404` - Not Found
+   - `405` - Method Not Allowed
+   - `409` - Conflict (e.g., resource already exists)
+   - `500` - Internal Server Error
+
+3. **Response Format:**
+   - Success: Return the resource or `{ success: true }`
+   - Error: Return `{ error: "message" }` or `{ error: "message", details: "..." }`
+
+4. **Action Endpoints** (for operations that don't fit CRUD):
+   - Use POST with descriptive paths: `/api/categories/apply-rules`, `/api/scrapers/run`
+   - These are acceptable for command/action operations
+
+### API Directory Structure
+
+```
+pages/api/
+├── [resource]/
+│   ├── index.js          # Collection: GET (list), POST (create)
+│   └── [id].js           # Resource: GET, PUT, PATCH, DELETE
+├── [resource]/
+│   ├── index.js
+│   ├── [id].js
+│   └── [subresource]/    # Nested resources
+│       ├── index.js
+│       └── [id].js
+```
+
+### Example: Proper RESTful API Structure
+
+```javascript
+// pages/api/categories/rules/index.js - Collection endpoint
+import { createApiHandler } from "../../utils/apiHandler";
+
+const handler = createApiHandler({
+  validate: (req) => {
+    if (!['GET', 'POST'].includes(req.method)) {
+      return "Only GET and POST methods are allowed. Use /api/categories/rules/{id} for PUT/DELETE";
+    }
+    // POST validation...
+  },
+  query: async (req) => {
+    if (req.method === 'GET') {
+      return { sql: 'SELECT * FROM rules ORDER BY created_at DESC', params: [] };
+    }
+    if (req.method === 'POST') {
+      const { name_pattern, target_category } = req.body;
+      return {
+        sql: 'INSERT INTO rules (name_pattern, target_category) VALUES ($1, $2) RETURNING *',
+        params: [name_pattern, target_category]
+      };
+    }
+  },
+  transform: (result, req) => req.method === 'GET' ? result.rows : result.rows[0]
+});
+
+export default handler;
+```
+
+```javascript
+// pages/api/categories/rules/[id].js - Resource endpoint
+import { createApiHandler } from "../../utils/apiHandler";
+
+const handler = createApiHandler({
+  validate: (req) => {
+    if (!['GET', 'PUT', 'DELETE'].includes(req.method)) {
+      return "Only GET, PUT, and DELETE methods are allowed";
+    }
+    if (!req.query.id) return "ID parameter is required";
+  },
+  query: async (req) => {
+    const { id } = req.query;
+
+    if (req.method === 'GET') {
+      return { sql: 'SELECT * FROM rules WHERE id = $1', params: [id] };
+    }
+    if (req.method === 'PUT') {
+      const { name_pattern, target_category } = req.body;
+      return {
+        sql: 'UPDATE rules SET name_pattern = $2, target_category = $3 WHERE id = $1 RETURNING *',
+        params: [id, name_pattern, target_category]
+      };
+    }
+    if (req.method === 'DELETE') {
+      return { sql: 'DELETE FROM rules WHERE id = $1 RETURNING id', params: [id] };
+    }
+  },
+  transform: (result, req) => {
+    if (result.rows.length === 0) return { error: 'Not found', status: 404 };
+    if (req.method === 'DELETE') return { success: true };
+    return result.rows[0];
+  }
+});
+
+export default handler;
+```
+
 ## Code Conventions
 
 ### API Routes
@@ -291,7 +428,9 @@ LOG_LEVEL=info        # Logging level
 
 | File | Purpose |
 |------|---------|
+| `app/public/openapi.yaml` | **OpenAPI 3 specification - source of truth for all APIs** |
 | `app/pages/api/db.js` | PostgreSQL connection pool |
+| `app/pages/api/utils/apiHandler.js` | Reusable API handler wrapper |
 | `app/config/resource-config.js` | Resource optimization settings |
 | `app/utils/constants.js` | Vendor lists, settings keys, timeouts |
 | `app/scrapers/core.js` | Shared scraper utilities and anti-detection |
@@ -304,10 +443,29 @@ LOG_LEVEL=info        # Logging level
 
 ### Adding a New API Endpoint
 
-1. Create file in `app/pages/api/[feature]/index.js`
-2. Use `createApiHandler` pattern for database operations
-3. Add validation, query, and transform functions
-4. Handle multiple HTTP methods in main handler
+1. **Plan the RESTful structure:**
+   - Collection endpoint: `app/pages/api/[feature]/index.js` (GET list, POST create)
+   - Resource endpoint: `app/pages/api/[feature]/[id].js` (GET, PUT, DELETE by ID)
+
+2. **Create the API files:**
+   - Use `createApiHandler` pattern for database operations
+   - Add validation, query, and transform functions
+   - Use path parameters (`req.query.id`) for resource identification
+   - Never use request body for DELETE operations to identify resources
+
+3. **Follow RESTful conventions:**
+   - Return proper HTTP status codes (200, 201, 400, 404, 500)
+   - Use consistent response format (`{ success: true }` or `{ error: "..." }`)
+
+4. **Update the OpenAPI specification:**
+   - Edit `app/public/openapi.yaml`
+   - Add the new endpoint path with all methods
+   - Document all query parameters, request body schemas, and response schemas
+   - Add any new component schemas if needed
+
+5. **Test the endpoint:**
+   - Verify all HTTP methods work correctly
+   - Test error cases (invalid input, not found, etc.)
 
 ### Adding a New Component
 
@@ -338,6 +496,8 @@ LOG_LEVEL=info        # Logging level
 5. **Date handling**: Use `date-fns` for date manipulation
 6. **Logging**: Use the `logger` from `utils/logger.js`, not `console.log`
 7. **Tests**: Database tests should mock `getDB`, not use real connections
+8. **API Design**: Always use path parameters for resource IDs; never use request body for DELETE identification
+9. **OpenAPI Spec**: Keep `app/public/openapi.yaml` in sync with API changes - it's the source of truth
 
 ## Storybook
 
@@ -371,3 +531,5 @@ export const Default: Story = {
 3. Use TypeScript for new files when possible
 4. Follow existing patterns for consistency
 5. Update this CLAUDE.md if adding significant new patterns or conventions
+6. **Update `app/public/openapi.yaml` when adding or modifying API endpoints**
+7. Follow RESTful API conventions (see "API Standards & OpenAPI Specification" section)
