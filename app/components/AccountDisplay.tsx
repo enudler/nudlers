@@ -165,8 +165,8 @@ const AccountDisplay: React.FC<AccountDisplayProps & { compact?: boolean }> = Re
                         )}
                         <span style={{
                             fontWeight: '500',
-                            color: '#334155',
-                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                            color: theme.palette.text.secondary,
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.1)',
                             padding: compact ? '2px 4px' : '4px 8px',
                             borderRadius: '6px',
                             fontSize: compact ? '10px' : '11px',

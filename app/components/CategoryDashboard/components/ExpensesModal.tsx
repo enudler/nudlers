@@ -32,7 +32,7 @@ import { useCardVendors } from '../utils/useCardVendors';
 import { CardVendorIcon } from '../../CardVendorsModal';
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 
-type SortField = 'date' | 'price' | 'installments_number' | 'name' | 'category' | 'card';
+type SortField = 'date' | 'processed_date' | 'price' | 'installments_number' | 'name' | 'category' | 'card';
 type SortDirection = 'asc' | 'desc';
 
 
@@ -69,6 +69,9 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
       switch (sortField) {
         case 'date':
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case 'processed_date':
+          comparison = new Date(a.processed_date || 0).getTime() - new Date(b.processed_date || 0).getTime();
           break;
         case 'price':
           // Sort by actual value (including sign) - negative amounts come before positive in ascending order
@@ -609,10 +612,22 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({ open, onClose, data, colo
                   }
                 },
                 {
+                  id: 'processed_date',
+                  label: 'Proc. Date',
+                  sortable: true,
+                  format: (_, expense) => (
+                    <span style={{ color: theme.palette.text.secondary }}>
+                      {expense.processed_date ? dateUtils.formatDate(expense.processed_date) : '—'}
+                    </span>
+                  )
+                },
+                {
                   id: 'date',
                   label: 'Date',
                   sortable: true,
-                  format: (val) => <span style={{ color: theme.palette.text.secondary }}>{dateUtils.formatDate(val)}</span>
+                  format: (val) => (
+                    <span style={{ color: theme.palette.text.secondary }}>{dateUtils.formatDate(val)}</span>
+                  )
                 },
                 {
                   id: 'actions',

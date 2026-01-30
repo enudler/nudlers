@@ -174,7 +174,7 @@ const getTransactions = createApiHandler({
         const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
         // 6. Sorting
-        const validSortColumns = ['name', 'price', 'date', 'category', 'account_number', 'vendor'];
+        const validSortColumns = ['name', 'price', 'date', 'category', 'account_number', 'vendor', 'processed_date'];
         const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'date';
         const sortDir = sortOrder?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 

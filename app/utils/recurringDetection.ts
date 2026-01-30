@@ -8,6 +8,7 @@ export interface DetectionTransaction {
     vendor?: string;
     account_number: string | null;
     date: string | Date;
+    processed_date?: string | Date;
     transaction_type?: string | null;
     bank_nickname?: string | null;
     bank_account_display?: string | null;
@@ -25,6 +26,7 @@ export interface DetectedRecurringPayment {
     price: number;
     month_count: number;
     last_charge_date: Date;
+    last_billing_date?: Date;
     frequency: 'monthly' | 'bi-monthly';
     months: string[];
     occurrences: Array<{ date: Date, amount: number }>;
@@ -122,6 +124,7 @@ export function detectRecurringPayments(transactions: DetectionTransaction[]): D
                     price: -avgAmount, // For UI consistency
                     month_count: items.length,
                     last_charge_date: lastItem.date,
+                    last_billing_date: lastItem.processed_date ? new Date(lastItem.processed_date) : undefined,
                     frequency: frequency,
                     months: [...new Set(items.map(it => it.date.toISOString().substring(0, 7)).reverse() as string[])],
                     occurrences: items.map(it => ({ date: it.date, amount: it.price })).reverse(),

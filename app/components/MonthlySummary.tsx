@@ -57,19 +57,7 @@ import { CREDIT_CARD_VENDORS, BANK_VENDORS } from '../utils/constants';
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
 
-interface MonthlySummaryData {
-  month: string;
-  vendor?: string;
-  vendor_nickname?: string | null;
-  description?: string;
-  category?: string;
-  last4digits?: string;
-  transaction_count?: number;
-  card_expenses: number;
-  amount?: number; // Amount with original sign (positive = income, negative = expense)
-  balance?: number | null;
-  balance_updated_at?: string | null;
-}
+
 
 interface CardSummary {
   last4digits: string;
@@ -133,8 +121,7 @@ interface Account {
 
 type GroupByType = 'vendor' | 'description' | 'last4digits';
 // DateRangeMode imported from context
-type SortField = 'name' | 'transaction_count' | 'card_expenses' | 'category';
-type SortDirection = 'asc' | 'desc';
+
 
 // Helper function to calculate date range based on mode
 // getDateRange removed (handled by context)
@@ -200,7 +187,6 @@ const MonthlySummary: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { openAI, setInitialPrompt } = useAI();
-  const [data, setData] = useState<MonthlySummaryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -277,9 +263,7 @@ const MonthlySummary: React.FC = () => {
   const [cardSummary, setCardSummary] = useState<CardSummary[]>([]);
 
   // Sorting
-  // Sorting
-  const [sortField, setSortField] = useState<SortField>('card_expenses');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   // Removed old bankAccountSummary in favor of separated states
   const [scrapedBankSummary, setScrapedBankSummary] = useState<ScrapedBankSummary[]>([]);
   const [creditCardBankSummary, setCreditCardBankSummary] = useState<BankCCSummary[]>([]);
@@ -538,7 +522,6 @@ const MonthlySummary: React.FC = () => {
         setLoading(true);
       }
 
-      let url: string;
       let cardUrl: string;
 
       const queryParams = new URLSearchParams();
@@ -548,13 +531,6 @@ const MonthlySummary: React.FC = () => {
         queryParams.set('startDate', startDate);
         queryParams.set('endDate', endDate);
       }
-      queryParams.set('groupBy', 'description');
-      queryParams.set('limit', '50');
-      queryParams.set('offset', '0');
-      queryParams.set('sortBy', sortField);
-      queryParams.set('sortOrder', sortDirection);
-
-      url = `/api/reports/monthly-summary?${queryParams.toString()}`;
 
       // Card summary always needs all data for sidebars/totals (or at least more than 50)
       const cardParams = new URLSearchParams(queryParams);
@@ -564,22 +540,15 @@ const MonthlySummary: React.FC = () => {
       cardParams.delete('excludeBankTransactions'); // Sidebar must always show bank balances
       cardUrl = `/api/reports/monthly-summary?${cardParams.toString()}`;
 
-      // Fetch main data, card summary, and master account list in parallel
-      const [mainResponse, cardResponse, accountsResponse] = await Promise.all([
-        fetch(url),
+      // Fetch card summary and master account list in parallel
+      const [cardResponse, accountsResponse] = await Promise.all([
         fetch(cardUrl),
         fetch('/api/accounts')
       ]);
 
-      const result = await mainResponse.json();
-      const items = result.items || [];
-      const newTotal = result.total || 0;
-
       if (accountsResponse.ok) {
         setAccounts(await accountsResponse.json());
       }
-
-      setData(items);
 
       if (cardResponse.ok) {
         interface CardAPIResponse {
@@ -742,7 +711,7 @@ const MonthlySummary: React.FC = () => {
         window.scrollTo(0, scrollY);
       });
     }
-  }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection]);
+  }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth]);
 
   // Derived bank summary that includes ALL accounts from the REST API
   const finalBankSummary = useMemo(() => {
@@ -789,7 +758,7 @@ const MonthlySummary: React.FC = () => {
     } else if (startDate && endDate) {
       fetchMonthlySummary(false, 0);
     }
-  }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth, sortField, sortDirection]);
+  }, [startDate, endDate, billingCycle, dateRangeMode, customStartDate, customEndDate, selectedYear, selectedMonth]);
 
   // Separate useEffect for filter toggle - skip loading state to prevent flicker
 
@@ -1086,14 +1055,6 @@ const MonthlySummary: React.FC = () => {
     // getDateRangeForContext removed
 
 
-    // Group expenses by category equivalent for summary
-    const categoryTotals: { [key: string]: number } = {};
-    data.forEach(item => {
-      const categoryKey = item.category || 'Uncategorized';
-      categoryTotals[categoryKey] = (categoryTotals[categoryKey] || 0) + Number(item.card_expenses);
-    });
-    const categorySummary = Object.entries(categoryTotals).map(([name, value]) => ({ name, value }));
-
     setScreenContext({
       view: 'summary',
       dateRange: {
@@ -1105,21 +1066,12 @@ const MonthlySummary: React.FC = () => {
         totalIncome: 0,
         totalExpenses: totals.card_expenses,
         creditCardExpenses: totals.card_expenses,
-        categories: categorySummary
+        categories: []
       }
     });
-  }, [data, totals.card_expenses, dateRangeMode, selectedYear, selectedMonth, customStartDate, customEndDate, setScreenContext, startDate, endDate]);
+  }, [totals.card_expenses, dateRangeMode, selectedYear, selectedMonth, customStartDate, customEndDate, setScreenContext, startDate, endDate]);
 
-  // Sorting handler
-  const handleSortChange = (field: string) => {
-    const sField = field as SortField;
-    if (sField === sortField) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(sField);
-      setSortDirection('desc');
-    }
-  };
+
 
   // Sort the data
 

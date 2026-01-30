@@ -19,6 +19,7 @@ export interface Expense {
   charged_currency?: string;
   card6_digits?: string;
   account_number?: string;
+  processed_date?: string;
 }
 
 export interface ExpensesModalProps {

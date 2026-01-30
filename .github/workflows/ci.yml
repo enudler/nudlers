@@ -24,7 +24,7 @@ jobs:
       - name: Scan for console.log
         run: |
           # Find console.log, excluding scripts (tools), node_modules, .github, and build artifacts
-          if grep -r "console.log" . --exclude-dir={node_modules,.git,.next,dist,coverage,scripts,.github} --exclude='*.min.js' --exclude='*.md' --exclude='.env_example'; then
+          if grep -r "console.log" . --exclude-dir={node_modules,.git,.next,dist,coverage,scripts,.github,storybook-static,.wwebjs_auth} --exclude='*.min.js' --exclude='*.md' --exclude='.env_example'; then
             echo "::error::Found console.log usage in the codebase."
             exit 1
           fi
