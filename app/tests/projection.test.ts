@@ -80,9 +80,7 @@ describe('Projection API', () => {
 
         await handler(req, res);
 
-        if (res.status.mock.calls[0][0] !== 200) {
-            console.error('API Error:', res.json.mock.calls[0][0]);
-        }
+
 
         expect(res.status).toHaveBeenCalledWith(200);
         const data = res.json.mock.calls[0][0];

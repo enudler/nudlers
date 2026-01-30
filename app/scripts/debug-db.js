@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import pkg from 'pg';
 const { Client } = pkg;
-import { BANK_VENDORS } from './utils/constants.js';
+import { BANK_VENDORS } from '../utils/constants.js';
 
 async function checkData() {
     const client = new Client({
