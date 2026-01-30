@@ -1,12 +1,18 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
+import { useMediaQuery, useTheme } from '@mui/material';
 
 /**
  * GlobalEasterEggManager - A truly encapsulated "One Place" implementation.
  * It detects "67" in any text node and celebrates!
  */
 const GlobalEasterEggManager: React.FC = () => {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
     useEffect(() => {
+        if (isMobile) return;
+
         // Track elements to avoid duplicate handling in one hover cycle
         const activeElements = new WeakSet();
 
@@ -46,7 +52,6 @@ const GlobalEasterEggManager: React.FC = () => {
                 activeElements.add(parent);
 
                 // 1. Trigger Confetti
-                // ... (rest of logic)
                 const rect = parent.getBoundingClientRect();
                 const x = (rect.left + rect.width / 2) / window.innerWidth;
                 const y = (rect.top + rect.height / 2) / window.innerHeight;
@@ -80,7 +85,6 @@ const GlobalEasterEggManager: React.FC = () => {
                     span.classList.add('active');
                 });
 
-                // 3. Cleanup on Leave
                 // 3. Cleanup on Leave
                 const handleLeave = () => {
                     // Trigger exit animation
@@ -143,7 +147,7 @@ const GlobalEasterEggManager: React.FC = () => {
                 document.head.removeChild(style);
             }
         };
-    }, []);
+    }, [isMobile]);
 
     return null;
 };

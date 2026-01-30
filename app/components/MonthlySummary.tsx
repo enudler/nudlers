@@ -41,6 +41,7 @@ import BudgetModule from './BudgetModule';
 import RecentTransactionsModule from './RecentTransactionsModule';
 import { DndContext, useSensor, useSensors, PointerSensor, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 import ExpensesModal from './CategoryDashboard/components/ExpensesModal';
 import Typography from '@mui/material/Typography';
@@ -197,6 +198,7 @@ const DroppableBankWrapper = ({ id, children }: { id: number, children: React.Re
 
 const MonthlySummary: React.FC = () => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { openAI, setInitialPrompt } = useAI();
   const [data, setData] = useState<MonthlySummaryData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1414,8 +1416,8 @@ const MonthlySummary: React.FC = () => {
                             transition: 'all 0.3s',
                             gridColumn: {
                               xs: 'span 1',
-                              sm: isLargeBank ? 'span 2' : 'span 1',
-                              md: isLargeBank ? 'span 2' : 'span 1'
+                              sm: (isLargeBank && !isMobile) ? 'span 2' : 'span 1',
+                              lg: (isLargeBank && !isMobile) ? 'span 2' : 'span 1'
                             },
                             '&:hover': {
                               boxShadow: '0 12px 24px -10px rgba(0, 0, 0, 0.1)',
@@ -1518,7 +1520,8 @@ const MonthlySummary: React.FC = () => {
                               display: 'grid',
                               gridTemplateColumns: {
                                 xs: '1fr',
-                                sm: isLargeBank ? 'repeat(2, 1fr)' : '1fr'
+                                sm: '1fr',
+                                lg: (isLargeBank && !isMobile) ? 'repeat(2, 1fr)' : '1fr'
                               },
                               gap: 1
                             }}>
@@ -1544,12 +1547,13 @@ const MonthlySummary: React.FC = () => {
                                   const isBankItem = (card.transaction_vendor && BANK_VENDORS.includes(card.transaction_vendor) && !card.card_vendor);
 
                                   return (
-                                    <DraggableCardWrapper key={card.last4digits} id={card.last4digits} disabled={!!isBankItem}>
+                                    <DraggableCardWrapper key={card.last4digits} id={card.last4digits} disabled={isMobile || !!isBankItem}>
                                       <Box
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleLast4DigitsClick(card.last4digits);
                                         }}
+                                        className="cc-card-item"
                                         sx={{
                                           display: 'flex',
                                           alignItems: 'center',
@@ -1561,11 +1565,14 @@ const MonthlySummary: React.FC = () => {
                                           transition: 'all 0.2s',
                                           position: 'relative',
                                           minHeight: '44px',
+                                          width: '100%',
+                                          overflow: 'hidden',
                                           '&:hover': {
                                             bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(241, 245, 249, 1)',
                                             borderColor: theme.palette.divider,
                                             '& .edit-card-button': {
                                               opacity: 1,
+                                              visibility: 'visible',
                                               transform: 'translateX(0)'
                                             }
                                           }
@@ -1599,7 +1606,19 @@ const MonthlySummary: React.FC = () => {
                                                 </Typography>
                                               </>
                                             ) : (
-                                              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontFamily: 'monospace', letterSpacing: '0.5px', fontSize: '10px' }}>
+                                              <Typography
+                                                variant="caption"
+                                                sx={{
+                                                  fontWeight: 600,
+                                                  color: 'text.secondary',
+                                                  fontFamily: 'monospace',
+                                                  letterSpacing: '0.5px',
+                                                  fontSize: '10px',
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis'
+                                                }}
+                                              >
                                                 •••• {card.last4digits}
                                               </Typography>
                                             )}
@@ -1623,7 +1642,8 @@ const MonthlySummary: React.FC = () => {
                                               color: 'text.secondary',
                                               '&:hover': { color: 'primary.main', bgcolor: 'rgba(59, 130, 246, 0.1)' },
                                               display: { xs: 'none', sm: 'flex' },
-                                              ...(theme.breakpoints.down('sm') ? { opacity: 1, transform: 'none', display: 'flex' } : {})
+                                              visibility: 'hidden',
+                                              ...(theme.breakpoints.down('sm') ? { opacity: 1, visibility: 'visible', transform: 'none', display: 'flex' } : {})
                                             }}
                                           >
                                             <TuneIcon sx={{ fontSize: 12 }} />
