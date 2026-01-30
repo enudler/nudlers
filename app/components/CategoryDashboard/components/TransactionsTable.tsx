@@ -1,7 +1,7 @@
 import React from 'react';
 import { logger } from '../../../utils/client-logger';
 import { useTheme } from '@mui/material/styles';
-import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip, TableSortLabel } from '@mui/material';
+import { Table, TableBody, TableCell, TableHead, TableRow, Paper, Box, Typography, IconButton, TextField, Autocomplete, Snackbar, Alert, FormControlLabel, Checkbox, Tooltip, TableSortLabel, useMediaQuery } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -60,6 +60,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   hideInstallmentsColumn
 }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [editPrice, setEditPrice] = React.useState<string>('');
   const [editCategory, setEditCategory] = React.useState<string>('');
@@ -340,80 +341,155 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   };
 
   const Content = (
-    <Table
-      onClick={handleTableClick}
-      size={disableWrapper ? "small" : "medium"}
-      stickyHeader
-    >
-      <TableHead>
-        <TableRow>
-          {renderSortableHeader('Description', 'name', 'left', columnWidths.description)}
-          {renderSortableHeader('Category', 'category', 'left', columnWidths.category)}
-          {renderSortableHeader('Amount', 'price', 'right', columnWidths.amount)}
-
-          {!hideInstallmentsColumn && (
-            <TableCell
-              style={{
-                ...headerStyle,
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                width: columnWidths.installment,
-                padding: disableWrapper ? '8px 12px' : headerStyle.padding,
-                fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
-              }}
-            >
-              Inst.
-            </TableCell>
-          )}
-
-          {renderSortableHeader('Card', 'account_number', 'left', columnWidths.card)}
-          {renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
-
-          {!hideActions && (
-            <TableCell
-              align="right"
-              style={{
-                ...headerStyle,
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                width: columnWidths.actions,
-                padding: disableWrapper ? '8px 12px' : headerStyle.padding,
-                fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
-              }}
-            >
-              Actions
-            </TableCell>
-          )}
-
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {groupByDate ? (
-          sortedDates.map(date => (
-            <React.Fragment key={date}>
-              <TableRow sx={{
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(241, 245, 249, 0.95)',
-                position: 'sticky',
-                top: disableWrapper ? 35 : 53, // Adjusted offset for widget mode to prevent overlap
-                zIndex: 9,
-                backdropFilter: 'blur(8px)'
-              }}>
-                <TableCell colSpan={7} sx={{
-                  padding: disableWrapper ? '4px 12px' : '8px 16px',
+    <Box sx={{ width: '100%' }}>
+      {isMobile ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {groupByDate ? (
+            sortedDates.map(date => (
+              <Box key={date} sx={{ mb: 2 }}>
+                <Typography sx={{
                   fontWeight: 700,
-                  color: theme.palette.text.primary,
-                  fontSize: disableWrapper ? '11px' : '13px',
-                  borderBottom: `1px solid ${theme.palette.divider}`,
-                  backgroundColor: 'inherit'
+                  color: theme.palette.text.secondary,
+                  fontSize: '0.75rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  mb: 1,
+                  px: 1
                 }}>
                   {formatDateHeader(date)}
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {groupedTransactions[date].map((transaction, index) => (
+                    <TransactionMobileCard
+                      key={`${transaction.identifier}-${index}`}
+                      transaction={transaction}
+                      theme={theme}
+                      onEdit={() => handleEditClick(transaction)}
+                      onDelete={() => setConfirmDeleteTransaction(transaction)}
+                      getCardVendor={getCardVendor}
+                      getCardNickname={getCardNickname}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            ))
+          ) : (
+            transactions.map((transaction, index) => (
+              <TransactionMobileCard
+                key={index}
+                transaction={transaction}
+                theme={theme}
+                onEdit={() => handleEditClick(transaction)}
+                onDelete={() => setConfirmDeleteTransaction(transaction)}
+                getCardVendor={getCardVendor}
+                getCardNickname={getCardNickname}
+              />
+            ))
+          )}
+        </Box>
+      ) : (
+        <Table
+          onClick={handleTableClick}
+          size={disableWrapper ? "small" : "medium"}
+          stickyHeader
+        >
+          <TableHead>
+            <TableRow>
+              {renderSortableHeader('Description', 'name', 'left', columnWidths.description)}
+              {renderSortableHeader('Category', 'category', 'left', columnWidths.category)}
+              {renderSortableHeader('Amount', 'price', 'right', columnWidths.amount)}
+
+              {!hideInstallmentsColumn && (
+                <TableCell
+                  style={{
+                    ...headerStyle,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    width: columnWidths.installment,
+                    padding: disableWrapper ? '8px 12px' : headerStyle.padding,
+                    fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
+                  }}
+                >
+                  Inst.
                 </TableCell>
-              </TableRow>
-              {groupedTransactions[date].map((transaction, index) => (
+              )}
+
+              {renderSortableHeader('Card', 'account_number', 'left', columnWidths.card)}
+              {renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
+
+              {!hideActions && (
+                <TableCell
+                  align="right"
+                  style={{
+                    ...headerStyle,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    width: columnWidths.actions,
+                    padding: disableWrapper ? '8px 12px' : headerStyle.padding,
+                    fontSize: disableWrapper ? '0.7rem' : headerStyle.fontSize
+                  }}
+                >
+                  Actions
+                </TableCell>
+              )}
+
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {groupByDate ? (
+              sortedDates.map(date => (
+                <React.Fragment key={date}>
+                  <TableRow sx={{
+                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(241, 245, 249, 0.95)',
+                    position: 'sticky',
+                    top: disableWrapper ? 35 : 53, // Adjusted offset for widget mode to prevent overlap
+                    zIndex: 9,
+                    backdropFilter: 'blur(8px)'
+                  }}>
+                    <TableCell colSpan={7} sx={{
+                      padding: disableWrapper ? '4px 12px' : '8px 16px',
+                      fontWeight: 700,
+                      color: theme.palette.text.primary,
+                      fontSize: disableWrapper ? '11px' : '13px',
+                      borderBottom: `1px solid ${theme.palette.divider}`,
+                      backgroundColor: 'inherit'
+                    }}>
+                      {formatDateHeader(date)}
+                    </TableCell>
+                  </TableRow>
+                  {groupedTransactions[date].map((transaction, index) => (
+                    <TransactionRow
+                      key={`${transaction.identifier}-${index}`}
+                      transaction={transaction}
+                      theme={theme}
+                      editingTransaction={editingTransaction}
+                      editCategory={editCategory}
+                      setEditCategory={setEditCategory}
+                      availableCategories={availableCategories}
+                      applyToAll={applyToAll}
+                      setApplyToAll={setApplyToAll}
+                      handleRowClick={handleRowClick}
+                      handleEditClick={handleEditClick}
+                      editPrice={editPrice}
+                      setEditPrice={setEditPrice}
+                      handleSaveClick={handleSaveClick}
+                      handleCancelClick={handleCancelClick}
+                      setConfirmDeleteTransaction={setConfirmDeleteTransaction}
+                      getCardVendor={getCardVendor}
+                      getCardNickname={getCardNickname}
+                      isWidget={disableWrapper}
+                      hideActions={hideActions}
+                      hideInstallmentsColumn={hideInstallmentsColumn}
+                    />
+                  ))}
+                </React.Fragment>
+              ))
+            ) : (
+              transactions.map((transaction, index) => (
                 <TransactionRow
-                  key={`${transaction.identifier}-${index}`}
+                  key={index}
                   transaction={transaction}
                   theme={theme}
                   editingTransaction={editingTransaction}
@@ -435,38 +511,12 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   hideActions={hideActions}
                   hideInstallmentsColumn={hideInstallmentsColumn}
                 />
-              ))}
-            </React.Fragment>
-          ))
-        ) : (
-          transactions.map((transaction, index) => (
-            <TransactionRow
-              key={index}
-              transaction={transaction}
-              theme={theme}
-              editingTransaction={editingTransaction}
-              editCategory={editCategory}
-              setEditCategory={setEditCategory}
-              availableCategories={availableCategories}
-              applyToAll={applyToAll}
-              setApplyToAll={setApplyToAll}
-              handleRowClick={handleRowClick}
-              handleEditClick={handleEditClick}
-              editPrice={editPrice}
-              setEditPrice={setEditPrice}
-              handleSaveClick={handleSaveClick}
-              handleCancelClick={handleCancelClick}
-              setConfirmDeleteTransaction={setConfirmDeleteTransaction}
-              getCardVendor={getCardVendor}
-              getCardNickname={getCardNickname}
-              isWidget={disableWrapper}
-              hideActions={hideActions}
-              hideInstallmentsColumn={hideInstallmentsColumn}
-            />
-          ))
-        )}
-      </TableBody>
-    </Table>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      )}
+    </Box>
   );
 
   if (disableWrapper) {
@@ -821,5 +871,113 @@ const TransactionRow = React.memo(({
 
 TransactionRow.displayName = 'TransactionRow';
 
+interface TransactionMobileCardProps {
+  transaction: Transaction;
+  theme: any;
+  onEdit: () => void;
+  onDelete: () => void;
+  getCardVendor: (accountNumber: string | undefined | null) => string | null;
+  getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
+}
+
+const TransactionMobileCard = ({
+  transaction,
+  theme,
+  onEdit,
+  onDelete,
+  getCardVendor,
+  getCardNickname
+}: TransactionMobileCardProps) => {
+  const displayAmount = Math.abs(transaction.price);
+
+  const getCurrencySymbol = (currency?: string) => {
+    if (!currency) return '₪';
+    if (['EUR', '€'].includes(currency)) return '€';
+    if (['USD', '$'].includes(currency)) return '$';
+    if (['GBP', '£'].includes(currency)) return '£';
+    if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
+    return currency + ' ';
+  };
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        borderRadius: '16px',
+        border: `1px solid ${theme.palette.divider}`,
+        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1, mr: 1 }}>
+          {transaction.name}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 800,
+            color: transaction.price < 0 ? '#ef4444' : '#10b981',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {transaction.price < 0 ? '-' : '+'}₪{formatNumber(displayAmount)}
+        </Typography>
+      </Box>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span
+            style={{
+              padding: '2px 8px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              color: '#3b82f6',
+              fontSize: '11px',
+              fontWeight: 600
+            }}
+          >
+            {transaction.category}
+          </span>
+          {transaction.installments_total && transaction.installments_total > 1 && (
+            <span style={{
+              color: '#6366f1',
+              fontSize: '10px',
+              fontWeight: '600',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              padding: '2px 6px',
+              borderRadius: '4px'
+            }}>
+              {transaction.installments_number}/{transaction.installments_total}
+            </span>
+          )}
+        </Box>
+        {transaction.original_currency && !['ILS', '₪', 'NIS'].includes(transaction.original_currency) && transaction.original_amount && (
+          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+            {getCurrencySymbol(transaction.original_currency)}{formatNumber(Math.abs(transaction.original_amount))}
+          </Typography>
+        )}
+      </Box>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={18} />
+          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
+            {getCardNickname(transaction.account_number) || (transaction.account_number ? `•••• ${transaction.account_number.slice(-4)}` : 'Card')}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <IconButton size="small" onClick={onEdit} sx={{ color: theme.palette.primary.main }}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+          <IconButton size="small" onClick={onDelete} sx={{ color: theme.palette.error.main }}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+    </Paper>
+  );
+};
 
 export default TransactionsTable;

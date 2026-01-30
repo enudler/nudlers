@@ -476,6 +476,35 @@ const RecurringPaymentsView: React.FC = () => {
                                             { id: 'next_payment_date', label: 'Next', align: 'center', sortable: true, format: (val) => val ? formatDate(val) : 'Completed' },
                                             { id: 'status', label: 'Status', align: 'center', sortable: true, format: (val) => <Chip label={val} size="small" color={val === 'completed' ? 'success' : 'primary'} sx={{ fontWeight: 600, borderRadius: '8px' }} /> }
                                         ]}
+                                        mobileCardRenderer={(row) => (
+                                            <Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                                                        ₪{formatNumber(row.price)}
+                                                    </Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        {renderAccountInfo(row)}
+                                                        <Chip
+                                                            label={row.status}
+                                                            size="small"
+                                                            color={row.status === 'completed' ? 'success' : 'primary'}
+                                                            sx={{ height: 20, fontSize: '10px', borderRadius: '4px' }}
+                                                        />
+                                                    </Box>
+                                                    <Box sx={{ textAlign: 'right' }}>
+                                                        <Typography variant="caption" color="text.secondary" display="block">
+                                                            {row.current_installment}/{row.total_installments}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {row.next_payment_date ? formatDate(row.next_payment_date) : 'Completed'}
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            </Box>
+                                        )}
                                     />
                                 ) : (
                                     <Table
@@ -532,6 +561,34 @@ const RecurringPaymentsView: React.FC = () => {
                                                 )
                                             }
                                         ]}
+                                        mobileCardRenderer={(row) => (
+                                            <Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                                                        ₪{formatNumber(row.price)}
+                                                    </Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        {renderAccountInfo(row)}
+                                                        <Chip
+                                                            label={row.category || 'Uncategorized'}
+                                                            size="small"
+                                                            sx={{ height: 20, fontSize: '10px', borderRadius: '4px' }}
+                                                        />
+                                                    </Box>
+                                                    <Box sx={{ textAlign: 'right' }}>
+                                                        <Typography variant="caption" color="text.secondary" display="block">
+                                                            {row.month_count} months
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Last: {formatDate(row.last_charge_date)}
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            </Box>
+                                        )}
                                     />
                                 )}
                                 {(loadingMore || (loading && (installments.length > 0 || recurring.length > 0))) && (

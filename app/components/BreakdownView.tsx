@@ -17,7 +17,8 @@ import {
     Alert,
     FormControlLabel,
     Switch,
-    Button
+    Button,
+    useMediaQuery
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -61,6 +62,8 @@ const formatNumber = (num: number): string => {
 
 const BreakdownView: React.FC = () => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
     const [data, setData] = useState<MonthlySummaryData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -411,10 +414,9 @@ const BreakdownView: React.FC = () => {
                                 overflowX: 'auto',
                                 maxHeight: '72vh',
                                 borderRadius: '24px',
-                                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.5)',
-                                backdropFilter: 'blur(8px)',
+                                background: 'transparent', // Changed to transparent as items have their own background
                                 boxShadow: 'none',
-                                border: `1px solid ${theme.palette.divider}`,
+                                border: isMobile ? 'none' : `1px solid ${theme.palette.divider}`,
                                 '&::-webkit-scrollbar': { width: '8px', height: '8px' },
                                 '&::-webkit-scrollbar-track': { background: 'transparent' },
                                 '&::-webkit-scrollbar-thumb': {
@@ -428,190 +430,233 @@ const BreakdownView: React.FC = () => {
                                     backgroundClip: 'content-box'
                                 }
                             }}>
-                            <Table stickyHeader sx={{ minWidth: 'unset' }}>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell
-                                            onClick={() => handleSortChange('name')}
-                                            style={{
-                                                ...tableHeaderCellStyle,
-                                                cursor: 'pointer',
-                                                position: 'sticky',
-                                                top: 0,
-                                                zIndex: 10,
-                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
-                                            }}
-                                        >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                Description
-                                                {sortField === 'name' && (
-                                                    sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
-                                                )}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell
-                                            onClick={() => handleSortChange('category')}
-                                            style={{
-                                                ...tableHeaderCellStyle,
-                                                cursor: 'pointer',
-                                                position: 'sticky',
-                                                top: 0,
-                                                zIndex: 10,
-                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
-                                            }}
-                                        >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                Category
-                                                {sortField === 'category' && (
-                                                    sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
-                                                )}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell
-                                            align="center"
-                                            onClick={() => handleSortChange('transaction_count')}
-                                            style={{
-                                                ...tableHeaderCellStyle,
-                                                cursor: 'pointer',
-                                                position: 'sticky',
-                                                top: 0,
-                                                zIndex: 10,
-                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
-                                            }}
-                                        >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                                                Count
-                                                {sortField === 'transaction_count' && (
-                                                    sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
-                                                )}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            onClick={() => handleSortChange('card_expenses')}
-                                            style={{
-                                                ...tableHeaderCellStyle,
-                                                cursor: 'pointer',
-                                                position: 'sticky',
-                                                top: 0,
-                                                zIndex: 10,
-                                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
-                                            }}
-                                        >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                                Amount
-                                                {sortField === 'card_expenses' && (
-                                                    sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
-                                                )}
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
+                            {isMobile ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                     {data.map((row) => (
-                                        <TableRow
+                                        <BreakdownMobileCard
                                             key={row.description}
-                                            style={TABLE_ROW_HOVER_STYLE}
-                                            onClick={() => handleDescriptionClick(row.description as string)}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = getTableRowHoverBackground(theme);
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.background = 'transparent';
-                                            }}
-                                        >
-                                            <TableCell style={tableBodyCellStyle}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    {loadingDescription === row.description ? (
-                                                        <CircularProgress size={16} />
-                                                    ) : (
-                                                        <DescriptionIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                                            row={row}
+                                            theme={theme}
+                                            loadingDescription={loadingDescription}
+                                            handleDescriptionClick={handleDescriptionClick}
+                                            editingDescription={editingDescription}
+                                            editCategory={editCategory}
+                                            setEditCategory={setEditCategory}
+                                            availableCategories={availableCategories}
+                                            handleCategorySave={handleCategorySave}
+                                            handleCategoryCancel={handleCategoryCancel}
+                                            handleCategoryEditClick={handleCategoryEditClick}
+                                        />
+                                    ))}
+                                    {/* Mobile Totals Card */}
+                                    <Paper
+                                        elevation={0}
+                                        sx={{
+                                            p: 2.5,
+                                            borderRadius: '16px',
+                                            border: `2px solid ${theme.palette.primary.main}`,
+                                            background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.05)',
+                                            backdropFilter: 'blur(10px)',
+                                            mt: 1
+                                        }}
+                                    >
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>TOTAL</Typography>
+                                            <Box sx={{ textAlign: 'right' }}>
+                                                <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main' }}>
+                                                    {`${totals.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(totals.amount))}`}
+                                                </Typography>
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {totals.count} transactions
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    </Paper>
+                                </Box>
+                            ) : (
+                                <Table stickyHeader sx={{ minWidth: 'unset' }}>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell
+                                                onClick={() => handleSortChange('name')}
+                                                style={{
+                                                    ...tableHeaderCellStyle,
+                                                    cursor: 'pointer',
+                                                    position: 'sticky',
+                                                    top: 0,
+                                                    zIndex: 10,
+                                                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    Description
+                                                    {sortField === 'name' && (
+                                                        sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
                                                     )}
-                                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                        {row.description}
-                                                    </Typography>
                                                 </Box>
                                             </TableCell>
-                                            <TableCell style={tableBodyCellStyle}>
-                                                <div onClick={(e) => e.stopPropagation()}>
-                                                    {editingDescription === row.description ? (
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                            <Autocomplete
-                                                                value={editCategory}
-                                                                onChange={(event, newValue) => setEditCategory(newValue || '')}
-                                                                onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
-                                                                freeSolo
-                                                                options={availableCategories}
-                                                                size="small"
-                                                                sx={{ minWidth: 150 }}
-                                                                renderInput={(params) => <TextField {...params} autoFocus placeholder="Category" />}
-                                                            />
-                                                            <IconButton size="small" onClick={() => handleCategorySave(row.description!)} sx={{ color: '#4ADE80' }}><CheckIcon /></IconButton>
-                                                            <IconButton size="small" onClick={handleCategoryCancel} sx={{ color: '#ef4444' }}><CloseIcon /></IconButton>
-                                                        </Box>
-                                                    ) : (
-                                                        <span
-                                                            style={{
-                                                                background: 'rgba(59, 130, 246, 0.1)',
-                                                                padding: '4px 10px',
-                                                                borderRadius: '6px',
-                                                                fontSize: '13px',
-                                                                cursor: 'pointer',
-                                                                color: '#3b82f6',
-                                                                fontWeight: 500
-                                                            }}
-                                                            onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
-                                                        >
-                                                            {row.category || 'Uncategorized'}
-                                                        </span>
+                                            <TableCell
+                                                onClick={() => handleSortChange('category')}
+                                                style={{
+                                                    ...tableHeaderCellStyle,
+                                                    cursor: 'pointer',
+                                                    position: 'sticky',
+                                                    top: 0,
+                                                    zIndex: 10,
+                                                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    Category
+                                                    {sortField === 'category' && (
+                                                        sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
                                                     )}
-                                                </div>
+                                                </Box>
                                             </TableCell>
+                                            <TableCell
+                                                align="center"
+                                                onClick={() => handleSortChange('transaction_count')}
+                                                style={{
+                                                    ...tableHeaderCellStyle,
+                                                    cursor: 'pointer',
+                                                    position: 'sticky',
+                                                    top: 0,
+                                                    zIndex: 10,
+                                                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                                    Count
+                                                    {sortField === 'transaction_count' && (
+                                                        sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
+                                                    )}
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell
+                                                align="right"
+                                                onClick={() => handleSortChange('card_expenses')}
+                                                style={{
+                                                    ...tableHeaderCellStyle,
+                                                    cursor: 'pointer',
+                                                    position: 'sticky',
+                                                    top: 0,
+                                                    zIndex: 10,
+                                                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f8fafc'
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                                    Amount
+                                                    {sortField === 'card_expenses' && (
+                                                        sortDirection === 'asc' ? <ArrowUpwardIcon sx={{ fontSize: 16 }} /> : <ArrowDownwardIcon sx={{ fontSize: 16 }} />
+                                                    )}
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {data.map((row) => (
+                                            <TableRow
+                                                key={row.description}
+                                                style={TABLE_ROW_HOVER_STYLE}
+                                                onClick={() => handleDescriptionClick(row.description as string)}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = getTableRowHoverBackground(theme);
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = 'transparent';
+                                                }}
+                                            >
+                                                <TableCell style={tableBodyCellStyle}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        {loadingDescription === row.description ? (
+                                                            <CircularProgress size={16} />
+                                                        ) : (
+                                                            <DescriptionIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                                                        )}
+                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                            {row.description}
+                                                        </Typography>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell style={tableBodyCellStyle}>
+                                                    <div onClick={(e) => e.stopPropagation()}>
+                                                        {editingDescription === row.description ? (
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                <Autocomplete
+                                                                    value={editCategory}
+                                                                    onChange={(event, newValue) => setEditCategory(newValue || '')}
+                                                                    onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                                                                    freeSolo
+                                                                    options={availableCategories}
+                                                                    size="small"
+                                                                    sx={{ minWidth: 150 }}
+                                                                    renderInput={(params) => <TextField {...params} autoFocus placeholder="Category" />}
+                                                                />
+                                                                <IconButton size="small" onClick={() => handleCategorySave(row.description!)} sx={{ color: '#4ADE80' }}><CheckIcon /></IconButton>
+                                                                <IconButton size="small" onClick={handleCategoryCancel} sx={{ color: '#ef4444' }}><CloseIcon /></IconButton>
+                                                            </Box>
+                                                        ) : (
+                                                            <span
+                                                                style={{
+                                                                    background: 'rgba(59, 130, 246, 0.1)',
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: '6px',
+                                                                    fontSize: '13px',
+                                                                    cursor: 'pointer',
+                                                                    color: '#3b82f6',
+                                                                    fontWeight: 500
+                                                                }}
+                                                                onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
+                                                            >
+                                                                {row.category || 'Uncategorized'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell align="center" style={tableBodyCellStyle}>
+                                                    <Typography variant="body2" color="textSecondary">{row.transaction_count}</Typography>
+                                                </TableCell>
+                                                <TableCell align="right" style={{ ...tableBodyCellStyle, fontWeight: 700 }}>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            color: row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E'
+                                                        }}
+                                                    >
+                                                        {row.amount !== undefined
+                                                            ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+                                                            : `₪${formatNumber(row.card_expenses)}`
+                                                        }
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {/* Totals Row */}
+                                        <TableRow sx={{
+                                            borderTop: `2px solid ${theme.palette.divider}`,
+                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f1f5f9',
+                                            position: 'sticky',
+                                            bottom: 0,
+                                            zIndex: 10,
+                                            boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+                                        }}>
+                                            <TableCell style={tableBodyCellStyle}><Typography fontWeight={700}>TOTAL</Typography></TableCell>
+                                            <TableCell style={tableBodyCellStyle} />
                                             <TableCell align="center" style={tableBodyCellStyle}>
-                                                <Typography variant="body2" color="textSecondary">{row.transaction_count}</Typography>
+                                                <Typography fontWeight={700} color="textSecondary">
+                                                    {totals.count}
+                                                </Typography>
                                             </TableCell>
-                                            <TableCell align="right" style={{ ...tableBodyCellStyle, fontWeight: 700 }}>
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{
-                                                        fontWeight: 700,
-                                                        color: row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E'
-                                                    }}
-                                                >
-                                                    {row.amount !== undefined
-                                                        ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
-                                                        : `₪${formatNumber(row.card_expenses)}`
-                                                    }
+                                            <TableCell align="right" style={tableBodyCellStyle}>
+                                                <Typography fontWeight={700} color="primary">
+                                                    {`${totals.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(totals.amount))}`}
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
-                                    ))}
-
-                                    {/* Totals Row */}
-                                    <TableRow sx={{
-                                        borderTop: `2px solid ${theme.palette.divider}`,
-                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 1)' : '#f1f5f9',
-                                        position: 'sticky',
-                                        bottom: 0,
-                                        zIndex: 10,
-                                        boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
-                                    }}>
-                                        <TableCell style={tableBodyCellStyle}><Typography fontWeight={700}>TOTAL</Typography></TableCell>
-                                        <TableCell style={tableBodyCellStyle} />
-                                        <TableCell align="center" style={tableBodyCellStyle}>
-                                            <Typography fontWeight={700} color="textSecondary">
-                                                {totals.count}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell align="right" style={tableBodyCellStyle}>
-                                            <Typography fontWeight={700} color="primary">
-                                                {`${totals.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(totals.amount))}`}
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-
-                                </TableBody>
-                            </Table>
+                                    </TableBody>
+                                </Table>
+                            )}
                             {(loadingMore || (loading && data.length > 0)) && (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                                     <CircularProgress size={32} thickness={4} />
@@ -651,6 +696,116 @@ const BreakdownView: React.FC = () => {
                 </Alert>
             </Snackbar>
         </Box>
+    );
+};
+
+interface BreakdownMobileCardProps {
+    row: MonthlySummaryData;
+    theme: any;
+    loadingDescription: string | null;
+    handleDescriptionClick: (description: string) => void;
+    editingDescription: string | null;
+    editCategory: string;
+    setEditCategory: (val: string) => void;
+    availableCategories: string[];
+    handleCategorySave: (description: string) => void;
+    handleCategoryCancel: () => void;
+    handleCategoryEditClick: (description: string, currentCategory: string) => void;
+}
+
+const BreakdownMobileCard = ({
+    row,
+    theme,
+    loadingDescription,
+    handleDescriptionClick,
+    editingDescription,
+    editCategory,
+    setEditCategory,
+    availableCategories,
+    handleCategorySave,
+    handleCategoryCancel,
+    handleCategoryEditClick
+}: BreakdownMobileCardProps) => {
+    return (
+        <Paper
+            elevation={0}
+            onClick={() => handleDescriptionClick(row.description as string)}
+            sx={{
+                p: 2,
+                borderRadius: '16px',
+                border: `1px solid ${theme.palette.divider}`,
+                background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+                backdropFilter: 'blur(10px)',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+                '&:active': { transform: 'scale(0.98)' }
+            }}
+        >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                    {loadingDescription === row.description ? (
+                        <CircularProgress size={16} />
+                    ) : (
+                        <DescriptionIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                    )}
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {row.description}
+                    </Typography>
+                </Box>
+                <Typography
+                    variant="subtitle2"
+                    sx={{
+                        fontWeight: 800,
+                        color: row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E',
+                        ml: 2
+                    }}
+                >
+                    {row.amount !== undefined
+                        ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+                        : `₪${formatNumber(row.card_expenses)}`
+                    }
+                </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div onClick={(e) => e.stopPropagation()}>
+                    {editingDescription === row.description ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Autocomplete
+                                value={editCategory}
+                                onChange={(event, newValue) => setEditCategory(newValue || '')}
+                                onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                                freeSolo
+                                options={availableCategories}
+                                size="small"
+                                sx={{ minWidth: 120, '& .MuiInputBase-root': { fontSize: '12px', py: 0.5 } }}
+                                renderInput={(params) => <TextField {...params} autoFocus placeholder="Category" />}
+                            />
+                            <IconButton size="small" onClick={() => handleCategorySave(row.description!)} sx={{ color: '#4ADE80' }}><CheckIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={handleCategoryCancel} sx={{ color: '#ef4444' }}><CloseIcon fontSize="small" /></IconButton>
+                        </Box>
+                    ) : (
+                        <span
+                            style={{
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                color: '#3b82f6',
+                                fontWeight: 600
+                            }}
+                            onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
+                        >
+                            {row.category || 'Uncategorized'}
+                        </span>
+                    )}
+                </div>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                    {row.transaction_count} items
+                </Typography>
+            </Box>
+        </Paper>
     );
 };
 
