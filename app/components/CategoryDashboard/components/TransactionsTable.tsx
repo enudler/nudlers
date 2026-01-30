@@ -30,6 +30,7 @@ export interface Transaction {
   original_currency?: string;
   charged_currency?: string;
   account_number?: string;
+  processed_date?: string;
 }
 
 export interface TransactionsTableProps {
@@ -44,6 +45,7 @@ export interface TransactionsTableProps {
   onSort?: (field: string) => void;
   hideActions?: boolean;
   hideInstallmentsColumn?: boolean;
+  showProcessedDate?: boolean;
 }
 
 const TransactionsTable: React.FC<TransactionsTableProps> = ({
@@ -57,7 +59,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   sortOrder,
   onSort,
   hideActions,
-  hideInstallmentsColumn
+  hideInstallmentsColumn,
+  showProcessedDate = false
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -291,6 +294,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     amount: '12%',
     installment: '8%',
     card: hideActions && hideInstallmentsColumn ? '18%' : '12%',
+    processedDate: '10%',
     date: '10%',
     actions: '8%'
   };
@@ -368,6 +372,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                       onDelete={() => setConfirmDeleteTransaction(transaction)}
                       getCardVendor={getCardVendor}
                       getCardNickname={getCardNickname}
+                      showDate={false}
                     />
                   ))}
                 </Box>
@@ -383,6 +388,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 onDelete={() => setConfirmDeleteTransaction(transaction)}
                 getCardVendor={getCardVendor}
                 getCardNickname={getCardNickname}
+                showDate={true}
               />
             ))
           )}
@@ -416,7 +422,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
               )}
 
               {renderSortableHeader('Card', 'account_number', 'left', columnWidths.card)}
-              {renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
+              {showProcessedDate && renderSortableHeader('Proc. Date', 'processed_date', 'left', columnWidths.processedDate)}
+              {!groupByDate && renderSortableHeader('Date', 'date', 'left', columnWidths.date)}
 
               {!hideActions && (
                 <TableCell
@@ -448,7 +455,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                     zIndex: 9,
                     backdropFilter: 'blur(8px)'
                   }}>
-                    <TableCell colSpan={7} sx={{
+                    <TableCell colSpan={4 + (!hideInstallmentsColumn ? 1 : 0) + (!hideActions ? 1 : 0) + (showProcessedDate ? 1 : 0)} sx={{
                       padding: disableWrapper ? '4px 12px' : '8px 16px',
                       fontWeight: 700,
                       color: theme.palette.text.primary,
@@ -482,6 +489,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                       isWidget={disableWrapper}
                       hideActions={hideActions}
                       hideInstallmentsColumn={hideInstallmentsColumn}
+                      showProcessedDate={showProcessedDate}
+                      groupByDate={true}
                     />
                   ))}
                 </React.Fragment>
@@ -510,6 +519,8 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   isWidget={disableWrapper}
                   hideActions={hideActions}
                   hideInstallmentsColumn={hideInstallmentsColumn}
+                  showProcessedDate={showProcessedDate}
+                  groupByDate={false}
                 />
               ))
             )}
@@ -616,6 +627,8 @@ interface TransactionRowProps {
   isWidget?: boolean;
   hideActions?: boolean;
   hideInstallmentsColumn?: boolean;
+  showProcessedDate?: boolean;
+  groupByDate?: boolean;
 }
 
 const TransactionRow = React.memo(({
@@ -638,7 +651,9 @@ const TransactionRow = React.memo(({
   getCardNickname,
   isWidget,
   hideActions,
-  hideInstallmentsColumn
+  hideInstallmentsColumn,
+  showProcessedDate,
+  groupByDate
 }: TransactionRowProps) => {
   const cellStyle = {
     ...getTableBodyCellStyle(theme),
@@ -817,10 +832,25 @@ const TransactionRow = React.memo(({
       <TableCell style={cellStyle}>
         <AccountDisplay transaction={transaction} premium={false} compact={isWidget} />
       </TableCell>
+      {showProcessedDate && (
+        <TableCell style={cellStyle}>
+          <span style={{ color: theme.palette.text.secondary }}>
+            {transaction.processed_date ? dateUtils.formatDate(transaction.processed_date) : '—'}
+          </span>
+        </TableCell>
+      )}
 
-      <TableCell style={{ ...cellStyle, color: theme.palette.text.secondary }}>
-        {dateUtils.formatDate(transaction.date)}
-      </TableCell>
+      {!groupByDate && (
+        <TableCell style={{ ...cellStyle, color: theme.palette.text.secondary }}>
+          <Tooltip
+            title={transaction.processed_date ? `Process date: ${dateUtils.formatDate(transaction.processed_date)}` : "No process date available"}
+            arrow
+            placement="top"
+          >
+            <span>{dateUtils.formatDate(transaction.date)}</span>
+          </Tooltip>
+        </TableCell>
+      )}
 
 
       {!hideActions && (
@@ -878,6 +908,7 @@ interface TransactionMobileCardProps {
   onDelete: () => void;
   getCardVendor: (accountNumber: string | undefined | null) => string | null;
   getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
+  showDate?: boolean;
 }
 
 const TransactionMobileCard = ({
@@ -886,7 +917,8 @@ const TransactionMobileCard = ({
   onEdit,
   onDelete,
   getCardVendor,
-  getCardNickname
+  getCardNickname,
+  showDate
 }: TransactionMobileCardProps) => {
   const displayAmount = Math.abs(transaction.price);
 
@@ -913,6 +945,11 @@ const TransactionMobileCard = ({
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1, mr: 1 }}>
           {transaction.name}
+          {showDate && (
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
+              {dateUtils.formatDate(transaction.date)}
+            </Typography>
+          )}
         </Typography>
         <Typography
           variant="subtitle2"

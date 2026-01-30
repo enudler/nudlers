@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '../utils/client-logger';
 import { Box, Tooltip, Typography } from '@mui/material';
-import { styled, keyframes } from '@mui/material/styles';
+import { styled, keyframes, useTheme } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -43,7 +43,7 @@ const pulse = keyframes`
   100% { opacity: 1; }
 `;
 
-const StatusContainer = styled(Box)({
+const StatusContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: '6px',
@@ -51,10 +51,13 @@ const StatusContainer = styled(Box)({
   borderRadius: '8px',
   cursor: 'pointer',
   transition: 'all 0.2s ease-in-out',
+  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)',
+  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
   '&:hover': {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    transform: 'translateY(-1px)',
   },
-});
+}));
 
 // Helper function to parse date strings from API (now returns ISO strings with timezone)
 const parseDate = (dateStr: string | null): Date => {
@@ -123,6 +126,7 @@ interface SyncStatusIndicatorProps {
 
 const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) => {
   const { syncStatus: status } = useStatus();
+  const theme = useTheme();
 
   // Update browser tab title based on sync status
   useEffect(() => {
@@ -146,61 +150,63 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
     const oldestSyncDate = status.summary?.oldest_sync_at ? new Date(status.summary.oldest_sync_at) : null;
     const hasNeverSyncedAccount = status.summary?.has_never_synced || false;
 
+    const isDark = theme.palette.mode === 'dark';
+
     switch (health) {
       case 'healthy':
         return {
-          icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#4ADE80' }} />,
+          icon: <CheckCircleIcon sx={{ fontSize: 18, color: isDark ? '#4ADE80' : '#059669' }} />,
           label: 'Healthy',
-          color: '#4ADE80',
+          color: isDark ? '#4ADE80' : '#059669',
           tooltip: `All accounts synced. Last: ${oldestSyncDate ? formatRelativeTime(oldestSyncDate.toISOString()) : 'Unknown'}`
         };
       case 'syncing':
         return {
-          icon: <SyncIcon sx={{ fontSize: 18, color: '#60A5FA', animation: `${spin} 2s linear infinite` }} />,
+          icon: <SyncIcon sx={{ fontSize: 18, color: isDark ? '#60A5FA' : '#2563EB', animation: `${spin} 2s linear infinite` }} />,
           label: 'Syncing',
-          color: '#60A5FA',
+          color: isDark ? '#60A5FA' : '#2563EB',
           tooltip: 'Sync in progress...'
         };
       case 'error':
         return {
-          icon: <ErrorIcon sx={{ fontSize: 18, color: '#F87171', animation: `${pulse} 2s ease-in-out infinite` }} />,
+          icon: <ErrorIcon sx={{ fontSize: 18, color: isDark ? '#F87171' : '#DC2626', animation: `${pulse} 2s ease-in-out infinite` }} />,
           label: 'Error',
-          color: '#F87171',
+          color: isDark ? '#F87171' : '#DC2626',
           tooltip: 'Last sync failed. Check status for details.'
         };
       case 'stale':
         return {
-          icon: <WarningIcon sx={{ fontSize: 18, color: '#FBBF24' }} />,
+          icon: <WarningIcon sx={{ fontSize: 18, color: isDark ? '#FBBF24' : '#D97706' }} />,
           label: 'Stale',
-          color: '#FBBF24',
+          color: isDark ? '#FBBF24' : '#D97706',
           tooltip: `Some accounts need sync. Oldest: ${oldestSyncDate ? formatRelativeTime(oldestSyncDate.toISOString()) : 'Unknown'}`
         };
       case 'outdated':
         return {
-          icon: <WarningIcon sx={{ fontSize: 18, color: '#FBBF24' }} />,
+          icon: <WarningIcon sx={{ fontSize: 18, color: isDark ? '#FBBF24' : '#D97706' }} />,
           label: 'Outdated',
-          color: '#FBBF24',
+          color: isDark ? '#FBBF24' : '#D97706',
           tooltip: `Accounts haven't synced in a while. Oldest: ${oldestSyncDate ? formatRelativeTime(oldestSyncDate.toISOString()) : 'Unknown'}`
         };
       case 'no_accounts':
         return {
-          icon: <SyncDisabledIcon sx={{ fontSize: 18, color: '#94A3B8' }} />,
+          icon: <SyncDisabledIcon sx={{ fontSize: 18, color: isDark ? '#94A3B8' : '#64748B' }} />,
           label: 'No Accounts',
-          color: '#94A3B8',
+          color: isDark ? '#94A3B8' : '#64748B',
           tooltip: 'Add accounts to start syncing'
         };
       case 'never_synced':
         return {
-          icon: <SyncIcon sx={{ fontSize: 18, color: '#FBBF24' }} />,
+          icon: <SyncIcon sx={{ fontSize: 18, color: isDark ? '#FBBF24' : '#D97706' }} />,
           label: 'Never Synced',
-          color: '#FBBF24',
+          color: isDark ? '#FBBF24' : '#D97706',
           tooltip: 'Accounts have never been synced.'
         };
       default:
         return {
-          icon: <CloudOffIcon sx={{ fontSize: 18, color: '#94A3B8' }} />,
+          icon: <CloudOffIcon sx={{ fontSize: 18, color: isDark ? '#94A3B8' : '#64748B' }} />,
           label: 'Unknown',
-          color: '#94A3B8',
+          color: isDark ? '#94A3B8' : '#64748B',
           tooltip: 'Sync status unknown'
         };
     }
@@ -223,11 +229,11 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ onClick }) =>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {statusInfo.label}
           </Typography>
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', opacity: 0.9 }}>
             {statusInfo.tooltip}
           </Typography>
           {status && (
-            <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.5)', mt: 0.5 }}>
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', opacity: 0.7, mt: 0.5 }}>
               {status.activeAccounts} active account{status.activeAccounts !== 1 ? 's' : ''}
             </Typography>
           )}

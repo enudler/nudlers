@@ -109,6 +109,46 @@ paths:
           schema:
             type: integer
             default: 0
+        - name: q
+          in: query
+          description: Search term (name, vendor, category, identifier)
+          schema:
+            type: string
+        - name: billingCycle
+          in: query
+          description: Filter by billing cycle (YYYY-MM)
+          schema:
+            type: string
+        - name: description
+          in: query
+          description: Filter by description (exact match on name)
+          schema:
+            type: string
+        - name: last4digits
+          in: query
+          description: Filter by last 4 digits of account number
+          schema:
+            type: string
+        - name: bankAccountId
+          in: query
+          description: Filter by bank account ID
+          schema:
+            type: string
+        - name: bankVendor
+          in: query
+          description: Filter by bank vendor name
+          schema:
+            type: string
+        - name: bankAccountNumber
+          in: query
+          description: Filter by bank account number (partial match)
+          schema:
+            type: string
+        - name: uncategorizedOnly
+          in: query
+          description: Filter for uncategorized transactions only
+          schema:
+            type: boolean
       responses:
         '200':
           description: List of transactions
@@ -467,6 +507,16 @@ paths:
           schema:
             type: integer
             default: 0
+        - name: category
+          in: query
+          description: Filter by category (required unless all=true)
+          schema:
+            type: string
+        - name: month
+          in: query
+          description: Legacy filter for month (YYYY-MM)
+          schema:
+            type: string
       responses:
         '200':
           description: Category expenses
@@ -1373,42 +1423,30 @@ paths:
                     type: string
                     example: ok
 
-  /reports/month-by-categories:
+  /check-version:
     get:
       tags:
-        - Reports
-      summary: Get monthly category breakdown
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: billingCycle
-          in: query
-          schema:
-            type: string
+        - Settings
+      summary: Check for new application versions
+      description: Compares the current version with the latest release on GitHub.
       responses:
         '200':
-          description: Monthly category breakdown
+          description: Version information
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    category:
-                      type: string
-                    amount:
-                      type: number
-                    count:
-                      type: integer
+                type: object
+                properties:
+                  hasNewVersion:
+                    type: boolean
+                  latestVersion:
+                    type: string
+                  currentVersion:
+                    type: string
+                  releaseUrl:
+                    type: string
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /reports/box-panel:
     get:

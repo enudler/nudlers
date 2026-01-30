@@ -40,7 +40,7 @@ const handler = createApiHandler({
     `;
 
     // Sorting
-    const validSortColumns = ['name', 'price', 'date', 'category', 'account_number', 'vendor'];
+    const validSortColumns = ['name', 'price', 'date', 'category', 'account_number', 'vendor', 'processed_date'];
     const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'date';
     const sortDir = sortOrder?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     const orderByClause = `ORDER BY t.${sortCol} ${sortDir}, t.identifier, t.vendor`;
@@ -77,6 +77,7 @@ const handler = createApiHandler({
               t.name,
               t.price,
               t.date,
+              t.processed_date,
               t.category,
               t.identifier,
               t.vendor,
@@ -104,6 +105,7 @@ const handler = createApiHandler({
               t.name,
               t.price,
               t.date,
+              t.processed_date,
               t.category,
               t.identifier,
               t.vendor,
@@ -130,6 +132,7 @@ const handler = createApiHandler({
             t.name,
             t.price,
             t.date,
+            t.processed_date,
             t.category,
             t.identifier,
             t.vendor,
@@ -159,6 +162,7 @@ const handler = createApiHandler({
             t.name,
             t.price,
             t.date,
+            t.processed_date,
             t.category,
             t.identifier,
             t.vendor,
@@ -188,6 +192,7 @@ const handler = createApiHandler({
             t.name,
             t.price,
             t.date,
+            t.processed_date,
             t.category,
             t.identifier,
             t.vendor,
@@ -216,6 +221,7 @@ const handler = createApiHandler({
           t.name,
           t.price,
           t.date,
+          t.processed_date,
           t.category,
           t.identifier,
           t.vendor,

@@ -41,6 +41,7 @@ import { useColorMode } from '../context/ThemeContext';
 import Image from 'next/image';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAI } from '../context/AIContext';
+import VersionIndicator from './VersionIndicator';
 
 const ScrapeModal = dynamic(() => import('./ScrapeModal'), { ssr: false });
 const AccountsModal = dynamic(() => import('./AccountsModal'), { ssr: false });
@@ -356,6 +357,7 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
               >
                 <AutoAwesomeIcon />
               </IconButton>
+              <VersionIndicator />
               <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
@@ -368,6 +370,7 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
               <IconButton onClick={toggleAI} sx={{ color: isAIOpen ? '#8b5cf6' : 'text.primary' }}>
                 <AutoAwesomeIcon />
               </IconButton>
+              <VersionIndicator />
               <SyncStatusIndicator onClick={() => setSyncDrawerOpen(true)} />
               <IconButton onClick={toggleColorMode} sx={{ color: 'text.primary' }}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}

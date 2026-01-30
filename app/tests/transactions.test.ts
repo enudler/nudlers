@@ -88,11 +88,9 @@ describe('Transactions API Endpoint', () => {
             await handler(mockReq, mockRes);
 
             const [sql, params] = mockClient.query.mock.calls[0];
-            expect(sql).toContain('transaction_type'); // logic uses complex query but checks for bank specific conditions
-            // params: startDate, endDate, limit, offset. 
-            // Bank filter logic is hardcoded in SQL conditions, it doesn't add params for 'bank' literal usually, 
-            // unless logic changed.
-            // Let's check logic: conditions.push(...). No params added for 'bank'.
+            // Check for specific bank filter logic fragments as defined in transactions/index.js
+            expect(sql).toContain("t.category IN ('Bank', 'Income', 'Salary')");
+            expect(sql).toContain("LOWER(t.vendor) SIMILAR TO");
             expect(params).toEqual(['2023-01-01', '2023-01-31', 100, 0]);
         });
 
@@ -105,9 +103,9 @@ describe('Transactions API Endpoint', () => {
 
             await handler(mockReq, mockRes);
 
-            const [, params] = mockClient.query.mock.calls[0];
-            // Logic check: does it add params or just SQL?
-            // checking implementation: conditions.push(...). No params added.
+            const [sql, params] = mockClient.query.mock.calls[0];
+            // Check for credit card filter logic: account number length 4 or installments exist
+            expect(sql).toContain("LENGTH(COALESCE(t.account_number, '')) = 4");
             expect(params).toEqual(['2023-01-01', '2023-01-31', 100, 0]);
         });
 

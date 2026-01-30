@@ -638,6 +638,9 @@ export default async function handler(req, res) {
 
     sendEvent({ status: 'thinking', model: workingModel });
 
+    // Log the history being sent to startChat for debugging
+    logger.debug({ historyLength: previousMessages.length, lastMessageRole: previousMessages.length > 0 ? previousMessages[previousMessages.length - 1].role : 'none' }, 'Starting chat with history');
+
     const chat = model.startChat({
       history: previousMessages
     });
@@ -645,9 +648,10 @@ export default async function handler(req, res) {
     // 3. Send message with true streaming
     let result;
     try {
+      logger.debug({ message }, 'Sending initial user message');
       result = await chat.sendMessageStream(message);
     } catch (err) {
-      logger.error({ error: err.message }, 'Initial sendMessageStream failed');
+      logger.error({ error: err.message, stack: err.stack }, 'Initial sendMessageStream failed');
       throw err;
     }
 
@@ -676,7 +680,7 @@ export default async function handler(req, res) {
             }
           } catch (e) {
             // Ignore error when chunk contains no text (likely a function call chunk)
-            logger.debug('Chunk contains no text, skipping text extraction');
+            // logger.debug('Chunk contains no text, skipping text extraction');
           }
 
           // Handle function calls
@@ -701,7 +705,12 @@ export default async function handler(req, res) {
       }
 
       // If no function calls, we are done
-      if (functionCalls.length === 0) break;
+      if (functionCalls.length === 0) {
+        logger.debug('No function calls found in stream, finishing turn');
+        break;
+      }
+
+      logger.info({ count: functionCalls.length, names: functionCalls.map(f => f.name) }, 'Received function calls');
 
       // Execute functions
       sendEvent({
@@ -726,7 +735,16 @@ export default async function handler(req, res) {
       }
 
       // Send function responses back and get a new stream
-      result = await chat.sendMessageStream(functionResponses);
+      try {
+        logger.debug({ responseCount: functionResponses.length }, 'Sending function responses back to model');
+        result = await chat.sendMessageStream(functionResponses);
+      } catch (err) {
+        logger.error({ error: err.message, stack: err.stack }, 'Failed to send function responses');
+        // If we fail here, it's likely the sync error. We should break.
+        // But we should also let the user know.
+        fullText += "\n\n*(Error: I lost the connection while processing results. Please try again.)*";
+        throw err;
+      }
       // We don't reset fullText here because we want the AI's final answer 
       // to follow its thoughts/actions if any (though usually it just replaces it in this UI)
     }
@@ -772,6 +790,12 @@ export default async function handler(req, res) {
     } else if (userMessage.includes('GoogleGenerativeAI Error')) {
       // Extract the actual error message
       userMessage = userMessage.split('] ').pop() || userMessage;
+
+      // Specific handling for function call sequence error
+      if (userMessage.includes('function response turn comes immediately after a function call turn')) {
+        logger.warn('History synchronization issue detected. Check if previous turn ended with function call.');
+        userMessage = 'I encountered a technical sync error. Please try asking your question again.';
+      }
     }
 
     try {

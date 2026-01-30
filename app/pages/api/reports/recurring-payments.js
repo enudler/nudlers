@@ -173,7 +173,7 @@ export default async function handler(req, res) {
           FROM non_recurring_exclusions
         )
         SELECT
-          t.name, t.price, t.category, t.vendor, t.account_number, t.date, t.transaction_type,
+          t.name, t.price, t.category, t.vendor, t.account_number, t.date, t.processed_date, t.transaction_type,
           vc.nickname as bank_nickname,
           vc.bank_account_number as bank_account_display
         FROM transactions t

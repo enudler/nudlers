@@ -17,6 +17,7 @@ interface Transaction {
     price: number;
     date: string;
     category?: string;
+    processed_date?: string;
 }
 
 interface DeleteConfirmationDialogProps {
