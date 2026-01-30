@@ -79,8 +79,9 @@ Ask questions about your finances in plain language using Google Gemini integrat
 
 ### 🔌 MCP Integration for AI Assistants
 
-Connect Nudlers directly to **Claude Desktop** or **Cursor** using the Model Context Protocol.
+Connect Nudlers directly to **Claude Desktop**, **Cursor**, or **Claude Code** using the Model Context Protocol.
 
+**Quick Setup (localhost):**
 ```json
 {
   "mcpServers": {
@@ -92,7 +93,9 @@ Connect Nudlers directly to **Claude Desktop** or **Cursor** using the Model Con
 }
 ```
 
-Now your AI assistant can query your finances, search transactions, and even add manual expenses.
+**For remote/hosted instances**, replace `localhost:6969` with your server URL (see [MCP Setup](#mcp-for-claude-desktop--cursor--claude-code) for details).
+
+Now your AI assistant can query your finances, search transactions, and add manual expenses.
 
 ### 💰 Smart Budget Management
 
@@ -245,13 +248,13 @@ The built-in chat uses Google Gemini to answer questions about your finances:
 
 **Setup:** Add your `GEMINI_API_KEY` in Settings or `.env`
 
-### MCP for Claude Desktop / Cursor
+### MCP for Claude Desktop / Cursor / Claude Code
 
-Nudlers exposes a Model Context Protocol endpoint that AI assistants can use directly.
+Nudlers exposes a Model Context Protocol (MCP) endpoint that AI assistants can use directly to query and manage your finances.
 
-**Setup for Claude Desktop:**
+#### Setup for Claude Desktop
 
-Add to your Claude Desktop MCP config (`~/.config/claude/claude_desktop_config.json`):
+Add to `~/.config/claude/claude_desktop_config.json` (macOS/Linux) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
@@ -264,12 +267,117 @@ Add to your Claude Desktop MCP config (`~/.config/claude/claude_desktop_config.j
 }
 ```
 
-**Available Tools:**
-- `get_monthly_summary` — Financial summaries by vendor
-- `search_transactions` — Find specific transactions
-- `get_recurring_payments` — List subscriptions and installments
-- `add_manual_expense` — Add transactions via AI
-- `get_category_breakdown` — Spending by category
+#### Setup for Cursor
+
+Add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "npx",
+      "args": ["-y", "supergateway@latest", "--sse", "http://localhost:6969/api/mcp"]
+    }
+  }
+}
+```
+
+#### Setup for Claude Code
+
+Add to your project's `.mcp.json` or global `~/.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "npx",
+      "args": ["-y", "supergateway@latest", "--sse", "http://localhost:6969/api/mcp"]
+    }
+  }
+}
+```
+
+#### Remote / Hosted Setup
+
+For Nudlers running on a remote server, NAS, or Docker container, replace the URL:
+
+```json
+{
+  "mcpServers": {
+    "nudlers": {
+      "command": "npx",
+      "args": ["-y", "supergateway@latest", "--sse", "https://your-server.com/api/mcp"]
+    }
+  }
+}
+```
+
+**Examples:**
+- Docker on local network: `http://192.168.1.100:3000/api/mcp`
+- Synology NAS: `http://nas.local:3000/api/mcp`
+- Cloud server with HTTPS: `https://nudlers.yourdomain.com/api/mcp`
+
+> **Note:** For HTTPS, ensure your server has a valid SSL certificate. For local network access, use HTTP with your server's IP address.
+
+#### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_monthly_summary` | Get financial summary by vendor with income, expenses, and net balance |
+| `get_category_expenses` | Get all transactions for a specific category |
+| `get_category_breakdown` | Get spending breakdown by category with percentages |
+| `get_all_categories` | List all spending categories in the system |
+| `search_transactions` | Search transactions by description, vendor, or category |
+| `get_all_transactions` | Get all transactions for a time period |
+| `get_budgets` | Get budget vs actual spending comparison |
+| `get_recurring_payments` | List subscriptions and installment payments |
+| `get_sync_status` | Check sync status for all connected accounts |
+| `list_accounts` | List all configured bank accounts and credit cards |
+| `add_manual_expense` | Add a manual expense or income transaction |
+
+#### Example Queries
+
+Once connected, you can ask your AI assistant:
+- "What did I spend on groceries this month?"
+- "Show me my budget status"
+- "Add a manual expense: Coffee at Aroma, 25 ILS, today, category Dining"
+- "What are my recurring payments?"
+- "Search for transactions from Rami Levy"
+- "Compare my spending by category"
+
+#### Troubleshooting MCP
+
+**Connection refused:**
+```bash
+# Verify Nudlers is running
+curl http://localhost:6969/api/ping
+# Should return: {"status":"ok"}
+```
+
+**Test the MCP endpoint:**
+```bash
+# This should return SSE headers and keep connection open
+curl -N http://localhost:6969/api/mcp
+```
+
+**"supergateway" not found:**
+```bash
+# Ensure npx is available (comes with Node.js)
+npx --version
+
+# Or install supergateway globally
+npm install -g supergateway
+```
+
+**Wrong port:**
+- Development mode uses port `6969`
+- Docker production typically uses port `3000`
+- Check your `docker-compose.yaml` for port mappings
+
+**Firewall issues (remote access):**
+- Ensure the port is accessible from your client machine
+- For Docker: check port mappings in `docker-compose.yaml`
+- For NAS: check firewall and port forwarding settings
 
 ---
 
@@ -381,7 +489,7 @@ nudlers/
 │   │   │   ├── transactions/     # Transaction CRUD
 │   │   │   ├── scrapers/         # Scraper control
 │   │   │   ├── reports/          # Financial reports
-│   │   │   ├── mcp/              # MCP integration
+│   │   │   ├── mcp.ts            # MCP integration endpoint
 │   │   │   └── ...
 │   │   └── index.tsx
 │   ├── scrapers/                 # Bank scraper logic

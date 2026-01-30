@@ -603,5 +603,156 @@ export function createMcpServer() {
         }
     );
 
+    // ============================================================================
+    // TOOL: Add Manual Expense
+    // ============================================================================
+    server.tool(
+        "add_manual_expense",
+        "Add a manual expense or income transaction. Use this for cash purchases, transfers, or transactions not captured by bank scrapers.",
+        {
+            name: z.string().min(1).describe("Transaction description (e.g., 'Coffee at local cafe', 'Grocery shopping')"),
+            price: z.number().describe("Amount in ILS. Positive for expenses, negative for income."),
+            date: z.string().describe("Transaction date in YYYY-MM-DD format"),
+            category: z.string().optional().describe("Category name (e.g., 'Dining', 'Groceries', 'Transportation')"),
+            memo: z.string().optional().describe("Additional notes or details about the transaction"),
+        },
+        async ({ name, price, date, category, memo }) => {
+            try {
+                // Validate date format
+                const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+                if (!dateRegex.test(date)) {
+                    return {
+                        content: [{ type: "text", text: `Invalid date format. Please use YYYY-MM-DD (e.g., 2024-01-15).` }],
+                    };
+                }
+
+                const response = await apiRequest<any>("/transactions", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        name,
+                        price,
+                        date,
+                        category,
+                        memo,
+                        vendor: "manual",
+                    }),
+                });
+
+                if (response.success) {
+                    const txn = response.transaction;
+                    const formattedDate = new Date(txn.date).toLocaleDateString("he-IL");
+                    const formattedAmount = formatCurrency(Math.abs(txn.price));
+                    const type = txn.price >= 0 ? "expense" : "income";
+
+                    const summary = [
+                        `✅ Manual ${type} added successfully!`,
+                        "",
+                        `📝 Description: ${txn.name}`,
+                        `💰 Amount: ${formattedAmount}`,
+                        `📅 Date: ${formattedDate}`,
+                        txn.category ? `📁 Category: ${txn.category}` : "",
+                        txn.memo ? `📋 Memo: ${txn.memo}` : "",
+                    ].filter(Boolean).join("\n");
+
+                    return {
+                        content: [{ type: "text", text: summary }],
+                    };
+                } else {
+                    return {
+                        content: [{ type: "text", text: `Failed to add transaction: ${response.error || "Unknown error"}` }],
+                    };
+                }
+            } catch (error) {
+                return {
+                    content: [{ type: "text", text: `Error adding manual expense: ${error}` }],
+                };
+            }
+        }
+    );
+
+    // ============================================================================
+    // TOOL: Get Category Breakdown
+    // ============================================================================
+    server.tool(
+        "get_category_breakdown",
+        "Get a breakdown of spending by category for a given period. Shows total spent per category with transaction counts.",
+        {
+            billingCycle: z.string().optional().describe("Billing cycle in YYYY-MM format"),
+            startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
+            endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
+        },
+        async ({ billingCycle, startDate, endDate }) => {
+            try {
+                const params = new URLSearchParams();
+
+                if (billingCycle) {
+                    params.append("billingCycle", billingCycle);
+                } else if (startDate && endDate) {
+                    params.append("startDate", startDate);
+                    params.append("endDate", endDate);
+                } else {
+                    const now = new Date();
+                    params.append("billingCycle", `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+                }
+
+                // Get all transactions grouped by category
+                params.append("all", "true");
+                const response = await apiRequest<{ items: any[] } | any[]>(`/reports/category-expenses?${params}`);
+
+                let data: any[] = [];
+                if (Array.isArray(response)) {
+                    data = response;
+                } else if (response && Array.isArray(response.items)) {
+                    data = response.items;
+                }
+
+                if (!data || data.length === 0) {
+                    return {
+                        content: [{ type: "text", text: "No transactions found for the specified period." }],
+                    };
+                }
+
+                // Group by category
+                const categoryTotals: Record<string, { total: number; count: number }> = {};
+                for (const t of data) {
+                    const cat = t.category || "Uncategorized";
+                    if (!categoryTotals[cat]) {
+                        categoryTotals[cat] = { total: 0, count: 0 };
+                    }
+                    categoryTotals[cat].total += Math.abs(Number(t.price) || 0);
+                    categoryTotals[cat].count++;
+                }
+
+                // Sort by total descending
+                const sorted = Object.entries(categoryTotals)
+                    .sort((a, b) => b[1].total - a[1].total);
+
+                const grandTotal = sorted.reduce((sum, [, v]) => sum + v.total, 0);
+
+                const lines = sorted.map(([cat, { total, count }]) => {
+                    const percentage = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
+                    return `• ${cat}: ${formatCurrency(total)} (${count} transactions, ${percentage}%)`;
+                });
+
+                const summary = [
+                    `📊 Category Breakdown`,
+                    `Period: ${billingCycle || `${startDate} to ${endDate}`}`,
+                    `Total Spending: ${formatCurrency(grandTotal)}`,
+                    "",
+                    "--- By Category ---",
+                    ...lines,
+                ].join("\n");
+
+                return {
+                    content: [{ type: "text", text: summary }],
+                };
+            } catch (error) {
+                return {
+                    content: [{ type: "text", text: `Error fetching category breakdown: ${error}` }],
+                };
+            }
+        }
+    );
+
     return server;
 }

@@ -48,6 +48,69 @@ paths:
         Retrieve transactions with optional filtering by type, date range, vendor, etc.
         Default returns all transactions (both bank and credit card).
         Ordered by date DESC (newest first).
+    post:
+      tags:
+        - Transactions
+      summary: Add a manual transaction
+      description: |
+        Add a manual expense or income transaction. Useful for cash purchases,
+        transfers, or any transaction not captured by bank scrapers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price
+                - date
+              properties:
+                name:
+                  type: string
+                  description: Transaction description (e.g., "Coffee at local cafe")
+                price:
+                  type: number
+                  description: Transaction amount (positive for expenses, negative for income)
+                date:
+                  type: string
+                  format: date
+                  description: Transaction date (YYYY-MM-DD)
+                category:
+                  type: string
+                  description: Category name (e.g., "Dining", "Groceries")
+                vendor:
+                  type: string
+                  default: manual
+                  description: Source vendor (defaults to "manual")
+                accountNumber:
+                  type: string
+                  description: Account identifier (defaults to "manual")
+                memo:
+                  type: string
+                  description: Additional notes
+                type:
+                  type: string
+                  default: normal
+                  description: Transaction type
+      responses:
+        '201':
+          description: Transaction created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
         - name: transactionType
           in: query

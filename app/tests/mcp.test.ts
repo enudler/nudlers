@@ -224,8 +224,18 @@ describe('MCP Server API', () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
         expect(postRes.statusCode).toBeLessThan(300);
 
-        // Verify "get_monthly_summary" is in the output stream
+        // Verify all expected tools are in the output stream
         expect(initRes.body).toContain('get_monthly_summary');
+        expect(initRes.body).toContain('get_category_expenses');
+        expect(initRes.body).toContain('get_all_categories');
+        expect(initRes.body).toContain('search_transactions');
+        expect(initRes.body).toContain('get_budgets');
+        expect(initRes.body).toContain('get_sync_status');
+        expect(initRes.body).toContain('get_recurring_payments');
+        expect(initRes.body).toContain('list_accounts');
+        expect(initRes.body).toContain('get_all_transactions');
+        expect(initRes.body).toContain('add_manual_expense');
+        expect(initRes.body).toContain('get_category_breakdown');
 
         // Cleanup
         initReq.emit('close');

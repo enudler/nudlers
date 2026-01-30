@@ -11,11 +11,88 @@ const BANK_VENDORS = [...STANDARD_BANK_VENDORS, ...BEINLEUMI_GROUP_VENDORS];
 const handler = async (req, res) => {
     if (req.method === 'GET') {
         return getTransactions(req, res);
+    } else if (req.method === 'POST') {
+        return addManualTransaction(req, res);
     } else if (req.method === 'DELETE') {
         return deleteAllTransactions(req, res);
     } else {
-        res.setHeader('Allow', ['GET', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
+    }
+};
+
+/**
+ * POST /api/transactions
+ * Add a manual transaction (expense or income)
+ */
+const addManualTransaction = async (req, res) => {
+    const {
+        name,
+        price,
+        date,
+        category,
+        vendor = 'manual',
+        accountNumber,
+        memo,
+        type = 'normal'
+    } = req.body;
+
+    // Validation
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        return res.status(400).json({ error: 'name is required and must be a non-empty string' });
+    }
+    if (price === undefined || price === null || isNaN(Number(price))) {
+        return res.status(400).json({ error: 'price is required and must be a number' });
+    }
+    if (!date) {
+        return res.status(400).json({ error: 'date is required (YYYY-MM-DD format)' });
+    }
+
+    const client = await getDB();
+    try {
+        // Generate a unique identifier for manual transactions
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(2, 8);
+        const identifier = `manual_${timestamp}_${randomSuffix}`;
+
+        const transactionDate = new Date(date).toISOString().split('T')[0];
+        const finalPrice = Number(price);
+        const finalCategory = category || null;
+        const finalAccountNumber = accountNumber || 'manual';
+        const transactionType = BANK_VENDORS.some(v => vendor.toLowerCase().includes(v)) ? 'bank' : 'credit_card';
+
+        const result = await client.query(
+            `INSERT INTO transactions
+             (identifier, vendor, date, name, price, category, type, processed_date, memo, status, account_number, category_source, transaction_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             RETURNING identifier, vendor, date, name, price, category, memo, account_number`,
+            [
+                identifier,
+                vendor,
+                transactionDate,
+                name.trim(),
+                finalPrice,
+                finalCategory,
+                type,
+                transactionDate,
+                memo || null,
+                'completed',
+                finalAccountNumber,
+                'manual',
+                transactionType
+            ]
+        );
+
+        res.status(201).json({
+            success: true,
+            transaction: result.rows[0],
+            message: `Manual transaction "${name.trim()}" added successfully`
+        });
+    } catch (error) {
+        console.error('Error adding manual transaction:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
     }
 };
 
