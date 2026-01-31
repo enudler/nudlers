@@ -21,6 +21,11 @@ import { detectRecurringPayments } from "../../../utils/recurringDetection";
 export default async function handler(req, res) {
   const client = await getDB();
 
+  if (req.method !== 'GET') {
+    res.setHeader("Allow", ["GET"]);
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  }
+
   try {
     // Parse query parameters
     const {
@@ -187,6 +192,7 @@ export default async function handler(req, res) {
             WHERE LOWER(TRIM(t.name)) = e.name
               AND (e.account_number IS NULL OR e.account_number = t.account_number)
           )
+          AND t.date >= CURRENT_DATE - INTERVAL '12 months'
         ORDER BY t.date DESC
       `);
 
