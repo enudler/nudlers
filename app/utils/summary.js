@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getDB } from '../pages/api/db.js';
 import logger from './logger.js';
 import { getBillingCycleSql } from "./transaction_logic.js";
+import { format } from 'date-fns';
 
 /**
  * Generates a daily financial summary using AI.
@@ -78,8 +79,8 @@ export async function generateDailySummary() {
             const start = new Date(currentYear, currentMonth, 1);
             const end = new Date(currentYear, currentMonth + 1, 0);
 
-            startDate = start.toISOString().split('T')[0];
-            endDate = end.toISOString().split('T')[0];
+            startDate = format(start, 'yyyy-MM-dd');
+            endDate = format(end, 'yyyy-MM-dd');
             dateColumn = 'date';
 
             whereClause = `${dateColumn} >= $1 AND ${dateColumn} <= $2`;
@@ -89,7 +90,7 @@ export async function generateDailySummary() {
         // Get last 7 days of transactions (Independent of cycle, for context)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+        const sevenDaysAgoStr = format(sevenDaysAgo, 'yyyy-MM-dd');
 
         const transactionsResult = await client.query(
             `SELECT date, name, category, price, vendor

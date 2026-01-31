@@ -2,6 +2,8 @@ import { getDB } from "../db";
 import { detectRecurringPayments } from "../../../utils/recurringDetection";
 import { BANK_VENDORS } from "../../../utils/constants";
 import logger from "../../../utils/logger";
+import { formatISODate } from "../../../utils/dateUtils";
+import { normalizeTransactionDates } from "../../../utils/projectionUtils";
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
@@ -54,7 +56,7 @@ export default async function handler(req, res) {
             FROM transactions t
             WHERE t.transaction_type = 'bank'
               AND t.date >= CURRENT_DATE - INTERVAL '180 days'
-              AND t.category NOT IN ('Bank', 'Income', 'Salary', 'חיוב אשראי', 'Credit Card')
+              AND t.category NOT IN ('Bank', 'Income')
               AND NOT EXISTS (
                   SELECT 1 FROM excluded e 
                   WHERE LOWER(TRIM(t.name)) = e.name 
@@ -65,7 +67,15 @@ export default async function handler(req, res) {
 
         const allRecurring = detectRecurringPayments(bankTransactions.rows);
 
-        // 3. Get future credit card transactions and their target bank account
+        // 3. Get manual recurring payments
+        const manualRecurringResult = await client.query(`
+            SELECT name, amount, category, account_number, day_of_month, frequency
+            FROM manual_recurring_payments
+            WHERE is_active = true
+        `);
+        const manualRecurring = manualRecurringResult.rows;
+
+        // 4. Get future credit card transactions and their target bank account
         const futureCCPayments = await client.query(`
             SELECT 
                 t.name, t.price, t.date, t.processed_date, t.vendor, t.account_number, t.category,
@@ -83,8 +93,11 @@ export default async function handler(req, res) {
                 OR 
                 (t.processed_date IS NULL AND t.date >= CURRENT_DATE)
               )
-              AND COALESCE(t.processed_date, t.date) <= CURRENT_DATE + INTERVAL '35 days'
+            AND COALESCE(t.processed_date, t.date) <= CURRENT_DATE + INTERVAL '35 days'
         `);
+
+        // Fix timezone inconsistencies or date drifts
+        normalizeTransactionDates(futureCCPayments.rows);
 
         // 4. Generate 30-day projection per account
         const projection = [];
@@ -99,7 +112,7 @@ export default async function handler(req, res) {
         for (let i = 0; i <= 30; i++) {
             const currentDate = new Date(today);
             currentDate.setDate(today.getDate() + i);
-            const dateStr = currentDate.toISOString().split('T')[0];
+            const dateStr = formatISODate(currentDate);
 
             const dailyBankRecurring = [];
             const ccMap = new Map();
@@ -124,11 +137,28 @@ export default async function handler(req, res) {
                     }
                 });
 
+                // Manual recurring
+                manualRecurring.forEach(mr => {
+                    const day = mr.day_of_month;
+                    // Simplistic monthly check
+                    if (currentDate.getDate() === day) {
+                        const accNum = mr.account_number || accounts[0]?.account_number; // Default to first if not specified
+                        if (currentAccountBalances[accNum] !== undefined) {
+                            dailyBankRecurring.push({
+                                name: mr.name,
+                                amount: mr.amount,
+                                category: mr.category,
+                                account_number: accNum,
+                                is_manual: true
+                            });
+                            currentAccountBalances[accNum] += mr.amount;
+                        }
+                    }
+                });
+
                 // CC settlements
                 futureCCPayments.rows.forEach(cc => {
-                    const pDate = cc.processed_date || cc.date;
-                    const procDate = new Date(pDate);
-                    procDate.setHours(0, 0, 0, 0);
+                    const procDate = cc.normalizedDate;
 
                     if (procDate.getTime() === currentDate.getTime()) {
                         const targetBankId = cc.linked_bank_account_id;

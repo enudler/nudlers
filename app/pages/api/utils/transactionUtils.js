@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { formatISODate } from '../../../utils/dateUtils.js';
 
 /**
  * Generates a robust unique identifier for a transaction.
@@ -20,7 +21,7 @@ export function generateTransactionIdentifier(txn, companyId, accountNumber) {
   const originalId = txn.identifier || '';
   const vendor = companyId || '';
   const account = accountNumber || '';
-  const date = txn.date ? new Date(txn.date).toISOString().split('T')[0] : '';
+  const date = formatISODate(txn.date);
   const description = normalizeDescription(txn.description || '');
   const amount = txn.chargedAmount ?? txn.originalAmount ?? 0;
 
