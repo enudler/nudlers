@@ -30,6 +30,8 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CloseIcon from '@mui/icons-material/Close';
 import HistoryIcon from '@mui/icons-material/History';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ScrapeModal from './ScrapeModal';
 import SyncHistoryModal from './SyncHistoryModal';
 import { CREDIT_CARD_VENDORS, BANK_VENDORS, BEINLEUMI_GROUP_VENDORS, STANDARD_BANK_VENDORS } from '../utils/constants';
@@ -95,6 +97,7 @@ interface CardOwnership {
   bank_account_nickname?: string;
   bank_account_number?: string;
   bank_account_vendor?: string;
+  is_hidden?: boolean;
 }
 
 interface AccountsModalProps {
@@ -229,6 +232,28 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update card bank account');
       showNotification('Failed to update card bank account', 'error');
+    }
+  };
+
+  const handleToggleAccountVisibility = async (accountId: number, isHidden: boolean) => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_hidden: isHidden }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update account visibility');
+      }
+
+      await fetchCardOwnership();
+      showNotification(`Account ${isHidden ? 'hidden' : 'shown'} successfully`, 'success');
+      window.dispatchEvent(new CustomEvent('dataRefresh'));
+    } catch (err) {
+      showNotification('Failed to update account visibility', 'error');
     }
   };
 
@@ -519,7 +544,7 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                 </Tooltip>
               )}
             </Box>
-            {type === 'credit' && getOwnedCards(account.id).length > 0 && (
+            {getOwnedCards(account.id).length > 0 && (
               <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
                 {getOwnedCards(account.id).map((card) => (
                   <Box key={card.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -568,58 +593,92 @@ export default function AccountsModal({ isOpen, onClose }: AccountsModalProps) {
                         </IconButton>
                       </Box>
                     ) : (
-                      <Tooltip
-                        title={
-                          <Box>
-                            <Box>{card.card_nickname || card.card_vendor || `Card ending in ${card.account_number}`}</Box>
-                            {card.bank_account_nickname ? (
-                              <Box sx={{ mt: 0.5, fontSize: '11px' }}>
-                                Bank: {card.bank_account_nickname} ({card.bank_account_number || card.bank_account_vendor})
-                              </Box>
-                            ) : (
-                              <Box sx={{ mt: 0.5, fontSize: '11px', fontStyle: 'italic' }}>
-                                No bank account linked
-                              </Box>
-                            )}
-                          </Box>
-                        }
-                      >
-                        <Chip
-                          size="small"
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <span>****{card.account_number}</span>
-                              {card.bank_account_nickname && (
-                                <span style={{ fontSize: '9px', opacity: 0.7 }}>
-                                  • {card.bank_account_nickname}
-                                </span>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Tooltip
+                          title={
+                            <Box>
+                              <Box>{card.card_nickname || card.card_vendor || `Account ending in ${card.account_number}`}</Box>
+                              {card.bank_account_nickname ? (
+                                <Box sx={{ mt: 0.5, fontSize: '11px' }}>
+                                  Linked Bank: {card.bank_account_nickname} ({card.bank_account_number || card.bank_account_vendor})
+                                </Box>
+                              ) : (
+                                <Box sx={{ mt: 0.5, fontSize: '11px', fontStyle: 'italic' }}>
+                                  No bank account linked
+                                </Box>
+                              )}
+                              {card.is_hidden && (
+                                <Box sx={{ mt: 0.5, fontSize: '11px', color: 'error.main', fontWeight: 700 }}>
+                                  HIDDEN FROM REPORTS
+                                </Box>
                               )}
                             </Box>
                           }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingCardBankAccount(card.id);
-                          }}
-                          sx={{
-                            height: '20px',
-                            fontSize: '11px',
-                            backgroundColor: card.linked_bank_account_id
-                              ? alpha(theme.palette.primary.main, 0.1)
-                              : alpha(theme.palette.secondary.main, 0.1),
-                            color: card.linked_bank_account_id ? 'primary.main' : 'secondary.main',
-                            border: `1px solid ${card.linked_bank_account_id ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.secondary.main, 0.2)}`,
-                            cursor: 'pointer',
-                            '&:hover': {
-                              backgroundColor: card.linked_bank_account_id
-                                ? alpha(theme.palette.primary.main, 0.15)
-                                : alpha(theme.palette.secondary.main, 0.15),
-                            },
-                            '& .MuiChip-label': {
-                              px: 1,
-                            },
-                          }}
-                        />
-                      </Tooltip>
+                        >
+                          <Chip
+                            size="small"
+                            label={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <span style={{ textDecoration: card.is_hidden ? 'line-through' : 'none', opacity: card.is_hidden ? 0.6 : 1 }}>
+                                  {card.account_number.length > 4 ? `****${card.account_number.slice(-4)}` : card.account_number}
+                                </span>
+                                {card.bank_account_nickname && (
+                                  <span style={{ fontSize: '9px', opacity: 0.7 }}>
+                                    • {card.bank_account_nickname}
+                                  </span>
+                                )}
+                              </Box>
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (type === 'credit') {
+                                setEditingCardBankAccount(card.id);
+                              }
+                            }}
+                            sx={{
+                              height: '20px',
+                              fontSize: '11px',
+                              backgroundColor: card.is_hidden
+                                ? 'action.disabledBackground'
+                                : card.linked_bank_account_id
+                                  ? alpha(theme.palette.primary.main, 0.1)
+                                  : alpha(theme.palette.secondary.main, 0.1),
+                              color: card.is_hidden
+                                ? 'text.disabled'
+                                : card.linked_bank_account_id ? 'primary.main' : 'secondary.main',
+                              border: `1px solid ${card.is_hidden ? 'transparent' : (card.linked_bank_account_id ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.secondary.main, 0.2))}`,
+                              cursor: type === 'credit' ? 'pointer' : 'default',
+                              '&:hover': {
+                                backgroundColor: card.is_hidden
+                                  ? 'action.disabledBackground'
+                                  : card.linked_bank_account_id
+                                    ? alpha(theme.palette.primary.main, 0.15)
+                                    : alpha(theme.palette.secondary.main, 0.15),
+                              },
+                              '& .MuiChip-label': {
+                                px: 1,
+                              },
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip title={card.is_hidden ? "Show in reports" : "Hide from reports (fix duplicates)"}>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleAccountVisibility(card.id, !card.is_hidden);
+                            }}
+                            sx={{
+                              p: '2px',
+                              color: card.is_hidden ? 'warning.main' : 'action.active',
+                              opacity: card.is_hidden ? 1 : 0.4,
+                              '&:hover': { opacity: 1, backgroundColor: 'action.hover' }
+                            }}
+                          >
+                            {card.is_hidden ? <VisibilityOffIcon sx={{ fontSize: '14px' }} /> : <VisibilityIcon sx={{ fontSize: '14px' }} />}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     )}
                   </Box>
                 ))}

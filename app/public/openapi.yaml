@@ -367,6 +367,9 @@ paths:
                       nullable: true
                     nickname:
                       type: string
+                    is_hidden:
+                      type: boolean
+                      default: false
                     credential:
                       type: object
                       properties:
@@ -376,6 +379,130 @@ paths:
                           type: string
                         nickname:
                           type: string
+      parameters:
+        - name: showHidden
+          in: query
+          description: Whether to include hidden accounts in the list.
+          schema:
+            type: boolean
+            default: false
+
+  /accounts/{id}:
+    patch:
+      tags:
+        - Finance
+      summary: Update account settings (e.g. visibility)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account (card_ownership) ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_hidden:
+                  type: boolean
+                  description: Whether to hide this account from summaries.
+      responses:
+        '200':
+          description: Account updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  is_hidden:
+                    type: boolean
+        '404':
+          description: Account not found
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /reports/projection:
+    get:
+      tags:
+        - Reports
+      summary: Get financial balance projection
+      description: |
+        Provides a daily projection of the total balance for the next 30 days.
+        Accounts for:
+        - Current bank account balances
+        - Recurring bank transactions (detected from history)
+        - Future credit card settlements (based on processed_date)
+      responses:
+        '200':
+          description: Projection data for the next 30 days
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      startingBalance:
+                        type: number
+                      endingBalance:
+                        type: number
+                      periodDays:
+                        type: integer
+                  projection:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        balance:
+                          type: number
+                        dailyChange:
+                          type: number
+                        bankRecurring:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              amount:
+                                type: number
+                              category:
+                                type: string
+                        ccPayments:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              amount:
+                                type: number
+                              vendor:
+                                type: string
+                              category:
+                                type: string
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        account_number:
+                          type: string
+                        balance:
+                          type: number
+                        nickname:
+                          type: string
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /reports/monthly-summary:
     get:

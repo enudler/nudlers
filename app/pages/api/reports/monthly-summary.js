@@ -81,7 +81,7 @@ const handler = createApiHandler({
     }
 
     const credentialJoin = `
-      LEFT JOIN card_ownership co ON t.vendor = co.vendor AND RIGHT(t.account_number, 4) = RIGHT(co.account_number, 4)
+      LEFT JOIN card_ownership co ON t.vendor = co.vendor AND RIGHT(t.account_number, 4) = RIGHT(co.account_number, 4) AND (co.is_hidden = false OR co.is_hidden IS NULL)
       LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
     `;
 

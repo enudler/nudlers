@@ -27,6 +27,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import BackupIcon from '@mui/icons-material/Backup';
+import TimelineIcon from '@mui/icons-material/Timeline';
 
 
 import dynamic from 'next/dynamic';
@@ -54,8 +55,8 @@ const SyncStatusModal = dynamic(() => import('./SyncStatusModal'), { ssr: false 
 
 
 interface ResponsiveAppBarProps {
-  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
-  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown') => void;
+  currentView?: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown' | 'projection';
+  onViewChange?: (view: 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown' | 'projection') => void;
 }
 
 
@@ -169,6 +170,7 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
     { label: 'Transactions', icon: <DashboardIcon />, view: 'dashboard' as const, color: 'var(--n-primary)' },
     { label: 'Breakdown', icon: <ViewListIcon />, view: 'breakdown' as const, color: 'var(--n-primary)' },
     { label: 'Recurring', icon: <RepeatIcon />, view: 'recurring' as const, color: 'var(--n-primary)' },
+    { label: 'Projection', icon: <TimelineIcon />, view: 'projection' as const, color: 'var(--n-primary)' },
 
     { label: 'Audit', icon: <HistoryIcon />, view: 'audit' as const, color: 'var(--n-primary)' },
   ];

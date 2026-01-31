@@ -12,13 +12,14 @@ import DatabaseErrorScreen from "./DatabaseErrorScreen";
 import DesignSystemShowcase from "./DesignSystemShowcase";
 import Footer from "./Footer";
 import BreakdownView from "./BreakdownView";
+import ProjectionView from "./ProjectionView";
 import { Box, useMediaQuery, useTheme } from "@mui/material";
 import { StatusProvider, useStatus } from "../context/StatusContext";
 import { AIProvider, useAI } from "../context/AIContext";
 import { DRAWER_WIDTH } from "./AIAssistant";
 import GlobalEasterEggManager from "./NumberEasterEgg";
 
-type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown';
+type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown' | 'projection';
 
 // Screen context for AI Assistant
 interface ScreenContext {
@@ -140,6 +141,8 @@ const Layout: React.FC<LayoutProps> = ({ children, defaultView = 'summary' }) =>
         return <DesignSystemShowcase />;
       case 'breakdown':
         return <BreakdownView />;
+      case 'projection':
+        return <ProjectionView />;
       default:
         return children;
     }

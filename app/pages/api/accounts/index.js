@@ -2,7 +2,13 @@ import { createApiHandler } from "../utils/apiHandler";
 import { BANK_VENDORS } from "../../../utils/constants.js";
 
 const handler = createApiHandler({
-    query: async () => {
+    query: async (req) => {
+        const { showHidden = 'false' } = req.query;
+        let whereClause = '';
+        if (showHidden !== 'true') {
+            whereClause = 'WHERE co.is_hidden = false OR co.is_hidden IS NULL';
+        }
+
         return {
             sql: `
         SELECT 
@@ -15,6 +21,7 @@ const handler = createApiHandler({
           co.custom_bank_account_nickname,
           co.balance,
           co.balance_updated_at,
+          co.is_hidden,
           vc.nickname as credential_nickname,
           vc.vendor as credential_vendor,
           cv.card_nickname as mapped_card_nickname,
@@ -22,6 +29,7 @@ const handler = createApiHandler({
         FROM card_ownership co
         LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
         LEFT JOIN card_vendors cv ON RIGHT(co.account_number, 4) = cv.last4_digits
+        ${whereClause}
         ORDER BY co.vendor, co.account_number
       `
         };
@@ -34,6 +42,7 @@ const handler = createApiHandler({
             last4: row.account_number.slice(-4),
             balance: row.balance,
             balance_updated_at: row.balance_updated_at,
+            is_hidden: row.is_hidden,
             nickname: row.custom_bank_account_nickname || row.mapped_card_nickname || row.credential_nickname || `${row.vendor} •••• ${row.account_number.slice(-4)}`,
             credential: {
                 id: row.credential_id,
