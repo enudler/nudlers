@@ -46,19 +46,19 @@ export async function generateDailySummary() {
 
             // Billing Cycle Mode
             // Logic: Identify the "Target Billing Month" (when the charge happens).
-            // Usually, if today >= startDay, we are accumulating for NEXT month's bill.
-            // If today < startDay, we are accumulating for THIS month's bill (which is about to close).
+            // UPDATE: Cycle is now named after the START month.
+            // If today >= startDay (e.g. Jan 15, Start 10), we are in the Jan Cycle (Starts Jan 10).
+            // If today < startDay (e.g. Jan 5, Start 10), we are in the Dec Cycle (Starts Dec 10).
 
             let targetMonth = currentMonth;
             let targetYear = currentYear;
 
-            if (now.getDate() >= startDay) {
-                targetMonth = currentMonth + 1;
-            }
-
-            if (targetMonth > 11) {
-                targetMonth = 0;
-                targetYear++;
+            if (now.getDate() < startDay) {
+                targetMonth = currentMonth - 1;
+                if (targetMonth < 0) {
+                    targetMonth = 11;
+                    targetYear--;
+                }
             }
 
             // Format target cycle as YYYY-MM

@@ -26,16 +26,19 @@ describe('Transaction Logic Tests', () => {
         it('should contain the core logic components', () => {
             const sql = getBillingCycleSql(10);
             expect(sql).toContain('>= 10');
-            expect(sql).toContain('> 10'); // New logic for processed_date
             expect(sql).toContain('INTERVAL \'1 month\'');
         });
 
-        it('should maintain current month for processed_date on the startDay', () => {
-            // This is the core fix: if processed_date is the 10th and differs from date,
-            // it stays in the billing month (it doesn't shift again to the 11th).
+        it('should use previous month for processed_date on the startDay', () => {
+            // New logic: processed_date on startDay belongs to startDay month (Current Month)
+            // Correction: For Credit Card Charges (processed_date != date), if date is 10th (Start Day),
+            // it usually pays for the PREVIOUS cycle. So strictly greater > 10 means Current.
+            // 10 itself -> Previous.
             const sql = getBillingCycleSql(10, 't.date', 't.processed_date');
             expect(sql).toContain('WHEN t.processed_date IS NOT NULL AND t.processed_date != t.date');
             expect(sql).toContain('WHEN EXTRACT(DAY FROM t.processed_date) > 10');
+            // logic is: > 10 -> processed_date (no interval)
+            // <= 10 -> processed_date - 1 month
         });
     });
 
@@ -50,7 +53,13 @@ describe('Transaction Logic Tests', () => {
         });
 
         it('should set processed_date to previous month end if date > startDay', async () => {
-            // Mock empty DB checks
+            // NOTE: insertTransaction logic in scraperUtils is about "When is the billing?"
+            // It calculates "Processed Date" (Charge Date).
+            // If date >= 10, charge is next month (Feb 9).
+            // This logic is UNCHANGED because the bank actually charges next month.
+            // Our SQL logic maps that "Feb 9" back to "Jan Cycle".
+
+            // So we mock empty DB checks
             mockClient.query.mockResolvedValue({ rows: [] });
 
             const txDate = '2023-01-11T12:00:00.000Z'; // 11th Jan
@@ -87,13 +96,17 @@ describe('Transaction Logic Tests', () => {
             // Param 8 is processed_date ($8)
             const processedDate = params[7]; // 0-indexed: index 7
 
-            // Logic: 11 >= 10 -> True.
+            // Logic in scraperUtils (unchanged): 
+            // 11 >= 10 -> True.
             // Date = Jan 11.
             // Next Month = Feb.
             // Day = BillingStartDay - 1 = 9.
             // Result: 2023-02-09
 
             expect(processedDate).toBe('2023-02-09');
+
+            // This processed_date (Feb 9) will now be mapped by getBillingCycleSql to "2023-01"
+            // (Feb 9 < 10 -> Previous Month -> Jan)
         });
 
         it('should keep original date if date < startDay', async () => {
@@ -116,14 +129,10 @@ describe('Transaction Logic Tests', () => {
 
             // Logic: 9 >= 10 -> False.
             // processedDate = date (Jan 9)
-
-            // Note: The logic inside insertTransaction:
-            // let finalProcessedDate = processedDate || date;
-            // if (...) { ... }
-            // So default is date.
-
-            // Date format in DB: 2023-01-09 (split T)
             expect(processedDate).toContain('2023-01-09');
+
+            // This processed_date (Jan 9) will now be mapped by getBillingCycleSql to "2022-12"
+            // (Jan 9 < 10 -> Previous Month -> Dec)
         });
 
         it('should trigger logic if date == startDay', async () => {
@@ -146,7 +155,6 @@ describe('Transaction Logic Tests', () => {
 
             // Logic: 10 >= 10 -> True.
             // Result: 2023-02-09
-
             expect(processedDate).toBe('2023-02-09');
         });
     });

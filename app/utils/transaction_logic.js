@@ -17,22 +17,23 @@ export function getBillingCycleSql(startDay = 10, dateCol = 'date', processedDat
         TO_CHAR(
             CASE 
                 /* 1. If we have a specific billing date (processed_date) that differs from the transaction date,
-                   it already represents a determined billing moment. We only shift it if it's strictly 
-                   AFTER the startDay (e.g., if billed on the 11th when cycle starts on 10th, it belongs to next month).
-                   But if it's ON the 10th, it belongs to the month it's in. */
+                   it already represents a determined billing moment.
+                   If it's on or after the startDay, it belongs to this month's cycle.
+                   If it's before the startDay, it belongs to the previous month's cycle. */
                 WHEN ${processedDateCol} IS NOT NULL AND ${processedDateCol} != ${dateCol}
                 THEN (
                     CASE 
                         WHEN EXTRACT(DAY FROM ${processedDateCol}) > ${startDay} 
-                        THEN (${processedDateCol} + INTERVAL '1 month')
-                        ELSE ${processedDateCol}
+                        THEN ${processedDateCol}
+                        ELSE (${processedDateCol} - INTERVAL '1 month')
                     END
                 )
                 /* 2. Standard logic for new transactions or bank transactions (where date == processed_date):
-                   Anything on or after the startDay belongs to the next month's bill. */
+                   Anything on or after the startDay belongs to the current month's cycle.
+                   Anything before the startDay belongs to the previous month's cycle. */
                 WHEN EXTRACT(DAY FROM COALESCE(${processedDateCol}, ${dateCol})) >= ${startDay} 
-                THEN (COALESCE(${processedDateCol}, ${dateCol}) + INTERVAL '1 month')
-                ELSE COALESCE(${processedDateCol}, ${dateCol})
+                THEN COALESCE(${processedDateCol}, ${dateCol})
+                ELSE (COALESCE(${processedDateCol}, ${dateCol}) - INTERVAL '1 month')
             END, 
             'YYYY-MM'
         )
