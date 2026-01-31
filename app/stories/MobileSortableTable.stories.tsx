@@ -88,7 +88,7 @@ const TransactionCard = ({ row }: { row: Transaction }) => (
 );
 
 // Wrapper component to manage state
-const InteractiveWrapper = ({ initialSortField = 'date', initialSortDirection = 'desc' as const }) => {
+const InteractiveWrapper = ({ initialSortField = 'date', initialSortDirection = 'desc' }: { initialSortField?: string, initialSortDirection?: 'asc' | 'desc' }) => {
     const [sortField, setSortField] = useState(initialSortField);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(initialSortDirection);
 

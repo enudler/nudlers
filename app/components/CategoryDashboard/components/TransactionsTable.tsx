@@ -272,6 +272,23 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  // Sort options for mobile sortable table
+  const mobileSortOptions: SortOption[] = React.useMemo(() => [
+    { id: 'date', label: 'Date', defaultDirection: 'desc' },
+    { id: 'price', label: 'Amount', defaultDirection: 'desc' },
+    { id: 'name', label: 'Name', defaultDirection: 'asc' },
+    { id: 'category', label: 'Category', defaultDirection: 'asc' },
+  ], []);
+
+  // Handle mobile sort change
+  const handleMobileSort = React.useCallback((field: string, direction: 'asc' | 'desc') => {
+    if (onSort) {
+      // If clicking same field, just call onSort to toggle
+      // If clicking different field, call onSort which will use new field with direction
+      onSort(field);
+    }
+  }, [onSort]);
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
@@ -345,22 +362,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     );
   };
 
-  // Sort options for mobile sortable table
-  const mobileSortOptions: SortOption[] = React.useMemo(() => [
-    { id: 'date', label: 'Date', defaultDirection: 'desc' },
-    { id: 'price', label: 'Amount', defaultDirection: 'desc' },
-    { id: 'name', label: 'Name', defaultDirection: 'asc' },
-    { id: 'category', label: 'Category', defaultDirection: 'asc' },
-  ], []);
 
-  // Handle mobile sort change
-  const handleMobileSort = React.useCallback((field: string, direction: 'asc' | 'desc') => {
-    if (onSort) {
-      // If clicking same field, just call onSort to toggle
-      // If clicking different field, call onSort which will use new field with direction
-      onSort(field);
-    }
-  }, [onSort]);
 
   const Content = (
     <Box sx={{ width: '100%' }}>
