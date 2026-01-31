@@ -131,7 +131,7 @@ const MetricsPanel: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("/api/reports/box-panel");
+        const response = await fetch("/api/transactions?summary=true");
         const result = await response.json();
         setData(result as BoxPanelData);
       } catch (error) {

@@ -56,7 +56,7 @@ const CategoryDashboard: React.FC = () => {
 
     try {
       const currentPage = isLoadMore ? pageRef.current + 1 : 0;
-      const url = new URL("/api/reports/category-expenses", window.location.origin);
+      const url = new URL("/api/transactions", window.location.origin);
 
       if (billingCycle) {
         url.searchParams.append("billingCycle", billingCycle);
@@ -64,7 +64,7 @@ const CategoryDashboard: React.FC = () => {
         url.searchParams.append("startDate", startDate);
         url.searchParams.append("endDate", endDate);
       }
-      url.searchParams.append("all", "true");
+
       url.searchParams.append("sortBy", sortBy);
       url.searchParams.append("sortOrder", sortOrder);
       url.searchParams.append("limit", PAGE_SIZE.toString());

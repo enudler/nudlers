@@ -224,4 +224,33 @@ describe('Monthly Summary API Endpoint', () => {
             }));
         });
     });
+
+    describe('Categorization', () => {
+        it('should support groupBy=category', async () => {
+            mockReq = {
+                method: 'GET',
+                query: {
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31',
+                    groupBy: 'category'
+                }
+            };
+
+            mockClient.query.mockResolvedValue({
+                rowCount: 1,
+                rows: [{ category: 'Food', total: -150, amount: -150, count: 5, total_count: 1 }]
+            });
+
+            await handler(mockReq, mockRes);
+
+            const [sql] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('GROUP BY COALESCE(NULLIF(t.category, \'\'), \'Uncategorized\')');
+            expect(sql).toContain('ORDER BY SUM(t.price) ASC');
+
+            expect(mockRes.json).toHaveBeenCalledWith({
+                items: [{ category: 'Food', total: -150, count: 5, amount: -150 }],
+                total: 1
+            });
+        });
+    });
 });

@@ -829,10 +829,11 @@ const MonthlySummary: React.FC = () => {
 
       let url: string;
       if (billingCycle) {
-        url = `/api/reports/category-expenses?billingCycle=${billingCycle}&all=true`;
+        url = `/api/transactions?billingCycle=${billingCycle}`;
       } else {
-        url = `/api/reports/category-expenses?startDate=${startDate}&endDate=${endDate}&all=true`;
+        url = `/api/transactions?startDate=${startDate}&endDate=${endDate}`;
       }
+
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -1733,7 +1734,7 @@ const MonthlySummary: React.FC = () => {
                 <Grid item xs={12} md={6}>
                   <BudgetModule onViewTransactions={async (category) => {
                     try {
-                      let queryParams = `q=${encodeURIComponent(category)}`;
+                      let queryParams = `category=${encodeURIComponent(category)}`;
                       if (dateRangeMode === 'custom' && customStartDate && customEndDate) {
                         queryParams += `&startDate=${customStartDate}&endDate=${customEndDate}`;
                       } else if (dateRangeMode === 'billing' && selectedYear && selectedMonth) {

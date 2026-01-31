@@ -102,11 +102,11 @@ const addManualTransaction = async (req, res) => {
  */
 const getTransactions = createApiHandler({
     validate: (req) => {
-        const { transactionType, startDate, endDate, billingCycle } = req.query;
+        const { transactionType, startDate, endDate, billingCycle, summary, availableMonths } = req.query;
+        if (summary === 'true' || availableMonths === 'true') return; // Metadata queries don't need time filters
         if (transactionType && !['all', 'bank', 'credit_card'].includes(transactionType)) {
             return "transactionType must be 'all', 'bank', or 'credit_card'";
         }
-        // Most filters require some time context unless specifically searching or viewing uncategorized
         const isSearch = !!req.query.q;
         const isUncategorizedOnly = req.query.uncategorizedOnly === 'true';
         if (!billingCycle && (!startDate || !endDate) && !isSearch && !isUncategorizedOnly) {
@@ -132,8 +132,41 @@ const getTransactions = createApiHandler({
             sortBy = 'date',
             sortOrder = 'desc',
             limit = 100,
-            offset = 0
+            offset = 0,
+            summary,
+            availableMonths
         } = req.query;
+
+        if (summary === 'true') {
+            return {
+                sql: `
+                  SELECT 
+                    COUNT(DISTINCT category) as categories_count,
+                    COUNT(*) FILTER (WHERE category IS NULL OR category = 'N/A' OR category = '' OR category = 'Uncategorized') as non_mapped_count,
+                    COUNT(*) as all_transactions_count,
+                    (SELECT TO_CHAR(date, 'DD-MM-YYYY') FROM transactions ORDER BY date DESC LIMIT 1) as last_month_data
+                  FROM transactions
+                `
+            };
+        }
+
+        if (availableMonths === 'true') {
+            let billingStartDay = 10;
+            const client = await getDB();
+            try {
+                const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
+                if (settingsResult.rows.length > 0) {
+                    billingStartDay = parseInt(settingsResult.rows[0].value);
+                }
+            } finally {
+                client.release();
+            }
+
+            const cycleSql = getBillingCycleSql(billingStartDay, 'date', 'processed_date');
+            return {
+                sql: `SELECT ARRAY_AGG(DISTINCT ${cycleSql}) as months FROM transactions;`,
+            };
+        }
 
         const params = [];
         let paramIndex = 1;
@@ -165,17 +198,10 @@ const getTransactions = createApiHandler({
         }
 
         // 2. Transaction Type Filtering
-        if (transactionType === 'bank') {
-            conditions.push(`(
-        (t.category IN ('Bank', 'Income', 'Salary')) OR 
-        (LOWER(t.vendor) SIMILAR TO '%(${BANK_VENDORS.join('|').toLowerCase()})%')
-      ) AND NOT (
-        LENGTH(COALESCE(t.account_number, '')) = 4 OR COALESCE(t.installments_total, 0) > 0
-      )`);
-        } else if (transactionType === 'credit_card') {
-            conditions.push(`(
-        LENGTH(COALESCE(t.account_number, '')) = 4 OR COALESCE(t.installments_total, 0) > 0
-      )`);
+        if (transactionType === 'bank' || transactionType === 'credit_card') {
+            conditions.push(`t.transaction_type = $${paramIndex}`);
+            params.push(transactionType);
+            paramIndex++;
         }
 
         // 3. Search Clause
@@ -210,7 +236,7 @@ const getTransactions = createApiHandler({
             if (last4digits === 'Unknown') {
                 conditions.push(`(t.account_number IS NULL OR t.account_number = '')`);
             } else {
-                conditions.push(`RIGHT(t.account_number, 4) = $${paramIndex}`);
+                conditions.push(`t.account_number LIKE '%' || $${paramIndex}`);
                 params.push(last4digits);
                 paramIndex++;
             }
@@ -222,29 +248,11 @@ const getTransactions = createApiHandler({
         // 5. Bank Account specific filters (supporting transactions_by_bank_account logic)
         if (bankAccountId && bankAccountId !== 'null') {
             const bankId = parseInt(bankAccountId);
-            // Filter by bank account:
-            // 1. Direct ownership (credential_id)
-            // 2. Linked cards (linked_bank_account_id)
-            // 3. Number matching (fallback for unclaimed/manual)
             conditions.push(`(
                 (co.credential_id = $${paramIndex}) OR
-                (co.linked_bank_account_id = $${paramIndex}) OR
-                (ba.id IS NOT NULL AND (
-                    REPLACE(t.account_number, '-', '') LIKE '%' || REPLACE(ba.bank_account_number, '-', '') OR
-                    REPLACE(t.account_number, '-', '') LIKE REPLACE(ba.bank_account_number, '-', '') || '%'
-                ))
+                (co.linked_bank_account_id = $${paramIndex})
             )`);
             params.push(bankId);
-            paramIndex++;
-        }
-        if (bankVendor) {
-            conditions.push(`LOWER(t.vendor) LIKE LOWER($${paramIndex})`);
-            params.push(`%${bankVendor}%`);
-            paramIndex++;
-        }
-        if (bankAccountNumber) {
-            conditions.push(`t.account_number LIKE '%' || $${paramIndex}`);
-            params.push(bankAccountNumber);
             paramIndex++;
         }
 
@@ -297,7 +305,36 @@ const getTransactions = createApiHandler({
             params
         };
     },
-    transform: (result) => {
+    transform: (result, req) => {
+        if (req.query.summary === 'true') {
+            const row = result.rows[0];
+            return {
+                categories: parseInt(row.categories_count) || 0,
+                nonMapped: parseInt(row.non_mapped_count) || 0,
+                allTransactions: parseInt(row.all_transactions_count) || 0,
+                lastMonth: row.last_month_data || '-'
+            };
+        }
+        if (req.query.availableMonths === 'true') {
+            const transactionMonths = result.rows[0]?.months || [];
+
+            // Generate some future months
+            const getAdvanceMonths = (count) => {
+                const months = [];
+                const now = new Date();
+                for (let i = 0; i <= count; i++) {
+                    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    months.push(`${year}-${month}`);
+                }
+                return months;
+            };
+
+            const advanceMonths = getAdvanceMonths(3);
+            const allMonths = [...new Set([...transactionMonths, ...advanceMonths])];
+            return allMonths.sort((a, b) => b.localeCompare(a));
+        }
         return result.rows.map(row => ({
             ...row,
             card6_digits: row.card6_digits_encrypted ? decrypt(row.card6_digits_encrypted) : null,
@@ -318,8 +355,8 @@ const deleteAllTransactions = async (req, res) => {
 
     const client = await getDB();
     try {
-        const result = await client.query('DELETE FROM transactions');
-        res.status(200).json({ success: true, deleted: result.rowCount });
+        await client.query('DELETE FROM transactions');
+        res.status(200).json({ success: true, message: 'All transactions deleted' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     } finally {
@@ -328,4 +365,3 @@ const deleteAllTransactions = async (req, res) => {
 };
 
 export default handler;
-

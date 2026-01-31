@@ -21,92 +21,63 @@ servers:
     description: API Server
 
 tags:
-  - name: Transactions
-    description: Transaction management (credit cards and bank accounts)
-  - name: Categories
-    description: Category management and categorization
-  - name: Budgets
-    description: Budget management
-  - name: Scraping
-    description: Bank and credit card scraping
-  - name: Credentials
-    description: Account credentials management
-  - name: Settings
-    description: Application settings
+  - name: Finance
+    description: Transactions and account management
+  - name: Organization
+    description: Categories, rules, and mappings
+  - name: Planning
+    description: Budgets and financial goals
   - name: Reports
-    description: Financial reports and summaries
-  - name: WhatsApp
-    description: WhatsApp notification service
+    description: Financial analysis and recurring payments
+  - name: Integrations
+    description: Scraping, credentials, and external services (WhatsApp)
+  - name: AI Chat
+    description: Interactive financial assistant
+  - name: Operations
+    description: System maintenance, health checks, and migrations
 
 paths:
   /transactions:
     get:
       tags:
-        - Transactions
+        - Finance
       summary: List transactions
       description: |
         Retrieve transactions with optional filtering by type, date range, vendor, etc.
         Default returns all transactions (both bank and credit card).
         Ordered by date DESC (newest first).
-    post:
-      tags:
-        - Transactions
-      summary: Add a manual transaction
-      description: |
-        Add a manual expense or income transaction. Useful for cash purchases,
-        transfers, or any transaction not captured by bank scrapers.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - name
-                - price
-                - date
-              properties:
-                name:
-                  type: string
-                  description: Transaction description (e.g., "Coffee at local cafe")
-                price:
-                  type: number
-                  description: Transaction amount (positive for expenses, negative for income)
-                date:
-                  type: string
-                  format: date
-                  description: Transaction date (YYYY-MM-DD)
-                category:
-                  type: string
-                  description: Category name (e.g., "Dining", "Groceries")
-                vendor:
-                  type: string
-                  default: manual
-                  description: Source vendor (defaults to "manual")
-                accountNumber:
-                  type: string
-                  description: Account identifier (defaults to "manual")
-                memo:
-                  type: string
-                  description: Additional notes
-                type:
-                  type: string
-                  default: normal
-                  description: Transaction type
       responses:
-        '201':
-          description: Transaction created successfully
+        '200':
+          description: List of transactions or aggregate summary
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  transaction:
-                    $ref: '#/components/schemas/Transaction'
-                  message:
-                    type: string
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                    description: List of transactions
+                  - type: object
+                    required:
+                      - categories
+                      - nonMapped
+                      - allTransactions
+                      - lastMonth
+                    properties:
+                      categories:
+                        type: integer
+                      nonMapped:
+                        type: integer
+                      allTransactions:
+                        type: integer
+                      lastMonth:
+                        type: string
+                        description: Date of the most recent transaction (DD-MM-YYYY)
+                    description: Aggregate stats (if summary=true)
+                  - type: array
+                    items:
+                      type: string
+                    description: List of available months (if availableMonths=true)
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -189,38 +160,90 @@ paths:
             type: string
         - name: last4digits
           in: query
-          description: Filter by last 4 digits of account number
+          description: Filter by last 4 digits (or suffix) of account number
           schema:
             type: string
         - name: bankAccountId
           in: query
-          description: Filter by bank account ID
+          description: Filter by credential ID or linked bank account ID
           schema:
-            type: string
-        - name: bankVendor
-          in: query
-          description: Filter by bank vendor name
-          schema:
-            type: string
-        - name: bankAccountNumber
-          in: query
-          description: Filter by bank account number (partial match)
-          schema:
-            type: string
+            type: integer
         - name: uncategorizedOnly
           in: query
           description: Filter for uncategorized transactions only
           schema:
             type: boolean
+        - name: summary
+          in: query
+          description: When true, returns aggregate statistics instead of a list of transactions.
+          schema:
+            type: boolean
+            default: false
+        - name: availableMonths
+          in: query
+          description: When true, returns a list of years and months that have transactions.
+          schema:
+            type: boolean
+            default: false
+    post:
+      tags:
+        - Finance
+      summary: Add a manual transaction
+      description: |
+        Add a manual expense or income transaction. Useful for cash purchases,
+        transfers, or any transaction not captured by bank scrapers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price
+                - date
+              properties:
+                name:
+                  type: string
+                  description: Transaction description (e.g., "Coffee at local cafe")
+                price:
+                  type: number
+                  description: Transaction amount (positive for expenses, negative for income)
+                date:
+                  type: string
+                  format: date
+                  description: Transaction date (YYYY-MM-DD)
+                category:
+                  type: string
+                  description: Category name (e.g., "Dining", "Groceries")
+                vendor:
+                  type: string
+                  default: manual
+                  description: Source vendor (defaults to "manual")
+                accountNumber:
+                  type: string
+                  description: Account identifier (defaults to "manual")
+                memo:
+                  type: string
+                  description: Additional notes
+                type:
+                  type: string
+                  default: normal
+                  description: Transaction type
       responses:
-        '200':
-          description: List of transactions
+        '201':
+          description: Transaction created successfully
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Transaction'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+                  message:
+                    type: string
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -229,7 +252,7 @@ paths:
   /transactions/{id}:
     get:
       tags:
-        - Transactions
+        - Finance
       summary: Get a single transaction
       parameters:
         - name: id
@@ -251,7 +274,7 @@ paths:
           $ref: '#/components/responses/InternalError'
     put:
       tags:
-        - Transactions
+        - Finance
       summary: Update a transaction
       parameters:
         - name: id
@@ -289,7 +312,7 @@ paths:
           $ref: '#/components/responses/InternalError'
     delete:
       tags:
-        - Transactions
+        - Finance
       summary: Delete a transaction
       parameters:
         - name: id
@@ -315,6 +338,8 @@ paths:
 
   /accounts:
     get:
+      tags:
+        - Finance
       summary: List all accounts
       description: Returns a list of all bank and credit card accounts with their latest balances.
       responses:
@@ -382,7 +407,7 @@ paths:
           description: Group results by
           schema:
             type: string
-            enum: [description, last4digits]
+            enum: [description, last4digits, category]
         - name: excludeBankTransactions
           in: query
           description: When true, filters out transactions originating from known bank vendors (e.g. hapoalim, leumi). Useful for isolating card-only expenses.
@@ -394,7 +419,7 @@ paths:
           description: Field to sort by
           schema:
             type: string
-            enum: [name, count, card_expenses]
+            enum: [name, count, card_expenses, total]
             default: card_expenses
         - name: sortOrder
           in: query
@@ -480,122 +505,6 @@ paths:
                     remaining:
                       type: number
 
-  /reports/daily-spending:
-    get:
-      tags:
-        - Reports
-      summary: Get daily spending data
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: cycle
-          in: query
-          description: Billing cycle (YYYY-MM)
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Daily spending data
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    date:
-                      type: string
-                      format: date
-                    total:
-                      type: number
-
-  /reports/category-expenses:
-    get:
-      tags:
-        - Reports
-      summary: Get expenses by category
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: all
-          in: query
-          description: Return all transactions instead of grouped by category
-          schema:
-            type: string
-            enum: ["true", "false"]
-        - name: billingCycle
-          in: query
-          description: Filter by billing cycle (YYYY-MM)
-          schema:
-            type: string
-        - name: sortBy
-          in: query
-          description: Field to sort by
-          schema:
-            type: string
-            enum: [name, price, date, category, account_number, vendor]
-            default: date
-        - name: sortOrder
-          in: query
-          description: Sort direction
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-        - name: limit
-          in: query
-          description: Maximum number of results
-          schema:
-            type: integer
-            default: 50
-        - name: offset
-          in: query
-          description: Pagination offset
-          schema:
-            type: integer
-            default: 0
-        - name: category
-          in: query
-          description: Filter by category (required unless all=true)
-          schema:
-            type: string
-        - name: month
-          in: query
-          description: Legacy filter for month (YYYY-MM)
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Category expenses
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    category:
-                      type: string
-                    total:
-                      type: number
-                    count:
-                      type: integer
 
   /reports/recurring-payments:
     get:
@@ -780,7 +689,7 @@ paths:
   /budgets:
     get:
       tags:
-        - Budgets
+        - Planning
       summary: List all budgets
       responses:
         '200':
@@ -793,7 +702,7 @@ paths:
                   $ref: '#/components/schemas/Budget'
     post:
       tags:
-        - Budgets
+        - Planning
       summary: Create or update a budget
       requestBody:
         required: true
@@ -820,7 +729,7 @@ paths:
   /budgets/{id}:
     get:
       tags:
-        - Budgets
+        - Planning
       summary: Get a budget by ID
       parameters:
         - name: id
@@ -837,7 +746,7 @@ paths:
                 $ref: '#/components/schemas/Budget'
     put:
       tags:
-        - Budgets
+        - Planning
       summary: Update a budget
       parameters:
         - name: id
@@ -863,7 +772,7 @@ paths:
                 $ref: '#/components/schemas/Budget'
     delete:
       tags:
-        - Budgets
+        - Planning
       summary: Delete a budget
       parameters:
         - name: id
@@ -885,7 +794,7 @@ paths:
   /reports/total-budget:
     get:
       tags:
-        - Reports
+        - Planning
       summary: Get total budget limit
       responses:
         '200':
@@ -899,7 +808,7 @@ paths:
                     type: number
     post:
       tags:
-        - Budgets
+        - Planning
       summary: Set total budget limit
       requestBody:
         required: true
@@ -922,11 +831,25 @@ paths:
                 properties:
                   success:
                     type: boolean
+    delete:
+      tags:
+        - Planning
+      summary: Remove total budget limit
+      responses:
+        '200':
+          description: Total budget removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
   /categories:
     get:
       tags:
-        - Categories
+        - Organization
       summary: Get all categories
       responses:
         '200':
@@ -941,7 +864,7 @@ paths:
   /categories/rules:
     get:
       tags:
-        - Categories
+        - Organization
       summary: Get categorization rules
       responses:
         '200':
@@ -954,7 +877,7 @@ paths:
                   $ref: '#/components/schemas/CategorizationRule'
     post:
       tags:
-        - Categories
+        - Organization
       summary: Create a categorization rule
       requestBody:
         required: true
@@ -983,7 +906,7 @@ paths:
   /categories/mappings:
     get:
       tags:
-        - Categories
+        - Organization
       summary: Get category mappings
       responses:
         '200':
@@ -1001,7 +924,7 @@ paths:
                       type: string
     post:
       tags:
-        - Categories
+        - Organization
       summary: Create category mapping
       requestBody:
         required: true
@@ -1021,12 +944,172 @@ paths:
         '200':
           description: Mapping created
 
+  /categories/merge:
+    post:
+      tags:
+        - Organization
+      summary: Merge categories
+      description: Merge multiple source categories into a single target category.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceCategories
+                - newCategoryName
+              properties:
+                sourceCategories:
+                  type: array
+                  items:
+                    type: string
+                newCategoryName:
+                  type: string
+      responses:
+        '200':
+          description: Merged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /categories/{name}:
+    patch:
+      tags:
+        - Organization
+      summary: Rename category
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newName
+              properties:
+                newName:
+                  type: string
+      responses:
+        '200':
+          description: Renamed successfully
+    delete:
+      tags:
+        - Organization
+      summary: Delete category
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deleteRules:
+                  type: boolean
+                  default: true
+                deleteBudget:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Deleted successfully
+
+  /categories/uncategorized:
+    get:
+      tags:
+        - Organization
+      summary: Get uncategorized descriptions
+      responses:
+        '200':
+          description: List of descriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    description:
+                      type: string
+                    count:
+                      type: integer
+                    totalAmount:
+                      type: number
+
+  /categories/apply-rules:
+    post:
+      tags:
+        - Organization
+      summary: Apply categorization rules
+      responses:
+        '200':
+          description: Rules applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  rulesApplied:
+                    type: integer
+                  transactionsUpdated:
+                    type: integer
+
+  /categories/update-by-description:
+    post:
+      tags:
+        - Organization
+      summary: Update category for all transactions with a specific description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - description
+                - newCategory
+              properties:
+                description:
+                  type: string
+                newCategory:
+                  type: string
+                createRule:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
 
 
   /credentials:
     get:
       tags:
-        - Credentials
+        - Integrations
       summary: List all credentials
       responses:
         '200':
@@ -1039,7 +1122,7 @@ paths:
                   $ref: '#/components/schemas/Credential'
     post:
       tags:
-        - Credentials
+        - Integrations
       summary: Create a credential
       requestBody:
         required: true
@@ -1058,7 +1141,7 @@ paths:
   /credentials/{id}:
     get:
       tags:
-        - Credentials
+        - Integrations
       summary: Get a credential
       parameters:
         - name: id
@@ -1075,7 +1158,7 @@ paths:
                 $ref: '#/components/schemas/Credential'
     put:
       tags:
-        - Credentials
+        - Integrations
       summary: Update a credential
       parameters:
         - name: id
@@ -1094,7 +1177,7 @@ paths:
           description: Credential updated
     delete:
       tags:
-        - Credentials
+        - Integrations
       summary: Delete a credential
       parameters:
         - name: id
@@ -1109,7 +1192,7 @@ paths:
   /scrapers/run:
     post:
       tags:
-        - Scraping
+        - Integrations
       summary: Run scraper (sync)
       description: Synchronously run a scraper
       requestBody:
@@ -1147,7 +1230,7 @@ paths:
   /scrapers/run-stream:
     post:
       tags:
-        - Scraping
+        - Integrations
       summary: Run scraper (streaming)
       description: |
         Run scraper with Server-Sent Events for progress updates.
@@ -1169,7 +1252,7 @@ paths:
   /scrapers/sync-all-stream:
     post:
       tags:
-        - Scraping
+        - Integrations
       summary: Sync all credentials (streaming)
       description: |
         Trigger scrape for all active credentials with Server-Sent Events progress updates.
@@ -1190,7 +1273,7 @@ paths:
   /scrapers/status:
     get:
       tags:
-        - Scraping
+        - Integrations
       summary: Get current scraping status
       description: Get overall sync health, settings, latest scrape, and optional history/account details.
       parameters:
@@ -1213,7 +1296,7 @@ paths:
   /scrape-events:
     get:
       tags:
-        - Scraping
+        - Integrations
       summary: List scrape and system events
       description: Retrieve history of scraping events and system audit logs (like WhatsApp summaries).
       parameters:
@@ -1235,7 +1318,7 @@ paths:
   /scrape-events/{id}/report:
     get:
       tags:
-        - Scraping
+        - Integrations
       summary: Get detailed scrape report
       parameters:
         - name: id
@@ -1257,7 +1340,7 @@ paths:
   /scrapers/last-transaction-date:
     get:
       tags:
-        - Scraping
+        - Integrations
       summary: Get last transaction date for a vendor
       parameters:
         - name: vendor
@@ -1277,24 +1360,7 @@ paths:
                     type: string
                     format: date-time
 
-  /chat/message:
-    post:
-      tags:
-        - AI Chat
-      summary: Chat with financial AI assistant
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIChatRequest'
-      responses:
-        '200':
-          description: AI response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIChatResponse'
+
 
   /chat/stream:
     post:
@@ -1315,10 +1381,64 @@ paths:
               schema:
                 type: string
 
+  /chat/history:
+    get:
+      tags:
+        - AI Chat
+      summary: Get chat history (sessions)
+      responses:
+        '200':
+          description: List of chat sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatSession'
+    delete:
+      tags:
+        - AI Chat
+      summary: Delete a chat session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: integer
+      responses:
+        '200':
+          description: Session deleted
+
+  /chat/messages:
+    get:
+      tags:
+        - AI Chat
+      summary: Get messages for a chat session
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+
   /scrapers/stop:
     post:
       tags:
-        - Scraping
+        - Integrations
       summary: Stop all running scrapers
       responses:
         '200':
@@ -1336,7 +1456,7 @@ paths:
   /settings:
     get:
       tags:
-        - Settings
+        - Operations
       summary: Get all settings
       responses:
         '200':
@@ -1348,7 +1468,7 @@ paths:
                 additionalProperties: true
     put:
       tags:
-        - Settings
+        - Operations
       summary: Update settings
       requestBody:
         required: true
@@ -1365,7 +1485,7 @@ paths:
   /whatsapp/status:
     get:
       tags:
-        - WhatsApp
+        - Integrations
       summary: Get WhatsApp connection status
       responses:
         '200':
@@ -1387,7 +1507,7 @@ paths:
                     format: date-time
     post:
       tags:
-        - WhatsApp
+        - Integrations
       summary: Control WhatsApp client
       requestBody:
         required: true
@@ -1416,7 +1536,7 @@ paths:
   /whatsapp-test:
     post:
       tags:
-        - WhatsApp
+        - Integrations
       summary: Run WhatsApp integration test
       description: Generates a daily summary and attempts to send it via WhatsApp.
       responses:
@@ -1453,26 +1573,11 @@ paths:
                     nullable: true
 
 
-  /reports/available-months:
-    get:
-      tags:
-        - Reports
-      summary: Get available months
-      description: List of months with transaction data
-      responses:
-        '200':
-          description: Available months
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
 
   /ping:
     get:
       tags:
-        - Settings
+        - Operations
       summary: Health check
       responses:
         '200':
@@ -1489,7 +1594,7 @@ paths:
   /check-version:
     get:
       tags:
-        - Settings
+        - Operations
       summary: Check for new application versions
       description: Compares the current version with the latest release on GitHub.
       responses:
@@ -1511,123 +1616,46 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /reports/box-panel:
+  /migrate:
     get:
       tags:
-        - Reports
-      summary: Get box panel summary data
-      parameters:
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: billingCycle
-          in: query
-          schema:
-            type: string
+        - Operations
+      summary: Run database migrations
       responses:
         '200':
-          description: Box panel data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total_income:
-                    type: number
-                  total_expenses:
-                    type: number
-                  net_savings:
-                    type: number
-                  savings_rate:
-                    type: number
-
-
-
-  /categories/uncategorized:
-    get:
-      tags:
-        - Categories
-      summary: Get uncategorized descriptions
-      responses:
-        '200':
-          description: List of descriptions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    description:
-                      type: string
-                    count:
-                      type: integer
-                    totalAmount:
-                      type: number
-
-  /categories/apply-rules:
+          description: Migration status
+        '500':
+          $ref: '#/components/responses/InternalError'
     post:
       tags:
-        - Categories
-      summary: Apply categorization rules
+        - Operations
+      summary: Run database migrations
       responses:
         '200':
-          description: Rules applied
+          description: Migration completed
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  rulesApplied:
-                    type: integer
-                  transactionsUpdated:
-                    type: integer
+                  message:
+                    type: string
+                  migrations:
+                    type: array
+                    items:
+                      type: object
+        '500':
+          $ref: '#/components/responses/InternalError'
 
-  /categories/update-by-description:
-    post:
-      tags:
-        - Categories
-      summary: Update category for all transactions with a specific description
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - description
-                - newCategory
-              properties:
-                description:
-                  type: string
-                newCategory:
-                  type: string
-                createRule:
-                  type: boolean
-      responses:
-        '200':
-          description: Updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
+
+
+
+
 
   /cards/ownerships:
     get:
       tags:
-        - Credentials
+        - Integrations
       summary: Get card ownership mappings
       responses:
         '200':
@@ -1642,7 +1670,7 @@ paths:
   /cards/ownerships/{id}:
     patch:
       tags:
-        - Credentials
+        - Integrations
       summary: Update card ownership
       parameters:
         - name: id
@@ -1669,7 +1697,7 @@ paths:
   /cards:
     get:
       tags:
-        - Credentials
+        - Integrations
       summary: Get credit card vendors and details (excludes bank accounts)
       responses:
         '200':
@@ -1682,7 +1710,7 @@ paths:
                   $ref: '#/components/schemas/CardVendor'
     post:
       tags:
-        - Credentials
+        - Integrations
       summary: Create or update card vendor
       requestBody:
         required: true
@@ -1695,7 +1723,7 @@ paths:
           description: Created/Updated
     delete:
       tags:
-        - Credentials
+        - Integrations
       summary: Delete card vendor
       requestBody:
         required: true
@@ -1715,7 +1743,7 @@ paths:
   /credentials/truncate/{id}:
     delete:
       tags:
-        - Credentials
+        - Integrations
       summary: Truncate credential transactions
       parameters:
         - name: id
@@ -1727,64 +1755,10 @@ paths:
         '200':
           description: Data truncated
 
-  /chat/history:
-    get:
-      tags:
-        - Reports
-      summary: Get chat history (sessions)
-      responses:
-        '200':
-          description: List of sessions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatSession'
-    delete:
-      tags:
-        - Reports
-      summary: Delete chat session
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - id
-              properties:
-                id:
-                  type: string
-      responses:
-        '200':
-          description: Deleted
-
-  /chat/messages:
-    get:
-      tags:
-        - Reports
-      summary: Get chat messages
-      parameters:
-        - name: sessionId
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of messages
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatMessage'
-
   /maintenance/database/export:
     get:
       tags:
-        - Settings
+        - Operations
       summary: Export database
       responses:
         '200':
@@ -1797,7 +1771,7 @@ paths:
   /maintenance/database/import:
     post:
       tags:
-        - Settings
+        - Operations
       summary: Import database
       requestBody:
         required: true
@@ -1817,7 +1791,7 @@ paths:
   /mcp:
     get:
       tags:
-        - Settings
+        - Operations
       summary: Establish MCP SSE connection
       description: |
         Endpoint for Server-Sent Events (SSE) connection in Model Context Protocol (MCP).
@@ -1832,7 +1806,7 @@ paths:
                 format: binary
     post:
       tags:
-        - Settings
+        - Operations
       summary: Send message to MCP server
       description: |
         Relays a JSON-RPC message to an active MCP session identified by the sessionId.
@@ -2319,6 +2293,20 @@ components:
           type: string
           enum: [restart, disconnect]
 
+    NonRecurringExclusion:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        account_number:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
   responses:
     BadRequest:
       description: Bad request
@@ -2340,16 +2328,3 @@ components:
                 type: string
               details:
                 type: string
-    NonRecurringExclusion:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        account_number:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
