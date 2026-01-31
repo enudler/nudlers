@@ -426,6 +426,102 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /finance/recurring:
+    get:
+      tags:
+        - Finance
+      summary: List manual recurring payments
+      responses:
+        '200':
+          description: List of manual recurring payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ManualRecurringPayment'
+    post:
+      tags:
+        - Finance
+      summary: Create a manual recurring payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - amount
+                - day_of_month
+              properties:
+                name:
+                  type: string
+                amount:
+                  type: number
+                category:
+                  type: string
+                account_number:
+                  type: string
+                day_of_month:
+                  type: integer
+                frequency:
+                  type: string
+                  enum: [monthly, bi-monthly]
+                  default: monthly
+      responses:
+        '201':
+          description: Created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualRecurringPayment'
+    patch:
+      tags:
+        - Finance
+      summary: Update a manual recurring payment status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+                - is_active
+              properties:
+                id:
+                  type: integer
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualRecurringPayment'
+    delete:
+      tags:
+        - Finance
+      summary: Delete a manual recurring payment
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
   /reports/projection:
     get:
       tags:
@@ -2397,6 +2493,33 @@ components:
         content:
           type: string
         timestamp:
+          type: string
+          format: date-time
+
+    ManualRecurringPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        amount:
+          type: number
+        category:
+          type: string
+        account_number:
+          type: string
+        day_of_month:
+          type: integer
+        frequency:
+          type: string
+          enum: [monthly, bi-monthly]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
 
