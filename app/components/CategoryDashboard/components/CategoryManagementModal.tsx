@@ -299,7 +299,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
       const categoriesWithCounts = await Promise.all(
         categoryNames.map(async (name: string) => {
           try {
-            const countResponse = await fetch(`/api/reports/category-expenses?all=true&category=${encodeURIComponent(name)}`);
+            const countResponse = await fetch(`/api/transactions?category=${encodeURIComponent(name)}`);
             if (!countResponse.ok) {
               logger.warn(`Failed to fetch count for category "${name}": ${countResponse.status}`);
               return { name, count: 0 };

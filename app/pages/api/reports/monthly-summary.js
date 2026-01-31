@@ -8,18 +8,33 @@ const handler = createApiHandler({
     const {
       startDate, endDate, vendor, groupBy, billingCycle,
       excludeBankTransactions, limit = 50, offset = 0,
-      sortBy = 'card_expenses', sortOrder = 'desc'
+      sortBy, sortOrder
     } = req.query;
 
     const limitVal = parseInt(limit);
     const offsetVal = parseInt(offset);
+
+    // Default sorts based on groupBy
+    let effectiveSortBy = sortBy;
+    let effectiveSortOrder = sortOrder;
+
+    if (!effectiveSortBy) {
+      if (groupBy === 'category') effectiveSortBy = 'total';
+      else if (groupBy === 'description') effectiveSortBy = 'card_expenses';
+      else if (groupBy === 'last4digits') effectiveSortBy = 'card_expenses';
+      else effectiveSortBy = 'card_expenses';
+    }
+
+    if (!effectiveSortOrder) {
+      if (groupBy === 'category') effectiveSortOrder = 'asc';
+      else effectiveSortOrder = 'desc';
+    }
 
     // Build WHERE clause based on filters
     let whereClause = '';
     const params = [];
     let paramIndex = 1;
 
-    // ... (billingCycle and startDate/endDate logic remains same)
     if (billingCycle) {
       const client = await getDB();
       let billingStartDay = 10;
@@ -72,16 +87,20 @@ const handler = createApiHandler({
 
     // Determine ORDER BY clause
     let orderClause = '';
-    const dir = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const dir = effectiveSortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     if (groupBy === 'description') {
-      if (sortBy === 'name') orderClause = `LOWER(TRIM(t.name)) ${dir}`;
-      else if (sortBy === 'category') orderClause = `LOWER(MAX(t.category)) ${dir}, LOWER(TRIM(t.name)) ASC`;
-      else if (sortBy === 'count' || sortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, LOWER(TRIM(t.name)) ASC`;
+      if (effectiveSortBy === 'name') orderClause = `LOWER(TRIM(t.name)) ${dir}`;
+      else if (effectiveSortBy === 'category') orderClause = `LOWER(MAX(t.category)) ${dir}, LOWER(TRIM(t.name)) ASC`;
+      else if (effectiveSortBy === 'count' || effectiveSortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, LOWER(TRIM(t.name)) ASC`;
       else orderClause = `ABS(SUM(t.price)) ${dir}, LOWER(TRIM(t.name)) ASC`;
+    } else if (groupBy === 'category') {
+      if (effectiveSortBy === 'total' || effectiveSortBy === 'amount') orderClause = `SUM(t.price) ${dir}`;
+      else if (effectiveSortBy === 'count') orderClause = `COUNT(*) ${dir}`;
+      else orderClause = `category ${dir}`;
     } else if (groupBy === 'last4digits') {
-      if (sortBy === 'name') orderClause = `COALESCE(RIGHT(t.account_number, 4), 'Unknown') ${dir}`;
-      else if (sortBy === 'count' || sortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, COALESCE(RIGHT(t.account_number, 4), 'Unknown') ASC`;
+      if (effectiveSortBy === 'name') orderClause = `COALESCE(RIGHT(t.account_number, 4), 'Unknown') ${dir}`;
+      else if (effectiveSortBy === 'count' || effectiveSortBy === 'transaction_count') orderClause = `COUNT(DISTINCT (t.identifier, t.vendor)) ${dir}, COALESCE(RIGHT(t.account_number, 4), 'Unknown') ASC`;
       else orderClause = `(
         COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price > 0 THEN t.price ELSE 0 END), 0) +
         COALESCE(SUM(CASE WHEN t.category = 'Bank' AND t.price < 0 THEN ABS(t.price) ELSE 0 END), 0) +
@@ -90,8 +109,8 @@ const handler = createApiHandler({
         ), 0)
       ) ${dir}, COALESCE(RIGHT(t.account_number, 4), 'Unknown') ASC`;
     } else {
-      if (sortBy === 'name') orderClause = `month ${dir}, vendor ASC`;
-      else orderClause = `month ${dir}, vendor ASC`; // Default for monthly
+      if (effectiveSortBy === 'month') orderClause = `month ${dir}`;
+      else orderClause = `month ${dir}, vendor ASC`;
     }
 
     let sql;
@@ -108,6 +127,20 @@ const handler = createApiHandler({
         ${whereClause}
         GROUP BY TRIM(t.name)
         HAVING ROUND(COALESCE(SUM(t.price), 0)) != 0
+        ORDER BY ${orderClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+    } else if (groupBy === 'category') {
+      sql = `
+        SELECT 
+          COALESCE(NULLIF(t.category, ''), 'Uncategorized') as category,
+          COALESCE(SUM(t.price), 0)::numeric as total,
+          COALESCE(SUM(t.price), 0)::numeric as amount,
+          COUNT(*)::integer as count,
+          COUNT(*) OVER() as total_count
+        FROM transactions t
+        ${whereClause}
+        GROUP BY COALESCE(NULLIF(t.category, ''), 'Uncategorized')
         ORDER BY ${orderClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;
@@ -181,7 +214,6 @@ const handler = createApiHandler({
     }
 
     params.push(limitVal, offsetVal);
-
     return { sql, params };
   },
   transform: (result) => {

@@ -64,31 +64,30 @@ const getDateRangeBase = (year: string, month: string, mode: DateRangeMode, bill
         const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
         return { startDate, endDate };
     } else {
-        // Billing cycle: Start Day of previous month to (Start Day - 1) of selected month
-        // Example: Start Day = 10. Range: 10th Prev to 9th Curr.
-
-        let prevMonth = m - 1;
-        let prevYear = y;
-        if (prevMonth === 0) {
-            prevMonth = 12;
-            prevYear = y - 1;
-        }
+        // Billing cycle: Start Day of selected month to (Start Day - 1) of next month
+        // Example: Selected Jan. Start Day = 10. Range: Jan 10 to Feb 9.
 
         const startDayVal = billingStartDay;
         const endDayVal = billingStartDay - 1;
 
-        const startDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${startDayVal.toString().padStart(2, '0')}`;
+        const startDate = `${year}-${month}-${startDayVal.toString().padStart(2, '0')}`;
+
+        let nextMonth = m + 1;
+        let nextYear = y;
+        if (nextMonth === 13) {
+            nextMonth = 1;
+            nextYear = y + 1;
+        }
 
         let endDate: string;
 
         if (endDayVal === 0) {
-            // If billing start day is 1, the cycle ends on the last day of the previous month
-            // Example: Start Day = 1. Range: 1st of Prev Month to Last Day of Prev Month
-            // (Basically a calendar month shifted by one)
-            const lastDayOfPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
-            endDate = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-${lastDayOfPrevMonth.toString().padStart(2, '0')}`;
+            // If billing start day is 1, the cycle ends on the last day of the selected month
+            // Example: Start Day = 1. Range: Jan 1 to Jan 31.
+            const lastDayOfSelectedMonth = new Date(y, m, 0).getDate();
+            endDate = `${year}-${month}-${lastDayOfSelectedMonth.toString().padStart(2, '0')}`;
         } else {
-            endDate = `${year}-${month}-${endDayVal.toString().padStart(2, '0')}`;
+            endDate = `${nextYear}-${nextMonth.toString().padStart(2, '0')}-${endDayVal.toString().padStart(2, '0')}`;
         }
 
         return { startDate, endDate };
@@ -141,7 +140,7 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
             }
 
             // 3. Fetch Available Months
-            const response = await fetch("/api/reports/available-months");
+            const response = await fetch("/api/transactions?availableMonths=true");
             const transactionsData = await response.json();
             setAllAvailableDates(transactionsData);
 
@@ -164,13 +163,17 @@ export const DateSelectionProvider: React.FC<{ children: React.ReactNode }> = ({
                 // Default to current month/year logic
                 const now = new Date();
                 let currentYear = now.getFullYear();
-                let currentMonth = now.getMonth() + 1;
+                let currentMonth = now.getMonth() + 1; // 1-12
 
-                if (now.getDate() > startDay) {
-                    currentMonth += 1;
-                    if (currentMonth > 12) {
-                        currentMonth = 1;
-                        currentYear += 1;
+                // New Logic: 
+                // If today >= startDay, we are in the Current Month Cycle (Jan 15 >= 10 -> Jan Cycle).
+                // If today < startDay, we are in the Previous Month Cycle (Jan 5 < 10 -> Dec Cycle).
+
+                if (now.getDate() < startDay) {
+                    currentMonth -= 1;
+                    if (currentMonth === 0) {
+                        currentMonth = 12;
+                        currentYear -= 1;
                     }
                 }
 

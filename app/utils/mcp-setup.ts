@@ -3,8 +3,6 @@ import { z } from "zod";
 
 // Configuration
 // In Next.js, we can trust the internal port or use localhost
-// Configuration
-// In Next.js, we can trust the internal port or use localhost
 const PORT = process.env.PORT || "6969";
 const API_BASE = process.env.NUDLERS_API_URL || `http://localhost:${PORT}/api`;
 
@@ -163,8 +161,9 @@ export function createMcpServer() {
                 .describe("Billing cycle in YYYY-MM format"),
             startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
             endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
+            limit: z.number().optional().describe("Maximum number of transactions to return (default 50)"),
         },
-        async ({ category, billingCycle, startDate, endDate }) => {
+        async ({ category, billingCycle, startDate, endDate, limit = 50 }) => {
             try {
                 const params = new URLSearchParams();
                 params.append("category", category);
@@ -179,7 +178,11 @@ export function createMcpServer() {
                     params.append("billingCycle", `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
                 }
 
-                const response = await apiRequest<{ items: any[] } | any[]>(`/reports/category-expenses?${params}`);
+                if (limit) {
+                    params.append("limit", limit.toString());
+                }
+
+                const response = await apiRequest<{ items: any[] } | any[]>(`/transactions?${params}`);
 
                 let data: any[] = [];
                 if (Array.isArray(response)) {
@@ -210,7 +213,7 @@ export function createMcpServer() {
                     "",
                     "--- Recent Transactions ---",
                     ...transactions,
-                    data.length > 20 ? `\n... and ${data.length - 20} more transactions` : "",
+                    data.length >= limit ? `\n... and more transactions available (use limit param to see more)` : "",
                 ].join("\n");
 
                 return {
@@ -546,7 +549,6 @@ export function createMcpServer() {
         async ({ billingCycle, startDate, endDate, limit = 50 }) => {
             try {
                 const params = new URLSearchParams();
-                params.append("all", "true");
 
                 if (billingCycle) {
                     params.append("billingCycle", billingCycle);
@@ -558,7 +560,11 @@ export function createMcpServer() {
                     params.append("billingCycle", `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
                 }
 
-                const response = await apiRequest<{ items: any[] } | any[]>(`/reports/category-expenses?${params}`);
+                if (limit) {
+                    params.append("limit", limit.toString());
+                }
+
+                const response = await apiRequest<{ items: any[] } | any[]>(`/transactions?${params}`);
 
                 let data: any[] = [];
                 if (Array.isArray(response)) {
@@ -695,43 +701,28 @@ export function createMcpServer() {
                     params.append("billingCycle", `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
                 }
 
-                // Get all transactions grouped by category
-                params.append("all", "true");
-                const response = await apiRequest<{ items: any[] } | any[]>(`/reports/category-expenses?${params}`);
+                // The refactored endpoint now returns the summary directly
+                const responseData = await apiRequest<{ items: any[] }>(`/reports/monthly-summary?${params}&groupBy=category`);
+                const response = responseData.items || [];
 
-                let data: any[] = [];
-                if (Array.isArray(response)) {
-                    data = response;
-                } else if (response && Array.isArray(response.items)) {
-                    data = response.items;
-                }
-
-                if (!data || data.length === 0) {
+                if (!response || response.length === 0) {
                     return {
                         content: [{ type: "text", text: "No transactions found for the specified period." }],
                     };
                 }
 
-                // Group by category
-                const categoryTotals: Record<string, { total: number; count: number }> = {};
-                for (const t of data) {
-                    const cat = t.category || "Uncategorized";
-                    if (!categoryTotals[cat]) {
-                        categoryTotals[cat] = { total: 0, count: 0 };
-                    }
-                    categoryTotals[cat].total += Math.abs(Number(t.price) || 0);
-                    categoryTotals[cat].count++;
-                }
+                // Sort by total DESC (highest absolute spending first)
+                const sorted = [...response].sort((a, b) => {
+                    const totalA = Math.abs(Number(a.total) || 0);
+                    const totalB = Math.abs(Number(b.total) || 0);
+                    return totalB - totalA;
+                });
+                const grandTotal = sorted.reduce((sum, v) => sum + Math.abs(Number(v.total) || 0), 0);
 
-                // Sort by total descending
-                const sorted = Object.entries(categoryTotals)
-                    .sort((a, b) => b[1].total - a[1].total);
-
-                const grandTotal = sorted.reduce((sum, [, v]) => sum + v.total, 0);
-
-                const lines = sorted.map(([cat, { total, count }]) => {
+                const lines = sorted.map((row) => {
+                    const total = Math.abs(Number(row.total) || 0);
                     const percentage = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
-                    return `• ${cat}: ${formatCurrency(total)} (${count} transactions, ${percentage}%)`;
+                    return `• ${row.category || "Uncategorized"}: ${formatCurrency(total)} (${row.count} txs, ${percentage}%)`;
                 });
 
                 const summary = [

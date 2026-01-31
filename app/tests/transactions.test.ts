@@ -88,10 +88,9 @@ describe('Transactions API Endpoint', () => {
             await handler(mockReq, mockRes);
 
             const [sql, params] = mockClient.query.mock.calls[0];
-            // Check for specific bank filter logic fragments as defined in transactions/index.js
-            expect(sql).toContain("t.category IN ('Bank', 'Income', 'Salary')");
-            expect(sql).toContain("LOWER(t.vendor) SIMILAR TO");
-            expect(params).toEqual(['2023-01-01', '2023-01-31', 100, 0]);
+            // Check for direct bank filter logic
+            expect(sql).toContain("t.transaction_type = $3");
+            expect(params).toEqual(['2023-01-01', '2023-01-31', 'bank', 100, 0]);
         });
 
         it('should filter by transactionType = credit_card', async () => {
@@ -104,9 +103,9 @@ describe('Transactions API Endpoint', () => {
             await handler(mockReq, mockRes);
 
             const [sql, params] = mockClient.query.mock.calls[0];
-            // Check for credit card filter logic: account number length 4 or installments exist
-            expect(sql).toContain("LENGTH(COALESCE(t.account_number, '')) = 4");
-            expect(params).toEqual(['2023-01-01', '2023-01-31', 100, 0]);
+            // Check for direct credit card filter logic
+            expect(sql).toContain("t.transaction_type = $3");
+            expect(params).toEqual(['2023-01-01', '2023-01-31', 'credit_card', 100, 0]);
         });
 
         it('should explicitly support transactionType = all', async () => {
@@ -177,6 +176,42 @@ describe('Transactions API Endpoint', () => {
 
             const [sql] = mockClient.query.mock.calls[0];
             expect(sql).toContain('ORDER BY t.price ASC');
+        });
+
+        it('should filter by category', async () => {
+            mockReq = {
+                method: 'GET',
+                query: {
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31',
+                    category: 'Food'
+                }
+            };
+            mockClient.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+            await handler(mockReq, mockRes);
+
+            const [sql, params] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('t.category = $3');
+            expect(params).toContain('Food');
+        });
+
+        it('should search using q parameter', async () => {
+            mockReq = {
+                method: 'GET',
+                query: {
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31',
+                    q: 'gas'
+                }
+            };
+            mockClient.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+            await handler(mockReq, mockRes);
+
+            const [sql, params] = mockClient.query.mock.calls[0];
+            expect(sql).toContain('t.name ILIKE $3 OR t.vendor ILIKE $3 OR t.category ILIKE $3 OR t.identifier ILIKE $3');
+            expect(params).toContain('%gas%');
         });
 
         it('should support pagination (limit and offset)', async () => {
