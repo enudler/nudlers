@@ -35,6 +35,7 @@ import { useCategories } from './CategoryDashboard/utils/useCategories';
 import { useDateSelection, DateRangeMode } from '../context/DateSelectionContext';
 import { logger } from '../utils/client-logger';
 import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, getTableRowHoverBackground } from './CategoryDashboard/utils/tableStyles';
+import MobileSortableTable, { SortOption } from './MobileSortableTable';
 
 // Maximum date range in years
 const MAX_YEARS_RANGE = 5;
@@ -431,10 +432,26 @@ const BreakdownView: React.FC = () => {
                                 }
                             }}>
                             {isMobile ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    {data.map((row) => (
-                                        <BreakdownMobileCard
-                                            key={row.description}
+                                <MobileSortableTable
+                                    sortOptions={[
+                                        { id: 'card_expenses', label: 'Amount', defaultDirection: 'asc' },
+                                        { id: 'transaction_count', label: 'Count', defaultDirection: 'desc' },
+                                        { id: 'name', label: 'Name', defaultDirection: 'asc' },
+                                        { id: 'category', label: 'Category', defaultDirection: 'asc' },
+                                    ]}
+                                    rows={data}
+                                    loading={loading && data.length === 0}
+                                    emptyMessage="No transactions found"
+                                    sortField={sortField}
+                                    sortDirection={sortDirection}
+                                    onSort={(field, direction) => {
+                                        handleSortChange(field as SortField);
+                                    }}
+                                    rowKey={(row) => row.description || ''}
+                                    stickySort={true}
+                                    stickyOffset={0}
+                                    renderCard={(row) => (
+                                        <BreakdownMobileCardContent
                                             row={row}
                                             theme={theme}
                                             loadingDescription={loadingDescription}
@@ -447,32 +464,33 @@ const BreakdownView: React.FC = () => {
                                             handleCategoryCancel={handleCategoryCancel}
                                             handleCategoryEditClick={handleCategoryEditClick}
                                         />
-                                    ))}
-                                    {/* Mobile Totals Card */}
-                                    <Paper
-                                        elevation={0}
-                                        sx={{
-                                            p: 2.5,
-                                            borderRadius: '16px',
-                                            border: `2px solid ${theme.palette.primary.main}`,
-                                            background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.05)',
-                                            backdropFilter: 'blur(10px)',
-                                            mt: 1
-                                        }}
-                                    >
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>TOTAL</Typography>
-                                            <Box sx={{ textAlign: 'right' }}>
-                                                <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main' }}>
-                                                    {`${totals.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(totals.amount))}`}
-                                                </Typography>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    {totals.count} transactions
-                                                </Typography>
+                                    )}
+                                    onRowClick={(row) => handleDescriptionClick(row.description as string)}
+                                    footer={
+                                        <Paper
+                                            elevation={0}
+                                            sx={{
+                                                p: 2.5,
+                                                borderRadius: '16px',
+                                                border: `2px solid ${theme.palette.primary.main}`,
+                                                background: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.05)',
+                                                backdropFilter: 'blur(10px)',
+                                            }}
+                                        >
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>TOTAL</Typography>
+                                                <Box sx={{ textAlign: 'right' }}>
+                                                    <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main' }}>
+                                                        {`${totals.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(totals.amount))}`}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {totals.count} transactions
+                                                    </Typography>
+                                                </Box>
                                             </Box>
-                                        </Box>
-                                    </Paper>
-                                </Box>
+                                        </Paper>
+                                    }
+                                />
                             ) : (
                                 <Table stickyHeader sx={{ minWidth: 'unset' }}>
                                     <TableHead>
@@ -712,6 +730,90 @@ interface BreakdownMobileCardProps {
     handleCategoryCancel: () => void;
     handleCategoryEditClick: (description: string, currentCategory: string) => void;
 }
+
+// Card content component for MobileSortableTable (without Paper wrapper)
+const BreakdownMobileCardContent = ({
+    row,
+    theme,
+    loadingDescription,
+    handleDescriptionClick,
+    editingDescription,
+    editCategory,
+    setEditCategory,
+    availableCategories,
+    handleCategorySave,
+    handleCategoryCancel,
+    handleCategoryEditClick
+}: BreakdownMobileCardProps) => {
+    return (
+        <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                    {loadingDescription === row.description ? (
+                        <CircularProgress size={16} />
+                    ) : (
+                        <DescriptionIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                    )}
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {row.description}
+                    </Typography>
+                </Box>
+                <Typography
+                    variant="subtitle2"
+                    sx={{
+                        fontWeight: 800,
+                        color: row.amount && row.amount >= 0 ? '#10B981' : '#F43F5E',
+                        ml: 2
+                    }}
+                >
+                    {row.amount !== undefined
+                        ? `${row.amount >= 0 ? '+' : ''}₪${formatNumber(Math.abs(row.amount))}`
+                        : `₪${formatNumber(row.card_expenses)}`
+                    }
+                </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div onClick={(e) => e.stopPropagation()}>
+                    {editingDescription === row.description ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Autocomplete
+                                value={editCategory}
+                                onChange={(event, newValue) => setEditCategory(newValue || '')}
+                                onInputChange={(event, newInputValue) => setEditCategory(newInputValue)}
+                                freeSolo
+                                options={availableCategories}
+                                size="small"
+                                sx={{ minWidth: 120, '& .MuiInputBase-root': { fontSize: '12px', py: 0.5 } }}
+                                renderInput={(params) => <TextField {...params} autoFocus placeholder="Category" />}
+                            />
+                            <IconButton size="small" onClick={() => handleCategorySave(row.description!)} sx={{ color: '#4ADE80' }}><CheckIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={handleCategoryCancel} sx={{ color: '#ef4444' }}><CloseIcon fontSize="small" /></IconButton>
+                        </Box>
+                    ) : (
+                        <span
+                            style={{
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                color: '#3b82f6',
+                                fontWeight: 600
+                            }}
+                            onClick={() => handleCategoryEditClick(row.description!, row.category || '')}
+                        >
+                            {row.category || 'Uncategorized'}
+                        </span>
+                    )}
+                </div>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                    {row.transaction_count} items
+                </Typography>
+            </Box>
+        </Box>
+    );
+};
 
 const BreakdownMobileCard = ({
     row,
