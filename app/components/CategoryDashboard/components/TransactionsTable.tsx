@@ -15,6 +15,7 @@ import { getTableHeaderCellStyle, getTableBodyCellStyle, TABLE_ROW_HOVER_STYLE, 
 import DeleteConfirmationDialog from '../../DeleteConfirmationDialog';
 import CategoryAutocomplete from '../../CategoryAutocomplete';
 import AccountDisplay from '../../AccountDisplay';
+import MobileSortableTable, { SortOption } from '../../MobileSortableTable';
 
 export interface Transaction {
   name: string;
@@ -344,55 +345,100 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
     );
   };
 
+  // Sort options for mobile sortable table
+  const mobileSortOptions: SortOption[] = React.useMemo(() => [
+    { id: 'date', label: 'Date', defaultDirection: 'desc' },
+    { id: 'price', label: 'Amount', defaultDirection: 'desc' },
+    { id: 'name', label: 'Name', defaultDirection: 'asc' },
+    { id: 'category', label: 'Category', defaultDirection: 'asc' },
+  ], []);
+
+  // Handle mobile sort change
+  const handleMobileSort = React.useCallback((field: string, direction: 'asc' | 'desc') => {
+    if (onSort) {
+      // If clicking same field, just call onSort to toggle
+      // If clicking different field, call onSort which will use new field with direction
+      onSort(field);
+    }
+  }, [onSort]);
+
   const Content = (
     <Box sx={{ width: '100%' }}>
       {isMobile ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {groupByDate ? (
-            sortedDates.map(date => (
-              <Box key={date} sx={{ mb: 2 }}>
-                <Typography sx={{
-                  fontWeight: 700,
-                  color: theme.palette.text.secondary,
-                  fontSize: '0.75rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  mb: 1,
-                  px: 1
-                }}>
-                  {formatDateHeader(date)}
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  {groupedTransactions[date].map((transaction, index) => (
-                    <TransactionMobileCard
-                      key={`${transaction.identifier}-${index}`}
-                      transaction={transaction}
-                      theme={theme}
-                      onEdit={() => handleEditClick(transaction)}
-                      onDelete={() => setConfirmDeleteTransaction(transaction)}
-                      getCardVendor={getCardVendor}
-                      getCardNickname={getCardNickname}
-                      showDate={false}
-                    />
-                  ))}
-                </Box>
-              </Box>
-            ))
-          ) : (
-            transactions.map((transaction, index) => (
-              <TransactionMobileCard
-                key={index}
+        onSort ? (
+          // Use MobileSortableTable when sorting is enabled
+          <MobileSortableTable
+            sortOptions={mobileSortOptions}
+            rows={transactions}
+            loading={isLoading}
+            emptyMessage="No transactions found"
+            sortField={sortBy || 'date'}
+            sortDirection={sortOrder || 'desc'}
+            onSort={handleMobileSort}
+            rowKey={(transaction) => `${transaction.identifier}-${transaction.vendor}`}
+            stickySort={true}
+            stickyOffset={0}
+            renderCard={(transaction) => (
+              <TransactionMobileCardContent
                 transaction={transaction}
                 theme={theme}
                 onEdit={() => handleEditClick(transaction)}
                 onDelete={() => setConfirmDeleteTransaction(transaction)}
                 getCardVendor={getCardVendor}
                 getCardNickname={getCardNickname}
-                showDate={true}
+                showDate={!groupByDate}
               />
-            ))
-          )}
-        </Box>
+            )}
+          />
+        ) : (
+          // Fallback to original card list when sorting not available
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {groupByDate ? (
+              sortedDates.map(date => (
+                <Box key={date} sx={{ mb: 2 }}>
+                  <Typography sx={{
+                    fontWeight: 700,
+                    color: theme.palette.text.secondary,
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    mb: 1,
+                    px: 1
+                  }}>
+                    {formatDateHeader(date)}
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    {groupedTransactions[date].map((transaction, index) => (
+                      <TransactionMobileCard
+                        key={`${transaction.identifier}-${index}`}
+                        transaction={transaction}
+                        theme={theme}
+                        onEdit={() => handleEditClick(transaction)}
+                        onDelete={() => setConfirmDeleteTransaction(transaction)}
+                        getCardVendor={getCardVendor}
+                        getCardNickname={getCardNickname}
+                        showDate={false}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              ))
+            ) : (
+              transactions.map((transaction, index) => (
+                <TransactionMobileCard
+                  key={index}
+                  transaction={transaction}
+                  theme={theme}
+                  onEdit={() => handleEditClick(transaction)}
+                  onDelete={() => setConfirmDeleteTransaction(transaction)}
+                  getCardVendor={getCardVendor}
+                  getCardNickname={getCardNickname}
+                  showDate={true}
+                />
+              ))
+            )}
+          </Box>
+        )
       ) : (
         <Table
           onClick={handleTableClick}
@@ -910,6 +956,104 @@ interface TransactionMobileCardProps {
   getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
   showDate?: boolean;
 }
+
+// Card content component for MobileSortableTable (without Paper wrapper)
+const TransactionMobileCardContent = ({
+  transaction,
+  theme,
+  onEdit,
+  onDelete,
+  getCardVendor,
+  getCardNickname,
+  showDate
+}: TransactionMobileCardProps) => {
+  const displayAmount = Math.abs(transaction.price);
+
+  const getCurrencySymbol = (currency?: string) => {
+    if (!currency) return '₪';
+    if (['EUR', '€'].includes(currency)) return '€';
+    if (['USD', '$'].includes(currency)) return '$';
+    if (['GBP', '£'].includes(currency)) return '£';
+    if (['ILS', '₪', 'NIS'].includes(currency)) return '₪';
+    return currency + ' ';
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1, mr: 1 }}>
+          {transaction.name}
+          {showDate && (
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
+              {dateUtils.formatDate(transaction.date)}
+            </Typography>
+          )}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 800,
+            color: transaction.price < 0 ? '#ef4444' : '#10b981',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {transaction.price < 0 ? '-' : '+'}₪{formatNumber(displayAmount)}
+        </Typography>
+      </Box>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span
+            style={{
+              padding: '2px 8px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              color: '#3b82f6',
+              fontSize: '11px',
+              fontWeight: 600
+            }}
+          >
+            {transaction.category}
+          </span>
+          {transaction.installments_total && transaction.installments_total > 1 && (
+            <span style={{
+              color: '#6366f1',
+              fontSize: '10px',
+              fontWeight: '600',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              padding: '2px 6px',
+              borderRadius: '4px'
+            }}>
+              {transaction.installments_number}/{transaction.installments_total}
+            </span>
+          )}
+        </Box>
+        {transaction.original_currency && !['ILS', '₪', 'NIS'].includes(transaction.original_currency) && transaction.original_amount && (
+          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+            {getCurrencySymbol(transaction.original_currency)}{formatNumber(Math.abs(transaction.original_amount))}
+          </Typography>
+        )}
+      </Box>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={18} />
+          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
+            {getCardNickname(transaction.account_number) || (transaction.account_number ? `•••• ${transaction.account_number.slice(-4)}` : 'Card')}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(); }} sx={{ color: theme.palette.primary.main }}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDelete(); }} sx={{ color: theme.palette.error.main }}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
 
 const TransactionMobileCard = ({
   transaction,
