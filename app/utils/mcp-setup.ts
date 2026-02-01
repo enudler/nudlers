@@ -46,26 +46,28 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get Monthly Summary
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_monthly_summary",
-        "Get a monthly financial summary with expenses grouped by vendor/card. Returns bank income, bank expenses, card expenses, and net balance.",
         {
-            billingCycle: z
-                .string()
-                .optional()
-                .describe("Billing cycle in YYYY-MM format (e.g., 2026-01). If not provided, uses current month."),
-            startDate: z
-                .string()
-                .optional()
-                .describe("Start date in YYYY-MM-DD format (alternative to billingCycle)"),
-            endDate: z
-                .string()
-                .optional()
-                .describe("End date in YYYY-MM-DD format (alternative to billingCycle)"),
-            groupBy: z
-                .enum(["vendor", "description", "last4digits"])
-                .optional()
-                .describe("How to group results: 'vendor' (default), 'description', or 'last4digits'"),
+            description: "Get a monthly financial summary with expenses grouped by vendor/card. Returns bank income, bank expenses, card expenses, and net balance.",
+            inputSchema: {
+                billingCycle: z
+                    .string()
+                    .optional()
+                    .describe("Billing cycle in YYYY-MM format (e.g., 2026-01). If not provided, uses current month."),
+                startDate: z
+                    .string()
+                    .optional()
+                    .describe("Start date in YYYY-MM-DD format (alternative to billingCycle)"),
+                endDate: z
+                    .string()
+                    .optional()
+                    .describe("End date in YYYY-MM-DD format (alternative to billingCycle)"),
+                groupBy: z
+                    .enum(["vendor", "description", "last4digits"])
+                    .optional()
+                    .describe("How to group results: 'vendor' (default), 'description', or 'last4digits'"),
+            },
         },
         async ({ billingCycle, startDate, endDate, groupBy }) => {
             try {
@@ -150,18 +152,20 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get Category Expenses
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_category_expenses",
-        "Get all transactions for a specific category in a given time period.",
         {
-            category: z.string().describe("Category name to filter by (e.g., 'Groceries', 'Dining')"),
-            billingCycle: z
-                .string()
-                .optional()
-                .describe("Billing cycle in YYYY-MM format"),
-            startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
-            endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
-            limit: z.number().optional().describe("Maximum number of transactions to return (default 50)"),
+            description: "Get all transactions for a specific category in a given time period.",
+            inputSchema: {
+                category: z.string().describe("Category name to filter by (e.g., 'Groceries', 'Dining')"),
+                billingCycle: z
+                    .string()
+                    .optional()
+                    .describe("Billing cycle in YYYY-MM format"),
+                startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
+                endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
+                limit: z.number().optional().describe("Maximum number of transactions to return (default 50)"),
+            },
         },
         async ({ category, billingCycle, startDate, endDate, limit = 50 }) => {
             try {
@@ -230,10 +234,11 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get All Categories
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_all_categories",
-        "List all spending categories that exist in the system.",
-        {},
+        {
+            description: "List all spending categories that exist in the system.",
+        },
         async () => {
             try {
                 const response = await apiRequest<string[] | { items: string[] }>("/categories");
@@ -270,14 +275,16 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Search Transactions
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "search_transactions",
-        "Search for transactions by description, vendor, category, or identifier.",
         {
-            query: z.string().min(2).describe("Search query (minimum 2 characters)"),
-            billingCycle: z.string().optional().describe("Filter by billing cycle (YYYY-MM)"),
-            startDate: z.string().optional().describe("Filter start date (YYYY-MM-DD)"),
-            endDate: z.string().optional().describe("Filter end date (YYYY-MM-DD)"),
+            description: "Search for transactions by description, vendor, category, or identifier.",
+            inputSchema: {
+                query: z.string().min(2).describe("Search query (minimum 2 characters)"),
+                billingCycle: z.string().optional().describe("Filter by billing cycle (YYYY-MM)"),
+                startDate: z.string().optional().describe("Filter start date (YYYY-MM-DD)"),
+                endDate: z.string().optional().describe("Filter end date (YYYY-MM-DD)"),
+            },
         },
         async ({ query, billingCycle, startDate, endDate }) => {
             try {
@@ -337,14 +344,16 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get Budgets
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_budgets",
-        "Get budget vs actual spending comparison for all categories.",
         {
-            billingCycle: z
-                .string()
-                .optional()
-                .describe("Billing cycle in YYYY-MM format. Defaults to current month."),
+            description: "Get budget vs actual spending comparison for all categories.",
+            inputSchema: {
+                billingCycle: z
+                    .string()
+                    .optional()
+                    .describe("Billing cycle in YYYY-MM format. Defaults to current month."),
+            },
         },
         async ({ billingCycle }) => {
             try {
@@ -407,10 +416,11 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get Sync Status
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_sync_status",
-        "Get the synchronization status for all connected bank accounts and credit cards.",
-        {},
+        {
+            description: "Get the synchronization status for all connected bank accounts and credit cards.",
+        },
         async () => {
             try {
                 const data = await apiRequest<any>("/scrapers/status");
@@ -454,10 +464,11 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get Recurring Payments
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_recurring_payments",
-        "Get a list of recurring payments and installments.",
-        {},
+        {
+            description: "Get a list of recurring payments and installments.",
+        },
         async () => {
             try {
                 const data = await apiRequest<any>("/reports/recurring-payments");
@@ -497,10 +508,11 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: List Accounts
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "list_accounts",
-        "List all configured bank accounts and credit cards.",
-        {},
+        {
+            description: "List all configured bank accounts and credit cards.",
+        },
         async () => {
             try {
                 const data = await apiRequest<any[]>("/credentials");
@@ -537,14 +549,16 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get All Transactions
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_all_transactions",
-        "Get all transactions for a specific time period.",
         {
-            billingCycle: z.string().optional().describe("Billing cycle in YYYY-MM format"),
-            startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
-            endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
-            limit: z.number().optional().describe("Maximum number of transactions to return (default 50)"),
+            description: "Get all transactions for a specific time period.",
+            inputSchema: {
+                billingCycle: z.string().optional().describe("Billing cycle in YYYY-MM format"),
+                startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
+                endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
+                limit: z.number().optional().describe("Maximum number of transactions to return (default 50)"),
+            },
         },
         async ({ billingCycle, startDate, endDate, limit = 50 }) => {
             try {
@@ -612,15 +626,17 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Add Manual Expense
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "add_manual_expense",
-        "Add a manual expense or income transaction. Use this for cash purchases, transfers, or transactions not captured by bank scrapers.",
         {
-            name: z.string().min(1).describe("Transaction description (e.g., 'Coffee at local cafe', 'Grocery shopping')"),
-            price: z.number().describe("Amount in ILS. Positive for expenses, negative for income."),
-            date: z.string().describe("Transaction date in YYYY-MM-DD format"),
-            category: z.string().optional().describe("Category name (e.g., 'Dining', 'Groceries', 'Transportation')"),
-            memo: z.string().optional().describe("Additional notes or details about the transaction"),
+            description: "Add a manual expense or income transaction. Use this for cash purchases, transfers, or transactions not captured by bank scrapers.",
+            inputSchema: {
+                name: z.string().min(1).describe("Transaction description (e.g., 'Coffee at local cafe', 'Grocery shopping')"),
+                price: z.number().describe("Amount in ILS. Positive for expenses, negative for income."),
+                date: z.string().describe("Transaction date in YYYY-MM-DD format"),
+                category: z.string().optional().describe("Category name (e.g., 'Dining', 'Groceries', 'Transportation')"),
+                memo: z.string().optional().describe("Additional notes or details about the transaction"),
+            },
         },
         async ({ name, price, date, category, memo }) => {
             try {
@@ -679,13 +695,15 @@ export function createMcpServer() {
     // ============================================================================
     // TOOL: Get Category Breakdown
     // ============================================================================
-    server.tool(
+    server.registerTool(
         "get_category_breakdown",
-        "Get a breakdown of spending by category for a given period. Shows total spent per category with transaction counts.",
         {
-            billingCycle: z.string().optional().describe("Billing cycle in YYYY-MM format"),
-            startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
-            endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
+            description: "Get a breakdown of spending by category for a given period. Shows total spent per category with transaction counts.",
+            inputSchema: {
+                billingCycle: z.string().optional().describe("Billing cycle in YYYY-MM format"),
+                startDate: z.string().optional().describe("Start date in YYYY-MM-DD format"),
+                endDate: z.string().optional().describe("End date in YYYY-MM-DD format"),
+            },
         },
         async ({ billingCycle, startDate, endDate }) => {
             try {
@@ -740,6 +758,71 @@ export function createMcpServer() {
             } catch (error) {
                 return {
                     content: [{ type: "text", text: `Error fetching category breakdown: ${error}` }],
+                };
+            }
+        }
+    );
+
+    // ============================================================================
+    // TOOL: Get Balance Projection
+    // ============================================================================
+    server.registerTool(
+        "get_balance_projection",
+        {
+            description: "Get a daily balance projection for the next 30 days. Accounts for bank balances, recurring transactions, and credit card settlements.",
+        },
+        async () => {
+            try {
+                const data = await apiRequest<any>("/reports/projection");
+
+                if (!data || !data.projection || data.projection.length === 0) {
+                    return {
+                        content: [{ type: "text", text: "No projection data available." }],
+                    };
+                }
+
+                const summary = data.summary;
+                const projection = data.projection;
+
+                const lines = projection.filter((_: any, i: number) => i % 5 === 0 || i === projection.length - 1).map((p: any) => {
+                    const date = new Date(p.date).toLocaleDateString("he-IL");
+                    return `• ${date}: ${formatCurrency(p.totalBalance)}`;
+                });
+
+                const output = [
+                    `📈 Balance Projection (Next 30 Days)`,
+                    `Starting Balance: ${formatCurrency(summary.startingBalance)}`,
+                    `Ending Balance: ${formatCurrency(summary.endingBalance)}`,
+                    `Net Change: ${formatCurrency(summary.endingBalance - summary.startingBalance)}`,
+                    "",
+                    "--- Forecast Highlights ---",
+                    ...lines,
+                    "",
+                    "--- Significant Upcoming Events ---",
+                ];
+
+                // Find days with significant changes or recurring events
+                projection.forEach((p: any) => {
+                    if (p.bankRecurring && p.bankRecurring.length > 0) {
+                        const date = new Date(p.date).toLocaleDateString("he-IL");
+                        p.bankRecurring.forEach((r: any) => {
+                            output.push(`• ${date}: ${r.name} (${formatCurrency(r.amount)})`);
+                        });
+                    }
+                    if (p.ccPayments && p.ccPayments.length > 0) {
+                        const date = new Date(p.date).toLocaleDateString("he-IL");
+                        p.ccPayments.forEach((cc: any) => {
+                            output.push(`• ${date}: CC Settlement ${cc.displayName} (${formatCurrency(cc.amount)})`);
+                        });
+                    }
+                });
+
+                return {
+                    content: [{ type: "text", text: output.join("\n") }],
+                };
+            } catch (error) {
+                return {
+                    content: [{ type: "text", text: `Error fetching balance projection: ${error}` }],
                 };
             }
         }
