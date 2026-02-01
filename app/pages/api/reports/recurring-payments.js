@@ -21,6 +21,11 @@ import { detectRecurringPayments } from "../../../utils/recurringDetection";
 export default async function handler(req, res) {
   const client = await getDB();
 
+  if (req.method !== 'GET') {
+    res.setHeader("Allow", ["GET"]);
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  }
+
   try {
     // Parse query parameters
     const {
@@ -180,13 +185,14 @@ export default async function handler(req, res) {
         LEFT JOIN vendor_credentials vc ON t.account_number = vc.bank_account_number AND t.transaction_type = 'bank'
         WHERE t.price < 0
           AND (t.installments_total IS NULL OR t.installments_total <= 1)
-          AND t.category NOT IN ('Bank', 'Income')
+          AND t.category NOT IN ('Income')
           AND LOWER(TRIM(t.name)) NOT IN (SELECT name FROM known_installments)
           AND NOT EXISTS (
             SELECT 1 FROM excluded_recurring e
             WHERE LOWER(TRIM(t.name)) = e.name
               AND (e.account_number IS NULL OR e.account_number = t.account_number)
           )
+          AND t.date >= CURRENT_DATE - INTERVAL '12 months'
         ORDER BY t.date DESC
       `);
 

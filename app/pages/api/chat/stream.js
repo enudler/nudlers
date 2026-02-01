@@ -127,8 +127,8 @@ const tools = [{
 // Get default dates (current month)
 function getDefaultDates() {
   const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const endDate = now.toISOString().split('T')[0];
+  const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   return { startDate, endDate };
 }
 
@@ -599,7 +599,8 @@ export default async function handler(req, res) {
 
     // Build context
     const now = new Date();
-    let contextInfo = `\nToday is ${now.toISOString().split('T')[0]}.`;
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    let contextInfo = `\nToday is ${todayStr}.`;
     if (context?.view) contextInfo += ` User is viewing: ${context.view}.`;
     if (context?.dateRange) {
       contextInfo += ` Current date range filter: ${context.dateRange.startDate} to ${context.dateRange.endDate}.`;

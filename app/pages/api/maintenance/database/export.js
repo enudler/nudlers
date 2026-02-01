@@ -51,7 +51,9 @@ async function handler(req, res) {
     }
 
     // Set headers for file download
-    const filename = `backup-${new Date().toISOString().split('T')[0]}.json`;
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const filename = `backup-${dateStr}.json`;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 

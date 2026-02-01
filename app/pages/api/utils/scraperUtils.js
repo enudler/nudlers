@@ -352,7 +352,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
 
   // 2. Identifier & Collision Check
   const txId = identifier || generateTransactionIdentifier(transaction, vendor, accountNumber);
-  const newDateStr = new Date(date).toISOString().split('T')[0];
+  const newDateStr = formatLocalDate(new Date(date));
 
   let existingTx = null;
   const cachedTx = historyCache?.idMap.get(txId);
@@ -382,7 +382,7 @@ export async function insertTransaction(client, transaction, vendor, accountNumb
     const normalizedNewName = (description || '').trim().toLowerCase();
     const dbPrice = Math.abs(existingTx.price || 0);
     const newPrice = Math.abs(chargedAmount || originalAmount || 0);
-    const dbDateStr = existingTx.date instanceof Date ? existingTx.date.toISOString().split('T')[0] : existingTx.date;
+    const dbDateStr = existingTx.date instanceof Date ? formatLocalDate(existingTx.date) : existingTx.date;
 
     const isCollision = (normalizedDbName !== normalizedNewName && !normalizedDbName.includes(normalizedNewName) && !normalizedNewName.includes(normalizedDbName)) ||
       (Math.abs(dbPrice - newPrice) > 0.01) ||

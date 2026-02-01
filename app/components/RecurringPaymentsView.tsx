@@ -17,6 +17,9 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import BlockIcon from '@mui/icons-material/Block';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
 
 import { useCardVendors } from './CategoryDashboard/utils/useCardVendors';
@@ -64,6 +67,17 @@ interface RecurringTransaction {
     bank_account_display?: string | null;
 }
 
+interface Exclusion {
+    id: number;
+    name: string;
+    account_number: string | null;
+    created_at: string;
+    vendor?: string;
+    bank_nickname?: string | null;
+    bank_account_display?: string | null;
+    transaction_type?: string | null;
+}
+
 const formatNumber = (num: number): string => {
     return new Intl.NumberFormat('he-IL').format(Math.round(Math.abs(num)));
 };
@@ -81,6 +95,7 @@ const RecurringPaymentsView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [installments, setInstallments] = useState<Installment[]>([]);
     const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
+    const [exclusions, setExclusions] = useState<Exclusion[]>([]);
     const [activeTab, setActiveTab] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -98,6 +113,7 @@ const RecurringPaymentsView: React.FC = () => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [totalInstallments, setTotalInstallments] = useState(0);
     const [totalRecurring, setTotalRecurring] = useState(0);
+    const [totalExclusions, setTotalExclusions] = useState<number | null>(null);
 
     const [activeInstallmentsCount, setActiveInstallmentsCount] = useState(0);
     const [activeInstallmentsAmount, setActiveInstallmentsAmount] = useState(0);
@@ -142,6 +158,15 @@ const RecurringPaymentsView: React.FC = () => {
 
             setError(null);
 
+            if (activeTab === 2) {
+                const response = await fetch('/api/reports/non-recurring-exclusions');
+                if (!response.ok) throw new Error('Failed to fetch exclusions');
+                const data = await response.json();
+                setExclusions(data.exclusions || []);
+                setTotalExclusions(data.total || 0);
+                return;
+            }
+
             const type = activeTab === 0 ? 'installments' : 'recurring';
             const sortBy = activeTab === 0 ? installmentSortBy : recurringSortBy;
             const sortOrder = activeTab === 0 ? installmentSortOrder : recurringSortOrder;
@@ -156,7 +181,6 @@ const RecurringPaymentsView: React.FC = () => {
                 sortOrder,
                 limit: String(PAGE_SIZE),
                 offset: String(offset),
-                ...(type === 'recurring' && { frequency: 'monthly' })
             });
 
             const response = await fetch(`/api/reports/recurring-payments?${params}`);
@@ -233,7 +257,7 @@ const RecurringPaymentsView: React.FC = () => {
         }
     };
 
-    const renderAccountInfo = (item: Installment | RecurringTransaction) => {
+    const renderAccountInfo = (item: Installment | RecurringTransaction | Exclusion) => {
         return <AccountDisplay transaction={item} premium={true} />;
     };
 
@@ -309,6 +333,26 @@ const RecurringPaymentsView: React.FC = () => {
         }
     };
 
+    const handleRestoreExclusion = async (item: Exclusion) => {
+        try {
+            const response = await fetch('/api/reports/non-recurring-exclusions', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: item.name,
+                    account_number: item.account_number
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to restore payment');
+            setSnackbar({ open: true, message: `"${item.name}" restored to recurring detection`, severity: 'success' });
+            fetchData(false);
+            window.dispatchEvent(new CustomEvent('dataRefresh'));
+        } catch (err) {
+            logger.error('Error restoring exclusion', err as Error);
+            setSnackbar({ open: true, message: 'Failed to restore payment', severity: 'error' });
+        }
+    };
+
     return (
         <Box sx={{
             padding: { xs: '12px 8px', sm: '16px 12px', md: '24px 16px' },
@@ -319,7 +363,7 @@ const RecurringPaymentsView: React.FC = () => {
         }}>
             <PageHeader
                 title="Recurring Payments"
-                description="Monitor your active installments and recurring subscriptions"
+                description="Manage your fixed installments and recurring monthly subscriptions detected from your transaction patterns."
                 icon={<RepeatIcon sx={{ fontSize: '32px', color: '#ffffff' }} />}
             />
 
@@ -349,10 +393,30 @@ const RecurringPaymentsView: React.FC = () => {
                     >
                         <Tab label={`Installments (${totalInstallments || '...'})`} icon={<CreditScoreIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
                         <Tab label={`Recurring (${totalRecurring || '...'})`} icon={<RepeatIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
+                        <Tab label={`Hidden (${totalExclusions === null ? '...' : totalExclusions})`} icon={<VisibilityOffIcon sx={{ fontSize: '18px' }} />} iconPosition="start" />
                     </Tabs>
                 </Box>
 
                 <Box sx={{ p: { xs: 1, md: 3 } }}>
+                    <Typography variant="body2" sx={{
+                        mb: 3,
+                        p: 2,
+                        borderRadius: '16px',
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.04)',
+                        border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)'}`,
+                        color: 'text.secondary',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2
+                    }}>
+                        <InfoOutlinedIcon sx={{ color: 'primary.main', fontSize: '20px' }} />
+                        {activeTab === 0
+                            ? "Installments show planned payments for items purchased in multiple parts (e.g., credit card payments with balance remaining). These are typically fixed-term credit card plans."
+                            : activeTab === 1
+                                ? "Recurring payments are identified by analyzing your history for monthly or bi-monthly patterns. The algorithm looks for clusters with similar descriptions and amounts (allowing for ~10% variation), but also captures variable bills if they follow a strict schedule. If an item is incorrectly identified, use the block icon to exclude it from future detection."
+                                : "These payments have been explicitly excluded from recurring payment detection. Restore them to allow the system to detect them as recurring payments again."
+                        }
+                    </Typography>
                     {error ? (
                         <Box sx={{ p: 4, textAlign: 'center', color: 'error.main' }}>Error: {error}</Box>
                     ) : (
@@ -506,7 +570,7 @@ const RecurringPaymentsView: React.FC = () => {
                                             </Box>
                                         )}
                                     />
-                                ) : (
+                                ) : activeTab === 1 ? (
                                     <Table
                                         rows={recurring}
                                         rowKey={(row) => `${row.name}-${row.month_count}`}
@@ -590,13 +654,62 @@ const RecurringPaymentsView: React.FC = () => {
                                             </Box>
                                         )}
                                     />
+                                ) : (
+                                    <Table
+                                        rows={exclusions}
+                                        rowKey={(row) => String(row.id)}
+                                        emptyMessage="No hidden payments found"
+                                        stickyHeader
+                                        maxHeight="none"
+                                        columns={[
+                                            { id: 'name', label: 'Name', format: (val) => <span style={{ fontWeight: 600 }}>{val}</span> },
+                                            {
+                                                id: 'account_number',
+                                                label: 'Account',
+                                                format: (_, row) => renderAccountInfo(row as any)
+                                            },
+                                            {
+                                                id: 'created_at',
+                                                label: 'Disabled On',
+                                                format: (val) => formatDate(val)
+                                            },
+                                            {
+                                                id: 'actions',
+                                                label: '',
+                                                align: 'right',
+                                                format: (_, row) => (
+                                                    <Tooltip title="Restore to recurring">
+                                                        <IconButton size="small" onClick={() => handleRestoreExclusion(row)} color="primary">
+                                                            <DeleteIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )
+                                            }
+                                        ]}
+                                        mobileCardRenderer={(row) => (
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Box>
+                                                    <Typography variant="subtitle2" fontWeight={700}>{row.name}</Typography>
+                                                    <Box sx={{ mt: 0.5 }}>
+                                                        {renderAccountInfo(row as any)}
+                                                    </Box>
+                                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                        Disabled: {formatDate(row.created_at)}
+                                                    </Typography>
+                                                </Box>
+                                                <IconButton size="small" onClick={() => handleRestoreExclusion(row)} color="primary">
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </Box>
+                                        )}
+                                    />
                                 )}
-                                {(loadingMore || (loading && (installments.length > 0 || recurring.length > 0))) && (
+                                {(loadingMore || (loading && (activeTab === 2 ? exclusions.length > 0 : (installments.length > 0 || recurring.length > 0)))) && (
                                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                                         <CircularProgress size={32} thickness={4} />
                                     </Box>
                                 )}
-                                {!(activeTab === 0 ? hasMoreInstallments : hasMoreRecurring) && (installments.length > 0 || recurring.length > 0) && (
+                                {!loading && activeTab !== 2 && !(activeTab === 0 ? hasMoreInstallments : hasMoreRecurring) && (installments.length > 0 || recurring.length > 0) && (
                                     <Box sx={{ p: 4, textAlign: 'center' }}>
                                         <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                                             That's all for now ✨

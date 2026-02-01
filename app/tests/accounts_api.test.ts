@@ -47,7 +47,8 @@ describe('Accounts API Endpoint', () => {
     describe('GET /api/accounts', () => {
         it('should return a list of accounts with balances', async () => {
             mockReq = {
-                method: 'GET'
+                method: 'GET',
+                query: {}
             };
 
             const mockRows = [

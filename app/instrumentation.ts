@@ -1,4 +1,8 @@
 
+if (typeof process !== 'undefined') {
+  process.env.TZ = 'UTC';
+}
+
 export async function register() {
   // Only run migrations on server startup (not during build or in edge runtime)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -145,7 +149,7 @@ export async function register() {
             }
 
             // Check if we already sent today
-            const today = now.toISOString().split('T')[0];
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const lastSentDate = typeof settings.whatsapp_last_sent_date === 'string'
               ? settings.whatsapp_last_sent_date.replace(/"/g, '')
               : '';
@@ -191,7 +195,8 @@ export async function register() {
 
             // Log failure to audit
             const errorMsg = (error as Error).message;
-            const todayDate = new Date().toISOString().split('T')[0];
+            const nowObj = new Date();
+            const todayDate = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
             await client.query(
               `INSERT INTO scrape_events (triggered_by, vendor, start_date, status, message, report_json)
                VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -264,7 +269,7 @@ export async function register() {
             }
 
             // Check if we already ran today
-            const today = now.toISOString().split('T')[0];
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const lastRunStr = typeof settings.sync_last_run_at === 'string'
               ? settings.sync_last_run_at.replace(/"/g, '')
               : '';

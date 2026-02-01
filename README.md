@@ -42,7 +42,8 @@ Managing finances across multiple Israeli banks and credit cards is a nightmare.
 
 See all your money in one place. Nudlers aggregates transactions from every Israeli bank and credit card into a single, beautiful interface.
 
-- **Multi-View Analytics** — Switch between Summary, Budget, Category, and Recurring Payment views
+- **Multi-View Analytics** — Switch between Summary, Budget, Category, Recurring Payment, and Balance Projection views
+- **Balance Forecasting** — Predict your future bank balance based on recurring payments and upcoming credit card charges
 - **Real-Time Sync** — Background syncing keeps your data fresh automatically
 - **Custom Billing Cycles** — Track spending by your credit card billing cycle, not just calendar months
 - **Installment Tracking** — Monitor ongoing installments with remaining payments and amounts
@@ -105,6 +106,16 @@ Set budgets by category and track them in real-time.
 - **Burndown Charts** — Daily spending vs. ideal pace visualization
 - **Historical Comparison** — Compare this month to previous months
 - **Overspend Alerts** — Get notified before you exceed limits
+ 
+### 📈 Smart Balance Projection
+
+Know your future balance before it happens. Nudlers projects your bank balance for the next 30 days.
+
+- **Predictive Analytics** — Combines current balances, detected recurring bank transactions, and upcoming credit card settlements.
+- **Visual Trends** — Interactive charts show your balance trajectory and highlight potential risks.
+- **Manual Overrides** — Add manual recurring payments (like rent or direct debits) that the system hasn't detected yet.
+- **Billing Cycle Awareness** — Intelligently accounts for Israeli credit card billing cycles and settlement dates.
+- **Negative Balance Alerts** — Visual indicators catch when your projected balance might drop below zero.
 
 ### 🔒 Bank-Grade Security
 
@@ -331,6 +342,7 @@ For Nudlers running on a remote server, NAS, or Docker container, replace the UR
 | `get_all_transactions` | Get all transactions for a time period |
 | `get_budgets` | Get budget vs actual spending comparison |
 | `get_recurring_payments` | List subscriptions and installment payments |
+| `get_balance_projection` | Get daily balance projection for the next 30 days |
 | `get_sync_status` | Check sync status for all connected accounts |
 | `list_accounts` | List all configured bank accounts and credit cards |
 | `add_manual_expense` | Add a manual expense or income transaction |

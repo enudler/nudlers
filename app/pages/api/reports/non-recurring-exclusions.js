@@ -19,9 +19,39 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       // List all exclusions
       const result = await client.query(`
-        SELECT id, name, account_number, created_at
-        FROM non_recurring_exclusions
-        ORDER BY created_at DESC
+        WITH account_details AS (
+          SELECT DISTINCT ON (account_number) 
+            account_number, 
+            vendor, 
+            transaction_type,
+            COALESCE(vendor_nickname, bank_nickname) as nickname
+          FROM (
+            SELECT 
+              t.account_number, 
+              t.vendor, 
+              t.transaction_type,
+              vc.nickname as vendor_nickname,
+              vc.nickname as bank_nickname
+            FROM transactions t
+            LEFT JOIN vendor_credentials vc ON (
+              (t.transaction_type = 'bank' AND t.account_number = vc.bank_account_number) OR
+              (t.transaction_type != 'bank' AND t.account_number = vc.card6_digits) -- Best effort join
+            )
+            WHERE t.account_number IS NOT NULL
+          ) src
+        )
+        SELECT
+          n.id,
+          n.name,
+          n.account_number,
+          n.created_at,
+          ad.vendor,
+          ad.nickname as bank_nickname, -- Reuse nickname field for display
+          n.account_number as bank_account_display,
+          COALESCE(ad.transaction_type, 'card') as transaction_type
+        FROM non_recurring_exclusions n
+        LEFT JOIN account_details ad ON n.account_number = ad.account_number
+        ORDER BY n.created_at DESC
       `);
 
       return res.status(200).json({

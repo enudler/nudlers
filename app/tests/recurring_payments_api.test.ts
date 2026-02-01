@@ -25,6 +25,7 @@ describe('Recurring Payments API', () => {
     let mockRes: {
         status: ReturnType<typeof vi.fn>;
         json: ReturnType<typeof vi.fn>;
+        setHeader: ReturnType<typeof vi.fn>;
     };
 
     beforeEach(() => {
@@ -39,7 +40,8 @@ describe('Recurring Payments API', () => {
 
         mockRes = {
             status: vi.fn().mockReturnThis(),
-            json: vi.fn().mockReturnThis()
+            json: vi.fn().mockReturnThis(),
+            setHeader: vi.fn()
         };
 
         mockReq = {
@@ -223,5 +225,15 @@ describe('Recurring Payments API', () => {
         expect(query).toContain('FROM non_recurring_exclusions');
         expect(query).toContain('NOT EXISTS');
         expect(query).toContain('LOWER(TRIM(t.name)) = e.name');
+    });
+
+    it('should return 405 for unsupported methods', async () => {
+        mockReq.method = 'POST';
+        await handler(mockReq, mockRes);
+
+        expect(mockRes.status).toHaveBeenCalledWith(405);
+        expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+            error: expect.stringContaining('Method POST not allowed')
+        }));
     });
 });
