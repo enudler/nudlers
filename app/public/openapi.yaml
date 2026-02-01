@@ -533,6 +533,7 @@ paths:
         - Current bank account balances
         - Recurring bank transactions (detected from history)
         - Future credit card settlements (based on processed_date)
+        - Manual recurring payments (user-defined)
       responses:
         '200':
           description: Projection data for the next 30 days
@@ -558,7 +559,12 @@ paths:
                         date:
                           type: string
                           format: date
-                        balance:
+                        balances:
+                          type: object
+                          additionalProperties:
+                            type: number
+                          description: Map of account number to balance for that day
+                        totalBalance:
                           type: number
                         dailyChange:
                           type: number
@@ -573,6 +579,10 @@ paths:
                                 type: number
                               category:
                                 type: string
+                              account_number:
+                                type: string
+                              is_manual:
+                                type: boolean
                         ccPayments:
                           type: array
                           items:
@@ -580,23 +590,42 @@ paths:
                             properties:
                               name:
                                 type: string
+                              displayName:
+                                type: string
                               amount:
                                 type: number
                               vendor:
                                 type: string
-                              category:
+                              account_number:
                                 type: string
+                              count:
+                                type: integer
                   accounts:
                     type: array
                     items:
                       type: object
                       properties:
+                        id:
+                          type: integer
                         account_number:
                           type: string
                         balance:
                           type: number
                         nickname:
                           type: string
+                        credential_id:
+                          type: integer
+                  accountMetadata:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        nickname:
+                          type: string
+                        account_number:
+                          type: string
+                        credential_id:
+                          type: integer
         '500':
           $ref: '#/components/responses/InternalError'
 
