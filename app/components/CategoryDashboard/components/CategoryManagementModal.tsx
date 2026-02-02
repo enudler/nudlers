@@ -991,26 +991,32 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                         }}
                       />
                       <IconButton
-                        size="small"
+                        size="medium"
                         onClick={(e) => openRenameDialog(category.name, e)}
-                        style={{
-                          padding: '4px',
-                          color: categoryColors[category.name] || '#3b82f6'
+                        sx={{
+                          padding: { xs: '8px', sm: '4px' },
+                          color: categoryColors[category.name] || '#3b82f6',
+                          '& .MuiSvgIcon-root': {
+                            fontSize: { xs: '20px', sm: '16px' }
+                          }
                         }}
                         title={`Rename "${category.name}"`}
                       >
-                        <EditIcon style={{ fontSize: '16px' }} />
+                        <EditIcon />
                       </IconButton>
                       <IconButton
-                        size="small"
+                        size="medium"
                         onClick={(e) => openDeleteDialog(category.name, e)}
-                        style={{
-                          padding: '4px',
-                          color: '#ef4444'
+                        sx={{
+                          padding: { xs: '8px', sm: '4px' },
+                          color: '#ef4444',
+                          '& .MuiSvgIcon-root': {
+                            fontSize: { xs: '20px', sm: '16px' }
+                          }
                         }}
                         title={`Delete "${category.name}"`}
                       >
-                        <DeleteIcon style={{ fontSize: '16px' }} />
+                        <DeleteIcon />
                       </IconButton>
                     </Box>
                   ))}
@@ -1139,15 +1145,27 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                               />
                               <IconButton
                                 onClick={() => setEditingRule(rule)}
-                                size="small"
-                                style={{ color: '#3b82f6' }}
+                                size="medium"
+                                sx={{
+                                  padding: { xs: '8px', sm: '4px' },
+                                  color: '#3b82f6',
+                                  '& .MuiSvgIcon-root': {
+                                    fontSize: { xs: '20px', sm: '16px' }
+                                  }
+                                }}
                               >
                                 <EditIcon />
                               </IconButton>
                               <IconButton
                                 onClick={() => handleDeleteRule(rule.id)}
-                                size="small"
-                                style={{ color: '#ef4444' }}
+                                size="medium"
+                                sx={{
+                                  padding: { xs: '8px', sm: '4px' },
+                                  color: '#ef4444',
+                                  '& .MuiSvgIcon-root': {
+                                    fontSize: { xs: '20px', sm: '16px' }
+                                  }
+                                }}
                               >
                                 <DeleteIcon />
                               </IconButton>
@@ -1161,69 +1179,66 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
               )}
             </Box>
 
-            {editingRule && (
-              <Box style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 9999
-              }}>
-                <Card style={{
-                  padding: '24px',
-                  maxWidth: '500px',
+            <Dialog
+              open={Boolean(editingRule)}
+              onClose={() => setEditingRule(null)}
+              PaperProps={{
+                sx: {
+                  borderRadius: '16px',
+                  padding: '8px',
                   width: '100%',
-                  margin: '16px',
-                  backgroundColor: theme.palette.background.paper,
-                }}>
-                  <Typography variant="h6" style={{ marginBottom: '16px' }}>Edit Rule</Typography>
-                  <Grid container spacing={2} style={{ marginBottom: '16px' }}>
-                    <Grid item xs={6}>
-                      <TextField
-                        fullWidth
-                        label="Transaction Name Pattern"
-                        value={editingRule.name_pattern}
-                        onChange={(e) => setEditingRule({ ...editingRule, name_pattern: e.target.value })}
-                        disabled={isLoading}
-                      />
-                    </Grid>
-                    <Grid item xs={6}>
-                      <TextField
-                        fullWidth
-                        label="Target Category"
-                        value={editingRule.target_category}
-                        onChange={(e) => setEditingRule({ ...editingRule, target_category: e.target.value })}
-                        disabled={isLoading}
-                      />
-                    </Grid>
-                  </Grid>
-                  <Box display="flex" gap="8px" justifyContent="flex-end">
-                    <Button
-                      onClick={() => setEditingRule(null)}
-                      style={{ color: theme.palette.text.secondary }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="contained"
-                      onClick={() => handleUpdateRule(editingRule)}
+                  maxWidth: '500px'
+                }
+              }}
+            >
+              <DialogTitle sx={{ fontWeight: 700 }}>Edit Rule</DialogTitle>
+              <DialogContent>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Transaction Name Pattern"
+                      value={editingRule?.name_pattern || ''}
+                      onChange={(e) => editingRule && setEditingRule({ ...editingRule, name_pattern: e.target.value })}
                       disabled={isLoading}
-                      style={{
-                        backgroundColor: '#3b82f6',
-                        color: 'white'
-                      }}
-                    >
-                      {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Update'}
-                    </Button>
-                  </Box>
-                </Card>
-              </Box>
-            )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Target Category"
+                      value={editingRule?.target_category || ''}
+                      onChange={(e) => editingRule && setEditingRule({ ...editingRule, target_category: e.target.value })}
+                      disabled={isLoading}
+                    />
+                  </Grid>
+                </Grid>
+              </DialogContent>
+              <DialogActions sx={{ p: 2, pt: 0 }}>
+                <Button
+                  onClick={() => setEditingRule(null)}
+                  sx={{ color: 'text.secondary', textTransform: 'none' }}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => editingRule && handleUpdateRule(editingRule)}
+                  disabled={isLoading}
+                  sx={{
+                    bgcolor: '#3b82f6',
+                    '&:hover': { bgcolor: '#2563eb' },
+                    borderRadius: '8px',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    px: 3
+                  }}
+                >
+                  {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Update'}
+                </Button>
+              </DialogActions>
+            </Dialog>
           </>
         )}
 
@@ -1751,158 +1766,142 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
             </Box>
           </>
         )}
-        {deletingCategory && (
-          <Box style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999
-          }}>
-            <Card style={{
-              padding: '24px',
-              maxWidth: '450px',
-              width: '100%',
-              margin: '16px',
+        <Dialog
+          open={Boolean(deletingCategory)}
+          onClose={() => {
+            setDeletingCategory(null);
+            setDeleteOptions({ deleteRules: true, deleteBudget: true });
+          }}
+          PaperProps={{
+            sx: {
               borderRadius: '16px',
-              backgroundColor: theme.palette.background.paper
-            }}>
-              <Typography variant="h6" style={{ marginBottom: '8px', fontWeight: 600, color: '#ef4444' }}>
-                Delete Category
-              </Typography>
-              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '20px' }}>
-                Are you sure you want to delete "{deletingCategory}"? All transactions with this category will become uncategorized.
-              </Typography>
-
-              <Box style={{ marginBottom: '20px' }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={deleteOptions.deleteRules}
-                      onChange={(e) => setDeleteOptions({ ...deleteOptions, deleteRules: e.target.checked })}
-                      disabled={isLoading}
-                    />
-                  }
-                  label={<Typography variant="body2">Also delete categorization rules targeting this category</Typography>}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={deleteOptions.deleteBudget}
-                      onChange={(e) => setDeleteOptions({ ...deleteOptions, deleteBudget: e.target.checked })}
-                      disabled={isLoading}
-                    />
-                  }
-                  label={<Typography variant="body2">Also delete budget for this category</Typography>}
-                />
-              </Box>
-
-              <Box display="flex" gap="8px" justifyContent="flex-end">
-                <Button
-                  onClick={() => {
-                    setDeletingCategory(null);
-                    setDeleteOptions({ deleteRules: true, deleteBudget: true });
-                  }}
-                  style={{ color: theme.palette.text.secondary, textTransform: 'none' }}
-                  disabled={isLoading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={handleDeleteCategory}
-                  disabled={isLoading}
-                  style={{
-                    backgroundColor: '#ef4444',
-                    color: 'white',
-                    borderRadius: '8px',
-                    textTransform: 'none',
-                    fontWeight: 600
-                  }}
-                >
-                  {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Delete Category'}
-                </Button>
-              </Box>
-            </Card>
-          </Box>
-        )}
+              padding: '8px',
+              width: '100%',
+              maxWidth: '450px'
+            }
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 700, color: '#ef4444' }}>Delete Category</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Are you sure you want to delete "{deletingCategory}"? All transactions with this category will become uncategorized.
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={deleteOptions.deleteRules}
+                    onChange={(e) => setDeleteOptions({ ...deleteOptions, deleteRules: e.target.checked })}
+                    disabled={isLoading}
+                  />
+                }
+                label={<Typography variant="body2">Also delete categorization rules targeting this category</Typography>}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={deleteOptions.deleteBudget}
+                    onChange={(e) => setDeleteOptions({ ...deleteOptions, deleteBudget: e.target.checked })}
+                    disabled={isLoading}
+                  />
+                }
+                label={<Typography variant="body2">Also delete budget for this category</Typography>}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, pt: 0 }}>
+            <Button
+              onClick={() => {
+                setDeletingCategory(null);
+                setDeleteOptions({ deleteRules: true, deleteBudget: true });
+              }}
+              sx={{ color: 'text.secondary', textTransform: 'none' }}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleDeleteCategory}
+              disabled={isLoading}
+              sx={{
+                bgcolor: '#ef4444',
+                '&:hover': { bgcolor: '#dc2626' },
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3
+              }}
+            >
+              {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Rename Category Dialog */}
-        {renamingCategory && (
-          <Box style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999
-          }}>
-            <Card style={{
-              padding: '24px',
-              maxWidth: '400px',
-              width: '100%',
-              margin: '16px',
+        <Dialog
+          open={Boolean(renamingCategory)}
+          onClose={() => {
+            setRenamingCategory(null);
+            setRenameNewName('');
+          }}
+          PaperProps={{
+            sx: {
               borderRadius: '16px',
-              backgroundColor: theme.palette.background.paper
-            }}>
-              <Typography variant="h6" style={{ marginBottom: '8px', fontWeight: 600 }}>
-                Rename Category
-              </Typography>
-              <Typography variant="body2" color={theme.palette.text.secondary} style={{ marginBottom: '20px' }}>
-                Rename "{renamingCategory}" to a new name. All transactions with this category will be updated.
-              </Typography>
-              <TextField
-                fullWidth
-                label="New Category Name"
-                value={renameNewName}
-                onChange={(e) => setRenameNewName(e.target.value)}
-                disabled={isLoading}
-                autoFocus
-                style={{ marginBottom: '20px' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && renameNewName.trim() && renameNewName.trim() !== renamingCategory) {
-                    handleRenameCategory();
-                  }
-                }}
-              />
-              <Box display="flex" gap="8px" justifyContent="flex-end">
-                <Button
-                  onClick={() => {
-                    setRenamingCategory(null);
-                    setRenameNewName('');
-                  }}
-                  style={{ color: theme.palette.text.secondary, textTransform: 'none' }}
-                  disabled={isLoading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={handleRenameCategory}
-                  disabled={isLoading || !renameNewName.trim() || renameNewName.trim() === renamingCategory}
-                  style={{
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    borderRadius: '8px',
-                    textTransform: 'none',
-                    fontWeight: 600
-                  }}
-                >
-                  {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Rename'}
-                </Button>
-              </Box>
-            </Card>
-          </Box>
-        )}
+              padding: '8px',
+              width: '100%',
+              maxWidth: '400px'
+            }
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 700 }}>Rename Category</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Rename "{renamingCategory}" to a new name. All transactions with this category will be updated.
+            </Typography>
+            <TextField
+              fullWidth
+              label="New Category Name"
+              value={renameNewName}
+              onChange={(e) => setRenameNewName(e.target.value)}
+              disabled={isLoading}
+              autoFocus
+              sx={{ mt: 1 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && renameNewName.trim() && renameNewName.trim() !== renamingCategory) {
+                  handleRenameCategory();
+                }
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 2, pt: 0 }}>
+            <Button
+              onClick={() => {
+                setRenamingCategory(null);
+                setRenameNewName('');
+              }}
+              sx={{ color: 'text.secondary', textTransform: 'none' }}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleRenameCategory}
+              disabled={isLoading || !renameNewName.trim() || renameNewName.trim() === renamingCategory}
+              sx={{
+                bgcolor: '#3b82f6',
+                '&:hover': { bgcolor: '#2563eb' },
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3
+              }}
+            >
+              {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Rename'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </DialogContent>
 
       <DialogActions style={{ padding: '16px 24px 24px 24px' }}>

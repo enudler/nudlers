@@ -389,6 +389,16 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 getCardVendor={getCardVendor}
                 getCardNickname={getCardNickname}
                 showDate={!groupByDate}
+                isEditing={editingTransaction?.identifier === transaction.identifier}
+                editCategory={editCategory}
+                setEditCategory={setEditCategory}
+                availableCategories={availableCategories}
+                applyToAll={applyToAll}
+                setApplyToAll={setApplyToAll}
+                editPrice={editPrice}
+                setEditPrice={setEditPrice}
+                onSave={handleSaveClick}
+                onCancel={handleCancelClick}
               />
             )}
           />
@@ -420,6 +430,16 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         getCardVendor={getCardVendor}
                         getCardNickname={getCardNickname}
                         showDate={false}
+                        isEditing={editingTransaction?.identifier === transaction.identifier}
+                        editCategory={editCategory}
+                        setEditCategory={setEditCategory}
+                        availableCategories={availableCategories}
+                        applyToAll={applyToAll}
+                        setApplyToAll={setApplyToAll}
+                        editPrice={editPrice}
+                        setEditPrice={setEditPrice}
+                        onSave={handleSaveClick}
+                        onCancel={handleCancelClick}
                       />
                     ))}
                   </Box>
@@ -436,6 +456,16 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   getCardVendor={getCardVendor}
                   getCardNickname={getCardNickname}
                   showDate={true}
+                  isEditing={editingTransaction?.identifier === transaction.identifier}
+                  editCategory={editCategory}
+                  setEditCategory={setEditCategory}
+                  availableCategories={availableCategories}
+                  applyToAll={applyToAll}
+                  setApplyToAll={setApplyToAll}
+                  editPrice={editPrice}
+                  setEditPrice={setEditPrice}
+                  onSave={handleSaveClick}
+                  onCancel={handleCancelClick}
                 />
               ))
             )}
@@ -957,6 +987,16 @@ interface TransactionMobileCardProps {
   getCardVendor: (accountNumber: string | undefined | null) => string | null;
   getCardNickname: (accountNumber: string | undefined | null) => string | null | undefined;
   showDate?: boolean;
+  isEditing?: boolean;
+  editCategory?: string;
+  setEditCategory?: (val: string) => void;
+  availableCategories?: string[];
+  applyToAll?: boolean;
+  setApplyToAll?: (val: boolean) => void;
+  editPrice?: string;
+  setEditPrice?: (val: string) => void;
+  onSave?: () => void;
+  onCancel?: () => void;
 }
 
 // Card content component for MobileSortableTable (without Paper wrapper)
@@ -967,7 +1007,17 @@ const TransactionMobileCardContent = ({
   onDelete,
   getCardVendor,
   getCardNickname,
-  showDate
+  showDate,
+  isEditing,
+  editCategory,
+  setEditCategory,
+  availableCategories,
+  applyToAll,
+  setApplyToAll,
+  editPrice,
+  setEditPrice,
+  onSave,
+  onCancel
 }: TransactionMobileCardProps) => {
   const displayAmount = Math.abs(transaction.price);
 
@@ -991,45 +1041,76 @@ const TransactionMobileCardContent = ({
             </Typography>
           )}
         </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{
-            fontWeight: 800,
-            color: transaction.price < 0 ? '#ef4444' : '#10b981',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          {transaction.price < 0 ? '-' : '+'}₪{formatNumber(displayAmount)}
-        </Typography>
+        {isEditing ? (
+          <TextField
+            value={editPrice}
+            onChange={(e) => setEditPrice?.(e.target.value)}
+            size="small"
+            type="number"
+            autoFocus
+            sx={{
+              width: '100px',
+              '& .MuiInputBase-input': {
+                fontWeight: 800,
+                fontSize: '14px',
+                color: transaction.price < 0 ? '#ef4444' : '#10b981',
+                textAlign: 'right',
+                py: 0.5
+              }
+            }}
+          />
+        ) : (
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 800,
+              color: transaction.price < 0 ? '#ef4444' : '#10b981',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {transaction.price < 0 ? '-' : '+'}₪{formatNumber(displayAmount)}
+          </Typography>
+        )}
       </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span
-            style={{
-              padding: '2px 8px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              color: '#3b82f6',
-              fontSize: '11px',
-              fontWeight: 600
-            }}
-          >
-            {transaction.category}
-          </span>
-          {transaction.installments_total && transaction.installments_total > 1 && (
-            <span style={{
-              color: '#6366f1',
-              fontSize: '10px',
-              fontWeight: '600',
-              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-              padding: '2px 6px',
-              borderRadius: '4px'
-            }}>
-              {transaction.installments_number}/{transaction.installments_total}
+        <Box sx={{ flex: 1 }}>
+          {isEditing ? (
+            <CategoryAutocomplete
+              value={editCategory || ''}
+              onChange={setEditCategory || (() => { })}
+              options={availableCategories || []}
+              applyToAll={applyToAll || false}
+              onApplyToAllChange={setApplyToAll || (() => { })}
+              showApplyToAll={editCategory !== transaction.category}
+            />
+          ) : (
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                color: '#3b82f6',
+                fontSize: '11px',
+                fontWeight: 600
+              }}
+            >
+              {transaction.category}
             </span>
           )}
         </Box>
+        {transaction.installments_total && transaction.installments_total > 1 && !isEditing && (
+          <span style={{
+            color: '#6366f1',
+            fontSize: '10px',
+            fontWeight: '600',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            padding: '2px 6px',
+            borderRadius: '4px'
+          }}>
+            {transaction.installments_number}/{transaction.installments_total}
+          </span>
+        )}
         {transaction.original_currency && !['ILS', '₪', 'NIS'].includes(transaction.original_currency) && transaction.original_amount && (
           <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
             {getCurrencySymbol(transaction.original_currency)}{formatNumber(Math.abs(transaction.original_amount))}
@@ -1045,12 +1126,25 @@ const TransactionMobileCardContent = ({
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(); }} sx={{ color: theme.palette.primary.main }}>
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDelete(); }} sx={{ color: theme.palette.error.main }}>
-            <DeleteIcon fontSize="small" />
-          </IconButton>
+          {isEditing ? (
+            <>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onSave?.(); }} sx={{ color: '#10b981' }}>
+                <CheckIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onCancel?.(); }} sx={{ color: '#ef4444' }}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(); }} sx={{ color: theme.palette.primary.main }}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDelete(); }} sx={{ color: theme.palette.error.main }}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </>
+          )}
         </Box>
       </Box>
     </Box>
@@ -1064,7 +1158,17 @@ const TransactionMobileCard = ({
   onDelete,
   getCardVendor,
   getCardNickname,
-  showDate
+  showDate,
+  isEditing,
+  editCategory,
+  setEditCategory,
+  availableCategories,
+  applyToAll,
+  setApplyToAll,
+  editPrice,
+  setEditPrice,
+  onSave,
+  onCancel
 }: TransactionMobileCardProps) => {
   const displayAmount = Math.abs(transaction.price);
 
@@ -1083,82 +1187,33 @@ const TransactionMobileCard = ({
       sx={{
         p: 2,
         borderRadius: '16px',
-        border: `1px solid ${theme.palette.divider}`,
-        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+        border: `1px solid ${isEditing ? theme.palette.primary.main : theme.palette.divider}`,
+        background: isEditing
+          ? (theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)')
+          : (theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)'),
         backdropFilter: 'blur(10px)',
+        transition: 'all 0.2s ease-in-out'
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1, mr: 1 }}>
-          {transaction.name}
-          {showDate && (
-            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
-              {dateUtils.formatDate(transaction.date)}
-            </Typography>
-          )}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{
-            fontWeight: 800,
-            color: transaction.price < 0 ? '#ef4444' : '#10b981',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          {transaction.price < 0 ? '-' : '+'}₪{formatNumber(displayAmount)}
-        </Typography>
-      </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span
-            style={{
-              padding: '2px 8px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              color: '#3b82f6',
-              fontSize: '11px',
-              fontWeight: 600
-            }}
-          >
-            {transaction.category}
-          </span>
-          {transaction.installments_total && transaction.installments_total > 1 && (
-            <span style={{
-              color: '#6366f1',
-              fontSize: '10px',
-              fontWeight: '600',
-              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-              padding: '2px 6px',
-              borderRadius: '4px'
-            }}>
-              {transaction.installments_number}/{transaction.installments_total}
-            </span>
-          )}
-        </Box>
-        {transaction.original_currency && !['ILS', '₪', 'NIS'].includes(transaction.original_currency) && transaction.original_amount && (
-          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-            {getCurrencySymbol(transaction.original_currency)}{formatNumber(Math.abs(transaction.original_amount))}
-          </Typography>
-        )}
-      </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CardVendorIcon vendor={getCardVendor(transaction.account_number)} size={18} />
-          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
-            {getCardNickname(transaction.account_number) || (transaction.account_number ? `•••• ${transaction.account_number.slice(-4)}` : 'Card')}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <IconButton size="small" onClick={onEdit} sx={{ color: theme.palette.primary.main }}>
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" onClick={onDelete} sx={{ color: theme.palette.error.main }}>
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      </Box>
+      <TransactionMobileCardContent
+        transaction={transaction}
+        theme={theme}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        getCardVendor={getCardVendor}
+        getCardNickname={getCardNickname}
+        showDate={showDate}
+        isEditing={isEditing}
+        editCategory={editCategory}
+        setEditCategory={setEditCategory}
+        availableCategories={availableCategories}
+        applyToAll={applyToAll}
+        setApplyToAll={setApplyToAll}
+        editPrice={editPrice}
+        setEditPrice={setEditPrice}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
     </Paper>
   );
 };
