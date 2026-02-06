@@ -10,7 +10,7 @@ export const pool = new Pool({
   host: process.env.NUDLERS_DB_HOST,
   database: process.env.NUDLERS_DB_NAME,
   password: process.env.NUDLERS_DB_PASSWORD,
-  port: process.env.NUDLERS_DB_PORT ? parseInt(process.env.NUDLERS_DB_PORT) : 5432,
+  port: process.env.NUDLERS_DB_PORT ? parseInt(process.env.NUDLERS_DB_PORT, 10) : 5432,
   ssl: false,
   // Pool settings from centralized resource config (respects RESOURCE_MODE and env overrides)
   ...dbConfig,

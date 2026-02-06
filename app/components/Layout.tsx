@@ -1,23 +1,29 @@
 import React, { useState, createContext, useContext, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { DateSelectionProvider } from "../context/DateSelectionContext";
 import ResponsiveAppBar from "./menu";
 import { NotificationProvider } from "./NotificationContext";
-import MonthlySummary from "./MonthlySummary";
-import BudgetDashboard from "./BudgetDashboard";
-import AIAssistant from "./AIAssistant";
-import ScrapeAuditView from "./ScrapeAuditView";
-import RecurringPaymentsView from "./RecurringPaymentsView";
-import ChatView from "./ChatView";
 import DatabaseErrorScreen from "./DatabaseErrorScreen";
-import DesignSystemShowcase from "./DesignSystemShowcase";
+import ErrorBoundary from "./ErrorBoundary";
 import Footer from "./Footer";
-import BreakdownView from "./BreakdownView";
-import ProjectionView from "./ProjectionView";
 import { Box, useMediaQuery, useTheme } from "@mui/material";
 import { StatusProvider, useStatus } from "../context/StatusContext";
 import { AIProvider, useAI } from "../context/AIContext";
-import { DRAWER_WIDTH } from "./AIAssistant";
 import GlobalEasterEggManager from "./NumberEasterEgg";
+
+// Duplicated from AIAssistant to avoid importing the full module eagerly
+const DRAWER_WIDTH = 400;
+
+// Lazy load view components - only loaded when the user navigates to them
+const MonthlySummary = dynamic(() => import("./MonthlySummary"), { ssr: false });
+const BudgetDashboard = dynamic(() => import("./BudgetDashboard"), { ssr: false });
+const AIAssistant = dynamic(() => import("./AIAssistant"), { ssr: false });
+const ScrapeAuditView = dynamic(() => import("./ScrapeAuditView"), { ssr: false });
+const RecurringPaymentsView = dynamic(() => import("./RecurringPaymentsView"), { ssr: false });
+const ChatView = dynamic(() => import("./ChatView"), { ssr: false });
+const DesignSystemShowcase = dynamic(() => import("./DesignSystemShowcase"), { ssr: false });
+const BreakdownView = dynamic(() => import("./BreakdownView"), { ssr: false });
+const ProjectionView = dynamic(() => import("./ProjectionView"), { ssr: false });
 
 type ViewType = 'dashboard' | 'summary' | 'budget' | 'chat' | 'audit' | 'recurring' | 'design' | 'breakdown' | 'projection';
 
@@ -244,7 +250,9 @@ const LayoutContent: React.FC<{
             }}
             className="main-content"
           >
-            {renderView()}
+            <ErrorBoundary>
+              {renderView()}
+            </ErrorBoundary>
           </Box>
           {currentView !== 'chat' && <Footer />}
           <AIAssistant screenContext={screenContext} />

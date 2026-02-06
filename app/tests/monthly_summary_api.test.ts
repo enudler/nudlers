@@ -79,10 +79,14 @@ describe('Monthly Summary API Endpoint', () => {
             expect(mockClient.query).toHaveBeenCalledTimes(1);
             const [sql] = mockClient.query.mock.calls[0];
 
-            // Should exclude bank vendors
-            expect(sql).toContain('t.vendor NOT IN');
-            expect(sql).toContain('\'hapoalim\'');
-            expect(sql).toContain('\'leumi\'');
+            // Should exclude bank vendors using parameterized array
+            expect(sql).toContain('t.vendor != ALL(');
+            // Verify bank vendors are passed as a parameter
+            const [, queryParams] = mockClient.query.mock.calls[0];
+            const bankVendorsParam = queryParams.find((p: any) => Array.isArray(p));
+            expect(bankVendorsParam).toBeDefined();
+            expect(bankVendorsParam).toContain('hapoalim');
+            expect(bankVendorsParam).toContain('leumi');
 
             // IMPORTANT: Should NOT contain category filtering (user requirement)
             expect(sql).not.toContain('category NOT IN');

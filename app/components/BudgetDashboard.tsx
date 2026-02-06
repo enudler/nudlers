@@ -62,13 +62,15 @@ interface TotalSpendBudget {
 
 
 
+const currencyFormatter = new Intl.NumberFormat('he-IL', {
+  style: 'currency',
+  currency: 'ILS',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+});
+
 const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('he-IL', {
-    style: 'currency',
-    currency: 'ILS',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
+  return currencyFormatter.format(amount);
 };
 
 const BudgetDashboard: React.FC = () => {

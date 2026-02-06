@@ -25,13 +25,13 @@ export function createApiHandler({ query, validate, transform }) {
       const result = await client.query(sql, params);
       const data = transform ? await transform(result, req) : result.rows;
 
+      if (req.method === 'GET' && res.setHeader) {
+        res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+      }
       res.status(200).json(data);
     } catch (error) {
       logger.error({ error: error.message, stack: error.stack }, "Error executing query");
-      res.status(500).json({ 
-        error: "Internal Server Error", 
-        details: error.message 
-      });
+      res.status(500).json({ error: "Internal Server Error" });
     } finally {
       client.release();
     }

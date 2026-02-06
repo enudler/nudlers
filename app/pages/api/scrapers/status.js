@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const accountsResult = await client.query(
       `SELECT COUNT(*) as count FROM vendor_credentials WHERE is_active = true`
     );
-    const activeAccounts = parseInt(accountsResult.rows[0].count);
+    const activeAccounts = parseInt(accountsResult.rows[0].count, 10);
 
     // Get the most recent scrape event
     const latestScrapeResult = await client.query(`
@@ -105,8 +105,8 @@ export default async function handler(req, res) {
       syncHealth,
       settings: {
         enabled: settings.sync_enabled === true || settings.sync_enabled === 'true',
-        syncHour: parseInt(settings.sync_hour) || 3,
-        daysBack: parseInt(settings.sync_days_back) || 30
+        syncHour: parseInt(settings.sync_hour, 10) || 3,
+        daysBack: parseInt(settings.sync_days_back, 10) || 30
       },
       activeAccounts,
       latestScrape,
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Sync status error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal Server Error' });
   } finally {
     client.release();
   }

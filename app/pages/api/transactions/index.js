@@ -2,11 +2,8 @@ import { createApiHandler } from "../utils/apiHandler";
 import { decrypt } from "../utils/encryption";
 import { getDB } from "../db";
 import { getBillingCycleSql } from "../../../utils/transaction_logic";
-
-// Known bank vendors for filtering
-const STANDARD_BANK_VENDORS = ['hapoalim', 'poalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'fibi', 'jerusalem', 'onezero', 'pepper'];
-const BEINLEUMI_GROUP_VENDORS = ['otsarHahayal', 'otsar_hahayal', 'beinleumi', 'massad', 'pagi'];
-const BANK_VENDORS = [...STANDARD_BANK_VENDORS, ...BEINLEUMI_GROUP_VENDORS];
+import { BANK_VENDORS } from "../../../utils/constants";
+import logger from '../../../utils/logger.js';
 
 const handler = async (req, res) => {
     if (req.method === 'GET') {
@@ -47,6 +44,15 @@ const addManualTransaction = async (req, res) => {
     if (!date) {
         return res.status(400).json({ error: 'date is required (YYYY-MM-DD format)' });
     }
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ error: 'date must be a valid date (YYYY-MM-DD format)' });
+    }
+
+    const finalPrice = Number(price);
+    if (!isFinite(finalPrice)) {
+        return res.status(400).json({ error: 'price must be a finite number' });
+    }
 
     const client = await getDB();
     try {
@@ -55,8 +61,7 @@ const addManualTransaction = async (req, res) => {
         const randomSuffix = Math.random().toString(36).substring(2, 8);
         const identifier = `manual_${timestamp}_${randomSuffix}`;
 
-        const transactionDate = new Date(date).toISOString().split('T')[0];
-        const finalPrice = Number(price);
+        const transactionDate = parsedDate.toISOString().split('T')[0];
         const finalCategory = category || null;
         const finalAccountNumber = accountNumber || 'manual';
         const transactionType = BANK_VENDORS.some(v => vendor.toLowerCase().includes(v)) ? 'bank' : 'credit_card';
@@ -89,8 +94,8 @@ const addManualTransaction = async (req, res) => {
             message: `Manual transaction "${name.trim()}" added successfully`
         });
     } catch (error) {
-        console.error('Error adding manual transaction:', error);
-        res.status(500).json({ error: error.message });
+        logger.error({ error: error.message, stack: error.stack }, 'Error adding manual transaction');
+        res.status(500).json({ error: 'Failed to add transaction' });
     } finally {
         client.release();
     }
@@ -156,7 +161,8 @@ const getTransactions = createApiHandler({
             try {
                 const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
                 if (settingsResult.rows.length > 0) {
-                    billingStartDay = parseInt(settingsResult.rows[0].value);
+                    const parsed = parseInt(settingsResult.rows[0].value, 10);
+                    if (!isNaN(parsed)) billingStartDay = parsed;
                 }
             } finally {
                 client.release();
@@ -179,7 +185,8 @@ const getTransactions = createApiHandler({
             try {
                 const settingsResult = await client.query("SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'");
                 if (settingsResult.rows.length > 0) {
-                    billingStartDay = parseInt(settingsResult.rows[0].value);
+                    const parsed = parseInt(settingsResult.rows[0].value, 10);
+                    if (!isNaN(parsed)) billingStartDay = parsed;
                 }
             } finally {
                 client.release();
@@ -246,8 +253,13 @@ const getTransactions = createApiHandler({
         }
 
         // 5. Bank Account specific filters (supporting transactions_by_bank_account logic)
+        let bankAccountParamIndex = null;
         if (bankAccountId && bankAccountId !== 'null') {
-            const bankId = parseInt(bankAccountId);
+            const bankId = parseInt(bankAccountId, 10);
+            if (isNaN(bankId)) {
+                throw new Error('bankAccountId must be a valid number');
+            }
+            bankAccountParamIndex = paramIndex;
             conditions.push(`(
                 (co.credential_id = $${paramIndex}) OR
                 (co.linked_bank_account_id = $${paramIndex})
@@ -263,8 +275,8 @@ const getTransactions = createApiHandler({
         const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'date';
         const sortDir = sortOrder?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-        const limitVal = parseInt(limit) || 100;
-        const offsetVal = parseInt(offset) || 0;
+        const limitVal = parseInt(limit, 10) || 100;
+        const offsetVal = parseInt(offset, 10) || 0;
         params.push(limitVal, offsetVal);
         const limitParam = `$${paramIndex}`;
         const offsetParam = `$${paramIndex + 1}`;
@@ -296,7 +308,7 @@ const getTransactions = createApiHandler({
         FROM transactions t
         LEFT JOIN card_ownership co ON t.vendor = co.vendor AND t.account_number = co.account_number
         LEFT JOIN vendor_credentials vc ON co.credential_id = vc.id
-        LEFT JOIN vendor_credentials ba ON ba.id = ${bankAccountId && bankAccountId !== 'null' ? `$${params.indexOf(parseInt(bankAccountId)) + 1}` : 'NULL'}
+        LEFT JOIN vendor_credentials ba ON ba.id = ${bankAccountParamIndex ? `$${bankAccountParamIndex}` : 'NULL'}
         ${whereClause}
         ORDER BY t.${sortCol} ${sortDir}, t.identifier, t.vendor
         LIMIT ${limitParam}
@@ -308,10 +320,13 @@ const getTransactions = createApiHandler({
     transform: (result, req) => {
         if (req.query.summary === 'true') {
             const row = result.rows[0];
+            if (!row) {
+                return { categories: 0, nonMapped: 0, allTransactions: 0, lastMonth: '-' };
+            }
             return {
-                categories: parseInt(row.categories_count) || 0,
-                nonMapped: parseInt(row.non_mapped_count) || 0,
-                allTransactions: parseInt(row.all_transactions_count) || 0,
+                categories: parseInt(row.categories_count, 10) || 0,
+                nonMapped: parseInt(row.non_mapped_count, 10) || 0,
+                allTransactions: parseInt(row.all_transactions_count, 10) || 0,
                 lastMonth: row.last_month_data || '-'
             };
         }
@@ -345,20 +360,41 @@ const getTransactions = createApiHandler({
 
 /**
  * DELETE /api/transactions
- * Delete all transactions (internal use, requires confirmation)
+ * Delete all transactions (internal use, requires confirmation + rate limited)
  */
+// In-memory rate limiter for destructive operations
+const destructiveOpTimestamps = [];
+const DESTRUCTIVE_OP_LIMIT = 3; // max calls
+const DESTRUCTIVE_OP_WINDOW_MS = 60 * 60 * 1000; // per hour
+
 const deleteAllTransactions = async (req, res) => {
     const { confirm } = req.body;
     if (!confirm) {
         return res.status(400).json({ error: "Confirmation is required to delete all transactions" });
     }
 
+    // Rate limit: max N destructive operations per hour
+    const now = Date.now();
+    // Clean old entries
+    while (destructiveOpTimestamps.length > 0 && now - destructiveOpTimestamps[0] > DESTRUCTIVE_OP_WINDOW_MS) {
+        destructiveOpTimestamps.shift();
+    }
+    if (destructiveOpTimestamps.length >= DESTRUCTIVE_OP_LIMIT) {
+        logger.warn('Rate limit exceeded for delete-all-transactions');
+        return res.status(429).json({ error: 'Too many destructive operations. Try again later.' });
+    }
+    destructiveOpTimestamps.push(now);
+
+    logger.warn('Delete all transactions requested');
+
     const client = await getDB();
     try {
         await client.query('DELETE FROM transactions');
+        logger.warn('All transactions deleted successfully');
         res.status(200).json({ success: true, message: 'All transactions deleted' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        logger.error({ error: error.message, stack: error.stack }, 'Error deleting all transactions');
+        res.status(500).json({ error: 'Failed to delete transactions' });
     } finally {
         client.release();
     }

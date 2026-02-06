@@ -1,4 +1,5 @@
 import { createApiHandler } from "../utils/apiHandler";
+import { ALL_VENDORS } from "../../../utils/constants";
 
 /**
  * Transactions CRUD by ID
@@ -27,6 +28,12 @@ const handler = createApiHandler({
 
     if (!identifier || !vendor) {
       throw new Error('Invalid ID format. Expected: identifier|vendor');
+    }
+
+    // Validate vendor against known vendors (plus 'manual' for user-created transactions)
+    const validVendors = [...ALL_VENDORS, 'manual'];
+    if (!validVendors.includes(vendor)) {
+      throw new Error('Invalid vendor');
     }
 
     if (req.method === 'GET') {

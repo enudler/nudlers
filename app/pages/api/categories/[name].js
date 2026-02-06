@@ -101,7 +101,7 @@ export default async function handler(req, res) {
     } catch (error) {
         await client.query('ROLLBACK');
         logger.error({ error: error.message, stack: error.stack }, `Error in categories API for ${categoryName}`);
-        res.status(500).json({ error: "Internal Server Error", details: error.message });
+        res.status(500).json({ error: "Internal Server Error" });
     } finally {
         client.release();
     }

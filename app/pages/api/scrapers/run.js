@@ -249,13 +249,14 @@ async function handler(req, res) {
         const currentDuration = Math.floor((new Date() - startTime) / 1000);
         await updateScrapeAudit(client, auditId, 'failed', error instanceof Error ? error.message : 'Unknown error', null, attempt, currentDuration);
       } catch (e) {
-        // noop - avoid masking original error
+        logger.warn({ error: e.message }, 'Failed to update scrape audit after error');
       }
     }
 
+    const durationSeconds = Math.floor((new Date() - startTime) / 1000);
     res.status(500).json({
       message: 'Scraping failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: 'Scraping failed. Check server logs for details.',
       durationSeconds
     });
   } finally {

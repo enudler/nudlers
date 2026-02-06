@@ -835,8 +835,9 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   const globalTimeoutMs = options.timeout || DEFAULT_SCRAPER_TIMEOUT;
 
   const scrapePromise = scraper.scrape(credentials);
+  let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       reject(new Error(`Scraping timed out after ${globalTimeoutMs}ms (full process limit reached)`));
     }, globalTimeoutMs);
   });
@@ -844,6 +845,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
   try {
     // Race between the scrape process and the global timeout
     const result = await Promise.race([scrapePromise, timeoutPromise]);
+    clearTimeout(timeoutId);
     logger.info({ success: result?.success }, '[Scraper] Base scrape completed');
 
     if (result.success && result.accounts && !Array.isArray(result.accounts)) {
@@ -973,7 +975,7 @@ export async function runScraper(client, scraperOptions, credentials, onProgress
     clearActiveSession();
     return result;
   } catch (err) {
-    // ... existing error handling ...
+    clearTimeout(timeoutId);
     logger.error({
       error: err.message,
       stack: err.stack,
@@ -1017,18 +1019,18 @@ export async function getScraperTimeout(client) {
   if (result.rows.length === 0 || result.rows[0].value === null || result.rows[0].value === undefined || result.rows[0].value === '') {
     return DEFAULT_SCRAPER_TIMEOUT;
   }
-  const val = parseInt(result.rows[0].value);
+  const val = parseInt(result.rows[0].value, 10);
   return isNaN(val) ? DEFAULT_SCRAPER_TIMEOUT : val;
 }
 
 export async function getBillingCycleStartDay(client) {
   const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.BILLING_CYCLE_START_DAY]);
-  return result.rows.length > 0 ? parseInt(result.rows[0].value) || 10 : 10;
+  return result.rows.length > 0 ? parseInt(result.rows[0].value, 10) || 10 : 10;
 }
 
 export async function getScrapeRetries(client) {
   const result = await client.query(FETCH_SETTING_SQL, [APP_SETTINGS_KEYS.SCRAPE_RETRIES]);
-  const value = result.rows.length > 0 ? parseInt(result.rows[0].value) : DEFAULT_SCRAPE_RETRIES;
+  const value = result.rows.length > 0 ? parseInt(result.rows[0].value, 10) : DEFAULT_SCRAPE_RETRIES;
 
   // Validate: must be >= 0 and <= 10 (reasonable upper limit)
   if (isNaN(value) || value < 0) {

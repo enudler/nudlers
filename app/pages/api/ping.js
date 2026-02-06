@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     res.status(200).json({ status: 'ok' });
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Ping check failed');
-    res.status(500).json({ status: 'error', error: error.message });
+    res.status(500).json({ status: 'error', error: 'Database connection failed' });
   } finally {
     client.release();
   }

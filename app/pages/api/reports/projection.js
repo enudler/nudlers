@@ -122,7 +122,7 @@ export default async function handler(req, res) {
         });
     } catch (error) {
         logger.error({ error: error.message, stack: error.stack }, "Error generating projection");
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         client.release();
     }

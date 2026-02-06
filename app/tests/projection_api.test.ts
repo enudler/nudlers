@@ -93,6 +93,6 @@ describe('Projection API', () => {
         await handler(mockReq, mockRes);
 
         expect(mockRes.status).toHaveBeenCalledWith(500);
-        expect(mockRes.json).toHaveBeenCalledWith({ error: 'DB Fail' });
+        expect(mockRes.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
     });
 });
