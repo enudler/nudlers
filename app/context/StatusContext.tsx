@@ -50,6 +50,8 @@ interface StatusContextType {
 
 const StatusContext = createContext<StatusContextType | undefined>(undefined);
 
+export { StatusContext };
+
 export const useStatus = () => {
     const context = useContext(StatusContext);
     if (!context) {
