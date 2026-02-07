@@ -18,8 +18,7 @@ export default async function handler(req, res) {
         logger.error({ error: error.message, stack: error.stack }, 'Error in /api/stop_scrapers');
         res.status(500).json({
             success: false,
-            message: 'Failed to stop scrapers.',
-            error: error.message
+            message: 'Failed to stop scrapers.'
         });
     } finally {
         client.release();

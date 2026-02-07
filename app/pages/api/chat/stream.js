@@ -2,26 +2,28 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getDB } from '../db';
 import logger from '../../../utils/logger.js';
 
-// Verify auth via session cookies
-// Note: This is a local-only app, so we bypass auth for simplicity.
-// If you want to enforce auth, ensure session/sessionExpiry cookies are set.
+// Verify auth for AI chat endpoint.
+// If NUDLERS_API_KEY is set, require it as Authorization header or ?apiKey query param.
+// Otherwise, allow all requests (local-only mode).
 function verifyAuth(req) {
-  // For local development, allow all requests
-  return true;
+  const requiredKey = process.env.NUDLERS_API_KEY;
+  if (!requiredKey) {
+    // No API key configured - local-only mode, allow all requests
+    return true;
+  }
 
-  // Original auth logic (commented out for local use):
-  // const cookies = {};
-  // if (req.headers.cookie) {
-  //   req.headers.cookie.split(';').forEach(cookie => {
-  //     const parts = cookie.trim().split('=');
-  //     cookies[parts[0]] = parts[1];
-  //   });
-  // }
-  // const sessionToken = cookies.session;
-  // const sessionExpiry = cookies.sessionExpiry;
-  // if (!sessionToken || !sessionExpiry) return false;
-  // if (Date.now() > parseInt(sessionExpiry, 10)) return false;
-  // return true;
+  // Check Authorization: Bearer <key>
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ') && authHeader.slice(7) === requiredKey) {
+    return true;
+  }
+
+  // Check ?apiKey=<key> query param
+  if (req.query?.apiKey === requiredKey) {
+    return true;
+  }
+
+  return false;
 }
 
 const SYSTEM_PROMPT = `You are a smart financial analyst for "Nudlers" expense tracker. You have direct access to the user's transaction database through function calls.
@@ -226,7 +228,7 @@ async function getSpendingByCategory({ startDate, endDate }) {
 
     const categories = result.rows.map(r => ({
       category: r.category,
-      transactionCount: parseInt(r.count),
+      transactionCount: parseInt(r.count, 10),
       totalSpent: parseFloat(r.total),
       averageTransaction: parseFloat(r.average)
     }));
@@ -410,7 +412,7 @@ async function getTopMerchants({ startDate, endDate, limit = 20 }) {
       merchants: result.rows.map(r => ({
         merchant: r.merchant,
         category: r.category,
-        transactionCount: parseInt(r.transaction_count),
+        transactionCount: parseInt(r.transaction_count, 10),
         totalSpent: parseFloat(r.total_spent),
         averageAmount: parseFloat(r.avg_transaction)
       })),
@@ -802,7 +804,7 @@ export default async function handler(req, res) {
     try {
       sendEvent({ error: userMessage, status: 'error' });
     } catch (e) {
-      // ignore
+      logger.debug({ error: e.message }, 'Failed to send SSE error event (client likely disconnected)');
     }
   } finally {
     db.release();

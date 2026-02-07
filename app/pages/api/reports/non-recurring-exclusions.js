@@ -127,8 +127,7 @@ export default async function handler(req, res) {
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, "Error managing non-recurring exclusions");
     res.status(500).json({
-      error: "Internal Server Error",
-      details: error.message
+      error: "Internal Server Error"
     });
   } finally {
     client.release();

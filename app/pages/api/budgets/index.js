@@ -20,9 +20,9 @@ export default async function handler(req, res) {
       // Create or update a general budget for a category
       const { category, budget_limit } = req.body;
       
-      if (!category || budget_limit === undefined) {
-        return res.status(400).json({ 
-          error: "Missing required fields: category, budget_limit" 
+      if (!category || budget_limit === undefined || budget_limit === null) {
+        return res.status(400).json({
+          error: "Missing required fields: category, budget_limit"
         });
       }
       
@@ -43,9 +43,8 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, "Error in budgets API");
-    res.status(500).json({ 
-      error: "Internal Server Error", 
-      details: error.message 
+    res.status(500).json({
+      error: "Internal Server Error"
     });
   } finally {
     client.release();

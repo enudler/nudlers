@@ -206,8 +206,7 @@ describe('Recurring Payments API', () => {
 
         expect(mockRes.status).toHaveBeenCalledWith(500);
         expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-            error: 'Internal Server Error',
-            details: 'DB Connection Failed'
+            error: 'Internal Server Error'
         }));
         expect(mockClient.release).toHaveBeenCalled();
     });

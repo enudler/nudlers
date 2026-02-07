@@ -35,7 +35,7 @@ export default async function handler(req, res) {
         res.status(200).json(report);
     } catch (error) {
         logger.error({ error: error.message, stack: error.stack }, 'Get scrape report error');
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         client.release();
     }

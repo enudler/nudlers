@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       "SELECT value FROM app_settings WHERE key = 'billing_cycle_start_day'"
     );
     const billingStartDay = settingsResult.rows.length > 0
-      ? parseInt(settingsResult.rows[0].value)
+      ? (parseInt(settingsResult.rows[0].value, 10) || 10)
       : 10;
 
     let actualSpendingSql;
@@ -95,6 +95,7 @@ export default async function handler(req, res) {
         category,
         budget_limit
       FROM budgets
+      LIMIT 500
     `;
 
     // Get total budget limit
@@ -201,8 +202,7 @@ export default async function handler(req, res) {
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, "Error in budget_vs_actual API");
     res.status(500).json({
-      error: "Internal Server Error",
-      details: error.message
+      error: "Internal Server Error"
     });
   } finally {
     client.release();

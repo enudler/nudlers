@@ -1,5 +1,5 @@
 import { takeManualScreenshot } from '../../../scrapers/core.js';
-import logger from '../utils/scraperUtils.js';
+import logger from '../../../utils/logger.js';
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -21,10 +21,10 @@ export default async function handler(req, res) {
             });
         }
     } catch (err) {
-        console.error('[API] Manual screenshot error:', err.message);
+        logger.error({ error: err.message }, '[API] Manual screenshot error');
         return res.status(500).json({
             success: false,
-            message: err.message || 'An error occurred while taking a screenshot'
+            message: 'An error occurred while taking a screenshot'
         });
     }
 }
