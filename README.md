@@ -13,11 +13,11 @@
 </p>
 
 <p align="center">
+  <a href="https://nudlers.com">Website</a> •
   <a href="#-features">Features</a> •
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-supported-institutions">Banks & Cards</a> •
-  <a href="#-ai-integrations">AI Integration</a> •
-  <a href="#-documentation">Documentation</a>
+  <a href="#-ai-integrations">AI Integration</a>
 </p>
 
 ---
@@ -132,8 +132,7 @@ From powerful servers to a Raspberry Pi — Nudlers adapts to your hardware.
 | Mode | Target Hardware | RAM Usage |
 |------|----------------|-----------|
 | **Normal** | Servers, PCs | 2GB+ |
-| **Low** | Synology NAS, QNAP | 1GB |
-| **Ultra-Low** | Raspberry Pi | 512MB |
+| **Low** | Synology NAS, QNAP, Raspberry Pi | 512MB+ |
 
 ---
 
@@ -231,7 +230,7 @@ npm run dev
 | `NUDLERS_DB_PASSWORD` | ✅ | Database password |
 | `NUDLERS_DB_PORT` | | Database port (default: `5432`) |
 | `NUDLERS_ENCRYPTION_KEY` | ✅ | 64-character hex key for credential encryption |
-| `RESOURCE_MODE` | | `normal`, `low`, or `ultra-low` (default: `normal`) |
+| `RESOURCE_MODE` | | `normal` or `low` (default: `normal`) |
 
 ### Application Settings
 
@@ -467,7 +466,7 @@ volumes:
 
 These vendors have aggressive bot detection. Solutions:
 
-1. **Use Low Resource Mode** — Set `RESOURCE_MODE=low` to reduce browser footprint
+1. **Use Low Resource Mode** — Set `RESOURCE_MODE=low` to reduce browser footprint and memory usage
 2. **Reduce Sync Days** — Lower `sync_days_back` to 7-14 days
 3. **Manual Login** — Log in to the vendor website once to clear notices
 4. **Wait** — If blocked, wait 24 hours before retrying
@@ -497,7 +496,7 @@ nudlers/
 │   │   ├── Layout.tsx            # App shell with navigation
 │   │   └── ...
 │   ├── pages/
-│   │   ├── api/                  # 59 API endpoints
+│   │   ├── api/                  # 55 API endpoints
 │   │   │   ├── transactions/     # Transaction CRUD
 │   │   │   ├── scrapers/         # Scraper control
 │   │   │   ├── reports/          # Financial reports
@@ -594,6 +593,7 @@ See [LICENSE](LICENSE) for full terms.
 <p align="center">
   <strong>Take control of your Israeli finances.</strong>
   <br>
+  <a href="https://nudlers.com">nudlers.com</a> •
   <a href="https://github.com/enudler/nudlers">Star on GitHub</a> •
   <a href="https://github.com/enudler/nudlers/issues">Report Issues</a>
 </p>
