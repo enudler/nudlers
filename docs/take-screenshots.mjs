@@ -194,13 +194,13 @@ async function screenshot(page, name) {
 
   const filePath = path.join(ASSETS_DIR, `${name}.png`);
   await page.screenshot({ path: filePath, type: 'png' });
-  console.log(`  ✓ ${name}.png`);
+
 }
 
 // ── Main ───────────────────────────────────────────────────
 
 async function main() {
-  console.log('Launching browser...\n');
+
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -210,7 +210,7 @@ async function main() {
   const page = await browser.newPage();
   await page.setViewport(VIEWPORT);
 
-  console.log(`Navigating to ${APP_URL}...`);
+
   await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
   await waitForView(page);
 
@@ -241,7 +241,7 @@ async function main() {
   ];
 
   for (const view of views) {
-    console.log(`📸 ${view.name}...`);
+
     if (view.nav) {
       await clickNavItem(page, view.nav);
     }
@@ -250,7 +250,7 @@ async function main() {
   }
 
   // ── Mobile screenshot (fresh page to avoid drawer issues) ──
-  console.log('📸 mobile...');
+
   const mobilePage = await browser.newPage();
   await mobilePage.setViewport({ width: 390, height: 844 });
   await mobilePage.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
@@ -273,10 +273,10 @@ async function main() {
   await mobilePage.evaluate(() => new Promise(r => setTimeout(r, 300)));
   await mobilePage.evaluate(replaceAllData);
   await mobilePage.screenshot({ path: path.join(ASSETS_DIR, 'mobile-summary.png'), type: 'png' });
-  console.log('  ✓ mobile-summary.png');
+
   await mobilePage.close();
 
-  console.log('\n✅ All screenshots saved to docs/assets/');
+
   await browser.close();
 }
 

@@ -20,7 +20,7 @@ async function getSettings() {
     const client = await pool.connect();
     try {
         const res = await client.query('SELECT * FROM app_settings');
-        console.log(JSON.stringify(res.rows, null, 2));
+
     } finally {
         client.release();
         await pool.end();

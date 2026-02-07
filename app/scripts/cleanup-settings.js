@@ -30,22 +30,22 @@ async function cleanupSettings() {
     ];
 
     try {
-        console.log('Starting cleanup of unused settings...');
+
 
         // Check current settings before deletion
         const checkRes = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [settingsToDelete]);
-        console.log('Found the following settings to delete:');
-        checkRes.rows.forEach(row => console.log(`- ${row.key}: ${row.value}`));
+
+
 
         if (checkRes.rows.length === 0) {
-            console.log('No settings to delete found.');
+
         } else {
             // Delete settings
             const deleteRes = await pool.query('DELETE FROM app_settings WHERE key = ANY($1)', [settingsToDelete]);
-            console.log(`Successfully deleted ${deleteRes.rowCount} settings.`);
+
         }
 
-        console.log('Cleanup complete.');
+
     } catch (err) {
         console.error('Error cleaning up settings:', err);
     } finally {

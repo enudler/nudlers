@@ -1,8 +1,10 @@
-<p align="center">
-  <img src="app/public/nudlers-logo.png" alt="Nudlers Logo" width="200"/>
-</p>
-
-<h1 align="center">Nudlers</h1>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-light.svg">
+    <img alt="Nudlers" src="docs/assets/logo-light.svg" width="300">
+  </picture>
+</div>
 
 <p align="center">
   <strong>Your Personal Finance Command Center for Israeli Banking</strong>

@@ -62,11 +62,12 @@ const Footer: React.FC = () => {
                         variant="body2"
                         sx={{
                             fontWeight: 700,
-                            letterSpacing: '0.1rem',
-                            background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%)',
+                            letterSpacing: '-0.02em',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
-                            fontSize: '0.85rem'
+                            fontSize: '0.85rem',
+                            fontFamily: 'Inter, sans-serif'
                         }}
                     >
                         Nudlers

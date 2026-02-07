@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 80" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <!-- Icon: stylized wallet/card with chart bars -->
+  <g transform="translate(4, 8)">
+    <!-- Card shape -->
+    <rect x="0" y="12" width="52" height="40" rx="8" fill="url(#g)" opacity="0.15" stroke="url(#g)" stroke-width="1.5"/>
+    <!-- Card stripe -->
+    <rect x="0" y="22" width="52" height="8" fill="url(#g)" opacity="0.25"/>
+    <!-- Chart bars inside card -->
+    <rect x="10" y="34" width="6" height="12" rx="1.5" fill="url(#g2)"/>
+    <rect x="20" y="28" width="6" height="18" rx="1.5" fill="url(#g)"/>
+    <rect x="30" y="22" width="6" height="24" rx="1.5" fill="url(#g2)"/>
+    <!-- Shekel sign top-right -->
+    <text x="42" y="18" font-family="Arial, sans-serif" font-weight="700" font-size="14" fill="url(#g)">&#8362;</text>
+  </g>
+  <!-- Wordmark -->
+  <text x="72" y="54" font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="42" letter-spacing="-1.5" fill="#e4e4ec">Nudlers</text>
+</svg>

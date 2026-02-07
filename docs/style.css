@@ -1,6 +1,8 @@
 /* ── Reset & Base ────────────────────────────────────────── */
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -18,7 +20,7 @@
     --primary-light: #818cf8;
     --primary-dark: #4f46e5;
     --gradient: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
-    --gradient-subtle: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.08));
+    --gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.08));
     --radius: 12px;
     --radius-sm: 8px;
     --radius-lg: 16px;
@@ -109,10 +111,31 @@ ul li::before {
 }
 
 .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 1.25rem;
     font-weight: 700;
     color: var(--text);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.04em;
+    text-decoration: none;
+}
+
+.nav-logo span {
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.nav-logo-img {
+    width: 30px;
+    height: 30px;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-logo:hover .nav-logo-img {
+    transform: rotate(-12deg) scale(1.15);
 }
 
 .nav-logo:hover {
@@ -206,6 +229,8 @@ ul li::before {
     letter-spacing: -0.03em;
     margin-bottom: 24px;
 }
+
+
 
 .gradient-text {
     background: var(--gradient);
@@ -362,8 +387,13 @@ ul li::before {
     height: 20px;
 }
 
-.carousel-prev { left: -56px; }
-.carousel-next { right: -56px; }
+.carousel-prev {
+    left: -56px;
+}
+
+.carousel-next {
+    right: -56px;
+}
 
 /* Info bar */
 .carousel-info {
@@ -788,9 +818,20 @@ ul li::before {
 }
 
 .footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 1.1rem;
     font-weight: 700;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    letter-spacing: -0.04em;
+}
+
+.footer-logo span {
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .footer-brand p {
@@ -845,14 +886,24 @@ ul li::before {
         grid-template-columns: 1fr;
     }
 
-    .carousel-prev { left: 8px; }
-    .carousel-next { right: 8px; }
+    .carousel-prev {
+        left: 8px;
+    }
+
+    .carousel-next {
+        right: 8px;
+    }
+
     .carousel-btn {
         width: 36px;
         height: 36px;
         background: rgba(10, 10, 15, 0.85);
     }
-    .carousel-btn svg { width: 16px; height: 16px; }
+
+    .carousel-btn svg {
+        width: 16px;
+        height: 16px;
+    }
 }
 
 @media (max-width: 640px) {
@@ -918,8 +969,14 @@ ul li::before {
         gap: 24px;
     }
 
-    .carousel-prev { left: 4px; }
-    .carousel-next { right: 4px; }
+    .carousel-prev {
+        left: 4px;
+    }
+
+    .carousel-next {
+        right: 4px;
+    }
+
     .carousel-btn {
         width: 32px;
         height: 32px;

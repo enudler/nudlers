@@ -18,7 +18,7 @@ const pool = new Pool({
 });
 
 async function updateSettings() {
-    console.log('Starting settings cleanup and update...');
+
 
     try {
         // 1. Delete unused settings
@@ -30,21 +30,21 @@ async function updateSettings() {
             'whatsapp_twilio_from'
         ];
 
-        console.log('\n[1/2] Removing unused settings...');
+
         const checkRes = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [settingsToDelete]);
 
         if (checkRes.rows.length > 0) {
-            console.log('Found the following settings to delete:');
-            checkRes.rows.forEach(row => console.log(`  - ${row.key}: ${row.value}`));
+
+
 
             const deleteRes = await pool.query('DELETE FROM app_settings WHERE key = ANY($1)', [settingsToDelete]);
-            console.log(`✓ Deleted ${deleteRes.rowCount} unused settings.`);
+
         } else {
-            console.log('✓ No unused settings found to delete.');
+
         }
 
         // 2. Update descriptions for all settings
-        console.log('\n[2/2] Updating setting descriptions...');
+
 
         const descriptionUpdates = [
             ['sync_enabled', 'Enable or disable the daily background transaction synchronization'],
@@ -79,8 +79,8 @@ async function updateSettings() {
             }
         }
 
-        console.log(`✓ Updated descriptions for ${updateCount} settings.`);
-        console.log('\n✅ Settings cleanup and update completed successfully!');
+
+
 
     } catch (err) {
         console.error('❌ Error updating settings:', err);

@@ -70,10 +70,10 @@ const StyledAppBar = styled(AppBar)(({ }) => ({
 }));
 
 const Logo = styled(Typography)({
-  fontFamily: "Outfit, Assistant, sans-serif",
+  fontFamily: "Inter, Outfit, sans-serif",
   fontWeight: 700,
-  letterSpacing: ".3rem",
-  background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #ec4899 100%)',
+  letterSpacing: "-0.04em",
+  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
   WebkitBackgroundClip: 'text',
   WebkitTextFillColor: 'transparent',
   backgroundClip: 'text',
@@ -82,7 +82,7 @@ const Logo = styled(Typography)({
   fontSize: '1.5rem',
   display: 'flex',
   alignItems: 'center',
-  gap: '10px',
+  gap: '8px',
   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   '&:hover': {
     transform: 'translateY(-2px)',
@@ -329,8 +329,8 @@ function ResponsiveAppBar({ currentView = 'summary', onViewChange }: ResponsiveA
               <Image
                 src="/nudlers-logo.svg"
                 alt="Nudlers Logo"
-                width={36}
-                height={36}
+                width={32}
+                height={32}
                 style={{
                   width: 'auto',
                   height: '36px',
