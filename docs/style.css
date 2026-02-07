@@ -109,6 +109,9 @@ ul li::before {
 }
 
 .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 1.25rem;
     font-weight: 700;
     color: var(--text);
@@ -117,6 +120,11 @@ ul li::before {
 
 .nav-logo:hover {
     color: var(--text);
+}
+
+.nav-logo-img {
+    height: 28px;
+    width: auto;
 }
 
 .nav-links {
@@ -185,6 +193,14 @@ ul li::before {
 .hero {
     padding: calc(var(--nav-height) + 80px) 0 100px;
     text-align: center;
+}
+
+.hero-logo {
+    display: block;
+    width: 160px;
+    height: auto;
+    margin: 0 auto 24px;
+    filter: drop-shadow(0 4px 24px rgba(99, 102, 241, 0.3));
 }
 
 .hero-badge {
@@ -788,9 +804,17 @@ ul li::before {
 }
 
 .footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 6px;
+}
+
+.footer-logo-img {
+    height: 24px;
+    width: auto;
 }
 
 .footer-brand p {

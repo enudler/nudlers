@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/public/nudlers-logo.png" alt="Nudlers Logo" width="200"/>
+  <img src="logo.png" alt="Nudlers Logo" width="300"/>
 </p>
 
 <h1 align="center">Nudlers</h1>
