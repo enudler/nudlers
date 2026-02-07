@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nudlers - Personal Finance for Israeli Banks</title>
+    <meta name="description" content="Self-hosted personal finance app that aggregates transactions from Israeli banks and credit cards. Track expenses, set budgets, and get AI-powered insights.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">Nudlers</a>
+        <div class="nav-links">
+            <a href="#preview">Preview</a>
+            <a href="#features">Features</a>
+            <a href="#credits">Credits</a>
+            <a href="#installation">Install</a>
+            <a href="https://github.com/enudler/nudlers" class="nav-btn" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <button class="nav-toggle" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<header class="hero">
+    <div class="container">
+        <div class="hero-badge">Self-hosted &middot; Open Source &middot; Privacy First</div>
+        <h1>Take control of your<br><span class="gradient-text">Israeli finances</span></h1>
+        <p class="hero-sub">
+            Nudlers aggregates transactions from all your Israeli banks and credit cards into one dashboard.
+            Track expenses, categorize spending, set budgets, and get AI-powered insights &mdash; all running on your own hardware.
+        </p>
+        <div class="hero-actions">
+            <a href="#installation" class="btn btn-primary">Get Started</a>
+            <a href="#features" class="btn btn-secondary">Learn More</a>
+        </div>
+    </div>
+</header>
+
+<section id="preview" class="section">
+    <div class="container">
+        <h2 class="section-title">See it in action</h2>
+        <p class="section-sub">A clean, modern interface for managing all your Israeli financial accounts.</p>
+
+        <div class="carousel">
+            <div class="carousel-viewport">
+                <div class="carousel-track">
+                    <div class="carousel-slide active">
+                        <div class="carousel-img">
+                            <img src="assets/summary.png" alt="Monthly spending summary dashboard" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="carousel-img">
+                            <img src="assets/transactions.png" alt="Transactions view with search and filtering" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="carousel-img">
+                            <img src="assets/projection.png" alt="Financial projection chart" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="carousel-img">
+                            <img src="assets/breakdown.png" alt="Expense breakdown by merchant" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="carousel-img">
+                            <img src="assets/recurring.png" alt="Recurring payments tracker" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="carousel-slide">
+                        <div class="carousel-img carousel-img-mobile">
+                            <img src="assets/mobile-summary.png" alt="Mobile responsive view" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="carousel-btn carousel-prev" aria-label="Previous slide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button class="carousel-btn carousel-next" aria-label="Next slide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+
+            <div class="carousel-info">
+                <div class="carousel-label">Summary</div>
+                <div class="carousel-desc">Monthly overview with credit card usage by bank, total spend tracking, and budget health.</div>
+            </div>
+
+            <div class="carousel-dots">
+                <button class="carousel-dot active" data-slide="0" aria-label="Summary"></button>
+                <button class="carousel-dot" data-slide="1" aria-label="Transactions"></button>
+                <button class="carousel-dot" data-slide="2" aria-label="Projection"></button>
+                <button class="carousel-dot" data-slide="3" aria-label="Breakdown"></button>
+                <button class="carousel-dot" data-slide="4" aria-label="Recurring"></button>
+                <button class="carousel-dot" data-slide="5" aria-label="Mobile"></button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="features" class="section">
+    <div class="container">
+        <h2 class="section-title">Everything you need</h2>
+        <p class="section-sub">A complete personal finance toolkit designed for the Israeli banking ecosystem.</p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                </div>
+                <h3>Automated Scraping</h3>
+                <p>Fetches transactions from all major Israeli banks and credit card providers automatically. Set it and forget it with scheduled syncs.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                </div>
+                <h3>Smart Categorization</h3>
+                <p>Auto-categorize transactions with customizable rules. Create your own categories and let the system learn your spending patterns.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8v8m-4-5v5m-4-2v2m-2 4h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </div>
+                <h3>Budget Tracking</h3>
+                <p>Set monthly budgets per category and track spending against them. Visual progress bars show exactly where you stand.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                </div>
+                <h3>WhatsApp Reports</h3>
+                <p>Get daily or weekly spending summaries delivered straight to your WhatsApp. Stay on top of your finances without opening the app.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <h3>AI Assistant</h3>
+                <p>Ask questions about your spending in natural language. Powered by Google Gemini, get insights like "How much did I spend on groceries last month?"</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                </div>
+                <h3>MCP Integration</h3>
+                <p>Model Context Protocol support lets AI tools like Claude interact with your financial data directly. The future of AI-powered finance.</p>
+            </div>
+        </div>
+
+        <div class="feature-highlight">
+            <div class="feature-highlight-content">
+                <h3>Runs anywhere</h3>
+                <p>
+                    Nudlers includes built-in resource optimization with two modes: <strong>normal</strong> for standard servers,
+                    and <strong>low</strong> for NAS devices, Raspberry Pi, and other minimal hardware.
+                    Your finances, your hardware, your choice.
+                </p>
+            </div>
+            <div class="resource-modes">
+                <div class="resource-mode">
+                    <div class="resource-mode-icon">&#9881;</div>
+                    <div class="resource-mode-label">Normal</div>
+                    <div class="resource-mode-desc">2GB+ RAM servers</div>
+                </div>
+                <div class="resource-mode">
+                    <div class="resource-mode-icon">&#128425;</div>
+                    <div class="resource-mode-label">Low</div>
+                    <div class="resource-mode-desc">NAS &amp; Raspberry Pi</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="credits" class="section section-alt">
+    <div class="container">
+        <h2 class="section-title">Standing on the shoulders of giants</h2>
+        <p class="section-sub">Nudlers wouldn't exist without the incredible open-source community.</p>
+
+        <div class="credits-card">
+            <div class="credits-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </div>
+            <h3>israeli-bank-scrapers</h3>
+            <p>
+                A huge thank you to <a href="https://github.com/eshaham/israeli-bank-scrapers" target="_blank" rel="noopener">israeli-bank-scrapers</a> &mdash;
+                the open-source library that makes it all possible. Thanks to their work, Nudlers supports most Israeli banks and credit card providers out of the box.
+                If you find Nudlers useful, go give them a star too.
+            </p>
+            <a href="https://github.com/eshaham/israeli-bank-scrapers" class="btn btn-secondary credits-btn" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" style="width:18px;height:18px;margin-right:8px"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                israeli-bank-scrapers on GitHub
+            </a>
+        </div>
+    </div>
+</section>
+
+<section id="installation" class="section">
+    <div class="container">
+        <h2 class="section-title">Get up and running</h2>
+        <p class="section-sub">Nudlers runs with Docker Compose. Here's everything you need.</p>
+
+        <div class="install-steps">
+            <div class="install-step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Prerequisites</h3>
+                    <ul>
+                        <li>Docker &amp; Docker Compose</li>
+                        <li>Node.js 22+ (for local development)</li>
+                        <li>PostgreSQL database</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="install-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Clone the repository</h3>
+                    <div class="code-block">
+                        <pre><code>git clone https://github.com/enudler/nudlers.git
+cd nudlers</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="install-step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Configure environment</h3>
+                    <p>Create a <code>.env</code> file in the <code>app/</code> directory:</p>
+                    <div class="code-block">
+                        <pre><code># Database
+NUDLERS_DB_USER=nudlers
+NUDLERS_DB_HOST=localhost
+NUDLERS_DB_NAME=nudlers
+NUDLERS_DB_PASSWORD=your_secure_password
+NUDLERS_DB_PORT=5432
+
+# Encryption (32-byte hex key for credential storage)
+ENCRYPTION_KEY=your_64_char_hex_key_here
+
+# Resource Mode (normal | low)
+RESOURCE_MODE=normal
+
+# Optional: AI Assistant
+GEMINI_API_KEY=your_gemini_api_key</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="install-step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Install and run</h3>
+                    <div class="code-block">
+                        <pre><code>cd app
+npm install
+npm run dev</code></pre>
+                    </div>
+                    <p>The app will be available at <code>http://localhost:6969</code></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="configuration" class="section section-alt">
+    <div class="container">
+        <h2 class="section-title">Configuration</h2>
+        <p class="section-sub">Fine-tune Nudlers to match your setup and preferences.</p>
+
+        <div class="config-grid">
+            <div class="config-card">
+                <h3>Resource Modes</h3>
+                <p>Optimize performance based on your hardware:</p>
+                <table class="config-table">
+                    <thead>
+                        <tr><th>Mode</th><th>Target Hardware</th><th>RAM</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>normal</code></td><td>Standard servers, desktops</td><td>2GB+</td></tr>
+                        <tr><td><code>low</code></td><td>NAS, Raspberry Pi</td><td>512MB+</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="config-card">
+                <h3>Billing Cycle</h3>
+                <p>
+                    Israeli credit card billing cycles don't align with calendar months.
+                    Nudlers groups transactions by billing cycle (default: 10th of each month)
+                    so your spending view matches your actual statements.
+                </p>
+                <p>Configurable via <strong>Settings &rarr; Billing Cycle Start Day</strong>.</p>
+            </div>
+
+            <div class="config-card">
+                <h3>WhatsApp Notifications</h3>
+                <p>Get automated spending summaries delivered to WhatsApp:</p>
+                <ul>
+                    <li>Daily or weekly summary modes</li>
+                    <li>Configurable send time</li>
+                    <li>Category breakdown included</li>
+                </ul>
+            </div>
+
+            <div class="config-card">
+                <h3>Scheduled Sync</h3>
+                <p>
+                    Set up automatic transaction fetching on a schedule. Configure sync frequency,
+                    days to look back, and which accounts to include. Credentials are encrypted at rest
+                    with AES-256.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section tech-section">
+    <div class="container">
+        <h2 class="section-title">Built with</h2>
+        <div class="tech-grid">
+            <div class="tech-item">Next.js</div>
+            <div class="tech-item">TypeScript</div>
+            <div class="tech-item">PostgreSQL</div>
+            <div class="tech-item">Material UI</div>
+            <div class="tech-item">Puppeteer</div>
+            <div class="tech-item">Pino</div>
+            <div class="tech-item">Vitest</div>
+            <div class="tech-item">Docker</div>
+        </div>
+    </div>
+</section>
+
+<footer class="footer">
+    <div class="container">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <span class="footer-logo">Nudlers</span>
+                <p>Self-hosted personal finance for Israeli banks.</p>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/enudler/nudlers" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/enudler/nudlers/issues" target="_blank" rel="noopener">Issues</a>
+                <a href="https://github.com/enudler/nudlers/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Nudlers. Open source under MIT License.</p>
+        </div>
+    </div>
+</footer>
+
+<script>
+    // Mobile nav toggle
+    const toggle = document.querySelector('.nav-toggle');
+    const links = document.querySelector('.nav-links');
+    toggle.addEventListener('click', () => {
+        links.classList.toggle('open');
+        toggle.classList.toggle('open');
+    });
+
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.addEventListener('click', () => {
+            links.classList.remove('open');
+            toggle.classList.remove('open');
+        });
+    });
+
+    // Sticky nav background
+    const nav = document.querySelector('.nav');
+    window.addEventListener('scroll', () => {
+        nav.classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // Smooth scroll
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    // ── Carousel ──
+    const slideData = [
+        { label: 'Summary', desc: 'Monthly overview with credit card usage by bank, total spend tracking, and budget health.' },
+        { label: 'Transactions', desc: 'View and manage all your bank and credit card transactions with search, sort, and category filtering.' },
+        { label: 'Financial Forecast', desc: '30-day balance projection with upcoming credit card settlements and recurring payments.' },
+        { label: 'Breakdown', desc: 'Detailed expense analysis grouped by merchant with quick category editing.' },
+        { label: 'Recurring Payments', desc: 'Track installments, subscriptions, and recurring charges with progress indicators.' },
+        { label: 'Mobile Friendly', desc: 'Fully responsive design that works great on phones, tablets, and desktops.' },
+    ];
+
+    const slides = document.querySelectorAll('.carousel-slide');
+    const dots = document.querySelectorAll('.carousel-dot');
+    const prevBtn = document.querySelector('.carousel-prev');
+    const nextBtn = document.querySelector('.carousel-next');
+    const labelEl = document.querySelector('.carousel-label');
+    const descEl = document.querySelector('.carousel-desc');
+    let current = 0;
+    let autoTimer = null;
+
+    function goTo(idx) {
+        slides[current].classList.remove('active');
+        dots[current].classList.remove('active');
+        current = (idx + slides.length) % slides.length;
+        slides[current].classList.add('active');
+        dots[current].classList.add('active');
+        labelEl.textContent = slideData[current].label;
+        descEl.textContent = slideData[current].desc;
+        resetAuto();
+    }
+
+    function resetAuto() {
+        clearInterval(autoTimer);
+        autoTimer = setInterval(() => goTo(current + 1), 6000);
+    }
+
+    prevBtn.addEventListener('click', () => goTo(current - 1));
+    nextBtn.addEventListener('click', () => goTo(current + 1));
+    dots.forEach(dot => {
+        dot.addEventListener('click', () => goTo(Number(dot.dataset.slide)));
+    });
+
+    // Keyboard navigation
+    document.querySelector('.carousel').addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') goTo(current - 1);
+        if (e.key === 'ArrowRight') goTo(current + 1);
+    });
+
+    // Touch/swipe support
+    let touchStartX = 0;
+    const viewport = document.querySelector('.carousel-viewport');
+    viewport.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    viewport.addEventListener('touchend', (e) => {
+        const diff = touchStartX - e.changedTouches[0].clientX;
+        if (Math.abs(diff) > 50) {
+            diff > 0 ? goTo(current + 1) : goTo(current - 1);
+        }
+    });
+
+    // Start auto-advance
+    resetAuto();
+</script>
+
+</body>
+</html>
