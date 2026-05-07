@@ -73,6 +73,7 @@ interface Settings {
   whatsapp_to: string;
   whatsapp_summary_mode: 'calendar' | 'cycle';
   whatsapp_notify_on_restart: boolean;
+  whatsapp_transport: 'web' | 'baileys';
 
   telegram_enabled: boolean;
   telegram_bot_token: string;
@@ -241,6 +242,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     whatsapp_to: '',
     whatsapp_summary_mode: 'calendar',
     whatsapp_notify_on_restart: false,
+    whatsapp_transport: 'web',
 
     telegram_enabled: false,
     telegram_bot_token: '',
@@ -296,6 +298,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
 
     return () => clearInterval(interval);
   }, [open, whatsappStatus.status]);
+
+  const handleTransportChange = async (next: 'web' | 'baileys') => {
+    if (next === settings.whatsapp_transport) return;
+    const ok = window.confirm(
+      t('settings:whatsapp.transportConfirm')
+    );
+    if (!ok) return;
+    try {
+      const res = await fetch('/api/whatsapp/transport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transport: next }),
+      });
+      if (!res.ok) {
+        logger.error('Transport switch failed', new Error(`HTTP ${res.status}`));
+        return;
+      }
+      setSettings({ ...settings, whatsapp_transport: next });
+      // The status indicator should refresh — reset it so the next poll
+      // picks up the new transport's state.
+      setWhatsappStatus({ status: 'INITIALIZING', qr: null });
+    } catch (e) {
+      logger.error('Transport switch network error', e as Error);
+    }
+  };
 
   const handleWhatsAppAction = async (action: 'connect' | 'restart' | 'disconnect' | 'renewQr') => {
     try {
@@ -378,6 +405,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           whatsapp_to: (data.settings.whatsapp_to || '').replace(/"/g, ''),
           whatsapp_summary_mode: (data.settings.whatsapp_summary_mode || 'calendar').replace(/"/g, '') as 'calendar' | 'cycle',
           whatsapp_notify_on_restart: parseBool(data.settings.whatsapp_notify_on_restart),
+          whatsapp_transport: ((data.settings.whatsapp_transport || '').replace(/^"(.*)"$/, '$1') === 'baileys' ? 'baileys' : 'web') as 'web' | 'baileys',
 
           telegram_enabled: parseBool(data.settings.telegram_enabled),
           telegram_bot_token: (data.settings.telegram_bot_token || '').replace(/^"(.*)"$/, '$1'),
@@ -1014,6 +1042,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                   </Box>
                 )}
               </Box>
+
+              {/* Transport selector — pick legacy whatsapp-web.js or Baileys */}
+              <SettingRow>
+                <Box>
+                  <Typography variant="body1">{t('settings:whatsapp.transportLabel')}</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    {t('settings:whatsapp.transportDesc')}
+                  </Typography>
+                </Box>
+                <StyledSelect
+                  value={settings.whatsapp_transport}
+                  onChange={(e) => handleTransportChange(e.target.value as 'web' | 'baileys')}
+                  size="small"
+                  sx={{ width: 220 }}
+                >
+                  <MenuItem value="web">{t('settings:whatsapp.transportWeb')}</MenuItem>
+                  <MenuItem value="baileys">{t('settings:whatsapp.transportBaileys')}</MenuItem>
+                </StyledSelect>
+              </SettingRow>
 
               {/* QR Code Section */}
               {whatsappStatus.status === 'QR_READY' && whatsappStatus.qr && (

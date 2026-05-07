@@ -25,7 +25,7 @@ export async function notifyAppStartedWithLockedVault(opts = {}) {
     const {
         getDB,
         sendNotification,
-        getOrCreateClient,
+        waitForWhatsappReady,
         loadMessagingSettings,
         now,
     } = await resolveDependencies(opts);
@@ -61,15 +61,15 @@ export async function notifyAppStartedWithLockedVault(opts = {}) {
         return { sent: false, reason: 'disabled' };
     }
 
-    // If WhatsApp wants the message, wait for the WA client to be ready before
-    // dispatching — Telegram doesn't need this, but the dispatcher fires both
-    // in parallel so the slowest one sets the latency floor anyway.
+    // If WhatsApp wants the message, wait for the active WA transport
+    // (legacy or Baileys) to reach READY before dispatching. Telegram
+    // doesn't need this; if WA is the only enabled channel and it never
+    // becomes ready, we drop the notification cleanly.
     if (wantsWhatsapp) {
         try {
-            await waitForWhatsAppReady({ getOrCreateClient, timeoutMs: READY_TIMEOUT_MS });
+            await waitForWhatsappReady({ timeoutMs: READY_TIMEOUT_MS });
         } catch (err) {
             logger.warn({ err: err.message }, '[startup-notify] WhatsApp not ready in time — Telegram (if configured) will still try');
-            // Don't bail; if Telegram is enabled it can still deliver.
             if (!wantsTelegram) {
                 return { sent: false, reason: 'whatsapp_not_ready' };
             }
@@ -109,7 +109,7 @@ async function resolveDependencies(overrides) {
     if (
         overrides.getDB &&
         overrides.sendNotification &&
-        overrides.getOrCreateClient &&
+        overrides.waitForWhatsappReady &&
         overrides.loadMessagingSettings
     ) {
         return overrides;
@@ -117,55 +117,12 @@ async function resolveDependencies(overrides) {
     const dbModule = await import('../pages/api/db.js');
     const dispatcherModule = await import('./messaging/dispatcher.js');
     const settingsModule = await import('./messaging/settings.js');
-    const waClientModule = await import('./whatsapp-client.js');
+    const transportModule = await import('./whatsapp-transport.js');
     return {
         getDB: overrides.getDB || dbModule.getDB,
         sendNotification: overrides.sendNotification || dispatcherModule.sendNotification,
         loadMessagingSettings: overrides.loadMessagingSettings || settingsModule.loadMessagingSettings,
-        getOrCreateClient: overrides.getOrCreateClient || waClientModule.getOrCreateClient,
+        waitForWhatsappReady: overrides.waitForWhatsappReady || transportModule.waitForReady,
         now: overrides.now,
     };
-}
-
-/**
- * Resolve when the WhatsApp client is READY (or AUTHENTICATED). Short-circuits
- * if it's already there. Otherwise listens for the underlying client's events
- * with a hard timeout so we never hang forever on a vault that needs a fresh
- * QR scan.
- */
-function waitForWhatsAppReady({ getOrCreateClient, timeoutMs }) {
-    const globalAny = globalThis;
-    const isReady = () => {
-        const s = globalAny.whatsappStatus;
-        return s === 'READY' || s === 'AUTHENTICATED';
-    };
-    if (isReady()) return Promise.resolve();
-
-    const client = getOrCreateClient();
-    return new Promise((resolve, reject) => {
-        const cleanup = () => {
-            clearTimeout(timer);
-            client.off?.('ready', onReady);
-            client.off?.('authenticated', onAuthed);
-            client.off?.('auth_failure', onFail);
-        };
-        const onReady = () => { cleanup(); resolve(); };
-        const onAuthed = () => { cleanup(); resolve(); };
-        const onFail = (msg) => { cleanup(); reject(new Error(`WhatsApp authentication failure: ${msg}`)); };
-        const timer = setTimeout(() => {
-            cleanup();
-            reject(new Error(`WhatsApp client did not become ready within ${timeoutMs}ms`));
-        }, timeoutMs);
-        client.once('ready', onReady);
-        client.once('authenticated', onAuthed);
-        client.once('auth_failure', onFail);
-
-        // Closes the TOCTOU race: between the initial isReady() above and the
-        // listener registration, the underlying client could have fired the
-        // event we'd otherwise miss. Re-check now that we're listening.
-        if (isReady()) {
-            cleanup();
-            resolve();
-        }
-    });
 }

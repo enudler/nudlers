@@ -275,7 +275,7 @@ const READY_TIMEOUT_MS = 60000;
  * Wait until `ready` fires (or `auth_failure` / timeout). Used by ensureConnected()
  * after a fresh init to confirm the client is actually usable, not just constructed.
  */
-function waitForReady(client, timeoutMs) {
+function waitForReadyOnClient(client, timeoutMs) {
     return new Promise((resolve, reject) => {
         const cleanup = () => {
             clearTimeout(timer);
@@ -320,9 +320,34 @@ export async function ensureConnected({ timeoutMs = READY_TIMEOUT_MS } = {}) {
     }
 
     const fresh = await restartClient();
-    await waitForReady(fresh, timeoutMs);
+    await waitForReadyOnClient(fresh, timeoutMs);
     logger.info('WhatsApp client reconnected and ready');
     return fresh;
+}
+
+/**
+ * Public-facing waitForReady used by the startup-notify path and by anyone
+ * else who wants to await a transport's READY state without holding onto
+ * the underlying client object. Mirrors the same export on the Baileys
+ * client so the transport router can proxy either one.
+ */
+export function waitForReady({ timeoutMs = READY_TIMEOUT_MS } = {}) {
+    const status = globalAny.whatsappStatus || connectionStatus;
+    if (status === 'READY' || status === 'AUTHENTICATED') {
+        return Promise.resolve();
+    }
+    const client = getOrCreateClient();
+    return waitForReadyOnClient(client, timeoutMs);
+}
+
+/**
+ * Transport-uniform send. Wraps the whatsapp-web.js client.sendMessage call
+ * so callers don't have to care which transport they're talking to.
+ * Returns `{ id }` — a stable shape across both implementations.
+ */
+export async function sendText({ client, chatId, body }) {
+    const message = await client.sendMessage(chatId, body);
+    return { id: message?.id?._serialized ?? '' };
 }
 
 /**

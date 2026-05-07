@@ -66,6 +66,11 @@
   },
   "whatsapp": {
     "section": "סיכום יומי בוואטסאפ",
+    "transportLabel": "מימוש",
+    "transportDesc": "WhatsApp Web (ישן) משתמש בכרומיום/Puppeteer. Baileys מדבר ישירות עם פרוטוקול הריבוי-מכשירים של וואטסאפ — בלי דפדפן, פחות זיכרון, הפעלה מהירה יותר. החלפת מימוש מחייבת סריקת QR חד-פעמית.",
+    "transportWeb": "WhatsApp Web (ישן)",
+    "transportBaileys": "Baileys (מומלץ)",
+    "transportConfirm": "החלפת המימוש תדרוש סריקת QR חדשה והסשן הנוכחי יתאפס. להמשיך?",
     "scanInstruction": "סרקו את קוד ה-QR בוואטסאפ (הגדרות > מכשירים מקושרים)",
     "generateQr": "יצירת קוד QR",
     "generateQrHelp": "לחצו כדי להתחיל חיבור לוואטסאפ וליצור קוד QR",

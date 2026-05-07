@@ -1,5 +1,5 @@
 import logger from './logger.js';
-import { ensureConnected } from './whatsapp-client.js';
+import { ensureConnected, sendText } from './whatsapp-transport.js';
 
 /**
  * Heuristic: errors that look like the WA web page is gone (frame detached,
@@ -7,29 +7,33 @@ import { ensureConnected } from './whatsapp-client.js';
  * a reconnect is the only thing that will help. Other errors (`recipient is
  * not a contact`, `chatId not found`) are user-visible and shouldn't trigger
  * a reconnect retry, since reconnecting won't help.
+ *
+ * Also matches Baileys-side transient symptoms (`connection closed`,
+ * `socket closed`, `stream errored`) so the same retry path applies when
+ * the WebSocket transport happens to die mid-send.
  */
 function looksLikeTransientClientDeath(err) {
     const msg = (err && err.message) ? String(err.message) : String(err);
-    return /frame|detached|target closed|page closed|protocol error|session closed|execution context|navigation/i.test(msg);
+    return /frame|detached|target closed|page closed|protocol error|session closed|execution context|navigation|connection closed|stream errored|socket (closed|hang up)|websocket/i.test(msg);
 }
 
 const TRANSIENT_RETRY_DELAY_MS = 1500;
 
 /**
- * Sends a WhatsApp message using the internal singleton client.
+ * Sends a WhatsApp message. The transport router (whatsapp-transport.js)
+ * picks the underlying implementation; we don't care which.
  *
  * Resilience model:
- *  1. ensureConnected() probes the client and reconnects up front. This
- *     handles the "client wasn't running" case.
- *  2. If sendMessage *itself* throws something that looks like a dead-page
+ *  1. ensureConnected() probes the transport and reconnects up front.
+ *  2. If sendText *itself* throws something that looks like a dead-transport
  *     error AFTER ensureConnected said we were good, we force one more
- *     reconnect-and-retry. This catches the narrow window where the page
- *     died between the probe and the send.
+ *     reconnect-and-retry. This catches the narrow window where the
+ *     underlying socket/page died between the probe and the send.
  *
  * Why not retry every error type? Errors like "recipient not in contacts"
  * or "invalid chat id" are deterministic — retrying just doubles the noise
- * in the logs and might cause duplicate sends if Puppeteer succeeded but
- * couldn't read back the response.
+ * in the logs and might cause duplicate sends if the server accepted the
+ * first attempt but couldn't read back the response.
  *
  * @param {Object} options
  * @param {string} options.to    Comma-separated recipients ('whatsapp:+972…',
@@ -58,24 +62,24 @@ export async function sendWhatsAppMessage({ to, body }) {
             }
 
             try {
-                const message = await client.sendMessage(chatId, body);
-                logger.info({ to: recipient, chatId, messageId: message.id._serialized }, 'WhatsApp message sent successfully');
-                results.push({ success: true, to: recipient, messageId: message.id._serialized });
+                const sent = await sendText({ client, chatId, body });
+                logger.info({ to: recipient, chatId, messageId: sent.id }, 'WhatsApp message sent successfully');
+                results.push({ success: true, to: recipient, messageId: sent.id });
             } catch (sendError) {
                 if (looksLikeTransientClientDeath(sendError)) {
                     logger.warn(
                         { to: recipient, err: sendError.message },
-                        'WhatsApp send hit a transient client-death error; reconnecting and retrying once'
+                        'WhatsApp send hit a transient transport-death error; reconnecting and retrying once'
                     );
                     try {
                         await new Promise((r) => setTimeout(r, TRANSIENT_RETRY_DELAY_MS));
                         client = await ensureConnected();
-                        const message = await client.sendMessage(chatId, body);
+                        const sent = await sendText({ client, chatId, body });
                         logger.info(
-                            { to: recipient, chatId, messageId: message.id._serialized },
+                            { to: recipient, chatId, messageId: sent.id },
                             'WhatsApp message sent on retry'
                         );
-                        results.push({ success: true, to: recipient, messageId: message.id._serialized, retried: true });
+                        results.push({ success: true, to: recipient, messageId: sent.id, retried: true });
                         continue;
                     } catch (retryErr) {
                         logger.error(

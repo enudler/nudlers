@@ -66,6 +66,11 @@
   },
   "whatsapp": {
     "section": "WhatsApp Daily Summary",
+    "transportLabel": "Implementation",
+    "transportDesc": "WhatsApp Web (legacy) uses Chromium/Puppeteer. Baileys talks the WhatsApp Multi-Device protocol directly — no browser, lower memory, faster startup. Switching transports requires a one-time fresh QR scan.",
+    "transportWeb": "WhatsApp Web (legacy)",
+    "transportBaileys": "Baileys (recommended)",
+    "transportConfirm": "Switching transports will require a fresh QR scan. Your current session will be reset. Continue?",
     "scanInstruction": "Scan this QR code with WhatsApp (Settings > Linked Devices)",
     "generateQr": "Generate QR Code",
     "generateQrHelp": "Click to start WhatsApp connection and generate QR code",

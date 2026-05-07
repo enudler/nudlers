@@ -89,14 +89,16 @@ export async function register() {
       logger.error({ error: err.message, stack: err.stack }, '[startup] Failed to run migrations');
     }
 
-    // Initialize WhatsApp Client (Singleton)
+    // Initialize WhatsApp Client through the transport router. The router
+    // reads the `whatsapp_transport` setting and lazy-imports either the
+    // legacy whatsapp-web.js client or the Baileys client. Importing the
+    // chosen module triggers its auto-restore-from-disk side effect.
     try {
-      logger.info('[startup] Initializing WhatsApp Client singleton');
-      const { getClient } = await import('./utils/whatsapp-client.js');
-      getClient(); // Triggers initialization
+      logger.info('[startup] Initializing WhatsApp transport router');
+      await import('./utils/whatsapp-transport.js');
     } catch (error: unknown) {
       const err = error as Error;
-      logger.error({ error: err.message }, '[startup] Failed to initialize WhatsApp Client');
+      logger.error({ error: err.message }, '[startup] Failed to initialize WhatsApp transport router');
     }
 
 

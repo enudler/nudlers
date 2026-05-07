@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { sendWhatsAppMessage } from '../utils/whatsapp.js';
-import { ensureConnected } from '../utils/whatsapp-client.js';
+import { ensureConnected, sendText } from '../utils/whatsapp-transport.js';
 
-// Mock the modules
-vi.mock('../utils/whatsapp-client.js', () => ({
+// Mock the transport router. The two surfaces we touch from whatsapp.js are
+// ensureConnected (returns the active transport's client) and sendText
+// (transport-uniform wrapper around sendMessage).
+vi.mock('../utils/whatsapp-transport.js', () => ({
     ensureConnected: vi.fn(),
+    sendText: vi.fn(),
 }));
 
 vi.mock('../utils/logger.js', () => ({
@@ -16,14 +19,13 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 describe('sendWhatsAppMessage', () => {
-    let mockClient: any;
+    let mockClient: object;
 
     beforeEach(() => {
         vi.clearAllMocks();
-        mockClient = {
-            sendMessage: vi.fn().mockResolvedValue({ id: { _serialized: 'msg123' } }),
-        };
-        (ensureConnected as any).mockResolvedValue(mockClient);
+        mockClient = {};
+        (ensureConnected as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockClient);
+        (sendText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'msg123' });
     });
 
     it('should send a message to a single phone number', async () => {
@@ -32,7 +34,7 @@ describe('sendWhatsAppMessage', () => {
             body: 'Hello test',
         });
 
-        expect(mockClient.sendMessage).toHaveBeenCalledWith('972501234567@c.us', 'Hello test');
+        expect(sendText).toHaveBeenCalledWith({ client: mockClient, chatId: '972501234567@c.us', body: 'Hello test' });
         expect(result.success).toBe(true);
         expect(result.sent).toBe(1);
     });
@@ -43,9 +45,9 @@ describe('sendWhatsAppMessage', () => {
             body: 'Hello multiple',
         });
 
-        expect(mockClient.sendMessage).toHaveBeenCalledTimes(2);
-        expect(mockClient.sendMessage).toHaveBeenCalledWith('972501234567@c.us', 'Hello multiple');
-        expect(mockClient.sendMessage).toHaveBeenCalledWith('972507654321@c.us', 'Hello multiple');
+        expect(sendText).toHaveBeenCalledTimes(2);
+        expect(sendText).toHaveBeenCalledWith({ client: mockClient, chatId: '972501234567@c.us', body: 'Hello multiple' });
+        expect(sendText).toHaveBeenCalledWith({ client: mockClient, chatId: '972507654321@c.us', body: 'Hello multiple' });
         expect(result.sent).toBe(2);
     });
 
@@ -55,7 +57,7 @@ describe('sendWhatsAppMessage', () => {
             body: 'Hello group',
         });
 
-        expect(mockClient.sendMessage).toHaveBeenCalledWith('1234567890@g.us', 'Hello group');
+        expect(sendText).toHaveBeenCalledWith({ client: mockClient, chatId: '1234567890@g.us', body: 'Hello group' });
         expect(result.sent).toBe(1);
     });
 
@@ -65,14 +67,14 @@ describe('sendWhatsAppMessage', () => {
             body: 'Hello mix',
         });
 
-        expect(mockClient.sendMessage).toHaveBeenCalledTimes(2);
-        expect(mockClient.sendMessage).toHaveBeenCalledWith('972501234567@c.us', 'Hello mix');
-        expect(mockClient.sendMessage).toHaveBeenCalledWith('1234567890@g.us', 'Hello mix');
+        expect(sendText).toHaveBeenCalledTimes(2);
+        expect(sendText).toHaveBeenCalledWith({ client: mockClient, chatId: '972501234567@c.us', body: 'Hello mix' });
+        expect(sendText).toHaveBeenCalledWith({ client: mockClient, chatId: '1234567890@g.us', body: 'Hello mix' });
         expect(result.sent).toBe(2);
     });
 
     it('should throw error if client cannot be connected', async () => {
-        (ensureConnected as any).mockRejectedValueOnce(
+        (ensureConnected as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
             new Error('WhatsApp client did not become ready within 60000ms')
         );
 
@@ -83,9 +85,11 @@ describe('sendWhatsAppMessage', () => {
     });
 
     it('should continue if one recipient fails but others succeed', async () => {
-        mockClient.sendMessage
-            .mockRejectedValueOnce(new Error('Failed to send'))
-            .mockResolvedValueOnce({ id: { _serialized: 'msg456' } });
+        // Use a deterministic non-transient error so the retry path doesn't
+        // kick in (which would burn 1.5s on the test).
+        (sendText as unknown as ReturnType<typeof vi.fn>)
+            .mockRejectedValueOnce(new Error('chat not found'))
+            .mockResolvedValueOnce({ id: 'msg456' });
 
         const result = await sendWhatsAppMessage({
             to: 'fail, success',
@@ -97,5 +101,22 @@ describe('sendWhatsAppMessage', () => {
         expect(result.total).toBe(2);
         expect(result.results[0].success).toBe(false);
         expect(result.results[1].success).toBe(true);
+    });
+
+    it('retries once on transient transport-death errors then succeeds', async () => {
+        (sendText as unknown as ReturnType<typeof vi.fn>)
+            .mockRejectedValueOnce(new Error('Target frame detached'))
+            .mockResolvedValueOnce({ id: 'msg789' });
+
+        const result = await sendWhatsAppMessage({
+            to: '972501234567',
+            body: 'after-flap',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.sent).toBe(1);
+        expect(result.results[0].retried).toBe(true);
+        // ensureConnected called twice: once at the top, once at the retry.
+        expect(ensureConnected).toHaveBeenCalledTimes(2);
     });
 });
