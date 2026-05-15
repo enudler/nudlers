@@ -83,6 +83,7 @@ function clearBaileysGlobals() {
     delete g.baileysEmitter;
     delete g.baileysAutoRestoreAttempted;
     delete g.baileysInitInFlight;
+    delete g.baileysIntentionalDisconnect;
     delete g.whatsappStatus;
 }
 
@@ -241,6 +242,33 @@ describe('whatsapp-client', () => {
         expect(mod.getClient()).toBeNull();
         expect(lastMockSock!.end).toHaveBeenCalled();
     });
+
+    it('destroyClient suppresses the auto-reconnect that the resulting close event would otherwise trigger', async () => {
+        // Regression: clicking "Disconnect" in settings called destroyClient,
+        // which closed the socket — but the resulting connection.update close
+        // event (statusCode neither 401 nor 440) fell through to the
+        // auto-reconnect path and the socket came right back ~2s later.
+        const mod = await import('../utils/whatsapp-client.js');
+        await mod.initializeClient();
+        lastMockSock!.ev.emit('connection.update', { connection: 'open' });
+        expect(makeWASocketMock).toHaveBeenCalledTimes(1);
+
+        const closedSock = lastMockSock!;
+        await mod.destroyClient();
+        // Simulate Baileys firing its `close` connection.update in response
+        // to sock.end() — this is what the real socket does.
+        closedSock.ev.emit('connection.update', {
+            connection: 'close',
+            lastDisconnect: { error: { output: { statusCode: 428 } } },
+        });
+
+        // Wait past the 2s auto-reconnect backoff plus padding. If the bug
+        // were still present, makeWASocketMock would have been called again.
+        await new Promise((r) => setTimeout(r, 2_500));
+        expect(makeWASocketMock).toHaveBeenCalledTimes(1);
+        expect(mod.getStatus().status).toBe('DISCONNECTED');
+        expect(mod.getClient()).toBeNull();
+    }, 10_000);
 
     it('waitForReady resolves immediately if status is already READY', async () => {
         const mod = await import('../utils/whatsapp-client.js');

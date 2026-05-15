@@ -198,6 +198,18 @@ function wireSockEvents(sock) {
             setStatus('DISCONNECTED', { qr: null });
             emitter.emit('disconnected', { code, reason, loggedOut, replaced });
 
+            // User-initiated teardown (destroyClient) flips this flag before
+            // calling sock.end(). Without the guard, the resulting close event
+            // falls through to the auto-reconnect branch below and the socket
+            // pops right back up — the "Disconnect" button in settings appears
+            // to do nothing.
+            if (globalAny.baileysIntentionalDisconnect) {
+                logger.info('[baileys] Intentional disconnect — skipping auto-reconnect');
+                globalAny.baileysIntentionalDisconnect = false;
+                globalAny.baileysSock = null;
+                return;
+            }
+
             // On loggedOut, the saved session is dead — only a fresh QR scan
             // helps. Don't auto-reconnect (we'd just spin up another socket
             // and immediately get kicked again).
@@ -260,6 +272,11 @@ export async function initializeClient() {
     const hasSession = hasPersistedSession();
     logger.info({ hasPersistedSession: hasSession }, '[baileys] Initializing new client');
 
+    // Clear any leftover intentional-disconnect flag — caller wants a live
+    // connection, so future close events should be treated normally
+    // (auto-reconnect on transient drops, etc.).
+    globalAny.baileysIntentionalDisconnect = false;
+
     setStatus('INITIALIZING');
     globalAny.whatsappStatus = 'INITIALIZING';
 
@@ -285,7 +302,15 @@ export async function initializeClient() {
 
 export async function destroyClient() {
     const sock = getState().sock;
-    if (!sock) return;
+    // Set BEFORE sock.end() — the close event handler reads this synchronously
+    // when the WebSocket fires, and the reconnect-suppression check needs to
+    // see the flag already set.
+    globalAny.baileysIntentionalDisconnect = true;
+    if (!sock) {
+        setStatus('DISCONNECTED', { qr: null });
+        globalAny.whatsappStatus = 'DISCONNECTED';
+        return;
+    }
     try {
         // logout() actually logs the session out of WhatsApp servers — we
         // don't want that, just the local close. end() with no args is the
