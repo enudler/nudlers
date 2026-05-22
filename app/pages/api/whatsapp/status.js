@@ -1,5 +1,5 @@
 
-import { getStatus, restartClient, destroyClient, initializeClient, renewQrCode } from '../../../utils/whatsapp-client.js';
+import { getStatus, restartClient, destroyClient, initializeClient, renewQrCode, clearSession } from '../../../utils/whatsapp-client.js';
 
 export default async function handler(req, res) {
     if (req.method === 'GET') {
@@ -22,7 +22,12 @@ export default async function handler(req, res) {
         }
 
         if (action === 'disconnect') {
+            // User-initiated disconnect must persist across reboots. destroyClient()
+            // only closes the socket and intentionally preserves creds on disk so
+            // restartClient()/renewQrCode() can reuse them; without clearSession()
+            // here, autoRestoreSession() rebuilds the connection on next boot.
             await destroyClient();
+            clearSession();
             return res.status(200).json({ message: 'Client disconnected' });
         }
 

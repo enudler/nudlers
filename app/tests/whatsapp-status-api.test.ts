@@ -11,9 +11,10 @@ vi.mock('../utils/whatsapp-client.js', () => ({
     destroyClient: vi.fn().mockResolvedValue(undefined),
     initializeClient: vi.fn(),
     renewQrCode: vi.fn(),
+    clearSession: vi.fn().mockReturnValue(true),
 }));
 
-import { getStatus, restartClient, destroyClient, initializeClient, renewQrCode } from '../utils/whatsapp-client.js';
+import { getStatus, restartClient, destroyClient, initializeClient, renewQrCode, clearSession } from '../utils/whatsapp-client.js';
 
 // Helper to create mock req/res
 function createMockReqRes(method: string, body?: object) {
@@ -81,6 +82,21 @@ describe('WhatsApp Status API', () => {
             expect(destroyClient).toHaveBeenCalled();
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({ message: 'Client disconnected' });
+        });
+
+        it('disconnect clears the persisted session so next boot does not auto-reconnect', async () => {
+            // Regression: without clearSession(), .baileys_auth/creds.json
+            // survives the disconnect and autoRestoreSession() rebuilds the
+            // connection on the next process start.
+            const { req, res } = createMockReqRes('POST', { action: 'disconnect' });
+
+            await handler(req as any, res as any);
+
+            expect(destroyClient).toHaveBeenCalled();
+            expect(clearSession).toHaveBeenCalled();
+            const destroyOrder = (destroyClient as any).mock.invocationCallOrder[0];
+            const clearOrder = (clearSession as any).mock.invocationCallOrder[0];
+            expect(destroyOrder).toBeLessThan(clearOrder);
         });
 
         it('should handle renewQr action', async () => {
