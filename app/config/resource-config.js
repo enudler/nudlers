@@ -137,8 +137,11 @@ const CHROME_FLAGS = {
     // Low resource flags - added for low mode
     lowResource: [
         // Process optimization (critical for limited resources)
-        '--single-process',
-        '--no-zygote',
+        // NOTE: --single-process / --no-zygote were removed — newer Chromium
+        // (bundled with puppeteer 24.43+) crashes on launch under them
+        // ("Failed to launch the browser process: Code: null" +
+        // "Cannot use V8 Proxy resolver in single process mode").
+        // The WhatsApp flags already omit --single-process for the same reason.
         '--disable-extensions',
         // Memory optimization
         '--disable-gl-drawing-for-tests',
