@@ -20,7 +20,7 @@ import {
     loadCategoryMappings,
     checkScraperConcurrency,
 } from '../utils/scraperUtils';
-import { BANK_VENDORS } from '../../../utils/constants';
+import { BANK_VENDORS, normalizeVendor } from '../../../utils/constants';
 import { VaultLockedError } from '../utils/encryption';
 
 // Helper to send SSE messages to the local client
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
 
         const accounts = accountsResult.rows.map(row => ({
             id: row.id,
-            vendor: row.vendor,
+            vendor: normalizeVendor(row.vendor),
             nickname: row.nickname || row.vendor,
             credentials: {
                 username: row.username ? decrypt(row.username) : null,
