@@ -14,7 +14,7 @@ import {
     getScraperTimeout,
     checkScraperConcurrency
 } from '../pages/api/utils/scraperUtils.js';
-import { APP_SETTINGS_KEYS, FETCH_SETTING_SQL } from '../utils/constants.js';
+import { APP_SETTINGS_KEYS, FETCH_SETTING_SQL, normalizeVendor } from '../utils/constants.js';
 
 
 // Standalone DB connection for the script
@@ -73,7 +73,7 @@ async function runBackgroundSync() {
         const fetchCategoriesSetting = await getFetchCategoriesSetting(client);
 
         for (const row of accountsResult.rows) {
-            const companyId = row.vendor;
+            const companyId = normalizeVendor(row.vendor);
 
             logger.info({ vendor: companyId, nickname: row.nickname }, '[Background Sync] Syncing account');
 
