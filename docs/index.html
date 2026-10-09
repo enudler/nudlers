@@ -6,11 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nudlers · הפיננסים האישיים שלך, אצלך בבית</title>
     <meta name="description"
-        content="Nudlers מאחד את כל החשבונות והכרטיסים הישראליים שלך לדשבורד אחד. סורק, מקטלג, מתקצב — ופועל על השרת שלך, בלי שאף אחד אחר נוגע בנתונים.">
+        content="Nudlers מאחד את כל החשבונות והכרטיסים הישראליים שלך לדשבורד אחד. סורק, מקטלג ומתקצב, ורץ על השרת שלך בלי שאף אחד אחר נוגע בנתונים.">
     <meta property="og:title" content="Nudlers · הפיננסים האישיים שלך, אצלך בבית">
-    <meta property="og:description" content="כל החשבונות, כל הכרטיסים — מקום אחד. מקומי, מוצפן, פתוח.">
+    <meta property="og:description" content="כל החשבונות וכל הכרטיסים במקום אחד. מקומי, מוצפן, פתוח.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nudlers.com">
+    <meta property="og:image" content="https://nudlers.com/assets/summary.png">
+    <meta name="color-scheme" content="light dark">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
     <script>
@@ -19,38 +21,31 @@
             var saved = null;
             try { saved = localStorage.getItem('nudlers-lang'); } catch (_) { }
             var lang = (saved === 'en' || saved === 'he') ? saved : 'he';
-            document.documentElement.lang = lang;
-            document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
-            document.documentElement.dataset.lang = lang;
+            var root = document.documentElement;
+            root.lang = lang;
+            root.dir = lang === 'he' ? 'rtl' : 'ltr';
+            root.dataset.lang = lang;
+            root.classList.add('js');
         })();
     </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&family=Assistant:wght@400;500;600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&display=swap"
         rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+    <link rel="preload" as="image" href="assets/summary.png">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+    <a class="skip-link" href="#main"><span class="he">דילוג לתוכן</span><span class="en">Skip to content</span></a>
 
-    <!-- ────────────────────────────────────────────────────────────
-         Aurora background — three slowly drifting radial gradients
-         on a dark canvas. Pure CSS, no canvas, GPU-friendly.
-         ──────────────────────────────────────────────────────────── -->
-    <div class="aurora" aria-hidden="true">
-        <div class="aurora-blob blob-violet"></div>
-        <div class="aurora-blob blob-cyan"></div>
-        <div class="aurora-blob blob-magenta"></div>
-        <div class="aurora-grain"></div>
-    </div>
-
-    <!-- ────────────── NAV ────────────── -->
     <nav class="nav">
-        <div class="nav-inner">
-            <a href="#" class="nav-logo">
-                <img src="assets/icon.svg" alt="Nudlers" class="nav-logo-img">
+        <div class="container nav-inner">
+            <a href="#main" class="nav-logo">
+                <img src="assets/icon.svg" alt="" width="28" height="28">
                 <span>Nudlers</span>
             </a>
 
@@ -63,579 +58,449 @@
             </div>
 
             <div class="nav-actions">
-                <button class="lang-toggle" aria-label="Toggle language" type="button">
-                    <span class="lang-toggle-track">
-                        <span class="lang-toggle-pill" aria-hidden="true"></span>
-                        <span class="lang-toggle-opt" data-lang-set="he">עב</span>
-                        <span class="lang-toggle-opt" data-lang-set="en">EN</span>
-                    </span>
+                <button class="lang-toggle" type="button">
+                    <span class="he" lang="en">English</span>
+                    <span class="en" lang="he">עברית</span>
                 </button>
-                <a href="https://github.com/enudler/nudlers" class="nav-btn" target="_blank" rel="noopener">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
-                        <path
-                            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                    </svg>
-                    <span>GitHub</span>
+                <a href="https://github.com/enudler/nudlers" class="btn btn-quiet btn-sm" target="_blank"
+                    rel="noopener">
+                    <i class="ph ph-github-logo" aria-hidden="true"></i>
+                    <span class="nav-btn-label">GitHub</span>
                 </a>
-                <button class="nav-toggle" aria-label="Toggle menu" type="button">
-                    <span></span><span></span><span></span>
+                <button class="nav-toggle" aria-label="Menu" aria-expanded="false" type="button">
+                    <i class="ph ph-list" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
     </nav>
 
-    <!-- ────────────── HERO ────────────── -->
-    <header class="hero">
-        <div class="container hero-inner">
-            <div class="hero-badge">
-                <span class="hero-badge-dot"></span>
-                <span class="he">מקומי · קוד פתוח · מוצפן מקצה לקצה</span>
-                <span class="en">Self-hosted · Open Source · End-to-end encrypted</span>
-            </div>
+    <main id="main">
 
-            <h1 class="hero-title">
-                <span class="he">
-                    הכסף שלך,
-                    <span class="hero-accent">אצלך בבית.</span>
-                </span>
-                <span class="en">
-                    Your money,
-                    <span class="hero-accent">at home with you.</span>
-                </span>
-            </h1>
+        <header class="hero">
+            <div class="container hero-grid">
+                <div class="hero-copy">
+                    <p class="hero-eyebrow enter" style="--i:0">
+                        <span class="he">קוד פתוח, מותקן אצלך</span>
+                        <span class="en">Open source, self-hosted</span>
+                    </p>
 
-            <p class="hero-sub">
-                <span class="he">
-                    Nudlers מאחד את כל החשבונות והכרטיסים הישראליים שלך לדשבורד אחד.
-                    סורק, מקטלג, מתקצב, שולח סיכומים בוואטסאפ — ופועל על השרת שלך, בלי שאף אחד אחר רואה את הנתונים.
-                </span>
-                <span class="en">
-                    Nudlers brings every Israeli bank and credit card you own into a single dashboard.
-                    It scrapes, categorises, budgets, and pings WhatsApp summaries — all running on your hardware,
-                    where nobody else gets to see your data.
-                </span>
-            </p>
+                    <h1 class="hero-title enter" style="--i:1">
+                        <span class="he">הכסף שלך, <span class="hero-soft">אצלך בבית.</span></span>
+                        <span class="en">Your money, <span class="hero-soft">at home with you.</span></span>
+                    </h1>
 
-            <div class="hero-actions">
-                <a href="#install" class="btn btn-primary">
-                    <span class="he">התחלה ✦</span>
-                    <span class="en">Get started ✦</span>
-                </a>
-                <a href="#preview" class="btn btn-ghost">
-                    <span class="he">תצוגה חיה</span>
-                    <span class="en">See it live</span>
-                </a>
-            </div>
+                    <p class="hero-sub enter" style="--i:2">
+                        <span class="he">כל חשבונות הבנק וכרטיסי האשראי שלך בדשבורד אחד. רץ על השרת שלך, ואף אחד
+                            אחר לא רואה את הנתונים.</span>
+                        <span class="en">Every Israeli bank and credit card in one dashboard. Runs on your own server,
+                            so nobody else sees your data.</span>
+                    </p>
 
-            <div class="hero-stats">
-                <div class="hero-stat">
-                    <div class="hero-stat-num">10+</div>
-                    <div class="hero-stat-label"><span class="he">בנקים וחברות אשראי</span><span class="en">Banks &amp;
-                            cards</span></div>
-                </div>
-                <div class="hero-stat">
-                    <div class="hero-stat-num">0</div>
-                    <div class="hero-stat-label"><span class="he">שרתים חיצוניים</span><span class="en">External
-                            servers</span></div>
-                </div>
-                <div class="hero-stat">
-                    <div class="hero-stat-num">100%</div>
-                    <div class="hero-stat-label"><span class="he">הקוד פתוח</span><span class="en">Open source</span>
+                    <div class="hero-actions enter" style="--i:3">
+                        <a href="#install" class="btn btn-primary">
+                            <span class="he">התקנה</span><span class="en">Install</span>
+                            <i class="ph ph-arrow-down" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://github.com/enudler/nudlers" class="btn btn-quiet" target="_blank"
+                            rel="noopener">
+                            <i class="ph ph-github-logo" aria-hidden="true"></i>
+                            GitHub
+                        </a>
                     </div>
                 </div>
+
+                <figure class="hero-shot enter" style="--i:2">
+                    <img src="assets/summary.png" width="1440" height="900" fetchpriority="high"
+                        alt="Nudlers monthly summary: total card spend and credit-card usage grouped by bank">
+                </figure>
             </div>
-        </div>
-    </header>
+        </header>
 
-    <!-- ────────────── PREVIEW CAROUSEL ────────────── -->
-    <section id="preview" class="section">
-        <div class="container">
-            <div class="section-head">
-                <div class="section-eyebrow"><span class="he">תצוגה</span><span class="en">Preview</span></div>
-                <h2 class="section-title">
-                    <span class="he">איך זה נראה.</span>
-                    <span class="en">How it looks.</span>
-                </h2>
-                <p class="section-sub">
-                    <span class="he">דשבורד נקי, צבעים שקטים, ועברית מובנת מעצמה — מימין לשמאל.</span>
-                    <span class="en">A clean dashboard, calm colours, and proper RTL Hebrew baked in from day one.</span>
-                </p>
-            </div>
-
-            <div class="carousel" tabindex="0">
-                <div class="carousel-frame">
-                    <div class="carousel-viewport">
-                        <div class="carousel-track">
-                            <div class="carousel-slide active">
-                                <img src="assets/summary.png" alt="Monthly summary dashboard" loading="lazy">
-                            </div>
-                            <div class="carousel-slide">
-                                <img src="assets/transactions.png" alt="Transactions view" loading="lazy">
-                            </div>
-                            <div class="carousel-slide">
-                                <img src="assets/projection.png" alt="Financial projection chart" loading="lazy">
-                            </div>
-                            <div class="carousel-slide">
-                                <img src="assets/breakdown.png" alt="Expense breakdown" loading="lazy">
-                            </div>
-                            <div class="carousel-slide">
-                                <img src="assets/recurring.png" alt="Recurring payments" loading="lazy">
-                            </div>
-                            <div class="carousel-slide carousel-slide-mobile">
-                                <img src="assets/mobile-summary.png" alt="Mobile responsive view" loading="lazy">
-                            </div>
-                        </div>
-                    </div>
-
-                    <button class="carousel-btn carousel-prev" aria-label="Previous slide" type="button">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <path d="M15 18l-6-6 6-6" />
-                        </svg>
-                    </button>
-                    <button class="carousel-btn carousel-next" aria-label="Next slide" type="button">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <path d="M9 18l6-6-6-6" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="carousel-meta">
-                    <div class="carousel-info">
-                        <div class="carousel-label">
-                            <span class="he" data-slide-label-he="0">סיכום חודשי</span>
-                            <span class="en" data-slide-label-en="0">Monthly summary</span>
-                        </div>
-                        <div class="carousel-desc">
-                            <span class="he" data-slide-desc-he="0">סקירה חודשית עם שימוש בכרטיסי אשראי לפי בנק, סך
-                                ההוצאה ובריאות התקציב.</span>
-                            <span class="en" data-slide-desc-en="0">Monthly overview with credit-card usage by bank,
-                                total spend, and budget health.</span>
-                        </div>
-                    </div>
-
-                    <div class="carousel-dots">
-                        <button class="carousel-dot active" data-slide="0" aria-label="Slide 1" type="button"></button>
-                        <button class="carousel-dot" data-slide="1" aria-label="Slide 2" type="button"></button>
-                        <button class="carousel-dot" data-slide="2" aria-label="Slide 3" type="button"></button>
-                        <button class="carousel-dot" data-slide="3" aria-label="Slide 4" type="button"></button>
-                        <button class="carousel-dot" data-slide="4" aria-label="Slide 5" type="button"></button>
-                        <button class="carousel-dot" data-slide="5" aria-label="Slide 6" type="button"></button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ────────────── FEATURES ────────────── -->
-    <section id="features" class="section">
-        <div class="container">
-            <div class="section-head">
-                <div class="section-eyebrow"><span class="he">יכולות</span><span class="en">Features</span></div>
-                <h2 class="section-title">
-                    <span class="he">כל מה שצריך, כלום מיותר.</span>
-                    <span class="en">Everything you need, nothing you don't.</span>
-                </h2>
-                <p class="section-sub">
-                    <span class="he">ארגז כלים לניהול פיננסי אישי, מותאם בדיוק לאיך שדברים עובדים בישראל.</span>
-                    <span class="en">A complete personal-finance toolkit, designed for the way Israeli banking actually
-                        works.</span>
-                </p>
-            </div>
-
-            <div class="features-grid">
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <path d="M21 12a9 9 0 11-9-9c2.5 0 4.8 1 6.4 2.6L21 8" />
-                            <polyline points="21 3 21 8 16 8" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">סריקה אוטומטית</span>
-                        <span class="en">Automated scraping</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">מושך עסקאות מכל הבנקים הגדולים וחברות האשראי בישראל. הגדר פעם אחת — והשאר זוכר
-                            בלעדיך.</span>
-                        <span class="en">Pulls transactions from every major Israeli bank and card provider. Set it up
-                            once, then forget it exists.</span>
-                    </p>
-                    <div class="feature-tags">
-                        <span class="tag">Hapoalim</span><span class="tag">Leumi</span><span
-                            class="tag">Discount</span><span class="tag">VisaCal</span><span class="tag">Max</span><span
-                            class="tag">Isracard</span><span class="tag">+</span>
-                    </div>
-                </article>
-
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <path d="M3 7h18M3 12h18M3 17h12" />
-                            <circle cx="19.5" cy="17" r="2.5" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">קטגוריזציה חכמה</span>
-                        <span class="en">Smart categorisation</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">מיון אוטומטי לפי כללים שאתה כותב בעצמך — בלי AI שמשגע אותך או חוקים שכפו עליך
-                            במקום אחר.</span>
-                        <span class="en">Auto-categorise by rules you write yourself — no opaque AI guessing, no
-                            categories someone else decided you need.</span>
-                    </p>
-                </article>
-
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <path d="M3 3v18h18" />
-                            <path d="M7 14l4-4 4 4 5-7" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">מעקב תקציב חודשי</span>
-                        <span class="en">Monthly budgeting</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">תקציב לכל קטגוריה, פסי התקדמות ויזואליים, וחיתוך לפי מחזור החיוב — לא לפי תאריך
-                            לועזי.</span>
-                        <span class="en">Per-category budgets, visual progress bars, sliced by your billing cycle —
-                            not the calendar month.</span>
-                    </p>
-                </article>
-
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <path
-                                d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">סיכומי וואטסאפ</span>
-                        <span class="en">WhatsApp summaries</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">סיכום יומי ישר לטלפון, עם התראות תובנות בראש ההודעה. אופציונלי: התראה כשהאפליקציה
-                            מופעלת מחדש והכספת מחכה לפתיחה — שתדע שהשרת חזר.</span>
-                        <span class="en">Daily summary straight to your phone, with insight alerts at the top.
-                            Optional ping when the app restarts and the vault is waiting to be unlocked — so you know
-                            your server came back up.</span>
-                    </p>
-                </article>
-
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <path d="M3 12h4l3-9 4 18 3-9h4" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">תובנות חכמות</span>
-                        <span class="en">Smart insights</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">תיבת תובנות שמסמנת עליות מחיר במנויים, חיובים חדשים שהפכו לקבועים, וקפיצות
-                            בהוצאה לפי קטגוריה — לפני שהן עוקבות אחריך לסוף החודש.</span>
-                        <span class="en">An inbox that surfaces price hikes on subscriptions, free trials that quietly
-                            became recurring, and category spend spikes — before they sneak up on you at the end of
-                            the month.</span>
-                    </p>
-                </article>
-
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <path
-                                d="M12 2a3 3 0 013 3v6a3 3 0 11-6 0V5a3 3 0 013-3zM19 11a7 7 0 11-14 0M12 18v3M8 21h8" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">עוזר AI אישי</span>
-                        <span class="en">AI assistant</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">שואל שאלות על ההוצאות שלך בעברית. עובד עם כל ספק תואם OpenAI: OpenRouter,
-                            OpenAI, Groq, Gemini, Ollama מקומי — אתה בוחר.</span>
-                        <span class="en">Ask questions about your spend in plain language. Works with any
-                            OpenAI-compatible provider: OpenRouter, OpenAI, Groq, Gemini, local Ollama — your
-                            call.</span>
-                    </p>
-                </article>
-
-                <article class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                            <circle cx="12" cy="12" r="3" />
-                            <path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6" />
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">
-                        <span class="he">חיבור ל-MCP</span>
-                        <span class="en">MCP integration</span>
-                    </h3>
-                    <p class="feature-text">
-                        <span class="he">תמיכה ב-Model Context Protocol — Claude וכלי AI אחרים מדברים ישירות עם הנתונים
-                            הפיננסיים שלך, בלי אמצע.</span>
-                        <span class="en">Model Context Protocol support lets Claude and other AI tools talk directly to
-                            your financial data — no middleman.</span>
-                    </p>
-                </article>
-            </div>
-        </div>
-    </section>
-
-    <!-- ────────────── SECURITY ────────────── -->
-    <section id="security" class="section">
-        <div class="container">
-            <div class="section-head">
-                <div class="section-eyebrow"><span class="he">אבטחה</span><span class="en">Security</span></div>
-                <h2 class="section-title">
-                    <span class="he">הסיסמאות שלך לא יוצאות מהמכונה.</span>
-                    <span class="en">Your passwords never leave the machine.</span>
-                </h2>
-                <p class="section-sub">
-                    <span class="he">לא לשרת ענן, לא לשירות צד-שלישי. הכול מוצפן בכספת מקומית, נפתח רק עם הסיסמה
-                        שלך.</span>
-                    <span class="en">Not to a cloud, not to a third-party service. Everything's encrypted in a local
-                        vault, unlocked only by your passphrase.</span>
-                </p>
-            </div>
-
-            <div class="security-grid">
-                <div class="security-card security-card-wide">
-                    <div class="security-flow">
-                        <div class="flow-step">
-                            <div class="flow-key">
-                                <span class="he">סיסמה</span>
-                                <span class="en">Passphrase</span>
-                            </div>
-                            <div class="flow-meta">scrypt</div>
-                        </div>
-                        <div class="flow-arrow">→</div>
-                        <div class="flow-step">
-                            <div class="flow-key">
-                                <span class="he">מפתח עיטוף</span>
-                                <span class="en">Wrapping key</span>
-                            </div>
-                            <div class="flow-meta">AES-256-GCM</div>
-                        </div>
-                        <div class="flow-arrow">→</div>
-                        <div class="flow-step">
-                            <div class="flow-key">
-                                <span class="he">מפתח מאסטר</span>
-                                <span class="en">Master key</span>
-                            </div>
-                            <div class="flow-meta">
-                                <span class="he">בזיכרון בלבד</span>
-                                <span class="en">In memory only</span>
-                            </div>
-                        </div>
-                        <div class="flow-arrow">→</div>
-                        <div class="flow-step">
-                            <div class="flow-key">
-                                <span class="he">הפרטים שלך</span>
-                                <span class="en">Your credentials</span>
-                            </div>
-                            <div class="flow-meta">
-                                <span class="he">מוצפן בבסיס הנתונים</span>
-                                <span class="en">Encrypted in DB</span>
-                            </div>
-                        </div>
-                    </div>
-                    <p class="security-explainer">
-                        <span class="he">שכבת הצפנה כפולה. גם אם בסיס הנתונים נחשף — הסיסמאות שלך נשארות חתומות. שכחת את
-                            סיסמת הכספת? אף אחד לא יכול לפתוח אותה. גם לא אנחנו.</span>
-                        <span class="en">Two-layer encryption. Even if the database leaks, your credentials stay sealed.
-                            Forget the vault passphrase? Nobody can recover it. Including us.</span>
-                    </p>
-                </div>
-
-                <div class="security-card">
-                    <div class="security-icon">⌬</div>
-                    <h4>
-                        <span class="he">2FA מובנה</span>
-                        <span class="en">Native 2FA</span>
-                    </h4>
-                    <p>
-                        <span class="he">תמיכה מובנית באימות דו-שלבי של OneZero ובקוד OTP של בנק הפועלים — בלי לעבור דרך
-                            תוספים חיצוניים.</span>
-                        <span class="en">Native 2FA flow for OneZero and Bank Hapoalim's OTP — no third-party
-                            extension required.</span>
-                    </p>
-                </div>
-
-                <div class="security-card">
-                    <div class="security-icon">⊘</div>
-                    <h4>
-                        <span class="he">אפס טלמטריה</span>
-                        <span class="en">Zero telemetry</span>
-                    </h4>
-                    <p>
-                        <span class="he">בלי אנליטיקס, בלי שליחת לוגים החוצה, בלי "anonymized usage data". אם אתה לא
-                            רואה את זה ב-DevTools — זה לא קורה.</span>
-                        <span class="en">No analytics, no remote logs, no "anonymised usage data". If you don't see
-                            it in DevTools, it isn't happening.</span>
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ────────────── HEBREW NATIVE ────────────── -->
-    <section class="section section-hebrew">
-        <div class="container">
-            <div class="hebrew-card">
-                <div class="hebrew-card-text">
-                    <div class="section-eyebrow"><span class="he">עברית</span><span class="en">Hebrew</span></div>
+        <section id="preview" class="section">
+            <div class="container">
+                <div class="section-head reveal">
                     <h2 class="section-title">
+                        <span class="he">איך זה נראה.</span>
+                        <span class="en">How it looks.</span>
+                    </h2>
+                    <p class="section-sub">
+                        <span class="he">דשבורד נקי, צבעים שקטים ועברית מימין לשמאל מהיום הראשון.</span>
+                        <span class="en">A clean dashboard, calm colours, and proper RTL Hebrew from day one.</span>
+                    </p>
+                </div>
+
+                <div class="gallery reveal">
+                    <div class="gallery-tabs" role="tablist">
+                        <button role="tab" aria-selected="true" aria-controls="shot-0" id="tab-0" type="button">
+                            <span class="he">סיכום</span><span class="en">Summary</span>
+                        </button>
+                        <button role="tab" aria-selected="false" aria-controls="shot-1" id="tab-1" tabindex="-1"
+                            type="button">
+                            <span class="he">עסקאות</span><span class="en">Transactions</span>
+                        </button>
+                        <button role="tab" aria-selected="false" aria-controls="shot-2" id="tab-2" tabindex="-1"
+                            type="button">
+                            <span class="he">תחזית</span><span class="en">Forecast</span>
+                        </button>
+                        <button role="tab" aria-selected="false" aria-controls="shot-3" id="tab-3" tabindex="-1"
+                            type="button">
+                            <span class="he">בתי עסק</span><span class="en">Merchants</span>
+                        </button>
+                        <button role="tab" aria-selected="false" aria-controls="shot-4" id="tab-4" tabindex="-1"
+                            type="button">
+                            <span class="he">חיובים חוזרים</span><span class="en">Recurring</span>
+                        </button>
+                        <button role="tab" aria-selected="false" aria-controls="shot-5" id="tab-5" tabindex="-1"
+                            type="button">
+                            <span class="he">מובייל</span><span class="en">Mobile</span>
+                        </button>
+                    </div>
+
+                    <figure class="gallery-panel" role="tabpanel" id="shot-0" aria-labelledby="tab-0">
+                        <div class="gallery-frame">
+                            <img src="assets/summary.png" width="1440" height="900" loading="lazy"
+                                alt="Monthly summary dashboard">
+                        </div>
+                        <figcaption>
+                            <span class="he">סקירה חודשית עם שימוש בכרטיסי אשראי לפי בנק, סך ההוצאה ובריאות
+                                התקציב.</span>
+                            <span class="en">Monthly overview with credit-card usage by bank, total spend, and budget
+                                health.</span>
+                        </figcaption>
+                    </figure>
+                    <figure class="gallery-panel" role="tabpanel" id="shot-1" aria-labelledby="tab-1" hidden>
+                        <div class="gallery-frame">
+                            <img src="assets/transactions.png" width="1440" height="900" loading="lazy"
+                                alt="Transactions table with search and category filters">
+                        </div>
+                        <figcaption>
+                            <span class="he">כל עסקאות הבנק והאשראי, עם חיפוש, מיון וסינון לפי קטגוריה.</span>
+                            <span class="en">Every bank and card transaction, with search, sort, and category
+                                filters.</span>
+                        </figcaption>
+                    </figure>
+                    <figure class="gallery-panel" role="tabpanel" id="shot-2" aria-labelledby="tab-2" hidden>
+                        <div class="gallery-frame">
+                            <img src="assets/projection.png" width="1440" height="900" loading="lazy"
+                                alt="30-day balance projection chart">
+                        </div>
+                        <figcaption>
+                            <span class="he">תחזית יתרה ל-30 יום קדימה, כולל חיובי אשראי וחיובים חוזרים.</span>
+                            <span class="en">30-day balance projection including pending card settlements and recurring
+                                charges.</span>
+                        </figcaption>
+                    </figure>
+                    <figure class="gallery-panel" role="tabpanel" id="shot-3" aria-labelledby="tab-3" hidden>
+                        <div class="gallery-frame">
+                            <img src="assets/breakdown.png" width="1440" height="900" loading="lazy"
+                                alt="Expense breakdown grouped by merchant">
+                        </div>
+                        <figcaption>
+                            <span class="he">ניתוח הוצאות לפי בית עסק, עם עריכת קטגוריה מהירה.</span>
+                            <span class="en">Spending grouped by merchant, with quick category editing.</span>
+                        </figcaption>
+                    </figure>
+                    <figure class="gallery-panel" role="tabpanel" id="shot-4" aria-labelledby="tab-4" hidden>
+                        <div class="gallery-frame">
+                            <img src="assets/recurring.png" width="1440" height="900" loading="lazy"
+                                alt="Recurring payments and instalments">
+                        </div>
+                        <figcaption>
+                            <span class="he">מעקב אחרי הוראות קבע, תשלומים ומנויים, עם סרגל התקדמות.</span>
+                            <span class="en">Standing orders, instalments, and subscriptions with progress
+                                indicators.</span>
+                        </figcaption>
+                    </figure>
+                    <figure class="gallery-panel" role="tabpanel" id="shot-5" aria-labelledby="tab-5" hidden>
+                        <div class="gallery-frame gallery-frame-mobile">
+                            <img src="assets/mobile-summary.png" width="390" height="844" loading="lazy"
+                                alt="Monthly summary on a phone">
+                        </div>
+                        <figcaption>
+                            <span class="he">עובד על טלפון, טאבלט ודסקטופ.</span>
+                            <span class="en">Works on phones, tablets, and desktops.</span>
+                        </figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="section">
+            <div class="container">
+                <div class="section-head reveal">
+                    <h2 class="section-title">
+                        <span class="he">כל מה שצריך, כלום מיותר.</span>
+                        <span class="en">Everything you need, nothing you don't.</span>
+                    </h2>
+                    <p class="section-sub">
+                        <span class="he">ארגז כלים לניהול פיננסי אישי, מותאם לאיך שדברים עובדים בישראל.</span>
+                        <span class="en">A personal-finance toolkit built around how Israeli banking actually
+                            works.</span>
+                    </p>
+                </div>
+
+                <div class="bento">
+                    <article class="tile tile-scrape tile-tint reveal">
+                        <i class="ph ph-arrows-clockwise tile-icon" aria-hidden="true"></i>
+                        <h3><span class="he">סריקה אוטומטית</span><span class="en">Automated scraping</span></h3>
+                        <p>
+                            <span class="he">מושך עסקאות מכל הבנקים הגדולים וחברות האשראי בישראל. מגדירים פעם אחת,
+                                והשאר קורה לבד.</span>
+                            <span class="en">Pulls transactions from every major Israeli bank and card company. Set it
+                                up once and it runs on its own.</span>
+                        </p>
+                        <ul class="banks" lang="en">
+                            <li>Hapoalim</li>
+                            <li>Leumi</li>
+                            <li>Discount</li>
+                            <li>Mizrahi</li>
+                            <li>Visa Cal</li>
+                            <li>Max</li>
+                            <li>Isracard</li>
+                            <li>Amex</li>
+                            <li>OneZero</li>
+                        </ul>
+                    </article>
+
+                    <article class="tile tile-cat tile-media reveal">
+                        <div>
+                            <i class="ph ph-funnel tile-icon" aria-hidden="true"></i>
+                            <h3><span class="he">קטגוריזציה לפי כללים</span><span class="en">Rule-based
+                                    categories</span></h3>
+                            <p>
+                                <span class="he">מיון אוטומטי לפי כללים שאתה כותב. בלי ניחושים, בלי קטגוריות שמישהו
+                                    אחר בחר בשבילך.</span>
+                                <span class="en">Auto-categorise with rules you write yourself. No guessing, no
+                                    categories someone else picked for you.</span>
+                            </p>
+                        </div>
+                        <img src="assets/breakdown.png" width="1440" height="900" loading="lazy"
+                            alt="Merchant breakdown with category labels">
+                    </article>
+
+                    <article class="tile tile-budget reveal">
+                        <i class="ph ph-chart-line-up tile-icon" aria-hidden="true"></i>
+                        <h3><span class="he">תקציב חודשי</span><span class="en">Monthly budgets</span></h3>
+                        <p>
+                            <span class="he">תקציב לכל קטגוריה, לפי מחזור החיוב ולא לפי החודש הלועזי.</span>
+                            <span class="en">Per-category budgets, sliced by your billing cycle instead of the
+                                calendar month.</span>
+                        </p>
+                    </article>
+
+                    <article class="tile tile-wa reveal">
+                        <i class="ph ph-whatsapp-logo tile-icon" aria-hidden="true"></i>
+                        <h3><span class="he">סיכומים בוואטסאפ</span><span class="en">WhatsApp summaries</span></h3>
+                        <p>
+                            <span class="he">סיכום יומי ישר לטלפון, עם ההתראות בראש ההודעה. אפשר גם לקבל הודעה כשהשרת
+                                עלה מחדש והכספת מחכה לפתיחה.</span>
+                            <span class="en">A daily summary on your phone, alerts first. Optionally, a ping when the
+                                server restarts and the vault needs unlocking.</span>
+                        </p>
+                    </article>
+
+                    <article class="tile tile-insights tile-media reveal">
+                        <div>
+                            <i class="ph ph-lightbulb tile-icon" aria-hidden="true"></i>
+                            <h3><span class="he">תובנות</span><span class="en">Insights</span></h3>
+                            <p>
+                                <span class="he">מסמן עליות מחיר במנויים, ניסיונות חינם שהפכו לחיוב קבוע וקפיצות בהוצאה
+                                    לפי קטגוריה. לפני שהם מפתיעים אותך בסוף החודש.</span>
+                                <span class="en">Flags subscription price hikes, free trials that quietly became
+                                    recurring, and category spend spikes. Before they surprise you at month end.</span>
+                            </p>
+                        </div>
+                        <img src="assets/recurring.png" width="1440" height="900" loading="lazy"
+                            alt="Recurring charges list with progress indicators">
+                    </article>
+
+                    <article class="tile tile-ai reveal">
+                        <i class="ph ph-chat-circle-text tile-icon" aria-hidden="true"></i>
+                        <h3><span class="he">עוזר AI</span><span class="en">AI assistant</span></h3>
+                        <p>
+                            <span class="he">שאל על ההוצאות שלך בשפה רגילה. עובד עם כל ספק תואם OpenAI: OpenRouter,
+                                Groq, Gemini או Ollama מקומי.</span>
+                            <span class="en">Ask about your spending in plain language. Works with any
+                                OpenAI-compatible provider: OpenRouter, Groq, Gemini, or local Ollama.</span>
+                        </p>
+                    </article>
+
+                    <article class="tile tile-mcp tile-pattern reveal">
+                        <i class="ph ph-plugs-connected tile-icon" aria-hidden="true"></i>
+                        <h3><span class="he">חיבור ל-MCP</span><span class="en">MCP server</span></h3>
+                        <p>
+                            <span class="he">Claude וכלי AI אחרים ניגשים ישירות לנתונים שלך דרך Model Context
+                                Protocol, בלי צד שלישי באמצע.</span>
+                            <span class="en">Claude and other AI tools read your financial data directly through the
+                                Model Context Protocol, with no middleman.</span>
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="security" class="section">
+            <div class="container">
+                <div class="section-head reveal">
+                    <h2 class="section-title">
+                        <span class="he">הסיסמאות שלך לא יוצאות מהמכונה.</span>
+                        <span class="en">Your passwords never leave the machine.</span>
+                    </h2>
+                    <p class="section-sub">
+                        <span class="he">הכול מוצפן בכספת מקומית שנפתחת רק עם הסיסמה שלך.</span>
+                        <span class="en">Everything is encrypted in a local vault that opens only with your
+                            passphrase.</span>
+                    </p>
+                </div>
+
+                <ol class="flow reveal">
+                    <li>
+                        <span class="flow-key"><span class="he">סיסמת הכספת</span><span
+                                class="en">Passphrase</span></span>
+                        <span class="flow-meta">scrypt</span>
+                    </li>
+                    <li>
+                        <span class="flow-key"><span class="he">מפתח עיטוף</span><span class="en">Wrapping
+                                key</span></span>
+                        <span class="flow-meta">AES-256-GCM</span>
+                    </li>
+                    <li>
+                        <span class="flow-key"><span class="he">מפתח מאסטר</span><span class="en">Master
+                                key</span></span>
+                        <span class="flow-meta"><span class="he">בזיכרון בלבד</span><span class="en">Memory
+                                only</span></span>
+                    </li>
+                    <li>
+                        <span class="flow-key"><span class="he">פרטי ההתחברות</span><span class="en">Your
+                                credentials</span></span>
+                        <span class="flow-meta"><span class="he">מוצפנים בבסיס הנתונים</span><span
+                                class="en">Encrypted in DB</span></span>
+                    </li>
+                </ol>
+
+                <div class="security-notes">
+                    <p class="security-lead reveal">
+                        <span class="he">שתי שכבות הצפנה. גם אם בסיס הנתונים דולף, הפרטים שלך נשארים חתומים. שכחת את
+                            סיסמת הכספת? אף אחד לא יכול לשחזר אותה, גם לא אנחנו.</span>
+                        <span class="en">Two layers of encryption. If the database leaks, your credentials stay sealed.
+                            Forget the vault passphrase and nobody can recover it, including us.</span>
+                    </p>
+                    <div class="note reveal">
+                        <i class="ph ph-device-mobile-camera" aria-hidden="true"></i>
+                        <h3><span class="he">2FA מובנה</span><span class="en">Native 2FA</span></h3>
+                        <p>
+                            <span class="he">אימות דו-שלבי ל-OneZero ולקוד ה-OTP של בנק הפועלים, בלי תוספים
+                                חיצוניים.</span>
+                            <span class="en">Two-factor flows for OneZero and Bank Hapoalim OTP. No third-party
+                                extension needed.</span>
+                        </p>
+                    </div>
+                    <div class="note reveal">
+                        <i class="ph ph-eye-slash" aria-hidden="true"></i>
+                        <h3><span class="he">אפס טלמטריה</span><span class="en">Zero telemetry</span></h3>
+                        <p>
+                            <span class="he">בלי אנליטיקס, בלי לוגים שיוצאים החוצה. אם זה לא מופיע ב-DevTools, זה לא
+                                קורה.</span>
+                            <span class="en">No analytics, no remote logs, no “anonymised usage data”. If you don't
+                                see it in DevTools, it isn't happening.</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section section-local">
+            <div class="container local-grid">
+                <div class="local-col reveal">
+                    <h2 class="section-title section-title-sm">
                         <span class="he">עברית מלאה. RTL אמיתי.</span>
                         <span class="en">Real Hebrew. Real RTL.</span>
                     </h2>
-                    <p class="section-sub">
-                        <span class="he">לא תרגום אוטומטי, לא RTL מאולתר. הממשק נבנה מחדש כך שהוא ירגיש טבעי — מהפינות
-                            של הכרטיסים ועד למיקום של החצים.</span>
-                        <span class="en">Not Google-translated, not bolt-on RTL. The interface was rebuilt so it
-                            actually feels right — from card corners to arrow direction.</span>
+                    <p>
+                        <span class="he">נבנה מימין לשמאל מההתחלה, עד הפינות של הכרטיסים וכיוון החצים.</span>
+                        <span class="en">Built for right-to-left from the start, down to card corners and arrow
+                            direction.</span>
                     </p>
-                    <ul class="hebrew-list">
-                        <li><span class="he">כיוון מסמך אוטומטי לפי שפה</span><span class="en">Document direction
-                                follows the chosen language</span></li>
-                        <li><span class="he">מספרים פיננסיים מיושרים נכון</span><span class="en">Financial numbers align
-                                correctly in both directions</span></li>
-                        <li><span class="he">מעבר חי בין עברית לאנגלית — בלי רענון</span><span class="en">Live switch
-                                between Hebrew and English — no reload</span></li>
+                    <ul class="checks">
+                        <li><i class="ph ph-check" aria-hidden="true"></i><span class="he">כיוון המסמך עובר עם
+                                השפה</span><span class="en">Document direction follows the language</span></li>
+                        <li><i class="ph ph-check" aria-hidden="true"></i><span class="he">מספרים כספיים מיושרים נכון
+                                בשני הכיוונים</span><span class="en">Money aligns correctly in both directions</span>
+                        </li>
+                        <li><i class="ph ph-check" aria-hidden="true"></i><span class="he">מעבר חי בין עברית לאנגלית,
+                                בלי רענון</span><span class="en">Live switch between Hebrew and English, no
+                                reload</span></li>
                     </ul>
                 </div>
-                <div class="hebrew-card-visual">
-                    <div class="hebrew-mock">
-                        <div class="hebrew-mock-num">₪12,847</div>
-                        <div class="hebrew-mock-label">
-                            <span class="he">סך ההוצאה החודשית</span>
-                            <span class="en">Total monthly spend</span>
-                        </div>
-                        <div class="hebrew-mock-bar">
-                            <div class="hebrew-mock-bar-fill"></div>
-                        </div>
-                        <div class="hebrew-mock-meta">
-                            <span><span class="he">73% מהתקציב</span><span class="en">73% of budget</span></span>
-                            <span class="hebrew-mock-trend">▲ 8%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- ────────────── RUNS ANYWHERE ────────────── -->
-    <section class="section">
-        <div class="container">
-            <div class="runs-card">
-                <div class="runs-text">
-                    <h3>
+                <div class="local-col reveal">
+                    <h2 class="section-title section-title-sm">
                         <span class="he">רץ בכל מקום.</span>
                         <span class="en">Runs anywhere.</span>
-                    </h3>
+                    </h2>
                     <p>
-                        <span class="he">שני מצבים מובנים: <strong>normal</strong> לשרתים סטנדרטיים,
-                            <strong>low</strong> ל-NAS, רספברי פיי וכל פיסת חומרה צנועה. הפיננסים שלך, החומרה
-                            שלך.</span>
-                        <span class="en">Two built-in modes: <strong>normal</strong> for standard servers,
-                            <strong>low</strong> for NAS boxes, Raspberry Pi, and other modest hardware. Your
-                            finances, your hardware.</span>
+                        <span class="he">שני מצבים מובנים. הפיננסים שלך, החומרה שלך.</span>
+                        <span class="en">Two built-in resource modes. Your finances, your hardware.</span>
+                    </p>
+                    <dl class="modes">
+                        <div>
+                            <dt>normal</dt>
+                            <dd><span class="he">שרתים רגילים, 2GB+ זיכרון</span><span class="en">Regular servers,
+                                    2GB+ RAM</span></dd>
+                        </div>
+                        <div>
+                            <dt>low</dt>
+                            <dd><span class="he">NAS, רספברי פיי וחומרה צנועה</span><span class="en">NAS boxes,
+                                    Raspberry Pi, modest hardware</span></dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+        </section>
+
+        <section class="section section-credits">
+            <div class="container">
+                <p class="credits reveal">
+                    <span class="he">בנוי על <a href="https://github.com/eshaham/israeli-bank-scrapers" target="_blank"
+                            rel="noopener">israeli-bank-scrapers</a>, ספריית הקוד הפתוח שמאפשרת את כל זה. אם Nudlers
+                        עוזר לך, תן להם כוכב גם.</span>
+                    <span class="en">Built on <a href="https://github.com/eshaham/israeli-bank-scrapers"
+                            target="_blank" rel="noopener">israeli-bank-scrapers</a>, the open-source library that
+                        makes all of this possible. If Nudlers helps you, give them a star too.</span>
+                </p>
+            </div>
+        </section>
+
+        <section id="install" class="section">
+            <div class="container">
+                <div class="section-head reveal">
+                    <h2 class="section-title">
+                        <span class="he">ארבעה צעדים, על השרת שלך.</span>
+                        <span class="en">Four steps, on your own server.</span>
+                    </h2>
+                    <p class="section-sub">
+                        <span class="he">Docker Compose, קובץ env אחד, וזהו.</span>
+                        <span class="en">Docker Compose, one env file, and you're up.</span>
                     </p>
                 </div>
-                <div class="runs-modes">
-                    <div class="runs-mode">
-                        <div class="runs-mode-icon">⚙</div>
-                        <div class="runs-mode-label">normal</div>
-                        <div class="runs-mode-desc"><span class="he">2GB+ זיכרון</span><span class="en">2GB+ RAM</span>
-                        </div>
-                    </div>
-                    <div class="runs-mode">
-                        <div class="runs-mode-icon">⏻</div>
-                        <div class="runs-mode-label">low</div>
-                        <div class="runs-mode-desc"><span class="he">NAS, רספברי פיי</span><span class="en">NAS,
-                                Raspberry Pi</span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- ────────────── CREDITS ────────────── -->
-    <section class="section">
-        <div class="container">
-            <div class="credits-card">
-                <div class="credits-icon">♥</div>
-                <h3>israeli-bank-scrapers</h3>
-                <p>
-                    <span class="he">תודה ענקית ל-<a href="https://github.com/eshaham/israeli-bank-scrapers"
-                            target="_blank" rel="noopener">israeli-bank-scrapers</a> —
-                        הספרייה הפתוחה שמאפשרת את כל זה. בזכות העבודה שלהם, Nudlers תומך ברוב הבנקים וחברות האשראי
-                        בישראל מהיום הראשון. אם Nudlers שימושי לך, תן להם כוכב גם.</span>
-                    <span class="en">A huge thank you to <a href="https://github.com/eshaham/israeli-bank-scrapers"
-                            target="_blank" rel="noopener">israeli-bank-scrapers</a> —
-                        the open-source library that makes all of this possible. Thanks to their work, Nudlers supports
-                        most Israeli banks and card providers out of the box. If Nudlers is useful to you, go give them
-                        a star too.</span>
-                </p>
-                <a href="https://github.com/eshaham/israeli-bank-scrapers" class="btn btn-ghost btn-sm" target="_blank"
-                    rel="noopener">
-                    <span class="he">לפרויקט בגיטהאב →</span>
-                    <span class="en">Star them on GitHub →</span>
-                </a>
-            </div>
-        </div>
-    </section>
-
-    <!-- ────────────── INSTALLATION ────────────── -->
-    <section id="install" class="section">
-        <div class="container">
-            <div class="section-head">
-                <div class="section-eyebrow"><span class="he">התקנה</span><span class="en">Install</span></div>
-                <h2 class="section-title">
-                    <span class="he">בארבעה צעדים, על השרת שלך.</span>
-                    <span class="en">Four steps, on your own server.</span>
-                </h2>
-                <p class="section-sub">
-                    <span class="he">Docker Compose, קובץ env אחד, ויש לך את הכול.</span>
-                    <span class="en">Docker Compose, one env file, and you're up.</span>
-                </p>
-            </div>
-
-            <div class="install-grid">
-                <div class="install-step">
-                    <div class="step-num">01</div>
-                    <h3>
-                        <span class="he">דרישות מקדימות</span>
-                        <span class="en">Prerequisites</span>
-                    </h3>
-                    <ul>
-                        <li><bdi>Docker &amp; Docker Compose</bdi></li>
-                        <li><bdi>Node.js 22+</bdi></li>
-                        <li><bdi>PostgreSQL</bdi></li>
-                    </ul>
-                </div>
-
-                <div class="install-step">
-                    <div class="step-num">02</div>
-                    <h3>
-                        <span class="he">שכפול הריפוזיטורי</span>
-                        <span class="en">Clone the repo</span>
-                    </h3>
-                    <pre><code>git clone https://github.com/enudler/nudlers.git
+                <ol class="steps">
+                    <li class="step reveal">
+                        <h3><span class="he">דרישות מקדימות</span><span class="en">Prerequisites</span></h3>
+                        <ul class="step-list" dir="ltr">
+                            <li>Docker &amp; Docker Compose</li>
+                            <li>Node.js 22+</li>
+                            <li>PostgreSQL</li>
+                        </ul>
+                    </li>
+                    <li class="step reveal">
+                        <h3><span class="he">שכפול</span><span class="en">Clone</span></h3>
+                        <pre><code>git clone https://github.com/enudler/nudlers.git
 cd nudlers</code></pre>
-                </div>
-
-                <div class="install-step">
-                    <div class="step-num">03</div>
-                    <h3>
-                        <span class="he">קובץ סביבה</span>
-                        <span class="en">Environment file</span>
-                    </h3>
-                    <pre><code>NUDLERS_DB_USER=nudlers
+                    </li>
+                    <li class="step reveal">
+                        <h3><span class="he">הגדרות סביבה</span><span class="en">Configure</span></h3>
+                        <pre><code>NUDLERS_DB_USER=nudlers
 NUDLERS_DB_HOST=localhost
 NUDLERS_DB_NAME=nudlers
 NUDLERS_DB_PASSWORD=secret
@@ -647,393 +512,287 @@ RESOURCE_MODE=normal
 AI_BASE_URL=https://openrouter.ai/api/v1
 AI_API_KEY=...
 AI_MODEL=google/gemini-2.5-flash</code></pre>
-                </div>
-
-                <div class="install-step">
-                    <div class="step-num">04</div>
-                    <h3>
-                        <span class="he">להריץ</span>
-                        <span class="en">Run it</span>
-                    </h3>
-                    <pre><code>cd app
+                    </li>
+                    <li class="step reveal">
+                        <h3><span class="he">הרצה</span><span class="en">Run</span></h3>
+                        <pre><code>cd app
 npm install
 npm run dev</code></pre>
-                    <p class="install-foot">
-                        <span class="he">זמין ב-<code>http://localhost:6969</code></span>
-                        <span class="en">Available at <code>http://localhost:6969</code></span>
-                    </p>
+                        <p class="step-foot">
+                            <span class="he">זמין ב-<code>http://localhost:6969</code></span>
+                            <span class="en">Available at <code>http://localhost:6969</code></span>
+                        </p>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <section id="faq" class="section">
+            <div class="container faq-grid">
+                <div class="faq-head">
+                    <h2 class="section-title">
+                        <span class="he">שאלות, ותשובות.</span>
+                        <span class="en">Questions, answered.</span>
+                    </h2>
                 </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- ────────────── TECH STACK ────────────── -->
-    <section class="section">
-        <div class="container">
-            <div class="section-head">
-                <h2 class="section-title section-title-sm">
-                    <span class="he">בנוי עם</span>
-                    <span class="en">Built with</span>
-                </h2>
-            </div>
-            <div class="tech-row">
-                <span class="tech-pill">Next.js</span>
-                <span class="tech-pill">TypeScript</span>
-                <span class="tech-pill">PostgreSQL</span>
-                <span class="tech-pill">Material UI</span>
-                <span class="tech-pill">Puppeteer</span>
-                <span class="tech-pill">Pino</span>
-                <span class="tech-pill">Vitest</span>
-                <span class="tech-pill">Docker</span>
-                <span class="tech-pill">i18next</span>
-            </div>
-        </div>
-    </section>
+                <div class="faq-list">
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">בשביל מה אני צריך את Nudlers?</span>
+                            <span class="en">Why would I need Nudlers?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">אם יש לך כמה חשבונות בנק או כמה כרטיסי אשראי במשפחה, הדברים מסתבכים מהר.
+                                    אתה רוצה לתאם הוצאות, לקבוע תקציבים, ולהבין איך החשבון שלך ייראה בעוד שבועיים אחרי
+                                    שכל החיובים יירדו.</span>
+                                <span class="en">If you've got more than one bank account or more than one card in the
+                                    household, things get hairy fast. You want to coordinate spending, set budgets, and
+                                    understand what your balance will look like in two weeks once all the pending
+                                    charges land.</span>
+                            </p>
+                            <p><span class="he">Nudlers נותן לך תמונה אחת, גם כשיש כמה כרטיסים וכמה חשבונות פזורים. דשבורד
+                                    אחד, נראות מלאה.</span>
+                                <span class="en">Nudlers gives you one view, even when you have several cards and
+                                    accounts spread around. One dashboard, full visibility.</span>
+                            </p>
+                        </div>
+                    </details>
 
-    <!-- ────────────── FAQ ────────────── -->
-    <section id="faq" class="section">
-        <div class="container container-narrow">
-            <div class="section-head">
-                <div class="section-eyebrow"><span class="he">שאלות נפוצות</span><span class="en">FAQ</span></div>
-                <h2 class="section-title">
-                    <span class="he">שאלות, ותשובות.</span>
-                    <span class="en">Questions, answered.</span>
-                </h2>
-            </div>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">איך הנתונים מגיעים לאפליקציה?</span>
+                            <span class="en">How does the data get in?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">Nudlers משתמש בספריית הקוד הפתוח <a
+                                        href="https://github.com/eshaham/israeli-bank-scrapers" target="_blank"
+                                        rel="noopener">israeli-bank-scrapers</a>. אתה נותן לאפליקציה את פרטי ההתחברות
+                                    שלך, והיא נכנסת לחשבונות בעצמה ומושכת את העסקאות. כל הסריקה רצה אצלך מקומית, בלי
+                                    שרת צד שלישי.</span>
+                                <span class="en">Nudlers uses the open-source <a
+                                        href="https://github.com/eshaham/israeli-bank-scrapers" target="_blank"
+                                        rel="noopener">israeli-bank-scrapers</a> library. You give it your bank and card
+                                    credentials and it logs in on your behalf to fetch transactions. Everything runs
+                                    locally on your machine, with no third-party servers involved.</span>
+                            </p>
+                        </div>
+                    </details>
 
-            <div class="faq-list">
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">בשביל מה אני צריך את Nudlers?</span>
-                        <span class="en">Why would I need Nudlers?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">אם יש לך כמה חשבונות בנק או כמה כרטיסי אשראי במשפחה, הדברים מסתבכים מהר. אתה
-                                רוצה לתאם הוצאות, לקבוע תקציבים, ולהבין איך החשבון שלך הולך להיראות בעוד שבועיים אחרי
-                                שכל החיובים יבואו.</span>
-                            <span class="en">If you've got more than one bank account or more than one card in the
-                                household, things get hairy fast. You want to coordinate spending, set budgets, and
-                                understand what your balance will look like in two weeks once all the pending charges
-                                land.</span>
-                        </p>
-                        <p><span class="he">Nudlers נותן לך תמונה אחת — גם כשיש כמה כרטיסים וכמה חשבונות פזורים. דשבורד
-                                אחד, נראות מלאה.</span>
-                            <span class="en">Nudlers gives you one view — even when you have several cards and accounts
-                                spread around. One dashboard, full visibility.</span>
-                        </p>
-                    </div>
-                </details>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">הנתונים שלי בטוחים? מי רואה אותם?</span>
+                            <span class="en">Is my data safe? Who can see it?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">אף אחד לא רואה את הנתונים שלך. Nudlers מותקן אצלך לחלוטין. אין שרת ענן,
+                                    אין אנליטיקס, ושום דבר לא יוצא החוצה. הנתונים שלך, על השרת שלך. נקודה.</span>
+                                <span class="en">Nobody sees your data. Nudlers is fully self-hosted. There are no cloud
+                                    servers, no analytics, no external transmission. It's your data on your hardware.
+                                    Full stop.</span>
+                            </p>
+                        </div>
+                    </details>
 
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">איך הנתונים מגיעים לאפליקציה?</span>
-                        <span class="en">How does the data get in?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">Nudlers משתמש בספריית הקוד הפתוח <a
-                                    href="https://github.com/eshaham/israeli-bank-scrapers" target="_blank"
-                                    rel="noopener">israeli-bank-scrapers</a>. אתה נותן לאפליקציה את פרטי ההתחברות שלך,
-                                והיא נכנסת לחשבונות שלך בעצמה ומושכת את העסקאות. כל הסריקה רצה אצלך מקומית — אין שרת
-                                שלישי במשחק.</span>
-                            <span class="en">Nudlers uses the open-source <a
-                                    href="https://github.com/eshaham/israeli-bank-scrapers" target="_blank"
-                                    rel="noopener">israeli-bank-scrapers</a> library. You give it your bank and card
-                                credentials and it logs in on your behalf to fetch transactions. Everything runs
-                                locally on your machine — no third-party servers involved.</span>
-                        </p>
-                    </div>
-                </details>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">איך נשמרות הסיסמאות שלי לבנק?</span>
+                            <span class="en">How are my bank credentials stored?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">הסיסמאות מוצפנות בבסיס הנתונים ב-AES-256-GCM. Nudlers משתמש במודל הצפנה
+                                    דו-שכבתי: מפתח מאסטר אקראי מצפין את הסיסמאות שלך, והמפתח עצמו מוצפן באמצעות מפתח
+                                    שנגזר מסיסמת הכספת. גם אם בסיס הנתונים נחשף, הסיסמאות נשארות מאובטחות, כי המפתח
+                                    לעולם לא נשמר בצורה גלויה.</span>
+                                <span class="en">Credentials are stored encrypted in the database using AES-256-GCM.
+                                    Nudlers uses a two-layer model: a random master key encrypts your credentials, and
+                                    that master key is itself encrypted by a key derived from your vault passphrase.
+                                    Even if the database leaks, credentials remain secure because the master key is
+                                    never written to disk in plaintext.</span>
+                            </p>
+                        </div>
+                    </details>
 
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">הנתונים שלי בטוחים? מי רואה אותם?</span>
-                        <span class="en">Is my data safe? Who can see it?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">אף אחד לא רואה את הנתונים שלך. Nudlers הוא Self-hosted לחלוטין. אין שרת
-                                ענן, אין אנליטיקס, אין שום דבר שיוצא החוצה. הנתונים שלך, על השרת שלך — נקודה.</span>
-                            <span class="en">Nobody sees your data. Nudlers is fully self-hosted. There are no cloud
-                                servers, no analytics, no external transmission. It's your data on your hardware —
-                                full stop.</span>
-                        </p>
-                    </div>
-                </details>
-
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">איך נשמרים הסיסמאות שלי לבנק?</span>
-                        <span class="en">How are my bank credentials stored?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">הסיסמאות מוצפנות בבסיס הנתונים בהצפנת AES-256-GCM. Nudlers משתמש במודל
-                                הצפנה דו-שכבתי: מפתח מאסטר אקראי מצפין את הסיסמאות שלך, והמפתח עצמו מוצפן באמצעות מפתח
-                                שנגזר מסיסמת הכספת. גם אם בסיס הנתונים נחשף — הסיסמאות נשארות מאובטחות, כי המפתח לא
-                                נשמר בצורה גלויה לעולם.</span>
-                            <span class="en">Credentials are stored encrypted in the database using AES-256-GCM. Nudlers
-                                uses a two-layer model: a random master key encrypts your credentials, and that master
-                                key is itself encrypted by a key derived from your vault passphrase. Even if the
-                                database leaks, credentials remain secure because the master key is never written to
-                                disk in plaintext.</span>
-                        </p>
-                    </div>
-                </details>
-
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">מה סיסמת הכספת מגנה עליו, והאם היא נשמרת?</span>
-                        <span class="en">What does the vault passphrase protect, and is it stored anywhere?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">הסיסמה <strong>אף פעם לא נשמרת</strong>. במקום זה, היא משמשת לגזירת מפתח
-                                עיטוף (באמצעות scrypt — פונקציית גזירה שדורשת זיכרון) שמצפין את מפתח המאסטר.</span>
-                            <span class="en">The passphrase is <strong>never stored</strong>. Instead, it's used to
-                                derive a wrapping key (via scrypt, a memory-hard KDF) that encrypts the master
-                                key.</span>
-                        </p>
-                        <pre class="faq-pre"><code>Passphrase ──scrypt──▶ Wrapping Key
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">מה סיסמת הכספת מגנה עליו, והאם היא נשמרת?</span>
+                            <span class="en">What does the vault passphrase protect, and is it stored anywhere?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">הסיסמה <strong>אף פעם לא נשמרת</strong>. היא משמשת לגזירת מפתח עיטוף
+                                    (באמצעות scrypt, פונקציית גזירה שדורשת זיכרון) שמצפין את מפתח המאסטר.</span>
+                                <span class="en">The passphrase is <strong>never stored</strong>. Instead, it's used to
+                                    derive a wrapping key (via scrypt, a memory-hard KDF) that encrypts the master
+                                    key.</span>
+                            </p>
+                            <pre class="faq-pre"><code>Passphrase ──scrypt──▶ Wrapping Key
 Wrapping Key ─AES-256-GCM─▶ Master Key  (encrypted in DB)
 Master Key  ─AES-256-GCM─▶ Credentials  (encrypted in DB)</code></pre>
-                        <p><span class="he">ברגע שאתה פותח את הכספת, מפתח המאסטר נטען לזיכרון השרת בלבד — לעולם לא
-                                נכתב לדיסק, ונמחק כשהשרת עולה מחדש. אם שכחת את הסיסמה, מפתח המאסטר (ויחד איתו כל מה
-                                שהוא מצפין) הופך בלתי נגיש לצמיתות.</span>
-                            <span class="en">Once you unlock the vault, the master key is decrypted into server memory
-                                only — never written to disk, and cleared when the server restarts. Forget the
-                                passphrase, and the master key (and everything it protects) becomes permanently
-                                inaccessible.</span>
-                        </p>
-                    </div>
-                </details>
+                            <p><span class="he">כשפותחים את הכספת, מפתח המאסטר נטען לזיכרון השרת בלבד. הוא לעולם לא נכתב
+                                    לדיסק, ונמחק כשהשרת עולה מחדש. אם שכחת את הסיסמה, מפתח המאסטר (וכל מה שהוא מצפין)
+                                    הופך בלתי נגיש לצמיתות.</span>
+                                <span class="en">Once you unlock the vault, the master key is decrypted into server
+                                    memory only. It is never written to disk, and it is cleared when the server
+                                    restarts. Forget the passphrase, and the master key (and everything it protects)
+                                    becomes permanently inaccessible.</span>
+                            </p>
+                        </div>
+                    </details>
 
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">חייב מפתח AI?</span>
-                        <span class="en">Do I need an AI API key?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">לא, מפתח AI הוא רשות. הוא משמש רק לשני דברים: צ'אט עם AI על הנתונים שלך,
-                                והכנת הודעת הסיכום היומית בוואטסאפ. אם לא תשתמש באלה — אין צורך במפתח.</span>
-                            <span class="en">No, an AI key is optional. It's used only for two features: chatting with
-                                AI about your own data, and composing the daily WhatsApp message. If you don't plan
-                                to use these, you don't need a key.</span>
-                        </p>
-                        <p><span class="he">Nudlers עובד עם כל ספק תואם OpenAI — OpenRouter (ברירת המחדל), OpenAI, Groq,
-                                Together, Google Gemini, או הגדרות מקומיות כמו LMStudio ו-Ollama. את ה-base URL,
-                                המפתח ושם המודל קובעים ב-<strong>Settings → AI Provider</strong>.</span>
-                            <span class="en">Nudlers works with any OpenAI-compatible provider — OpenRouter (default),
-                                OpenAI, Groq, Together, Google Gemini, or self-hosted setups like LMStudio and Ollama.
-                                Configure the base URL, API key, and model in <strong>Settings → AI
-                                    Provider</strong>.</span>
-                        </p>
-                    </div>
-                </details>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">חייב מפתח AI?</span>
+                            <span class="en">Do I need an AI API key?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">לא, מפתח AI הוא רשות. הוא משמש רק לשני דברים: צ'אט עם AI על הנתונים שלך,
+                                    והכנת הודעת הסיכום היומית בוואטסאפ. אם לא תשתמש באלה, אין צורך במפתח.</span>
+                                <span class="en">No, an AI key is optional. It's used only for two features: chatting
+                                    with AI about your own data, and composing the daily WhatsApp message. If you don't
+                                    plan to use these, you don't need a key.</span>
+                            </p>
+                            <p><span class="he">Nudlers עובד עם כל ספק תואם OpenAI: OpenRouter (ברירת המחדל), OpenAI,
+                                    Groq, Together, Google Gemini, או הרצה מקומית כמו LMStudio ו-Ollama. את ה-base URL,
+                                    המפתח ושם המודל קובעים ב-<strong>Settings → AI Provider</strong>.</span>
+                                <span class="en">Nudlers works with any OpenAI-compatible provider: OpenRouter
+                                    (default), OpenAI, Groq, Together, Google Gemini, or self-hosted setups like
+                                    LMStudio and Ollama. Configure the base URL, API key, and model in
+                                    <strong>Settings → AI Provider</strong>.</span>
+                            </p>
+                        </div>
+                    </details>
 
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">למה אני מקבל שגיאות סריקה מ-Isracard?</span>
-                        <span class="en">Why am I getting Isracard scraping errors?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">ל-Isracard יש מנגנוני הגבלת קצב שמזהים גישה אוטומטית. הסקרייפר יכול להביא
-                                את רשימת העסקאות, אבל כדי לקבל את הקטגוריה של כל אחת — צריך לבקש אותן אחת-אחת. בטווח
-                                תאריכים גדול זה הרבה בקשות, וזה יכול להפעיל את ההגבלה.</span>
-                            <span class="en">Isracard has rate-limiting that detects automated access. The scraper can
-                                fetch the transaction list, but per-transaction category lookups happen one by one.
-                                Over a wide date range that's a lot of requests, which can trigger the limit.</span>
-                        </p>
-                        <p><span class="he"><strong>טיפ:</strong> כשהשגיאות מתחילות, צמצם את טווח התאריכים. פחות
-                                עסקאות, פחות בקשות — וזה משאיר אותך מתחת לגבול.</span>
-                            <span class="en"><strong>Tip:</strong> when errors start, narrow your date range. Fewer
-                                transactions means fewer category requests, which keeps you below the limit.</span>
-                        </p>
-                    </div>
-                </details>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">למה אני מקבל שגיאות סריקה מ-Isracard?</span>
+                            <span class="en">Why am I getting Isracard scraping errors?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">ל-Isracard יש מנגנוני הגבלת קצב שמזהים גישה אוטומטית. הסקרייפר יכול להביא
+                                    את רשימת העסקאות, אבל כדי לקבל את הקטגוריה של כל אחת צריך לבקש אותן אחת-אחת. בטווח
+                                    תאריכים גדול זה הרבה בקשות, וזה יכול להפעיל את ההגבלה.</span>
+                                <span class="en">Isracard has rate-limiting that detects automated access. The scraper
+                                    can fetch the transaction list, but per-transaction category lookups happen one by
+                                    one. Over a wide date range that's a lot of requests, which can trigger the
+                                    limit.</span>
+                            </p>
+                            <p><span class="he"><strong>טיפ:</strong> כשהשגיאות מתחילות, צמצם את טווח התאריכים. פחות
+                                    עסקאות, פחות בקשות, וזה משאיר אותך מתחת לגבול.</span>
+                                <span class="en"><strong>Tip:</strong> when errors start, narrow your date range. Fewer
+                                    transactions means fewer category requests, which keeps you below the limit.</span>
+                            </p>
+                        </div>
+                    </details>
 
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">איך נשלחות הודעות הוואטסאפ?</span>
-                        <span class="en">How are WhatsApp messages sent?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">Nudlers משתמש בחבילה <a
-                                    href="https://github.com/pedroslopez/whatsapp-web.js" target="_blank"
-                                    rel="noopener">whatsapp-web.js</a>. מאחורי הקלעים רץ דפדפן ללא ממשק שמתחבר
-                                ל-WhatsApp Web ומשתמש ב-session שלך כדי לשלוח הודעות. סורקים QR פעם אחת, ומאז הסיכומים
-                                נשלחים אוטומטית.</span>
-                            <span class="en">Nudlers uses the <a href="https://github.com/pedroslopez/whatsapp-web.js"
-                                    target="_blank" rel="noopener">whatsapp-web.js</a> package. Under the hood, a
-                                headless browser connects to WhatsApp Web and uses your session to send messages. Scan
-                                a QR once to link it, then summaries flow automatically.</span>
-                        </p>
-                    </div>
-                </details>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">איך נשלחות הודעות הוואטסאפ?</span>
+                            <span class="en">How are WhatsApp messages sent?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">Nudlers משתמש בחבילה <a href="https://github.com/pedroslopez/whatsapp-web.js"
+                                        target="_blank" rel="noopener">whatsapp-web.js</a>. מאחורי הקלעים רץ דפדפן ללא
+                                    ממשק שמתחבר ל-WhatsApp Web ומשתמש ב-session שלך כדי לשלוח הודעות. סורקים QR פעם
+                                    אחת, ומאז הסיכומים נשלחים אוטומטית.</span>
+                                <span class="en">Nudlers uses the <a
+                                        href="https://github.com/pedroslopez/whatsapp-web.js" target="_blank"
+                                        rel="noopener">whatsapp-web.js</a> package. Under the hood, a headless browser
+                                    connects to WhatsApp Web and uses your session to send messages. Scan a QR once to
+                                    link it, then summaries flow automatically.</span>
+                            </p>
+                        </div>
+                    </details>
 
-                <details class="faq-item">
-                    <summary>
-                        <span class="he">מי עומד מאחורי Nudlers?</span>
-                        <span class="en">Who's behind Nudlers?</span>
-                    </summary>
-                    <div class="faq-body">
-                        <p><span class="he">רק אני, <a href="https://www.linkedin.com/in/eli-nudler/" target="_blank"
-                                    rel="noopener">אלי נודלר</a>. בניתי את Nudlers כדי לפתור צרכים שלי בניהול הפיננסים
-                                בין כמה חשבונות וכרטיסים בישראל. הקוד פתוח וחופשי לשימוש.</span>
-                            <span class="en">It's just me, <a href="https://www.linkedin.com/in/eli-nudler/"
-                                    target="_blank" rel="noopener">Eli Nudler</a>. I built Nudlers to scratch my own
-                                itch managing finances across several Israeli accounts and cards. It's open source
-                                and free to use.</span>
-                        </p>
-                    </div>
-                </details>
+                    <details class="faq-item">
+                        <summary>
+                            <span class="he">מי עומד מאחורי Nudlers?</span>
+                            <span class="en">Who's behind Nudlers?</span>
+                        </summary>
+                        <div class="faq-body">
+                            <p><span class="he">רק אני, <a href="https://www.linkedin.com/in/eli-nudler/" target="_blank"
+                                        rel="noopener">אלי נודלר</a>. בניתי את Nudlers כדי לנהל את הכסף שלי בין כמה
+                                    חשבונות וכרטיסים בישראל. הקוד פתוח וחופשי לשימוש.</span>
+                                <span class="en">It's just me, <a href="https://www.linkedin.com/in/eli-nudler/"
+                                        target="_blank" rel="noopener">Eli Nudler</a>. I built Nudlers to scratch my own
+                                    itch managing finances across several Israeli accounts and cards. It's open source
+                                    and free to use.</span>
+                            </p>
+                        </div>
+                    </details>
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- ────────────── FOOTER ────────────── -->
+    </main>
+
     <footer class="footer">
-        <div class="container">
-            <div class="footer-inner">
-                <div class="footer-brand">
-                    <div class="footer-logo">
-                        <img src="assets/icon.svg" alt="Nudlers">
-                        <span>Nudlers</span>
-                    </div>
-                    <p>
-                        <span class="he">פיננסים אישיים, מקומיים, פתוחים.</span>
-                        <span class="en">Self-hosted personal finance, the open way.</span>
-                    </p>
+        <div class="container footer-inner">
+            <div class="footer-brand">
+                <div class="nav-logo">
+                    <img src="assets/icon.svg" alt="" width="24" height="24">
+                    <span>Nudlers</span>
                 </div>
-                <div class="footer-links">
-                    <a href="https://github.com/enudler/nudlers" target="_blank" rel="noopener">GitHub</a>
-                    <a href="https://github.com/enudler/nudlers/issues" target="_blank" rel="noopener"><span
-                            class="he">בעיות</span><span class="en">Issues</span></a>
-                    <a href="https://github.com/enudler/nudlers/blob/main/LICENSE" target="_blank"
-                        rel="noopener">License</a>
-                </div>
+                <p>
+                    <span class="he">בנוי עם Next.js, PostgreSQL, Material UI, Puppeteer ו-Docker.</span>
+                    <span class="en">Built with Next.js, PostgreSQL, Material UI, Puppeteer, and Docker.</span>
+                </p>
             </div>
-            <div class="footer-bottom">
-                <p>© 2025 Nudlers · MIT License</p>
+            <div class="footer-links">
+                <a href="https://github.com/enudler/nudlers" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/enudler/nudlers/issues" target="_blank" rel="noopener"><span
+                        class="he">דיווח על באג</span><span class="en">Issues</span></a>
+                <a href="https://github.com/enudler/nudlers/blob/main/LICENSE" target="_blank" rel="noopener">MIT
+                    License</a>
             </div>
         </div>
     </footer>
 
-    <!-- ────────────── SCRIPTS ────────────── -->
     <script>
-        // ── Language toggle ──
         const root = document.documentElement;
-        const langButtons = document.querySelectorAll('[data-lang-set]');
 
-        function setLang(lang) {
-            if (lang !== 'he' && lang !== 'en') return;
+        document.querySelector('.lang-toggle').addEventListener('click', () => {
+            const lang = root.dataset.lang === 'he' ? 'en' : 'he';
             root.lang = lang;
             root.dir = lang === 'he' ? 'rtl' : 'ltr';
             root.dataset.lang = lang;
             try { localStorage.setItem('nudlers-lang', lang); } catch (_) { }
-            updateCarouselText();
-        }
-
-        document.querySelector('.lang-toggle').addEventListener('click', () => {
-            setLang(root.dataset.lang === 'he' ? 'en' : 'he');
         });
 
-        // ── Mobile nav ──
         const navToggle = document.querySelector('.nav-toggle');
         const navLinks = document.querySelector('.nav-links');
-        navToggle.addEventListener('click', () => {
-            navLinks.classList.toggle('open');
-            navToggle.classList.toggle('open');
-        });
-        document.querySelectorAll('.nav-links a').forEach(a => {
-            a.addEventListener('click', () => {
-                navLinks.classList.remove('open');
-                navToggle.classList.remove('open');
+        const setMenu = open => {
+            navLinks.classList.toggle('open', open);
+            navToggle.setAttribute('aria-expanded', open);
+        };
+        navToggle.addEventListener('click', () => setMenu(!navLinks.classList.contains('open')));
+        navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setMenu(false)));
+
+        const tabs = [...document.querySelectorAll('[role="tab"]')];
+        const panels = tabs.map(t => document.getElementById(t.getAttribute('aria-controls')));
+        const select = i => {
+            tabs.forEach((t, j) => {
+                t.setAttribute('aria-selected', j === i);
+                t.tabIndex = j === i ? 0 : -1;
+                panels[j].hidden = j !== i;
             });
+            tabs[i].focus({ preventScroll: true });
+        };
+        tabs.forEach((t, i) => t.addEventListener('click', () => select(i)));
+        document.querySelector('[role="tablist"]').addEventListener('keydown', e => {
+            const i = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+            // ArrowLeft moves forward in RTL
+            const step = root.dir === 'rtl' ? -1 : 1;
+            if (e.key === 'ArrowRight') select((i + step + tabs.length) % tabs.length);
+            if (e.key === 'ArrowLeft') select((i - step + tabs.length) % tabs.length);
         });
 
-        // ── Sticky nav background ──
-        const navEl = document.querySelector('.nav');
-        const handleScroll = () => navEl.classList.toggle('scrolled', window.scrollY > 24);
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        handleScroll();
-
-        // ── Smooth scroll ──
-        document.querySelectorAll('a[href^="#"]').forEach(a => {
-            a.addEventListener('click', e => {
-                const target = document.querySelector(a.getAttribute('href'));
-                if (!target) return;
-                e.preventDefault();
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            });
-        });
-
-        // ── Carousel ──
-        const slideMeta = [
-            { he: ['סיכום חודשי', 'סקירה חודשית עם שימוש בכרטיסי אשראי לפי בנק, סך ההוצאה ובריאות התקציב.'], en: ['Monthly summary', 'Monthly overview with credit-card usage by bank, total spend, and budget health.'] },
-            { he: ['עסקאות', 'תצוגה וניהול של כל עסקאות הבנק והאשראי, עם חיפוש, מיון וסינון לפי קטגוריה.'], en: ['Transactions', 'View and manage every bank and card transaction, with search, sort, and category filters.'] },
-            { he: ['תחזית פיננסית', 'תחזית יתרה ל-30 יום קדימה כולל חיובי אשראי וחיובים חוזרים.'], en: ['Financial forecast', '30-day balance projection including pending card settlements and recurring charges.'] },
-            { he: ['פירוק לפי בית עסק', 'ניתוח מפורט של ההוצאות מקובץ לפי בית עסק עם עריכת קטגוריה מהירה.'], en: ['Merchant breakdown', 'Detailed expense analysis grouped by merchant with quick category editing.'] },
-            { he: ['תשלומים חוזרים', 'מעקב אחרי הוראות קבע, תשלומים ומנויים — עם סרגל התקדמות.'], en: ['Recurring payments', 'Track standing orders, instalments, and subscriptions with progress indicators.'] },
-            { he: ['מותאם למובייל', 'עיצוב רספונסיבי שעובד נהדר על טלפון, טאבלט ודסקטופ.'], en: ['Mobile friendly', 'Fully responsive design that works great on phones, tablets, and desktops.'] },
-        ];
-
-        const slides = document.querySelectorAll('.carousel-slide');
-        const dots = document.querySelectorAll('.carousel-dot');
-        const prevBtn = document.querySelector('.carousel-prev');
-        const nextBtn = document.querySelector('.carousel-next');
-        const labelHe = document.querySelector('[data-slide-label-he]');
-        const labelEn = document.querySelector('[data-slide-label-en]');
-        const descHe = document.querySelector('[data-slide-desc-he]');
-        const descEn = document.querySelector('[data-slide-desc-en]');
-        let current = 0;
-        let autoTimer = null;
-
-        function updateCarouselText() {
-            labelHe.textContent = slideMeta[current].he[0];
-            labelEn.textContent = slideMeta[current].en[0];
-            descHe.textContent = slideMeta[current].he[1];
-            descEn.textContent = slideMeta[current].en[1];
-        }
-
-        function goTo(idx) {
-            slides[current].classList.remove('active');
-            dots[current].classList.remove('active');
-            current = (idx + slides.length) % slides.length;
-            slides[current].classList.add('active');
-            dots[current].classList.add('active');
-            updateCarouselText();
-            resetAuto();
-        }
-
-        function resetAuto() {
-            clearInterval(autoTimer);
-            autoTimer = setInterval(() => goTo(current + 1), 6500);
-        }
-
-        prevBtn.addEventListener('click', () => goTo(current - 1));
-        nextBtn.addEventListener('click', () => goTo(current + 1));
-        dots.forEach(d => d.addEventListener('click', () => goTo(Number(d.dataset.slide))));
-
-        document.querySelector('.carousel').addEventListener('keydown', e => {
-            // Mirror arrow direction: in RTL, ArrowLeft means "next"
-            const rtl = root.dir === 'rtl';
-            if (e.key === 'ArrowLeft') goTo(rtl ? current + 1 : current - 1);
-            if (e.key === 'ArrowRight') goTo(rtl ? current - 1 : current + 1);
-        });
-
-        // Touch
-        let touchStartX = 0;
-        const viewport = document.querySelector('.carousel-viewport');
-        viewport.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
-        viewport.addEventListener('touchend', e => {
-            const diff = touchStartX - e.changedTouches[0].clientX;
-            if (Math.abs(diff) < 50) return;
-            const rtl = root.dir === 'rtl';
-            if (diff > 0) goTo(rtl ? current - 1 : current + 1);
-            else goTo(rtl ? current + 1 : current - 1);
-        });
-
-        updateCarouselText();
-        resetAuto();
+        const io = new IntersectionObserver(entries => entries.forEach(e => {
+            if (!e.isIntersecting) return;
+            e.target.classList.add('in');
+            io.unobserve(e.target);
+        }), { rootMargin: '0px 0px -10% 0px' });
+        document.querySelectorAll('.reveal').forEach(el => io.observe(el));
     </script>
-
 </body>
 
 </html>
