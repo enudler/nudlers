@@ -6,6 +6,9 @@ export const CREDIT_CARD_VENDORS = ['visaCal', 'max', 'isracard', 'amex'];
 // Bank vendors (standard format: id, password, num)
 export const STANDARD_BANK_VENDORS = ['hapoalim', 'poalim', 'leumi', 'mizrahi', 'discount', 'yahav', 'union', 'fibi', 'jerusalem', 'onezero', 'pepper'];
 
+// Compatibility with older records that used "poalim" for Bank Hapoalim.
+export const normalizeVendor = (vendor) => vendor === 'poalim' ? 'hapoalim' : vendor;
+
 // Beinleumi Group banks (special format: username, password only)
 export const BEINLEUMI_GROUP_VENDORS = ['otsarHahayal', 'otsar_hahayal', 'beinleumi', 'massad', 'pagi'];
 
