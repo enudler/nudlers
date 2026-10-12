@@ -1165,7 +1165,7 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
                     variant="contained"
                     startIcon={<AddIcon />}
                     onClick={handleCreateRule}
-                    disabled={!newRule.name_pattern.trim() || !newRule.target_category.trim() || isLoading}
+                    disabled={isLoading}
                     style={{
                       backgroundColor: 'var(--n-success)',
                       color: 'white',
@@ -2109,4 +2109,4 @@ const CategoryManagementModal: React.FC<CategoryManagementModalProps> = ({
   );
 };
 
-export default CategoryManagementModal; 
+export default CategoryManagementModal;
