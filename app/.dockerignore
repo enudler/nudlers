@@ -16,7 +16,6 @@ dist
 # (e.g. "no space left on device" while copying .wwebjs_auth/.../Cache_Data).
 .wwebjs_auth
 .wwebjs_cache
-.baileys_auth
 
 # Testing
 coverage
