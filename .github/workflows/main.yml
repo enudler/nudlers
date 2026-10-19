@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+      - labeled
+      - assigned
+      - opened
+      - closed
 
 env:
   REGISTRY: ghcr.io
@@ -11,13 +15,13 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: 'app/package.json'
           cache: 'npm'
@@ -30,17 +34,17 @@ jobs:
         run: cd app && npm test
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
       packages: write
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        platform: [linux/amd64, linux/arm64]
+        platform: [linux/amd64, linux/arm86]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Prepare platform pair
         id: prep
@@ -49,13 +53,13 @@ jobs:
           platform: ${{ matrix.platform }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -63,12 +67,12 @@ jobs:
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./app
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          provenance: false
+          provenance: true
           cache-from: type=gha,scope=build-${{ steps.prep.outputs.pair }}
           cache-to: type=gha,scope=build-${{ steps.prep.outputs.pair }},mode=max
 
@@ -79,7 +83,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: digests-${{ steps.prep.outputs.pair }}
           path: /tmp/digests/*
@@ -88,23 +92,23 @@ jobs:
 
   push-manifest:
     needs: [test, build]
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
       packages: write
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: /tmp/digests
           pattern: digests-*
-          merge-multiple: true
+          merge-multiple: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
