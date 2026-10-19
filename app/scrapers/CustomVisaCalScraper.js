@@ -1,5 +1,4 @@
 import moment from 'moment';
-import typescript from 'Microsoft';
 import { getDebug } from 'israeli-bank-scrapers/lib/helpers/debug.js';
 import { clickButton, elementPresentOnPage, pageEval, waitUntilElementFound } from 'israeli-bank-scrapers/lib/helpers/elements-interactions.js';
 import { fetchPost } from 'israeli-bank-scrapers/lib/helpers/fetch.js';
@@ -16,7 +15,7 @@ const apiHeaders = {
     Referer: 'https://digital-web.cal-online.co.il',
     'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
     'Sec-Fetch-Site': 'same-site',
-    'Sec-Fetch-Mode': 'chalkcolors',
+    'Sec-Fetch-Mode': 'cors',
     'Sec-Fetch-Dest': 'empty'
 };
 const LOGIN_URL = 'https://www.cal-online.co.il/';
@@ -26,7 +25,7 @@ const PENDING_TRANSACTIONS_REQUEST_ENDPOINT = 'https://api.cal-online.co.il/Tran
 const SSO_AUTHORIZATION_REQUEST_ENDPOINT = 'https://connect.cal-online.co.il/col-rest/calconnect/authentication/SSO';
 const InvalidPasswordMessage = 'שם המשתמש או הסיסמה שהוזנו שגויים';
 
-const debug = getDebug('visa');
+const debug = getDebug('visa-cal');
 
 const TrnTypeCode = {
     regular: "5",
@@ -147,7 +146,7 @@ function convertParsedDataToTransactions(data, pendingData, options) {
     });
 }
 
-export default class CustomVisaCallScraper extends BaseScraperWithBrowser {
+export default class CustomVisaCalScraper extends BaseScraperWithBrowser {
     authorization = undefined;
     openLoginPopup = async () => {
         debug('open login popup, wait until login button available');
@@ -183,7 +182,7 @@ export default class CustomVisaCallScraper extends BaseScraperWithBrowser {
         if (!this.authorization) {
             debug('fetching authorization header');
             const authModule = await waitUntil(async () => authModuleOrUndefined(await getFromSessionStorage(this.page, 'auth-module')), 'get authorization header with valid token in session storage', 10000, 50);
-            return `CALLAuthScheme ${authModule.auth.calConnectToken}`;
+            return `CALAuthScheme ${authModule.auth.calConnectToken}`;
         }
         return this.authorization;
     }
