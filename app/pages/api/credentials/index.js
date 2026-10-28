@@ -11,6 +11,9 @@ const handler = createApiHandler({
       if (!vendor) {
         return "Vendor is required";
       }
+      if (vendor === 'yahav' && (typeof req.body.id_number !== 'string' || !req.body.id_number.trim())) {
+        return "National ID is required for Yahav";
+      }
     }
     return null;
   },

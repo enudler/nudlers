@@ -16,6 +16,9 @@ const innerHandler = createApiHandler({
     if (req.method === 'PUT') {
       if (!req.body?.vendor) return "Vendor is required";
       if (!req.body?.nickname) return "Nickname is required";
+      if (req.body.vendor === 'yahav' && (typeof req.body.id_number !== 'string' || !req.body.id_number.trim())) {
+        return "National ID is required for Yahav";
+      }
     }
   },
   query: async (req) => {

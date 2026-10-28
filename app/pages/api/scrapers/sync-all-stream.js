@@ -149,6 +149,20 @@ export default async function handler(req, res) {
 
             const auditId = await insertScrapeAudit(client, 'sync-all-stream', account.vendor, startDate);
 
+            // Invalid credentials cannot recover on a retry; report and advance the queue.
+            try {
+                validateCredentials(scraperCredentials, account.vendor);
+            } catch (validationError) {
+                const message = validationError.message || 'Invalid credentials';
+                await updateScrapeAudit(client, auditId, 'failed', message);
+                sendSSE(res, 'account_error', {
+                    id: account.id,
+                    message,
+                    retriedAttempts: 0
+                });
+                continue;
+            }
+
             // Retry loop for this account
             let accountResult = null;
             let lastError = null;

@@ -51,6 +51,7 @@ interface ScraperConfig {
     card6Digits?: string;
     password?: string;
     username?: string;
+    nationalID?: string;
     userCode?: string;
     bankAccountNumber?: string;
     nickname?: string;
@@ -164,6 +165,7 @@ export default function ScrapeModal({ open, onClose, onSuccess, initialConfig }:
       card6Digits: '',
       password: '',
       username: '',
+      nationalID: '',
       userCode: '',
       nickname: '',
       bankAccountNumber: ''
@@ -607,6 +609,24 @@ export default function ScrapeModal({ open, onClose, onSuccess, initialConfig }:
             }}
             fullWidth
             helperText={t('form.userCodeHelper')}
+            required
+          />
+        </>
+      ) : config.options.companyId === 'yahav' ? (
+        <>
+          <TextField
+            label={t('form.usernameLabel')}
+            value={config.credentials.username || ''}
+            onChange={(e) => handleConfigChange('credentials.username', e.target.value)}
+            fullWidth
+            required
+          />
+          <TextField
+            label={t('form.idLabel')}
+            value={config.credentials.nationalID || ''}
+            onChange={(e) => handleConfigChange('credentials.nationalID', e.target.value)}
+            slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+            fullWidth
             required
           />
         </>

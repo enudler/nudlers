@@ -121,6 +121,36 @@ describe('Credentials API (/api/credentials)', () => {
         });
     });
 
+    describe('Yahav save validation', () => {
+        it.each(['POST', 'PUT'])('%s rejects missing, empty and whitespace-only national IDs', async (method) => {
+            for (const id_number of [undefined, '', '   ', null, 12345678]) {
+                const handler = method === 'POST' ? credentialsHandler : credentialByIdHandler;
+                await handler({
+                    method,
+                    query: { id: '1' },
+                    body: { vendor: 'yahav', nickname: 'Bank', username: 'test-user', id_number }
+                } as any, mockRes as any);
+                expect(mockRes.status).toHaveBeenLastCalledWith(400);
+                expect(mockRes.json).toHaveBeenLastCalledWith({ error: 'National ID is required for Yahav' });
+            }
+            expect(mockClient.query).not.toHaveBeenCalled();
+            expect(encrypt).not.toHaveBeenCalled();
+        });
+
+        it.each(['POST', 'PUT'])('%s preserves a valid national ID with a leading zero', async (method) => {
+            mockClient.query.mockResolvedValue({ rows: [{ id: 1, vendor: 'yahav', id_number: 'encrypted:012345678' }] });
+            const handler = method === 'POST' ? credentialsHandler : credentialByIdHandler;
+            await handler({
+                method,
+                query: { id: '1' },
+                body: { vendor: 'yahav', nickname: 'Bank', username: 'test-user', id_number: '012345678' }
+            } as any, mockRes as any);
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+            expect(encrypt).toHaveBeenCalledWith('012345678');
+            expect(mockClient.query.mock.calls[0][1]).toContain('encrypted:012345678');
+        });
+    });
+
     describe('POST /api/credentials', () => {
         it('should encrypt sensitive fields before storing', async () => {
             mockClient.query.mockResolvedValue({

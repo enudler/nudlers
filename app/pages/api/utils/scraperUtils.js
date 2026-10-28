@@ -251,6 +251,10 @@ export function prepareCredentials(vendor, rawCredentials) {
     const hapoalimUserCode = userCode || username || id || rawCredentials.id_number || '';
     credentials.userCode = String(hapoalimUserCode);
     credentials.password = String(password || '');
+  } else if (vendor === 'yahav') {
+    credentials.username = String(username || '');
+    credentials.password = String(password || '');
+    credentials.nationalID = String(rawCredentials.nationalID || rawCredentials.id_number || id || '');
   } else if (vendor === 'onezero') {
     // OneZero uses email + password and one of two 2FA modes:
     //   1. otpLongTermToken (re-login without SMS)
@@ -287,7 +291,11 @@ export function prepareCredentials(vendor, rawCredentials) {
  * Validate credentials for a specific vendor
  */
 export function validateCredentials(credentials, vendor) {
-  if (vendor === 'hapoalim') {
+  if (vendor === 'yahav') {
+    if (![credentials.username, credentials.password, credentials.nationalID].every(value => typeof value === 'string' && value.length > 0)) {
+      throw new Error('Invalid credentials for yahav: username, password, and national ID are required. Edit the Yahav connection to add your national ID.');
+    }
+  } else if (vendor === 'hapoalim') {
     if (!credentials.userCode || !credentials.password) {
       throw new Error(`Invalid credentials for ${vendor}: userCode and password are required.`);
     }

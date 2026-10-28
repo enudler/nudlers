@@ -75,6 +75,36 @@ describe('ScraperUtils', () => {
         vi.restoreAllMocks();
     });
 
+    describe('Yahav national ID regression', () => {
+        const login = { username: 'test-user', password: 'test-password' };
+        it.each(['nationalID', 'id_number', 'id'])('maps %s and preserves leading zeros', (key) => {
+            const prepared = prepareCredentials('yahav', { ...login, [key]: '012345678' });
+            expect(prepared.nationalID).toBe('012345678');
+            expect(() => validateCredentials(prepared, 'yahav')).not.toThrow();
+        });
+        it('keeps the login username separate from the national ID', () => {
+            const prepared = prepareCredentials('yahav', {
+                ...login,
+                nationalID: '012345678',
+                id_number: '111111111',
+                id: '222222222'
+            });
+            expect(prepared.username).toBe(login.username);
+            expect(prepared.password).toBe(login.password);
+            expect(prepared.nationalID).toBe('012345678');
+        });
+        it.each(['username', 'password'])('rejects a missing %s', (key) => {
+            const prepared = prepareCredentials('yahav', { ...login, nationalID: '012345678', [key]: '' });
+            expect(() => validateCredentials(prepared, 'yahav')).toThrow('required');
+        });
+        it('rejects missing national ID before starting a browser', () => {
+            expect(() => validateCredentials(prepareCredentials('yahav', login), 'yahav')).toThrow('national ID');
+        });
+        it('rejects a non-string national ID at the scraper boundary', () => {
+            expect(() => validateCredentials({ ...login, nationalID: 123 }, 'yahav')).toThrow('national ID');
+        });
+    });
+
     describe('matchCategoryRule', () => {
         const testRules = [
             { name_pattern: 'supermarket', target_category: 'Groceries' },

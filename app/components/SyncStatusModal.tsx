@@ -543,6 +543,12 @@ const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ open, onClose, width,
         username: String(account.username || ''),
         password: String(account.password || '')
       };
+    } else if (vendor === 'yahav') {
+      return {
+        username: String(account.username || ''),
+        password: String(account.password || ''),
+        nationalID: String(account.id_number || '')
+      };
     } else if (BEINLEUMI_GROUP_VENDORS.includes(vendor)) {
       const bankUsername = account.username || account.id_number || '';
       return {

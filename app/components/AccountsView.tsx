@@ -520,6 +520,17 @@ const AccountsView: React.FC = () => {
                             </Box>
                         )}
 
+                        {formAccount.vendor === 'yahav' && (
+                            <TextField
+                                fullWidth
+                                required
+                                label={t('accounts.fields.idNumber')}
+                                value={formAccount.id_number}
+                                onChange={(e) => setFormAccount({ ...formAccount, id_number: e.target.value })}
+                                slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+                            />
+                        )}
+
                         {STANDARD_BANK_VENDORS.includes(formAccount.vendor) && formAccount.vendor !== 'onezero' && (
                             <TextField
                                 fullWidth
@@ -543,6 +554,7 @@ const AccountsView: React.FC = () => {
                     <Button
                         variant="contained"
                         onClick={handleSaveAccount}
+                        disabled={formAccount.vendor === 'yahav' && !formAccount.id_number.trim()}
                         sx={{
                             borderRadius: '12px',
                             px: 4,
